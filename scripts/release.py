@@ -187,6 +187,9 @@ def verify_manifest(path):
     inspect_dmg(dmg,manifest,manifest_metadata(manifest),public)
     return manifest
 
+def mount_matches(devices,mount):
+    return any(x.get('mount-point') and Path(x['mount-point']).resolve()==mount.resolve() for x in devices)
+
 def inspect_dmg(path,c,metadata,public=False):
     """Mount read-only, inspect actual image, copy app and verify sealed contents."""
     run(['codesign','--verify','--strict',path])
@@ -196,7 +199,7 @@ def inspect_dmg(path,c,metadata,public=False):
         try:
             out=run(['hdiutil','attach','-readonly','-nobrowse','-mountpoint',mount,'-plist',path]);attached=True
             devices=plistlib.loads(out.encode()).get('system-entities',[])
-            if not any(x.get('mount-point')==str(mount) for x in devices): raise ReleaseError('Image did not mount at inspection point')
+            if not mount_matches(devices,mount): raise ReleaseError('Image did not mount at inspection point')
             # diskutil proves the mounted volume is read-only, not just the command flag.
             disk=plistlib.loads(run(['diskutil','info','-plist',mount]).encode())
             if disk.get('WritableVolume') is not False: raise ReleaseError('Mounted image is not read-only')

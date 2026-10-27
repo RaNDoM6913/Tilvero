@@ -52,6 +52,11 @@ class ReleaseTests(unittest.TestCase):
             with self.assertRaises(release.ReleaseError): release.validate_inventory(app,self.config)
             path.write_bytes(plistlib.dumps(original))
 
+    def test_mount_comparison_resolves_system_path_aliases(self):
+        real=self.root/'real';real.mkdir();alias=self.root/'alias';alias.symlink_to(real,target_is_directory=True)
+        self.assertTrue(release.mount_matches([{'mount-point':str(real)}],alias))
+        self.assertFalse(release.mount_matches([{'mount-point':str(self.root/'other')}],alias))
+
     def test_unexpected_nested_code_is_rejected(self):
         app=self.app();(app/'Contents/Resources/extra.dylib').write_bytes(b'\xcf\xfa\xed\xfeunexpected code')
         with self.assertRaisesRegex(release.ReleaseError,'nested'):release.validate_inventory(app,self.config)
