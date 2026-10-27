@@ -8,6 +8,8 @@ Recommended scope: **Monitoring Beta**, tag `v0.1.0-beta.1`, macOS26.0+, Apple s
 
 Ad-hoc builds remain explicitly labeled internal development artifacts. The recommended public DMG requires an owner-controlled Developer ID Application identity, Hardened Runtime, notarization and a real downloaded-install check. Missing signing credentials must produce a clear blocked result, never an automatic downgrade to ad hoc. A Developer ID Installer certificate is not required for the proposed drag-and-drop DMG.
 
+Developer ID distribution depends on owner-managed Apple Developer Program access. Apple's listed annual fee is99 USD, with regional/local-currency differences; membership status has not been verified and no enrollment or purchase is performed by this plan. Source builds and internal test packaging remain available without claiming Developer ID/notarization. See [Apple enrollment and pricing](https://developer.apple.com/help/account/membership/program-enrollment).
+
 ## What the user receives
 
 - `Tilvero-0.1.0-beta.1-arm64.dmg`: a read-only disk image with Tilvero.app, an Applications shortcut and concise installation/legal information.
