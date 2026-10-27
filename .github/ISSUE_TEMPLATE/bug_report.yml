@@ -1,0 +1,47 @@
+name: Bug report
+description: Report a reproducible problem in monitoring, history, diagnostics or the app.
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        English and Russian reports are welcome. Share only what is needed to reproduce the problem.
+        Redact serial numbers, hardware/identity tokens, usernames and unrelated paths. Do not upload full private diagnostic dumps, history databases or signing material.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the observed behavior and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include the app screen or action involved. Note whether this was live or explicitly labeled demo mode.
+      placeholder: |
+        1. Open ...
+        2. Choose ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: macOS version, Mac family/chip and source revision if known. Do not include a serial number.
+      placeholder: "macOS 26.x, MacBook Air / Apple silicon, commit ..."
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Relevant evidence (optional)
+      description: A short redacted error excerpt or cropped screenshot is enough. Explain missing/stale readings as displayed; do not run hardware writes to investigate.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Before submitting
+      options:
+        - label: I reviewed this report and any attachments for private identifiers and unrelated personal data.
+          required: true

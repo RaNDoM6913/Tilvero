@@ -1,0 +1,45 @@
+.build/
+.swiftpm/
+DerivedData/
+build/
+.DS_Store
+*.xcuserstate
+xcuserdata/
+*.xcarchive
+*.dSYM/
+.env
+.env.*
+!.env.example
+
+# Local runtime evidence and private application data stay on disk.
+/docs/evidence/
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+/history/
+/exports/
+/runtime/
+
+# Local signing material must never enter the source baseline.
+*.p12
+*.pfx
+*.mobileprovision
+*.provisionprofile
+*.pem
+*.key
+
+# Private authoring/acceptance records are preserved locally, outside publication.
+/AGENTS.md
+/CODEX_START.md
+/DOWNLOADS_RU.md
+/START_HERE_RU.md
+/MANIFEST.sha256
+/Tilvero-plan-light.pdf
+/Design/
+/planning/
+/docs/EXECUTION_PLAN.md
+/docs/GIT_SETUP.md
+/docs/HANDOFF.md
+/docs/IMPLEMENTATION_STATUS.md
+/docs/VALIDATION.md

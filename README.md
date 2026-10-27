@@ -1,0 +1,104 @@
+<p align="center">
+  <img src=".github/assets/hero.svg" alt="Tilvero — Monitor and control your Mac." width="960">
+</p>
+
+<p align="center"><strong>English</strong> · <a href="README.ru.md">Русский</a></p>
+
+<p align="center">
+  <img alt="macOS 26 or later" src="https://img.shields.io/badge/macOS-26%2B-18181B?style=flat-square">
+  <img alt="Apple silicon" src="https://img.shields.io/badge/Apple_silicon-native-18181B?style=flat-square">
+  <img alt="Swift 6" src="https://img.shields.io/badge/Swift-6-F05138?style=flat-square">
+  <img alt="Works offline" src="https://img.shields.io/badge/Works-offline-2F7668?style=flat-square">
+  <a href="LICENSE"><img alt="GPL-3.0-only license" src="https://img.shields.io/badge/License-GPL--3.0--only-5A6B60?style=flat-square"></a>
+</p>
+
+# Tilvero
+
+**Monitor and control your Mac.** A native Swift menu bar utility for battery, charging, power and cooling. Local data, a compact panel and an honest view of what your Mac can report.
+
+**Development preview:** live monitoring, history and diagnostics work in the current local build. Physical charging, power and fan controls remain disabled pending trusted signing and device qualification. Build from source below; a signed, notarized release is not available yet.
+
+## What works today
+
+| Capability | Current behavior |
+| --- | --- |
+| Live battery monitoring | Charge, power-source status and available battery readings, with source, freshness and unavailable reasons |
+| Menu bar and detail window | Quick panel, searchable readings, light/dark appearance, Russian/English, temperature units and adjustable indicator sizing |
+| Local history | Minute samples, hourly aggregates, gaps and battery boundaries; CSV/JSON preview and export |
+| Diagnostics | Read-only discovery and a redacted report; no administrator approval needed for monitoring |
+| Explicit demo mode | Clearly marked simulated readings and control policies, kept separate from live history |
+
+The catalog defines **100 fields**. Availability depends on the Mac and macOS; it does not mean every device exposes 100 readings. Missing data stays unavailable.
+
+## Build and run
+
+Requires **Apple silicon, macOS 26.0+ and a compatible full Xcode installation** with Swift 6 support. The scripts select `/Applications/Xcode.app/Contents/Developer` per process when available, without changing the system's Xcode selection.
+
+From the repository directory:
+
+```sh
+bash scripts/test.sh
+bash scripts/build-local-app.sh
+open build/Tilvero.app
+```
+
+The app starts in the menu bar. Click the battery item to open the quick panel, then **Battery Info** for the detail window. Reopen Tilvero to restore the window if its menu item is hidden. In the app, **⌘⌥B** toggles the panel and **⌘,** opens Settings.
+
+Settings offer icon only or percentage beside/inside the icon, System/Larger text, independent icon scale from 85–115%, reset, Russian/English and history preferences.
+
+For the separate Xcode app/helper targets:
+
+```sh
+bash scripts/build-xcode.sh
+open build/Xcode/Build/Products/Debug/Tilvero.app
+```
+
+Run one build at a time: both bundles share the development app identifier. Local ad-hoc signing verifies bundle integrity; it does not provide trusted helper enrollment or notarization.
+
+## Diagnostics and demo
+
+```sh
+build/Tilvero.app/Contents/MacOS/TilveroApp --doctor
+build/Tilvero.app/Contents/Library/HelperTools/TilveroHelper --discover
+```
+
+Discovery is read-only. Review diagnostic content before sharing it. Quit the live app before launching the simulator:
+
+```sh
+open build/Tilvero.app --args --demo
+```
+
+**DEMO** appears in the menu bar. Simulation exercises charging intent, pending lower targets, one-shot full charge, fan policies and schedules. Slider changes remain drafts until Apply. Demo behavior is not evidence of physical hardware support.
+
+## Private by design
+
+Tilvero runs without an account, cloud service or telemetry upload. History stays in `~/Library/Application Support/Tilvero/History.sqlite`. Default retention is 30 days for detailed samples and up to 365 days for hourly aggregates; Settings can shorten detailed retention or erase all history.
+
+Normal presentation masks serials and identity tokens; ordinary exports exclude them. Diagnostics can be previewed before saving. Local diagnostic files and exports are yours to review and share deliberately.
+
+## Hardware controls: current boundary
+
+The source includes typed backends, authenticated XPC, original-state journals and a separate recovery guardian. Charging policies, power profiles and fan control have source and fixture coverage, but the **physical-write qualification list is empty**. No helper enrollment or live control support is claimed for this preview.
+
+Enabling a control requires trusted app/helper signing, normal macOS authorization, demonstrated per-device behavior and verified restoration. Cooling also needs a real MacBook Pro and a qualified sensor mapping. A readable key or model name alone does not establish write support. Do not register the development helper to bypass these gates.
+
+Requested, applied and observed state remain separate. A lower charge target may stay visibly pending until natural discharge; fan policies default to System Auto. See the [control architecture](Helper/README.md) and [compatibility and validation gates](docs/COMPATIBILITY.md).
+
+## Next directions
+
+The [roadmap](ROADMAP.md) explores sleep-loss reports, sleep blockers, Economy/Maximum autonomy modes and charging for a departure time. These are proposed work, awaiting scope decisions and relevant qualification. No fixed battery-life saving or asleep charging deadline is promised.
+
+## Development
+
+The latest recorded software validation contains **123 passing tests** and successful local/Xcode builds. This is recorded local evidence, separate from signed-runtime and real-device control acceptance; see [compatibility and evidence boundaries](docs/COMPATIBILITY.md).
+
+- [Contributing](CONTRIBUTING.md) — setup, code boundaries and safe verification
+- [Compatibility](docs/COMPATIBILITY.md) · [Roadmap](ROADMAP.md)
+- [Control architecture](Helper/README.md)
+- [Third-party notices](THIRD_PARTY_NOTICES.md)
+
+## License and authorship
+
+Copyright © 2026 [RaNDoM6913](https://github.com/RaNDoM6913). Tilvero's original source, documentation and repository artwork are licensed under [GNU GPL version 3 only](LICENSE) (`GPL-3.0-only`). You may use, modify and redistribute them under those terms, preserving the copyright and license notices. Distributed derivative works must meet the GPL source and same-license requirements.
+
+Third-party material keeps its respective authorship and notices; see [COPYRIGHT](COPYRIGHT) and [third-party notices](THIRD_PARTY_NOTICES.md).

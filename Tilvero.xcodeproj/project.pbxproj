@@ -1,0 +1,526 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+		BD6A40A89DEA211FF047B4C3 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/ControlCatalog.swift";
+			sourceTree = "<group>";
+		};
+		10D32C23EF6E944C381ECA3D = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/HistoryChart.swift";
+			sourceTree = "<group>";
+		};
+		BFCF6F63C5552533088BECDC = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/IconFixtures.swift";
+			sourceTree = "<group>";
+		};
+		190F04879EB231EE48FEF3DD = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/LiveControlService.swift";
+			sourceTree = "<group>";
+		};
+		D5B447B2D8B86F60E2F5F763 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/Localization.swift";
+			sourceTree = "<group>";
+		};
+		C2A6BDD137E9B015AA8C6F80 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/MenuBarSizing.swift";
+			sourceTree = "<group>";
+		};
+		53985A058151B0CCD2F8C1F8 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/NativeBatteryStatusImage.swift";
+			sourceTree = "<group>";
+		};
+		C90AAF28488514881FFC2A00 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/QuickPanelActivationGate.swift";
+			sourceTree = "<group>";
+		};
+		901391EAF11BC06B1F0F7602 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/ReadingPresentation.swift";
+			sourceTree = "<group>";
+		};
+		9D3801A0CBBE1BDAFE7D97B2 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/TilveroMain.swift";
+			sourceTree = "<group>";
+		};
+		1C12C9068A12109D9DF752A3 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/TilveroModel.swift";
+			sourceTree = "<group>";
+		};
+		9AC438AF57561F1411573833 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/TilveroViews.swift";
+			sourceTree = "<group>";
+		};
+		3B93961BC3CE39D295CE4BCC = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Helper/TilveroHelperMain.swift";
+			sourceTree = "<group>";
+		};
+		4A236EECDBB629D61D977B31 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "text.json";
+			path = "Sources/TilveroApp/Resources/Localizable.xcstrings";
+			sourceTree = "<group>";
+		};
+		23D555B6EB88D67A3ADC2073 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "net.daringfireball.markdown";
+			path = "Helper/THIRD_PARTY_NOTICES.md";
+			sourceTree = "<group>";
+		};
+		93649E1D9C3552D09E56F75C = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "wrapper.application";
+			path = "Tilvero.app";
+			sourceTree = "BUILT_PRODUCTS_DIR";
+		};
+		21A78EB20D18F9D06C76B74A = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "compiled.mach-o.executable";
+			path = "TilveroHelper";
+			sourceTree = "BUILT_PRODUCTS_DIR";
+		};
+		0A3E27B8CA818264D75C8D81 = {
+			isa = "PBXGroup";
+			children = ("93649E1D9C3552D09E56F75C", "21A78EB20D18F9D06C76B74A");
+			name = "Products";
+			sourceTree = "<group>";
+		};
+		0035FE99EA2940F7FA633A58 = {
+			isa = "PBXGroup";
+			children = ("BD6A40A89DEA211FF047B4C3", "10D32C23EF6E944C381ECA3D", "BFCF6F63C5552533088BECDC", "190F04879EB231EE48FEF3DD", "D5B447B2D8B86F60E2F5F763", "C2A6BDD137E9B015AA8C6F80", "53985A058151B0CCD2F8C1F8", "C90AAF28488514881FFC2A00", "901391EAF11BC06B1F0F7602", "9D3801A0CBBE1BDAFE7D97B2", "1C12C9068A12109D9DF752A3", "9AC438AF57561F1411573833", "3B93961BC3CE39D295CE4BCC", "4A236EECDBB629D61D977B31", "23D555B6EB88D67A3ADC2073", "0A3E27B8CA818264D75C8D81", "31B033F57FC46927ADA854E7", "975FB54E9647105C978B5E58");
+			sourceTree = "<group>";
+		};
+		BC4A71180870F7945155FBB0 = {
+			isa = "XCLocalSwiftPackageReference";
+			relativePath = ".";
+		};
+		903F9A6B8983BD1551992B73 = {
+			isa = "XCSwiftPackageProductDependency";
+			productName = "PowerPrivileged";
+		};
+		DE7835EDAF6E547D27734413 = {
+			isa = "PBXBuildFile";
+			productRef = "903F9A6B8983BD1551992B73";
+		};
+		EE9D4A8B9F98EEA3D47BA6DF = {
+			isa = "PBXFrameworksBuildPhase";
+			buildActionMask = 2147483647;
+			files = ("DE7835EDAF6E547D27734413");
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8A34310FEC36DD1A6C52BA49 = {
+			isa = "PBXBuildFile";
+			fileRef = "3B93961BC3CE39D295CE4BCC";
+		};
+		229535DAE424D619568B58C3 = {
+			isa = "PBXSourcesBuildPhase";
+			buildActionMask = 2147483647;
+			files = ("8A34310FEC36DD1A6C52BA49");
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		239094AB2D605AAAED22A7F7 = {
+			isa = "XCBuildConfiguration";
+			name = "Debug";
+			buildSettings = {
+				SDKROOT = "macosx";
+				ARCHS = "arm64";
+				ONLY_ACTIVE_ARCH = "YES";
+				MACOSX_DEPLOYMENT_TARGET = "26.0";
+				SWIFT_VERSION = "6.0";
+				CLANG_ENABLE_MODULES = "YES";
+				ENABLE_HARDENED_RUNTIME = "YES";
+				CODE_SIGN_STYLE = "Manual";
+				CODE_SIGN_IDENTITY = "-";
+				SWIFT_STRICT_CONCURRENCY = "complete";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				PRODUCT_BUNDLE_IDENTIFIER = "local.tilvero.prototype.helper";
+				PRODUCT_NAME = "TilveroHelper";
+				SKIP_INSTALL = "YES";
+				CREATE_INFOPLIST_SECTION_IN_BINARY = "YES";
+				INFOPLIST_FILE = "Config/HelperInfo.plist";
+			};
+		};
+		EB3F9E377CF9476BC875FF4C = {
+			isa = "XCBuildConfiguration";
+			name = "Release";
+			buildSettings = {
+				SDKROOT = "macosx";
+				ARCHS = "arm64";
+				ONLY_ACTIVE_ARCH = "YES";
+				MACOSX_DEPLOYMENT_TARGET = "26.0";
+				SWIFT_VERSION = "6.0";
+				CLANG_ENABLE_MODULES = "YES";
+				ENABLE_HARDENED_RUNTIME = "YES";
+				CODE_SIGN_STYLE = "Manual";
+				CODE_SIGN_IDENTITY = "-";
+				SWIFT_STRICT_CONCURRENCY = "complete";
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				PRODUCT_BUNDLE_IDENTIFIER = "local.tilvero.prototype.helper";
+				PRODUCT_NAME = "TilveroHelper";
+				SKIP_INSTALL = "YES";
+				CREATE_INFOPLIST_SECTION_IN_BINARY = "YES";
+				INFOPLIST_FILE = "Config/HelperInfo.plist";
+			};
+		};
+		14BB0333D21991C943E9F946 = {
+			isa = "XCConfigurationList";
+			buildConfigurations = ("239094AB2D605AAAED22A7F7", "EB3F9E377CF9476BC875FF4C");
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = "Release";
+		};
+		91EB08AC9531ACAD42863137 = {
+			isa = "PBXNativeTarget";
+			name = "TilveroHelper";
+			productName = "TilveroHelper";
+			productReference = "21A78EB20D18F9D06C76B74A";
+			productType = "com.apple.product-type.tool";
+			buildConfigurationList = "14BB0333D21991C943E9F946";
+			buildPhases = ("229535DAE424D619568B58C3", "EE9D4A8B9F98EEA3D47BA6DF");
+			buildRules = ();
+			dependencies = ();
+			packageProductDependencies = ("903F9A6B8983BD1551992B73");
+		};
+		CF52F5494423AF6A38CC3F1F = {
+			isa = "PBXBuildFile";
+			fileRef = "4A236EECDBB629D61D977B31";
+		};
+		27F295E90C867419F8008683 = {
+			isa = "PBXBuildFile";
+			fileRef = "23D555B6EB88D67A3ADC2073";
+		};
+		41D311A605520FC7B8B9A980 = {
+			isa = "PBXResourcesBuildPhase";
+			buildActionMask = 2147483647;
+			files = ("CF52F5494423AF6A38CC3F1F", "27F295E90C867419F8008683");
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D9085A2DCFB46E5B07B9231F = {
+			isa = "PBXBuildFile";
+			fileRef = "21A78EB20D18F9D06C76B74A";
+		};
+		A110DF655A0F951BA2C4E7D7 = {
+			isa = "PBXCopyFilesBuildPhase";
+			buildActionMask = 2147483647;
+			dstPath = "Contents/Library/HelperTools";
+			dstSubfolderSpec = 1;
+			files = ("D9085A2DCFB46E5B07B9231F");
+			name = "Embed helper";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		31B033F57FC46927ADA854E7 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "text.plist.xml";
+			path = "Config/LaunchDaemons/local.tilvero.guardian.plist";
+			sourceTree = "<group>";
+		};
+		7765D04B7AFE2AAED92D8AD5 = {
+			isa = "PBXBuildFile";
+			fileRef = "31B033F57FC46927ADA854E7";
+		};
+		975FB54E9647105C978B5E58 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "text.plist.xml";
+			path = "Config/LaunchDaemons/local.tilvero.helper.plist";
+			sourceTree = "<group>";
+		};
+		00FC0B3D43C07198C7CEFB6E = {
+			isa = "PBXBuildFile";
+			fileRef = "975FB54E9647105C978B5E58";
+		};
+		185F1CC37FBFB0EB68575A5B = {
+			isa = "PBXCopyFilesBuildPhase";
+			buildActionMask = 2147483647;
+			dstPath = "Contents/Library/LaunchDaemons";
+			dstSubfolderSpec = 1;
+			files = ("7765D04B7AFE2AAED92D8AD5", "00FC0B3D43C07198C7CEFB6E");
+			name = "Embed launch jobs";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E7808E2E98DBDA29BB7592CA = {
+			isa = "XCSwiftPackageProductDependency";
+			productName = "PowerCore";
+		};
+		F676F12C0AAB768521A4A6EB = {
+			isa = "XCSwiftPackageProductDependency";
+			productName = "PowerTelemetry";
+		};
+		09D29EAF79257C29BF2467C3 = {
+			isa = "XCSwiftPackageProductDependency";
+			productName = "PowerPersistence";
+		};
+		493A737FD26FE27450A83A57 = {
+			isa = "XCSwiftPackageProductDependency";
+			productName = "PowerDiagnostics";
+		};
+		88C2302F5C2EA2B97E7C35AD = {
+			isa = "XCSwiftPackageProductDependency";
+			productName = "PowerSimulator";
+		};
+		6E767982409C544E395DCC35 = {
+			isa = "XCSwiftPackageProductDependency";
+			productName = "PowerPrivileged";
+		};
+		4F340507422369A33F3117A4 = {
+			isa = "XCSwiftPackageProductDependency";
+			productName = "ChargeBackends";
+		};
+		1B7EB0D053308D13C0F7E46D = {
+			isa = "XCSwiftPackageProductDependency";
+			productName = "FanBackends";
+		};
+		50A06B955F194B70BCB0BF95 = {
+			isa = "PBXBuildFile";
+			productRef = "E7808E2E98DBDA29BB7592CA";
+		};
+		EE42349F24711A5F243F8E47 = {
+			isa = "PBXBuildFile";
+			productRef = "F676F12C0AAB768521A4A6EB";
+		};
+		B35790AF0DC1F225728A5DAF = {
+			isa = "PBXBuildFile";
+			productRef = "09D29EAF79257C29BF2467C3";
+		};
+		FC05183607BF49859953070D = {
+			isa = "PBXBuildFile";
+			productRef = "493A737FD26FE27450A83A57";
+		};
+		1DB73022A682D79BB40A918F = {
+			isa = "PBXBuildFile";
+			productRef = "88C2302F5C2EA2B97E7C35AD";
+		};
+		46A8050506C92985188B704A = {
+			isa = "PBXBuildFile";
+			productRef = "6E767982409C544E395DCC35";
+		};
+		D6B6BD2D6425A58194BE31D5 = {
+			isa = "PBXBuildFile";
+			productRef = "4F340507422369A33F3117A4";
+		};
+		D0CFDF5A72B5BB95B9016191 = {
+			isa = "PBXBuildFile";
+			productRef = "1B7EB0D053308D13C0F7E46D";
+		};
+		99B338A5CB92EA98F74598F3 = {
+			isa = "PBXFrameworksBuildPhase";
+			buildActionMask = 2147483647;
+			files = ("50A06B955F194B70BCB0BF95", "EE42349F24711A5F243F8E47", "B35790AF0DC1F225728A5DAF", "FC05183607BF49859953070D", "1DB73022A682D79BB40A918F", "46A8050506C92985188B704A", "D6B6BD2D6425A58194BE31D5", "D0CFDF5A72B5BB95B9016191");
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6BB815C9E502FC626FCA90B2 = {
+			isa = "PBXBuildFile";
+			fileRef = "BD6A40A89DEA211FF047B4C3";
+		};
+		D68687C155580EEED74BB2E5 = {
+			isa = "PBXBuildFile";
+			fileRef = "10D32C23EF6E944C381ECA3D";
+		};
+		322870D5E33F67DCAAF6B9A1 = {
+			isa = "PBXBuildFile";
+			fileRef = "BFCF6F63C5552533088BECDC";
+		};
+		3FEA12A3B96765B505CA7F5A = {
+			isa = "PBXBuildFile";
+			fileRef = "190F04879EB231EE48FEF3DD";
+		};
+		F616CEABF661BFC83FEBAE14 = {
+			isa = "PBXBuildFile";
+			fileRef = "D5B447B2D8B86F60E2F5F763";
+		};
+		24F8F255FA9A5426FED57403 = {
+			isa = "PBXBuildFile";
+			fileRef = "C2A6BDD137E9B015AA8C6F80";
+		};
+		990095B6B82BEF6DE1918545 = {
+			isa = "PBXBuildFile";
+			fileRef = "53985A058151B0CCD2F8C1F8";
+		};
+		18437CFC31BBB7DC278E4BC0 = {
+			isa = "PBXBuildFile";
+			fileRef = "C90AAF28488514881FFC2A00";
+		};
+		83389355CE99AF393126B896 = {
+			isa = "PBXBuildFile";
+			fileRef = "901391EAF11BC06B1F0F7602";
+		};
+		EFA0B3B824E3897570966946 = {
+			isa = "PBXBuildFile";
+			fileRef = "9D3801A0CBBE1BDAFE7D97B2";
+		};
+		82E82F127B05E69CA7C2D817 = {
+			isa = "PBXBuildFile";
+			fileRef = "1C12C9068A12109D9DF752A3";
+		};
+		FD3CB448061FD9AB69F8228A = {
+			isa = "PBXBuildFile";
+			fileRef = "9AC438AF57561F1411573833";
+		};
+		F84253A18A3EE2E61F4F9304 = {
+			isa = "PBXSourcesBuildPhase";
+			buildActionMask = 2147483647;
+			files = ("6BB815C9E502FC626FCA90B2", "D68687C155580EEED74BB2E5", "322870D5E33F67DCAAF6B9A1", "3FEA12A3B96765B505CA7F5A", "F616CEABF661BFC83FEBAE14", "24F8F255FA9A5426FED57403", "990095B6B82BEF6DE1918545", "18437CFC31BBB7DC278E4BC0", "83389355CE99AF393126B896", "EFA0B3B824E3897570966946", "82E82F127B05E69CA7C2D817", "FD3CB448061FD9AB69F8228A");
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B1E2081CB8812032E53E65A2 = {
+			isa = "XCBuildConfiguration";
+			name = "Debug";
+			buildSettings = {
+				SDKROOT = "macosx";
+				ARCHS = "arm64";
+				ONLY_ACTIVE_ARCH = "YES";
+				MACOSX_DEPLOYMENT_TARGET = "26.0";
+				SWIFT_VERSION = "6.0";
+				CLANG_ENABLE_MODULES = "YES";
+				ENABLE_HARDENED_RUNTIME = "YES";
+				CODE_SIGN_STYLE = "Manual";
+				CODE_SIGN_IDENTITY = "-";
+				SWIFT_STRICT_CONCURRENCY = "complete";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				PRODUCT_BUNDLE_IDENTIFIER = "local.tilvero.prototype";
+				PRODUCT_NAME = "Tilvero";
+				EXECUTABLE_NAME = "TilveroApp";
+				INFOPLIST_FILE = "Config/Info.plist";
+				GENERATE_INFOPLIST_FILE = "NO";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+			};
+		};
+		05DD67E436F0BFBFC0D2C7B9 = {
+			isa = "XCBuildConfiguration";
+			name = "Release";
+			buildSettings = {
+				SDKROOT = "macosx";
+				ARCHS = "arm64";
+				ONLY_ACTIVE_ARCH = "YES";
+				MACOSX_DEPLOYMENT_TARGET = "26.0";
+				SWIFT_VERSION = "6.0";
+				CLANG_ENABLE_MODULES = "YES";
+				ENABLE_HARDENED_RUNTIME = "YES";
+				CODE_SIGN_STYLE = "Manual";
+				CODE_SIGN_IDENTITY = "-";
+				SWIFT_STRICT_CONCURRENCY = "complete";
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				PRODUCT_BUNDLE_IDENTIFIER = "local.tilvero.prototype";
+				PRODUCT_NAME = "Tilvero";
+				EXECUTABLE_NAME = "TilveroApp";
+				INFOPLIST_FILE = "Config/Info.plist";
+				GENERATE_INFOPLIST_FILE = "NO";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+			};
+		};
+		34B6A76F1E5A2A9FB2C56D5E = {
+			isa = "XCConfigurationList";
+			buildConfigurations = ("B1E2081CB8812032E53E65A2", "05DD67E436F0BFBFC0D2C7B9");
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = "Release";
+		};
+		5673EBA7F844CFA71D44372F = {
+			isa = "PBXNativeTarget";
+			name = "Tilvero";
+			productName = "Tilvero";
+			productReference = "93649E1D9C3552D09E56F75C";
+			productType = "com.apple.product-type.application";
+			buildConfigurationList = "34B6A76F1E5A2A9FB2C56D5E";
+			buildPhases = ("F84253A18A3EE2E61F4F9304", "99B338A5CB92EA98F74598F3", "41D311A605520FC7B8B9A980", "A110DF655A0F951BA2C4E7D7", "185F1CC37FBFB0EB68575A5B");
+			buildRules = ();
+			dependencies = ("7F5ECE40377968467A091904");
+			packageProductDependencies = ("E7808E2E98DBDA29BB7592CA", "F676F12C0AAB768521A4A6EB", "09D29EAF79257C29BF2467C3", "493A737FD26FE27450A83A57", "88C2302F5C2EA2B97E7C35AD", "6E767982409C544E395DCC35", "4F340507422369A33F3117A4", "1B7EB0D053308D13C0F7E46D");
+		};
+		E6D4397E4F11BA67BDEF2A4A = {
+			isa = "PBXContainerItemProxy";
+			containerPortal = "244210E48437B6556980A702";
+			proxyType = 1;
+			remoteGlobalIDString = "91EB08AC9531ACAD42863137";
+			remoteInfo = "TilveroHelper";
+		};
+		7F5ECE40377968467A091904 = {
+			isa = "PBXTargetDependency";
+			target = "91EB08AC9531ACAD42863137";
+			targetProxy = "E6D4397E4F11BA67BDEF2A4A";
+		};
+		73EBF6644258C120893E685D = {
+			isa = "XCBuildConfiguration";
+			name = "Debug";
+			buildSettings = {
+				SDKROOT = "macosx";
+				ARCHS = "arm64";
+				ONLY_ACTIVE_ARCH = "YES";
+				MACOSX_DEPLOYMENT_TARGET = "26.0";
+				SWIFT_VERSION = "6.0";
+				CLANG_ENABLE_MODULES = "YES";
+				ENABLE_HARDENED_RUNTIME = "YES";
+				CODE_SIGN_STYLE = "Manual";
+				CODE_SIGN_IDENTITY = "-";
+				SWIFT_STRICT_CONCURRENCY = "complete";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+		};
+		0B0C687DF8B6B8DC790B519C = {
+			isa = "XCBuildConfiguration";
+			name = "Release";
+			buildSettings = {
+				SDKROOT = "macosx";
+				ARCHS = "arm64";
+				ONLY_ACTIVE_ARCH = "YES";
+				MACOSX_DEPLOYMENT_TARGET = "26.0";
+				SWIFT_VERSION = "6.0";
+				CLANG_ENABLE_MODULES = "YES";
+				ENABLE_HARDENED_RUNTIME = "YES";
+				CODE_SIGN_STYLE = "Manual";
+				CODE_SIGN_IDENTITY = "-";
+				SWIFT_STRICT_CONCURRENCY = "complete";
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+		};
+		76F8DEC3DFE0BDB465198890 = {
+			isa = "XCConfigurationList";
+			buildConfigurations = ("73EBF6644258C120893E685D", "0B0C687DF8B6B8DC790B519C");
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = "Release";
+		};
+		244210E48437B6556980A702 = {
+			isa = "PBXProject";
+			attributes = {
+				LastUpgradeCheck = "2700";
+			};
+			buildConfigurationList = "76F8DEC3DFE0BDB465198890";
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = "en";
+			hasScannedForEncodings = 0;
+			knownRegions = ("en", "ru", "Base");
+			mainGroup = "0035FE99EA2940F7FA633A58";
+			productRefGroup = "0A3E27B8CA818264D75C8D81";
+			projectDirPath = "";
+			projectRoot = "";
+			targets = ("5673EBA7F844CFA71D44372F", "91EB08AC9531ACAD42863137");
+			packageReferences = ("BC4A71180870F7945155FBB0");
+		};
+	};
+	rootObject = "244210E48437B6556980A702";
+}

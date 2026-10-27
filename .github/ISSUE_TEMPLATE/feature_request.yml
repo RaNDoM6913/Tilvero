@@ -1,0 +1,41 @@
+name: Feature request
+description: Suggest a focused improvement or explain a missing use case.
+title: "[Feature] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        English and Russian suggestions are welcome. Check the README and roadmap for current capabilities and proposed work.
+        A feature request does not authorize hardware control or changes to your Mac. Please omit private identifiers and diagnostic dumps.
+  - type: textarea
+    id: need
+    attributes:
+      label: What would this help you do?
+      description: Describe the task or problem and who would benefit.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Desired behavior
+      description: Explain the outcome, interaction and any tradeoffs you would accept.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Monitoring and diagnostics
+        - History and export
+        - Menu bar and accessibility
+        - Charging and power
+        - Cooling
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Alternatives or relevant context (optional)
+      description: For device-dependent behavior, include only the Mac family/chip and macOS version. Do not include serials, private logs or identifying tokens.

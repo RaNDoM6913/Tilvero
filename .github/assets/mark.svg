@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title description">
+<title id="title">Tilvero brand mark</title>
+<desc id="description">Original Tilvero square power-loop with a green vertical stem. A publication brand mark, not the application icon.</desc>
+<!-- Original Tilvero vector composition, 2026-10-27. Typography: system Avenir Next glyph outlines. No external fonts, images, telemetry, or Apple artwork. See README.md. -->
+<rect width="256" height="256" fill="#F6F7F1"/>
+<g transform="translate(28 24) scale(1)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M62 23H48C30.327 23 16 37.327 16 55V153C16 170.673 30.327 185 48 185H152C169.673 185 184 170.673 184 153V55C184 37.327 169.673 23 152 23H138" stroke="#26362F" stroke-width="25"/>
+    <path d="M100 18V104" stroke="#A6D883" stroke-width="25"/>
+  </g>
+</svg>

@@ -1,0 +1,51 @@
+// swift-tools-version: 6.0
+import PackageDescription
+
+let package = Package(
+    name: "Tilvero",
+    defaultLocalization: "en",
+    platforms: [.macOS("26.0")],
+    products: [
+        .library(name: "PowerCore", targets: ["PowerCore"]),
+        .library(name: "PowerTelemetry", targets: ["PowerTelemetry"]),
+        .library(name: "PowerPersistence", targets: ["PowerPersistence"]),
+        .library(name: "PowerDiagnostics", targets: ["PowerDiagnostics"]),
+        .library(name: "ChargeBackends", targets: ["ChargeBackends"]),
+        .library(name: "FanBackends", targets: ["FanBackends"]),
+        .library(name: "PowerSimulator", targets: ["PowerSimulator"]),
+        .library(name: "PowerPrivileged", targets: ["PowerPrivileged"]),
+        .executable(name: "TilveroApp", targets: ["TilveroApp"]),
+        .executable(name: "TilveroHelper", targets: ["TilveroHelper"])
+    ],
+    targets: [
+        .target(name: "PowerCore"),
+        .target(
+            name: "PowerTelemetry",
+            dependencies: ["PowerCore"],
+            linkerSettings: [.linkedFramework("IOKit", .when(platforms: [.macOS]))]
+        ),
+        .target(name: "PowerPersistence", dependencies: ["PowerCore"], linkerSettings: [.linkedFramework("CoreData")]),
+        .target(name: "PowerDiagnostics", dependencies: ["PowerCore"]),
+        .target(name: "ChargeBackends", dependencies: ["PowerCore"], linkerSettings: [.linkedFramework("IOKit")]),
+        .target(name: "FanBackends", dependencies: ["PowerCore"], linkerSettings: [.linkedFramework("IOKit")]),
+        .target(name: "PowerSimulator", dependencies: ["PowerCore"]),
+        .target(name: "PowerPrivileged", dependencies: ["PowerCore", "ChargeBackends", "FanBackends"], linkerSettings: [.linkedFramework("Security"), .linkedFramework("ServiceManagement")]),
+        .executableTarget(name: "TilveroHelper", dependencies: ["PowerPrivileged"], path: "Helper", exclude: ["THIRD_PARTY_NOTICES.md", "README.md"]),
+        .executableTarget(
+            name: "TilveroApp",
+            dependencies: ["PowerCore", "PowerTelemetry", "PowerPersistence", "PowerDiagnostics", "PowerSimulator", "PowerPrivileged", "ChargeBackends", "FanBackends"],
+            resources: [.copy("Resources/Localizable.xcstrings")],
+            linkerSettings: [
+                .linkedFramework("AppKit", .when(platforms: [.macOS])),
+                .linkedFramework("SwiftUI", .when(platforms: [.macOS]))
+            ]
+        ),
+        .testTarget(name: "PowerCoreTests", dependencies: ["PowerCore"]),
+        .testTarget(name: "PowerTelemetryTests", dependencies: ["PowerTelemetry", "PowerCore", "PowerDiagnostics"]),
+        .testTarget(name: "PowerPersistenceTests", dependencies: ["PowerPersistence", "PowerCore"]),
+        .testTarget(name: "PowerControlTests", dependencies: ["PowerCore", "PowerSimulator", "ChargeBackends", "FanBackends"]),
+        .testTarget(name: "PowerPrivilegedTests", dependencies: ["PowerPrivileged"]),
+        .testTarget(name: "TilveroAppTests", dependencies: ["TilveroApp"])
+    ],
+    swiftLanguageModes: [.v6]
+)
