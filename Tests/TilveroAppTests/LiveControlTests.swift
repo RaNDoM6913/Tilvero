@@ -20,6 +20,36 @@ import PowerPrivileged
         XCTAssertEqual(awaited2, [])
         cleanup(fixture.preferences)
     }
+    func testMonitoringReleaseNeverUsesEvenTrustedEnabledHelper() async throws {
+        let fixture = makeFixture(monitoringOnly: true, savedIntent: .ceiling(80))
+        defer { cleanup(fixture.preferences) }
+        await fixture.service.start()
+        XCTAssertNil(fixture.service.requestedIntent)
+        XCTAssertFalse(fixture.service.canRegister)
+        XCTAssertFalse(fixture.service.canCharge)
+        XCTAssertTrue(fixture.service.acceptedTargets.isEmpty)
+        XCTAssertFalse(fixture.service.capabilities.contains { $0.readiness == .available })
+        do { try await fixture.service.registerHelper(); XCTFail("Monitoring cannot enroll") } catch {}
+        do { try await fixture.service.unregisterHelper(); XCTFail("Monitoring cannot manage services") } catch {}
+        XCTAssertEqual(fixture.registration.registerCount, 0)
+        XCTAssertEqual(fixture.registration.unregisterCount, 0)
+        let count = await fixture.transport.openCount
+        XCTAssertEqual(count, 0)
+    }
+
+    func testMonitoringReleaseQuitsAndSleepsWithoutTouchingExistingHelper() async throws {
+        let fixture = makeFixture(monitoringOnly: true)
+        defer { cleanup(fixture.preferences) }
+        await fixture.service.start()
+        let sleep = await fixture.service.prepareForSleep()
+        let quit = await fixture.service.prepareForTermination()
+        XCTAssertTrue(sleep)
+        XCTAssertTrue(quit)
+        let commands = await fixture.transport.commands
+        XCTAssertTrue(commands.isEmpty)
+        XCTAssertFalse(fixture.service.recoveryRequired)
+    }
+
     func testPendingLowerTargetEmitsNoWriteUntilFreshNaturalDischarge() async throws {
         let fixture = makeFixture()
         await fixture.service.start(); await fixture.service.observe(snapshot(98))
@@ -268,7 +298,7 @@ import PowerPrivileged
         let registration: FixtureHelperRegistration
         let preferences: UserDefaults
     }
-    private func makeFixture(trusted: Bool = true, registrationState: HelperInstallationState = .enabled,
+    private func makeFixture(monitoringOnly: Bool = false, trusted: Bool = true, registrationState: HelperInstallationState = .enabled,
                              chargeQualified: Bool = true, energyQualified: Bool = false, fansQualified: Bool = false,
                              owned: [OwnedResource] = [], savedIntent: ChargeIntent? = nil) -> Fixture {
         let preferences = UserDefaults(suiteName: "TilveroLiveTests.\(UUID().uuidString)")!
@@ -283,7 +313,7 @@ import PowerPrivileged
         let transport = FixtureHelperTransport(capabilities: capabilities, fanObservation: fanObservation, owned: owned)
         let registration = FixtureHelperRegistration(state: registrationState)
         let service = LiveControlService(preferences: preferences, trustVerified: trusted, registration: registration,
-            makeTransport: { transport }, discovery: { LiveControlDiscovery(capabilities: capabilities, fanObservation: fanObservation) }, clock: { 100 })
+            makeTransport: { transport }, discovery: { LiveControlDiscovery(capabilities: capabilities, fanObservation: fanObservation) }, clock: { 100 }, monitoringOnly: monitoringOnly)
         return Fixture(service: service, transport: transport, registration: registration, preferences: preferences)
     }
     private func snapshot(_ percent: Int, stale: Bool = false) -> BatterySnapshot {

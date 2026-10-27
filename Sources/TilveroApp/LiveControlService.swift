@@ -97,6 +97,7 @@ enum LiveControlError: Error, LocalizedError, Equatable {
     private let discovery: @Sendable () async -> LiveControlDiscovery
     private let preferences: UserDefaults
     private let trustVerified: Bool
+    private let monitoringOnly: Bool
     private let clock: @Sendable () -> Double
     private let heartbeatEnabled: Bool
     private var started = false
@@ -120,13 +121,16 @@ enum LiveControlError: Error, LocalizedError, Equatable {
     private var usable: Bool { trustVerified && connected && registrationState == .enabled && !recoveryRequired && !terminating && !unregistering }
 
     convenience init(preferences: UserDefaults = .standard) {
+        let monitoringOnly = Bundle.main.object(forInfoDictionaryKey: "TilveroReleaseMode") as? String == "monitoring"
         let trust: HelperTrustConfiguration?
-        do { let candidate = try HelperTrustConfiguration.fromBundle(); try candidate.verifyCurrentProcess(helper: false); trust = candidate }
+        do {
+            guard !monitoringOnly else { throw PrivilegeError.missingTrust }
+            let candidate = try HelperTrustConfiguration.fromBundle(); try candidate.verifyCurrentProcess(helper: false); trust = candidate }
         catch { trust = nil }
         self.init(preferences: preferences, trustVerified: trust != nil,
             registration: SignedHelperRegistration(trust: trust),
             makeTransport: { guard let trust else { throw PrivilegeError.missingTrust }; return try HelperClient(trust: trust) },
-            discovery: { await LiveControlDiscovery.readOnly() }, clock: { HelperClock.continuousSeconds() }, heartbeatEnabled: true)
+            discovery: { await LiveControlDiscovery.readOnly() }, clock: { HelperClock.continuousSeconds() }, heartbeatEnabled: true, monitoringOnly: monitoringOnly)
     }
 
     /// Dependency injection is internal to this module's fixture tests. No UI,
@@ -134,14 +138,15 @@ enum LiveControlError: Error, LocalizedError, Equatable {
     init(preferences: UserDefaults, trustVerified: Bool, registration: any LiveHelperRegistrationDriving,
          makeTransport: @escaping @MainActor () throws -> any LiveHelperTransport,
          discovery: @escaping @Sendable () async -> LiveControlDiscovery,
-         clock: @escaping @Sendable () -> Double = { HelperClock.continuousSeconds() }, heartbeatEnabled: Bool = false) {
-        self.preferences = preferences; self.trustVerified = trustVerified; self.registration = registration
+         clock: @escaping @Sendable () -> Double = { HelperClock.continuousSeconds() }, heartbeatEnabled: Bool = false, monitoringOnly: Bool = false) {
+        self.preferences = preferences; self.trustVerified = trustVerified && !monitoringOnly; self.registration = registration
+        self.monitoringOnly = monitoringOnly
         self.makeTransport = makeTransport; self.discovery = discovery; self.clock = clock; self.heartbeatEnabled = heartbeatEnabled
-        registrationState = registration.state
-        if let data = preferences.data(forKey: "liveRequestedChargeIntent") {
+        registrationState = monitoringOnly ? .unavailable : registration.state
+        if !monitoringOnly, let data = preferences.data(forKey: "liveRequestedChargeIntent") {
             requestedIntent = try? JSONDecoder().decode(ChargeIntent.self, from: data)
         }
-        if let data = preferences.data(forKey: "livePriorOneShotChargeIntent") { priorOneShotIntent = try? JSONDecoder().decode(ChargeIntent.self, from: data) }
+        if !monitoringOnly, let data = preferences.data(forKey: "livePriorOneShotChargeIntent") { priorOneShotIntent = try? JSONDecoder().decode(ChargeIntent.self, from: data) }
         if requestedIntent == .fullOnce {
             requestedIntent = priorOneShotIntent == .fullOnce ? nil : priorOneShotIntent
             priorOneShotIntent = nil; persistIntent()
@@ -153,6 +158,13 @@ enum LiveControlError: Error, LocalizedError, Equatable {
         guard !started else { return }; started = true
         let result = await discovery()
         capabilities = result.capabilities; fanObservation = result.fanObservation; loweringBehavior = result.loweringBehavior
+        if monitoringOnly {
+            capabilities = capabilities.map { ControlCapability(backend: $0.backend, readiness: .unavailable,
+                reason: "Monitoring Preview does not enroll or use privileged services.") }
+            registrationState = .unavailable
+            message = "Monitoring Preview: hardware controls and helper enrollment are unavailable."
+            return
+        }
         registrationState = registration.state
         rebuildEngineIfNeeded()
         guard trustVerified else {
@@ -220,6 +232,8 @@ enum LiveControlError: Error, LocalizedError, Equatable {
     /// Also used by disable, sleep, quit and uninstall. Failure preserves ownership
     /// evidence and must prevent the UI from claiming restoration or removal.
     @discardableResult func restoreAll() async throws -> Bool {
+        // This build cannot acquire ownership; a different installed service is not ours to restore.
+        if monitoringOnly { return true }
         guard !isBusy else { throw LiveControlError.busy }
         isBusy = true; defer { isBusy = false }
         do {
@@ -259,6 +273,7 @@ enum LiveControlError: Error, LocalizedError, Equatable {
         } catch { report(error); throw error }
     }
     func unregisterHelper() async throws {
+        guard !monitoringOnly else { throw LiveControlError.notQualified }
         guard !isBusy, !unregistering else { throw LiveControlError.busy }
         unregistering = true; defer { unregistering = false }
         guard try await restoreAll() else { throw LiveControlError.recoveryRequired }

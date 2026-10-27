@@ -26,21 +26,74 @@ struct TilveroMain {
         if let bundleID = Bundle.main.bundleIdentifier,
            let existing = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first(where: { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }) {
             existing.activate(options: [])
-            DistributedNotificationCenter.default().postNotificationName(Notification.Name("local.tilvero.showDetails"), object: nil)
+            DistributedNotificationCenter.default().postNotificationName((try? ReleaseIdentity.current().reopenNotificationName) ?? Notification.Name("local.tilvero.showDetails"), object: nil)
             return
         }
-        let delegate = TilveroAppDelegate()
+        let identity: ReleaseIdentity
+        do {
+            identity = try ReleaseIdentity.current()
+            if identity.isProduction {
+                let defaults = UserDefaults.standard
+                let source = defaults.persistentDomain(forName: ReleaseIdentity.prototypeBundleIdentifier) ?? [:]
+                let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+                let result = try PrototypeMigration.prepare(environment: .init(
+                    sourcePreferences: source, destinationPreferences: defaults,
+                    sourceStore: root.appendingPathComponent("Tilvero/History.sqlite"),
+                    destinationStore: identity.historyURL(applicationSupport: root),
+                    isPrototypeRunning: {
+                        NSRunningApplication.runningApplications(withBundleIdentifier: ReleaseIdentity.prototypeBundleIdentifier)
+                            .contains { !$0.isTerminated }
+                    }))
+                switch result {
+                case .needsPrototypeQuit:
+                    showStartupBlock(
+                        english: "Quit the Tilvero prototype, then reopen this app to copy your history safely. The prototype and its data have been preserved.",
+                        russian: "Закройте прототип Tilvero и снова откройте приложение для безопасного переноса истории. Прототип и его данные сохранены.")
+                    return
+                case .conflictingIdentity:
+                    showStartupBlock(
+                        english: "History and battery identity cannot be paired safely. Startup is blocked; both data stores and preferences have been preserved. Resolve the conflict before reopening. No fresh history was created.",
+                        russian: "Не удалось безопасно сопоставить историю и идентификатор батареи. Запуск остановлен; обе базы и настройки сохранены. Устраните конфликт перед повторным запуском. Новая история не создавалась.")
+                    return
+                case .notNeeded, .migrated: break
+                }
+            }
+        } catch {
+            showStartupBlock(
+                english: "Tilvero could not prepare its data safely. Startup is blocked and the migration can be retried after the problem is resolved. Existing data has been preserved.",
+                russian: "Tilvero не смог безопасно подготовить данные. Запуск остановлен. После устранения проблемы перенос можно повторить; существующие данные сохранены.")
+            return
+        }
+        let delegate = TilveroAppDelegate(historyURL: identity.historyURL())
         application.delegate = delegate
         application.setActivationPolicy(.accessory)
         withExtendedLifetime(delegate) {
             application.run()
         }
     }
+
+    // Do not read app localization/defaults before migration has committed.
+    private static func showStartupBlock(english: String, russian: String) {
+        let useRussian = Locale.preferredLanguages.first?.hasPrefix("ru") == true
+        NSApplication.shared.setActivationPolicy(.regular)
+        NSApplication.shared.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = useRussian ? "Tilvero: запуск остановлен" : "Tilvero: startup blocked"
+        alert.informativeText = useRussian ? russian : english
+        alert.addButton(withTitle: useRussian ? "Закрыть" : "Close")
+        alert.runModal()
+    }
 }
 
 @MainActor
 final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
-    private let model = TilveroModel(isDemo: CommandLine.arguments.contains("--demo"))
+    private let model: TilveroModel
+
+    init(historyURL: URL) {
+        model = TilveroModel(isDemo: CommandLine.arguments.contains("--demo"), historyURL: historyURL)
+        super.init()
+    }
     private var statusItem: NSStatusItem?
     private let popover = NSPopover()
     private var detailsWindow: NSWindow?
@@ -48,7 +101,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     private var escapeMonitor: Any?
     private var popoverGeneration: UInt64 = 0
     private var activationGate = QuickPanelActivationGate()
-    private let popoverLog = Logger(subsystem: "local.tilvero.prototype", category: "MenuPopover")
+    private let popoverLog = Logger(subsystem: Bundle.main.bundleIdentifier ?? ReleaseIdentity.prototypeBundleIdentifier, category: "MenuPopover")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -72,7 +125,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         )
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(willSleep), name: NSWorkspace.willSleepNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(powerChanged), name: .NSProcessInfoPowerStateDidChange, object: nil)
-        DistributedNotificationCenter.default().addObserver(self, selector: #selector(reopenDetails), name: Notification.Name("local.tilvero.showDetails"), object: nil)
+        DistributedNotificationCenter.default().addObserver(self, selector: #selector(reopenDetails), name: (try? ReleaseIdentity.current().reopenNotificationName) ?? Notification.Name("local.tilvero.showDetails"), object: nil)
         buildMenu()
         updateStatusItem()
         model.start()

@@ -59,6 +59,43 @@ import PowerCore
         catch { throw HistoryStoreError.unavailable }
     }
 
+    /// Copies a consistent SQLite/WAL snapshot through Core Data without opening the source writable.
+    /// The destination is new, private and detached; its standalone SQLite file can be promoted atomically.
+    public static func copyForPrototypeMigration(from source: URL, to destination: URL) throws {
+        guard source.standardizedFileURL != destination.standardizedFileURL,
+              FileManager.default.fileExists(atPath: source.path),
+              !FileManager.default.fileExists(atPath: destination.path) else { throw HistoryStoreError.unavailable }
+        try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700])
+        let metadata = try NSPersistentStoreCoordinator.metadataForPersistentStore(ofType: NSSQLiteStoreType,
+            at: source, options: [NSReadOnlyPersistentStoreOption: true])
+        let sourceModel: NSManagedObjectModel
+        if model(version: 2).isConfiguration(withName: nil, compatibleWithStoreMetadata: metadata) { sourceModel = model(version: 2) }
+        else if model(version: 1).isConfiguration(withName: nil, compatibleWithStoreMetadata: metadata) { sourceModel = model(version: 1) }
+        else { throw HistoryStoreError.unsupportedSchema }
+        let coordinator = NSPersistentStoreCoordinator(managedObjectModel: sourceModel)
+        try coordinator.replacePersistentStore(at: destination,
+            destinationOptions: [NSSQLitePragmasOption: ["journal_mode": "DELETE"]],
+            withPersistentStoreFrom: source, sourceOptions: [NSReadOnlyPersistentStoreOption: true], ofType: NSSQLiteStoreType)
+        // Upgrade only the private copy before its stable identity enters the migration journal.
+        let copy = try BatteryHistoryStore(url: destination)
+        try copy.close()
+        // Opening only the copy with DELETE consolidates any copied WAL before a single-file promotion.
+        let detachedCoordinator = NSPersistentStoreCoordinator(managedObjectModel: model(version: 2))
+        let detached = try detachedCoordinator.addPersistentStore(ofType: NSSQLiteStoreType, configurationName: nil,
+            at: destination, options: [NSSQLitePragmasOption: ["journal_mode": "DELETE"]])
+        try detachedCoordinator.remove(detached)
+        guard !FileManager.default.fileExists(atPath: destination.path + "-wal") else { throw HistoryStoreError.unavailable }
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: destination.path)
+    }
+
+    public static func persistentStoreIdentifier(at url: URL) throws -> String {
+        let metadata = try NSPersistentStoreCoordinator.metadataForPersistentStore(ofType: NSSQLiteStoreType,
+            at: url, options: [NSReadOnlyPersistentStoreOption: true])
+        guard let identifier = metadata[NSStoreUUIDKey] as? String else { throw HistoryStoreError.unavailable }
+        return identifier
+    }
+
     public func record(_ snapshot: BatterySnapshot) throws {
         try ensureOpen()
         guard !snapshot.isDemo else { throw HistoryStoreError.simulationExcluded }

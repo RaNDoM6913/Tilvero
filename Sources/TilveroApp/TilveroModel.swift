@@ -91,8 +91,7 @@ final class TilveroModel: ObservableObject {
             catch { notice = L10n.text("Operation failed"); simulator = try? SimulationController() }
         } else {
             do {
-                let url = historyURL ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-                    .appendingPathComponent("Tilvero/History.sqlite")
+                let url = try historyURL ?? ReleaseIdentity.current().historyURL()
                 store = try BatteryHistoryStore(url: url)
                 try store?.configureRetention(retentionDays)
                 reloadHistory()
