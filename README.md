@@ -16,7 +16,13 @@
 
 **Monitor and control your Mac.** A native Swift menu bar utility for battery, charging, power and cooling. Local data, a compact panel and an honest view of what your Mac can report.
 
-**Development preview:** live monitoring, history and diagnostics work in the current local build. Physical charging, power and fan controls remain disabled pending trusted signing and device qualification. Build from source below; a signed, notarized release is not available yet.
+**Monitoring Preview:** live monitoring, history and diagnostics work in the current local source build. Physical charging, power and fan controls remain disabled pending trusted signing and device qualification.
+
+## Get Tilvero
+
+**No public DMG is available yet.** [Build from source](#build-and-run) on Apple silicon with macOS 26.0+. The [installation guide / инструкция по установке](docs/INSTALL.md) explains the planned three-step installation and manual updates when a trusted release is available.
+
+Local **TEST** packages are internal ad-hoc builds. They are not a signed, notarized public download. This page will gain one Download for Mac link, version, size and matching checksums only after the exact release artifact passes distribution checks and the owner publishes it.
 
 ## What works today
 
@@ -31,6 +37,8 @@
 The catalog defines **100 fields**. Availability depends on the Mac and macOS; it does not mean every device exposes 100 readings. Missing data stays unavailable.
 
 ## Build and run
+
+These are developer source-build commands. A future Monitoring Preview DMG is helper-free; installed-app users will not need Xcode or helper discovery commands.
 
 Requires **Apple silicon, macOS 26.0+ and a compatible full Xcode installation** with Swift 6 support. The scripts select `/Applications/Xcode.app/Contents/Developer` per process when available, without changing the system's Xcode selection.
 
@@ -56,6 +64,8 @@ open build/Xcode/Build/Products/Debug/Tilvero.app
 Run one build at a time: both bundles share the development app identifier. Local ad-hoc signing verifies bundle integrity; it does not provide trusted helper enrollment or notarization.
 
 ## Diagnostics and demo
+
+The helper discovery command below belongs only to the development bundle, not the helper-free Monitoring Preview package.
 
 ```sh
 build/Tilvero.app/Contents/MacOS/TilveroApp --doctor
@@ -90,11 +100,13 @@ The [roadmap](ROADMAP.md) explores sleep-loss reports, sleep blockers, Economy/M
 
 ## Development
 
-The latest recorded software validation contains **123 passing tests** and successful local/Xcode builds. This is recorded local evidence, separate from signed-runtime and real-device control acceptance; see [compatibility and evidence boundaries](docs/COMPATIBILITY.md).
+Earlier monitoring software validation recorded **123 passing tests** and successful local/Xcode builds. This is historical local evidence, separate from new release preparation, signed-runtime and real-device control acceptance; see [compatibility and evidence boundaries](docs/COMPATIBILITY.md).
 
 - [Contributing](CONTRIBUTING.md) — setup, code boundaries and safe verification
 - [Compatibility](docs/COMPATIBILITY.md) · [Roadmap](ROADMAP.md)
-- [Release and download delivery proposal](docs/RELEASING.md) — DMG, signing, download counts and installation preparation
+- [Install and update](docs/INSTALL.md) · [Changelog](CHANGELOG.md)
+- [Release and download preparation](docs/RELEASING.md) — DMG, signing and on-demand download counts
+- [Report a problem](https://github.com/RaNDoM6913/Tilvero/issues/new/choose) — review and redact diagnostics before sharing
 - [Control architecture](Helper/README.md)
 - [Third-party notices](THIRD_PARTY_NOTICES.md)
 

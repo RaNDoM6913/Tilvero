@@ -43,3 +43,7 @@ xcuserdata/
 /docs/HANDOFF.md
 /docs/IMPLEMENTATION_STATUS.md
 /docs/VALIDATION.md
+
+# Python tool caches, never release inputs.
+__pycache__/
+*.pyc

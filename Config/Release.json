@@ -1,0 +1,14 @@
+{
+  "tag": "v0.1.0-beta.1",
+  "version": "0.1.0",
+  "build": "1",
+  "channel": "beta",
+  "bundleID": "io.github.random6913.tilvero",
+  "helperID": "io.github.random6913.tilvero.helper",
+  "guardianID": "io.github.random6913.tilvero.guardian",
+  "minimumOS": "26.0",
+  "architecture": "arm64",
+  "mode": "monitoring",
+  "teamID": null,
+  "publicBaseline": "43e36c5b828dd42009358693de8ee4d872e34205"
+}

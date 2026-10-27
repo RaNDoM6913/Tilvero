@@ -1,0 +1,16 @@
+Tilvero Monitoring Preview
+Apple silicon (arm64), macOS 26.0 or later.
+
+For an accepted Developer ID/notarized distribution: drag Tilvero.app to Applications,
+eject the disk image, then launch Tilvero from Applications.
+A local TEST image is ad-hoc, not notarized, and has no trusted downloaded-install acceptance.
+Do not remove quarantine or weaken macOS security to run a test image.
+
+Quit the prototype before first production migration. Original data is preserved;
+production history lives separately. Conflicting identities stop migration visibly.
+Monitoring does not install a helper or require administrator approval.
+Charging, power-mode and fan writes remain unavailable. No app telemetry/accounts/cloud.
+
+GPL-3.0-only, Copyright (c) 2026 RaNDoM6913.
+See Legal/LICENSE, COPYRIGHT and the complete third-party notices in Legal/Helper.
+Source and support: https://github.com/RaNDoM6913/Tilvero

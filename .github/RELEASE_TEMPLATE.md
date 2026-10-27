@@ -1,24 +1,26 @@
-# Tilvero {{VERSION}} — Monitoring Beta
+# Tilvero {{VERSION}} — Monitoring Preview
 
-<!-- Release-note template. Fill every token and verify every claim before creating a release draft. This file does not publish or authorize a binary release. -->
+<!-- Release-note template for a separately authorized public prerelease. Fill every token and verify every claim before creating a release draft. No draft, tag, upload or publication is authorized by this file. Never use this public template for an internal ad-hoc TEST package. -->
 
-Native battery monitoring, local history and diagnostics for Apple silicon Macs running macOS26.0 or later.
+Native battery monitoring, local history and diagnostics for Apple silicon (arm64) Macs running macOS 26.0 or later. This is a prerelease.
 
 ## Download
 
-- DMG: `{{DMG_NAME}}` — `{{DMG_SIZE}}`
-- Source: `{{SOURCE_NAME}}`
-- Verification: `SHA256SUMS`, `release.json`
+- DMG: [{{DMG_NAME}}]({{EXACT_TAG_DMG_URL}}) — `{{DMG_SIZE}}`
+- Source: [{{SOURCE_NAME}}]({{EXACT_TAG_SOURCE_URL}})
+- Verification: [SHA256SUMS]({{EXACT_TAG_CHECKSUMS_URL}}), [release.json]({{EXACT_TAG_MANIFEST_URL}})
 - Source tag/commit: `{{TAG}}` / `{{FULL_PUBLIC_COMMIT}}`
 - Signing/notarization: `{{VERIFIED_DISTRIBUTION_STATUS}}`
 
-Use this beta for monitoring and explicitly labeled simulation. Physical charging, power-mode and fan controls are disabled; installing the monitoring app does not enroll a privileged service.
+Use this preview for monitoring and explicitly labeled simulation. Physical charging, power-mode and fan controls are disabled; installing the monitoring app does not enroll a privileged service. The package contains no root helper or launch jobs. Developer source-build helper commands are not installation steps.
 
 ## Install
 
-1. Download and open the DMG.
+1. Download the listed assets, verify `SHA256SUMS`, then open the DMG.
 2. Drag Tilvero to Applications and eject the image.
 3. Launch Tilvero from Applications. Its battery item appears in the menu bar.
+
+[Installation guide / инструкция по установке]({{SOURCE_BOUND_INSTALL_GUIDE_URL}}). If macOS rejects the download, report the failure; do not bypass Gatekeeper or remove quarantine.
 
 ## Changes
 
@@ -28,7 +30,7 @@ Use this beta for monitoring and explicitly labeled simulation. Physical chargin
 
 {{VERSION_SPECIFIC_LIMITATIONS}}
 
-Hardware control needs separate signed-runtime/device/restoration acceptance. Field availability depends on the Mac; missing readings stay unavailable. This beta makes no fixed battery-life or hardware-recovery guarantee.
+Hardware control needs separate signed-runtime/device/restoration acceptance. Field availability depends on the Mac; missing readings stay unavailable. This preview makes no fixed battery-life or hardware-recovery guarantee.
 
 ## Updating and data
 

@@ -14,7 +14,10 @@ cp "$binary_directory/TilveroHelper" "$app_directory/Contents/Library/HelperTool
 cp "$project_root/Config/Info.plist" "$app_directory/Contents/Info.plist"
 cp "$project_root/Config/LaunchDaemons/"*.plist "$app_directory/Contents/Library/LaunchDaemons/"
 cp "$project_root/Sources/TilveroApp/Resources/Localizable.xcstrings" "$app_directory/Contents/Resources/"
-cp "$project_root/Helper/THIRD_PARTY_NOTICES.md" "$app_directory/Contents/Resources/THIRD_PARTY_NOTICES.md"
+mkdir -p "$app_directory/Contents/Resources/Legal/Helper"
+cp "$project_root/LICENSE" "$project_root/COPYRIGHT" "$project_root/THIRD_PARTY_NOTICES.md" "$app_directory/Contents/Resources/Legal/"
+cp "$project_root/Helper/THIRD_PARTY_NOTICES.md" "$app_directory/Contents/Resources/Legal/Helper/"
+cp "$project_root/Assets/AppIcon.icns" "$app_directory/Contents/Resources/"
 # SwiftPM searches the application resource directory before its command-line fallback.
 while IFS= read -r -d '' resource; do
   ditto "$resource" "$app_directory/Contents/Resources/$(basename "$resource")"
