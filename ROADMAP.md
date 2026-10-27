@@ -8,6 +8,8 @@ Live monitoring, a compact menu bar panel, searchable readings, local history, r
 
 ## Next proposed milestones
 
+Distribution preparation is described separately in the [release and download proposal](docs/RELEASING.md): a source-bound Monitoring Beta DMG, original app icon, installation/update checks, Developer ID/notarization and honest GitHub download statistics. No binary release exists yet. Preparing distribution does not enable hardware controls or replace their acceptance gates.
+
 | Order | User outcome | What must be demonstrated |
 |---|---|---|
 | 1. Understand sleep loss | See whether the Mac is allowed to idle-sleep, which apps are blocking it, and how charge changed across an observed sleep interval | Read-only collection, honest incomplete/mixed sessions, no sampling wakeups or fabricated energy values |

@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1000" viewBox="0 0 1280 1000" role="img" aria-labelledby="title desc">
+  <title id="title">Tilvero proposed download section</title>
+  <desc id="desc">A design proposal for the repository after a signed monitoring beta exists. It shows a download action, platform requirements, current capabilities and three installation steps. No binary release or real download count is represented.</desc>
+  <rect width="1280" height="1000" fill="#F6F7F1"/>
+  <g font-family="Arial, Helvetica, sans-serif" fill="#26362F">
+    <text x="72" y="58" font-size="18" letter-spacing="2" fill="#5A6B60">DESIGN PROPOSAL · DOWNLOAD AVAILABLE ONLY AFTER RELEASE</text>
+    <path d="M1128 141h-13c-17 0-25 10-25 27v49c0 17 8 25 25 25h49c17 0 25-8 25-25v-49c0-17-8-27-25-27h-13" fill="none" stroke="#26362F" stroke-width="14" stroke-linecap="round"/>
+    <path d="M1140 138v48" fill="none" stroke="#A6D883" stroke-width="14" stroke-linecap="round"/>
+    <text x="72" y="173" font-size="82" font-weight="700">Tilvero</text>
+    <text x="75" y="221" font-size="29">Monitor and control your Mac.</text>
+    <text x="75" y="274" font-size="21" fill="#5A6B60">Native Swift. Local history. Clear battery insights.</text>
+    <rect x="72" y="317" width="382" height="78" rx="17" fill="#A6D883"/>
+    <path d="M114 341v28m-9-9 9 9 9-9M102 374h24" fill="none" stroke="#26362F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="146" y="366" font-size="27" font-weight="700">Download for Mac</text>
+    <text x="478" y="349" font-size="22">Monitoring Beta</text>
+    <text x="478" y="381" font-size="20" fill="#5A6B60">macOS26+ · Apple silicon · arm64</text>
+    <text x="75" y="437" font-size="19" fill="#5A6B60">Version and size from the release · Exact DMG download count from GitHub</text>
+    <text x="75" y="477" font-size="20">Release notes   ·   Verify SHA-256   ·   Source code   ·   Русский</text>
+    <path d="M72 516h1136" stroke="#D9E2D5"/>
+    <g font-size="23" font-weight="700">
+      <text x="75" y="565">Battery monitoring</text><text x="474" y="565">Local history</text><text x="874" y="565">Private by design</text>
+    </g>
+    <g font-size="20" fill="#5A6B60">
+      <text x="75" y="600">Real readings, source and freshness.</text>
+      <text x="474" y="600">Charts, gaps and redacted exports.</text>
+      <text x="874" y="600">Offline. No account or tracking.</text>
+    </g>
+    <rect x="72" y="638" width="1136" height="80" rx="14" fill="#E8EDE3"/>
+    <text x="96" y="671" font-size="20" font-weight="700">Real app gallery follows this block.</text>
+    <text x="96" y="700" font-size="18" fill="#5A6B60">Use approved redacted screenshots or visibly labeled demo captures; no fictional hardware controls.</text>
+    <text x="75" y="779" font-size="29" font-weight="700">Install in three steps</text>
+    <g font-size="22"><text x="75" y="825">1. Open the DMG</text><text x="474" y="825">2. Drag to Applications</text><text x="874" y="825">3. Launch Tilvero</text></g>
+    <path d="M72 861h1136" stroke="#D9E2D5"/>
+    <text x="75" y="904" font-size="20">This beta: monitoring, history and diagnostics.</text>
+    <text x="75" y="936" font-size="19" fill="#5A6B60">Charging and fan controls stay unavailable until their own validation gates pass.</text>
+    <text x="75" y="975" font-size="16" fill="#5A6B60">Concept only. No DMG, release status, file size or download total is claimed by this image.</text>
+  </g>
+</svg>

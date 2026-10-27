@@ -94,6 +94,7 @@ The latest recorded software validation contains **123 passing tests** and succe
 
 - [Contributing](CONTRIBUTING.md) — setup, code boundaries and safe verification
 - [Compatibility](docs/COMPATIBILITY.md) · [Roadmap](ROADMAP.md)
+- [Release and download delivery proposal](docs/RELEASING.md) — DMG, signing, download counts and installation preparation
 - [Control architecture](Helper/README.md)
 - [Third-party notices](THIRD_PARTY_NOTICES.md)
 
