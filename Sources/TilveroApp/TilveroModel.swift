@@ -28,6 +28,7 @@ final class TilveroModel: ObservableObject {
     private let systemChargeLimitProvider: @Sendable () async -> SystemChargeLimitObservation
     @Published private(set) var sleepReportError: String?
     @Published private(set) var isReadingSleepActivity = false
+    @Published var selectedSettingsPage: SettingsPage = .general
     @Published var selectedSection: InfoSection = .overview { didSet {
         preferences.set(selectedSection.rawValue, forKey: "lastSection")
     } }

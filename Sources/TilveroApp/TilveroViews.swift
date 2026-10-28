@@ -268,6 +268,21 @@ private struct SettingsPanel: View {
     @State private var confirmErase = false
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
+            Picker(L10n.text("Settings section"), selection: $model.selectedSettingsPage) {
+                ForEach(SettingsPage.allCases) { Text(L10n.text($0.title)).tag($0) }
+            }.pickerStyle(.segmented).labelsHidden().id(L10n.language)
+            switch model.selectedSettingsPage {
+            case .general: general
+            case .quickPanel: QuickPanelBuilder(model: model)
+            case .history: historySettings
+            }
+        }.alert(L10n.text("Erase history"), isPresented: $confirmErase) {
+            Button(L10n.text("Cancel"), role: .cancel) {}
+            Button(L10n.text("Erase history"), role: .destructive) { model.eraseHistory() }
+        } message: { Text(L10n.text("Delete local measurements? This does not change charging or cooling settings.")) }
+    }
+    private var general: some View {
+        VStack(alignment: .leading, spacing: 18) {
             GroupBox {
                 Form {
                     Picker(L10n.text("Menu bar"), selection: $model.displayStyle) { ForEach(MenuBarDisplayStyle.allCases) { Text($0.title).tag($0) } }
@@ -290,7 +305,11 @@ private struct SettingsPanel: View {
                     }
                 }.padding(12)
             }
-            OverviewPreferencesPanel(model: model)
+            Button(L10n.text("Customize quick panel…")) { model.selectedSettingsPage = .quickPanel }
+        }
+    }
+    private var historySettings: some View {
+        VStack(alignment: .leading, spacing: 20) {
             GroupBox(L10n.text("History")) {
                 VStack(alignment: .leading, spacing: 14) {
                     Toggle(L10n.text("Save history"), isOn: $model.historyEnabled).disabled(model.isDemo)
@@ -304,11 +323,9 @@ private struct SettingsPanel: View {
                 Text(L10n.text("Release control before removing Tilvero. Use Native charging and Privileged controls in Diagnostics to check restoration. Quit the app normally, then move its bundle to Trash. History can be erased separately.")).frame(maxWidth: .infinity, alignment: .leading).padding(12)
             }
             Text(L10n.text("Local and offline. No account or uploads.")).font(.caption).foregroundStyle(.secondary)
-        }.alert(L10n.text("Erase history"), isPresented: $confirmErase) {
-            Button(L10n.text("Cancel"), role: .cancel) {}
-            Button(L10n.text("Erase history"), role: .destructive) { model.eraseHistory() }
-        } message: { Text(L10n.text("Delete local measurements? This does not change charging or cooling settings.")) }
+        }
     }
+
 }
 
 @MainActor

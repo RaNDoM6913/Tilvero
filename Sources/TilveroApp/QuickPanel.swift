@@ -130,7 +130,7 @@ struct QuickPanel: View {
     private var settingsMenu: some View {
         Menu {
             Button(L10n.text("Settings")) { model.selectedSection = .settings; model.openDetails?() }
-            Button(L10n.text("Customize quick panel…")) { model.selectedSection = .settings; model.openDetails?() }
+            Button(L10n.text("Customize quick panel…")) { model.selectedSettingsPage = .quickPanel; model.selectedSection = .settings; model.openDetails?() }
             Picker(L10n.text("Menu bar"), selection: $model.displayStyle) {
                 ForEach(MenuBarDisplayStyle.allCases) { style in Text(style.title).tag(style) }
             }

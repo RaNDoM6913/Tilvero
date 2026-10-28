@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased - Settings builder foundation (work in progress)
+
+- Add General / Quick panel / History settings navigation, stable layout migration, optional native charge-limit block and passive real-data preview.
+- Add local drag payload validation and accessible up/down controls. Toggle and keyboard reorder work in the app; native drag completion is still under investigation.
+- Keep Awake UI/lifecycle integration and final integrated acceptance are not complete in this checkpoint.
+
 ## Unreleased - compact quick panel
 
 - Match the approved A3 navigation without a visible picker heading or collection-time footer.

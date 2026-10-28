@@ -21,6 +21,13 @@ import PowerCore
                         .help(L10n.text("Extrapolated from a recent continuous discharge. Changing the workload changes the forecast."))
                 case .power: metric("Power", symbol: "bolt", id: "038")
                 case .temperature: metric("Temperature", symbol: "thermometer.medium", id: "039")
+                case .chargeLimit:
+                    HStack {
+                        Label(L10n.text("Charge limit"), systemImage: "battery.100percent")
+                        Spacer()
+                        Text(model.nativeCharge.observed.flatMap { $0.isFresh && $0.policyMatches && $0.configuration.enabled ? "\($0.configuration.target)%" : nil } ?? "—")
+                            .monospacedDigit()
+                    }.font(.subheadline)
                 case .history:
                     VStack(alignment: .leading, spacing: 5) {
                         Text(L10n.text("Last hour")).font(.caption).foregroundStyle(.secondary)
@@ -60,31 +67,6 @@ import PowerCore
                 Text(ReadingPresentation.display(reading, reveal: false, fahrenheit: model.fahrenheit)).monospacedDigit()
                 if reading.freshness == .stale { Text(L10n.text("Stale")).font(.caption2).foregroundStyle(.orange) }
             }.font(.subheadline).help(L10n.text("Source") + ": " + reading.source)
-        }
-    }
-}
-
-@MainActor struct OverviewPreferencesPanel: View {
-    @ObservedObject var model: TilveroModel
-    var body: some View {
-        GroupBox(L10n.text("Quick panel contents")) {
-            VStack(spacing: 10) {
-                ForEach(model.overviewPreferences.order) { item in
-                    HStack {
-                        Toggle(L10n.text(item.title), isOn: Binding(get: { !model.overviewPreferences.hidden.contains(item) }, set: { show in
-                            if show { model.overviewPreferences.hidden.remove(item) } else { model.overviewPreferences.hidden.insert(item) }
-                        })).toggleStyle(.checkbox)
-                        Spacer()
-                        Button { model.overviewPreferences.move(item, by: -1) } label: { Image(systemName: "arrow.up") }
-                            .accessibilityLabel(L10n.text("Move up") + ": " + L10n.text(item.title))
-                            .disabled(model.overviewPreferences.order.first == item)
-                        Button { model.overviewPreferences.move(item, by: 1) } label: { Image(systemName: "arrow.down") }
-                            .accessibilityLabel(L10n.text("Move down") + ": " + L10n.text(item.title))
-                            .disabled(model.overviewPreferences.order.last == item)
-                    }
-                }
-                Button(L10n.text("Reset quick panel")) { model.overviewPreferences = .init() }
-            }.padding(12)
         }
     }
 }
