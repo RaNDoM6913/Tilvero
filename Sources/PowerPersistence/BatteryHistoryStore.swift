@@ -139,7 +139,7 @@ import PowerCore
         let energy: Double? = contiguous && powerFresh && previousPowerFresh && power != nil && previousPower != nil
             ? (power! + previousPower!) * 0.5 * elapsed / 3600 : nil
         let external = valid(snapshot.isExternalPower)
-        let historyIDs: Set<String> = ["011", "013", "015", "023", "024", "025", "026", "027", "035", "036", "038", "039", "044", "050", "054", "055", "056"]
+        let historyIDs: Set<String> = ["011", "013", "015", "023", "024", "025", "026", "027", "029", "030", "031", "035", "036", "038", "039", "041", "042", "043", "044", "050", "054", "055", "056", "103", "104", "105", "106", "107", "108", "109", "110", "111", "112", "113", "115"]
         let safeReadings = snapshot.catalog.filter { $0.privacy == .operational && historyIDs.contains($0.id) }.map(Self.redactedReading)
         let sample = HistorySample(id: UUID(), collectedAt: at, monotonicTime: snapshot.monotonicTime,
             timeZoneOffsetSeconds: TimeZone.current.secondsFromGMT(for: at), segmentID: segment,
@@ -468,10 +468,22 @@ import PowerCore
         let knownSources = ["IOPowerSources", "AppleSmartBattery", "ProcessInfo", "sysctl", "PowerTelemetry", "IOPSGetTimeRemainingEstimate", "IOPSCopyExternalPowerAdapterDetails", "PowerPersistence", "Demo fixture", "fixture"]
         let source = knownSources.contains(reading.source) ? reading.source : "Other provider"
         return CatalogReading(definition: reading.definition, value: reading.value, rawValue: nil,
-            unit: reading.unit, source: source, keyPath: reading.id, collectedAt: reading.collectedAt,
+            unit: reading.unit, source: source, keyPath: safeChannel(reading, sourceKnown: source != "Other provider"), collectedAt: reading.collectedAt,
             sourceSampleAt: reading.sourceSampleAt, monotonicAgeSeconds: reading.monotonicAgeSeconds,
             provenance: reading.provenance, availability: reading.availability, freshness: reading.freshness,
             reason: reading.value == nil ? "The qualified provider did not supply a usable value." : nil)
+    }
+    private static func safeChannel(_ reading: CatalogReading, sourceKnown: Bool) -> String {
+        // Only schema/property names may survive privacy redaction, never arbitrary paths.
+        let tokens: Set<String> = ["BatteryData", "AppleSmartBatteryPack", "LifetimeData", "PowerTelemetryData", "Temperature", "CellVoltage", "CycleCount",
+            "Current Capacity", "Max Capacity", "Is Charging", "Power Source State", "BatteryHealth", "BatteryHealthCondition", "Voltage", "Amperage", "Voltage×Amperage",
+            "DesignCapacity", "AppleRawMaxCapacity", "NominalChargeCapacity", "FullChargeCapacity", "AppleRawCurrentCapacity", "RemainingCapacity",
+            "SystemLoad", "SystemPowerIn", "SystemVoltageIn", "SystemCurrentIn", "thermalState", "Watts", "MaximumTemperature", "MinimumTemperature", "AverageTemperature",
+            "MaximumPackVoltage", "MinimumPackVoltage", "MaximumChargeCurrent", "MaximumDischargeCurrent", "TemperatureSamples", "UpdateTime",
+            "capacityRetention", "capacityDifference", "nominalCapacityRatio", "max(CellVoltage) - min(CellVoltage)"]
+        let components = reading.keyPath.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+        guard sourceKnown, !components.isEmpty, components.count <= 8, components.allSatisfy(tokens.contains) else { return reading.id }
+        return "observed-v2/" + components.joined(separator: "/")
     }
     private static func migrateVersionOneStore(at url: URL, coordinator: NSPersistentStoreCoordinator) throws {
         let source = model(version: 1), destination = model(version: 2)

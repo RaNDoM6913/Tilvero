@@ -25,7 +25,7 @@ public struct DoctorReport: Codable, Sendable {
     public init(snapshot: BatterySnapshot) {
         formatVersion = 1; generatedAt = Date(); isSimulation = snapshot.isDemo
         note = "Read-only observation report. Fixture and hardware validation are separate. Serials, local identity tokens, raw values and personal paths are excluded."
-        fields = snapshot.catalog.filter { $0.privacy == .operational }.prefix(100).map {
+        fields = snapshot.catalog.filter { $0.privacy == .operational && $0.provenance != .raw }.prefix(BatteryCatalog.definitions.count).map {
             DiagnosticField(id: $0.id, value: Self.safeValue($0.value, depth: 0), unit: $0.unit,
                 source: Self.redact($0.source), keyPath: Self.redact($0.keyPath), collectedAt: $0.collectedAt,
                 sourceSampleAt: $0.sourceSampleAt, monotonicAgeSeconds: $0.monotonicAgeSeconds,

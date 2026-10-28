@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — power information expansion
+
+- Add optional System, Adapter, Battery health and Application activity constructor blocks, recorded battery/temperature/power sparklines and latest comparable observation statistics.
+- Keep reported system load, adapter input/capability, battery power and CPU-only process energy separate, with source/freshness and partial coverage.
+- Expand the append-only catalog to115fields with exact raw counters, device-scoped inferred lifetime/cell readings, separate nominal capacity and derived retention; preserve unsupported values as unavailable.
+- Collect bounded public process resource counters without control or persisted process identity; reset baselines on PID reuse, missing coverage, source changes and lifecycle boundaries.
+- Preserve safe channel identity in history, exclude raw objects from ordinary support reports and retain exact large integers. Hardware, helper and trusted-release gates remain unchanged.
+
 ## Unreleased — configurable quick panel and Keep Awake
 
 - Complete the Settings constructor with native drag lifecycle, show/hide, keyboard reorder, responsive passive preview and stable layout migration.

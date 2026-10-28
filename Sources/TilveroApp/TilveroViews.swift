@@ -5,7 +5,7 @@ import PowerCore
 import PowerPersistence
 
 enum InfoSection: String, CaseIterable, Identifiable {
-    case overview, battery, charging, cooling, history, sleep, diagnostics, settings
+    case overview, battery, charging, cooling, history, sleep, activity, diagnostics, settings
     var id: String { rawValue }
     var title: String { L10n.text(key) }
     private var key: String {
@@ -16,6 +16,7 @@ enum InfoSection: String, CaseIterable, Identifiable {
         case .cooling: "Cooling"
         case .history: "History"
         case .sleep: "Sleep & drain"
+        case .activity: "Application activity"
         case .diagnostics: "Diagnostics"
         case .settings: "Settings"
         }
@@ -28,6 +29,7 @@ enum InfoSection: String, CaseIterable, Identifiable {
         case .cooling: "fan"
         case .history: "chart.xyaxis.line"
         case .sleep: "moon.zzz"
+        case .activity: "app.badge"
         case .diagnostics: "list.bullet.rectangle"
         case .settings: "gearshape"
         }
@@ -47,7 +49,7 @@ struct BatteryInfoView: View {
                     Label(item.title, systemImage: item.symbol).tag(item)
                 }
                 Section(L10n.text("Analytics")) {
-                    ForEach([InfoSection.history, .sleep]) { item in Label(item.title, systemImage: item.symbol).tag(item) }
+                    ForEach([InfoSection.history, .sleep, .activity]) { item in Label(item.title, systemImage: item.symbol).tag(item) }
                 }
                 Section {
                     ForEach([InfoSection.diagnostics, .settings]) { item in Label(item.title, systemImage: item.symbol).tag(item) }
@@ -66,13 +68,13 @@ struct BatteryInfoView: View {
                         Button { Task { await model.refresh(); if model.selectedSection == .sleep { await model.refreshSleepActivity() } } } label: { Label(L10n.text("Refresh"), systemImage: "arrow.clockwise") }
                     }
                     if model.keepAwake.hasOwnedAssertion { KeepAwakeActivePanel(service: model.keepAwake) }
-                    if model.selectedSection != .settings && model.selectedSection != .history && model.selectedSection != .sleep {
+                    if model.selectedSection != .settings && model.selectedSection != .history && model.selectedSection != .sleep && model.selectedSection != .activity {
                         HStack {
                             TextField(L10n.text("Search measurements"), text: $search).textFieldStyle(.roundedBorder)
                             Toggle(L10n.text("Show unavailable fields"), isOn: $showUnavailable).toggleStyle(.checkbox)
                         }
                     }
-                    if !search.isEmpty && model.selectedSection != .sleep { catalogRows(model.snapshot.catalog) }
+                    if !search.isEmpty && model.selectedSection != .sleep && model.selectedSection != .activity { catalogRows(model.snapshot.catalog) }
                     else { sectionContent }
                     if let error = model.storeError { Label(L10n.text("Data store error") + ": " + error, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange) }
                     if let notice = model.notice { Text(notice).font(.caption).foregroundStyle(.secondary) }
@@ -102,9 +104,11 @@ struct BatteryInfoView: View {
             catalogRows(readings(["023", "024", "027", "026", "039", "067", "069", "044"]))
             Text(L10n.text("Capacity retention is calculated separately from the macOS health assessment.")).font(.callout).foregroundStyle(.secondary)
             if model.isDemo { SimulationPanel(model: model) }
+        case .activity:
+            ProcessActivityPanel(model: model)
         case .battery:
             Toggle(L10n.text("Reveal identifiers"), isOn: $reveal).toggleStyle(.checkbox)
-            catalogRows(model.snapshot.catalog.filter { ("023"..."042").contains($0.id) || ("057"..."071").contains($0.id) })
+            catalogRows(model.snapshot.catalog.filter { ("023"..."042").contains($0.id) || ("057"..."071").contains($0.id) || ("103"..."115").contains($0.id) })
             Text(L10n.text("Cell manufacturer is not inferred from the reported pack manufacturer.")).font(.callout).foregroundStyle(.secondary)
         case .charging:
             GroupBox { ChargeLimitControl(model: model).padding(12) }
@@ -115,6 +119,7 @@ struct BatteryInfoView: View {
                 }.disabled(model.isApplying)
             }
             catalogRows(model.snapshot.catalog.filter { ("013"..."022").contains($0.id) || ("045"..."056").contains($0.id) })
+            PowerObservationsPanel(model: model)
             Label(L10n.text("Power mode") + ": " + L10n.text(ProcessInfo.processInfo.isLowPowerModeEnabled ? "Low Power" : "Automatic"), systemImage: "bolt.circle")
             ProfilePanel(model: model)
         case .cooling:

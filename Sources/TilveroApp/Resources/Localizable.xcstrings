@@ -1324,7 +1324,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Мощность аккумулятора"
+            "value": "Мощность батареи"
           }
         }
       }
@@ -6525,6 +6525,758 @@
           "stringUnit": {
             "state": "translated",
             "value": "Длительность"
+          }
+        }
+      }
+    },
+    "System": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Система"
+          }
+        }
+      }
+    },
+    "Adapter": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adapter"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Адаптер"
+          }
+        }
+      }
+    },
+    "Battery health": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Battery health"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Состояние батареи"
+          }
+        }
+      }
+    },
+    "Adapter input": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adapter input"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вход от адаптера"
+          }
+        }
+      }
+    },
+    "Rated capability": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rated capability"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Номинал адаптера"
+          }
+        }
+      }
+    },
+    "Capacity retention": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Capacity retention"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохранение ёмкости"
+          }
+        }
+      }
+    },
+    "Recorded observations during the last hour.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recorded observations during the last hour."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Записанные наблюдения за последний час."
+          }
+        }
+      }
+    },
+    "Adapter input and battery power measure different electrical boundaries. Rated capability is not current consumption.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adapter input and battery power measure different electrical boundaries. Rated capability is not current consumption."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вход от адаптера и мощность батареи относятся к разным участкам питания. Номинал адаптера не является текущим потреблением."
+          }
+        }
+      }
+    },
+    "Calculated full-charge / design capacity. This is distinct from the macOS maximum-capacity estimate.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calculated full-charge / design capacity. This is distinct from the macOS maximum-capacity estimate."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Расчёт: ёмкость полного заряда / проектная ёмкость. Это отдельный показатель от оценки максимальной ёмкости macOS."
+          }
+        }
+      }
+    },
+    "System-load channel reported by the battery subsystem; mW scale inferred for the qualified Apple-silicon source. Not CPU power or wall-outlet power; independent sensor time is unknown.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System-load channel reported by the battery subsystem; mW scale inferred for the qualified Apple-silicon source. Not CPU power or wall-outlet power; independent sensor time is unknown."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Канал нагрузки системы по данным батарейного контроллера; масштаб mW определён для проверенного источника Apple silicon. Это не мощность CPU и не потребление из розетки; время измерения датчика неизвестно."
+          }
+        }
+      }
+    },
+    "Application activity": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Application activity"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нагрузка приложений"
+          }
+        }
+      }
+    },
+    "Application details": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Application details"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подробнее о приложениях"
+          }
+        }
+      }
+    },
+    "Process activity is unavailable in simulation.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Process activity is unavailable in simulation."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нагрузка приложений недоступна в симуляции."
+          }
+        }
+      }
+    },
+    "Baseline collected. Waiting for the next sample.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Baseline collected. Waiting for the next sample."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Первый замер получен. Ожидается следующий."
+          }
+        }
+      }
+    },
+    "No comparable process samples.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No comparable process samples."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нет сопоставимых замеров процессов."
+          }
+        }
+      }
+    },
+    "Processes": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Processes"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Процессы"
+          }
+        }
+      }
+    },
+    "CPU energy coverage": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CPU energy coverage"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Покрытие энергии CPU"
+          }
+        }
+      }
+    },
+    "Idle wakeups/s": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Idle wakeups/s"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пробуждения CPU/с"
+          }
+        }
+      }
+    },
+    "Interrupts/s": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Interrupts/s"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "События прерывания/с"
+          }
+        }
+      }
+    },
+    "Disk read/write": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disk read/write"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Чтение/запись диска"
+          }
+        }
+      }
+    },
+    "Performance CPU energy share": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Performance CPU energy share"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Доля энергии производительных ядер"
+          }
+        }
+      }
+    },
+    "CPU power is an interval estimate from macOS CPU energy counters, not total app or battery consumption.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CPU power is an interval estimate from macOS CPU energy counters, not total app or battery consumption."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Мощность CPU — оценка за интервал по счётчикам macOS. Она не является полным потреблением приложения или батареи."
+          }
+        }
+      }
+    },
+    "Accessible processes": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accessible processes"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Доступные процессы"
+          }
+        }
+      }
+    },
+    "Limited scan": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Limited scan"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Неполный обход"
+          }
+        }
+      }
+    },
+    "Denied": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Denied"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нет доступа"
+          }
+        }
+      }
+    },
+    "100% CPU means one full CPU. System processes can be inaccessible. Only verified app-bundle members are grouped; child rollups are not added.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "100% CPU means one full CPU. System processes can be inaccessible. Only verified app-bundle members are grouped; child rollups are not added."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "100% CPU означает полную загрузку одного ядра. Системные процессы могут быть недоступны. Объединяются только подтверждённые процессы пакета приложения; суммарные счётчики дочерних процессов повторно не учитываются."
+          }
+        }
+      }
+    },
+    "Waiting for process observations.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for process observations."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ожидаются наблюдения процессов."
+          }
+        }
+      }
+    },
+    "Power observations": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Power observations"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Наблюдения питания"
+          }
+        }
+      }
+    },
+    "Minimum": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Minimum"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Минимум"
+          }
+        }
+      }
+    },
+    "Observation mean": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Observation mean"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Среднее наблюдений"
+          }
+        }
+      }
+    },
+    "Maximum": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maximum"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Максимум"
+          }
+        }
+      }
+    },
+    "Observations": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Observations"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Наблюдения"
+          }
+        }
+      }
+    },
+    "Statistics use the latest comparable continuous segment within the last hour. Means describe recorded observations; unknown sensor timing is not upgraded to measured energy.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statistics use the latest comparable continuous segment within the last hour. Means describe recorded observations; unknown sensor timing is not upgraded to measured energy."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Статистика относится к последнему сопоставимому непрерывному участку за час. Средние описывают записанные наблюдения; неизвестное время датчика не превращается в измеренную энергию."
+          }
+        }
+      }
+    },
+    "Raw allowlisted battery counters. Units, interval or blob layout may be unqualified; no W/Wh conversion is implied.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Raw allowlisted battery counters. Units, interval or blob layout may be unqualified; no W/Wh conversion is implied."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Исходные известные счётчики батареи. Единицы, интервал или формат данных могут быть не подтверждены; преобразование в W/Wh не выполнялось."
+          }
+        }
+      }
+    },
+    "Scale inferred for the observed Mac17,3 / bq40z651 profile. Battery-reported lifetime history, not app history; independent sample age is unknown.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scale inferred for the observed Mac17,3 / bq40z651 profile. Battery-reported lifetime history, not app history; independent sample age is unknown."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Масштаб оценён для наблюдаемого профиля Mac17,3 / bq40z651. Это lifetime-данные контроллера батареи; независимый возраст измерений неизвестен."
+          }
+        }
+      }
+    },
+    "No lifetime scale profile is admitted for this device. The original counter remains in raw diagnostics.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No lifetime scale profile is admitted for this device. The original counter remains in raw diagnostics."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для этого устройства масштаб lifetime-показателя не подтверждён. Исходное значение доступно в диагностике."
+          }
+        }
+      }
+    },
+    "Reported sample count; cadence and coverage duration are unknown.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reported sample count; cadence and coverage duration are unknown."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Число измерений по данным контроллера; частота и длительность наблюдений неизвестны."
+          }
+        }
+      }
+    },
+    "Inferred Unix timestamp for the lifetime counter update, not the current power-sensor time.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inferred Unix timestamp for the lifetime counter update, not the current power-sensor time."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оценка времени обновления lifetime-счётчиков по Unix timestamp; это не время текущего измерения мощности."
+          }
+        }
+      }
+    },
+    "Full-charge capacity minus design capacity; negative is below design. Not a remaining-life prediction; source ages may differ.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Full-charge capacity minus design capacity; negative is below design. Not a remaining-life prediction; source ages may differ."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ёмкость полного заряда минус проектная ёмкость; отрицательное значение означает снижение. Это не прогноз остаточного срока службы; возраст исходных данных может различаться."
+          }
+        }
+      }
+    },
+    "Partial process coverage": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Partial process coverage"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Неполное покрытие процессов"
+          }
+        }
+      }
+    },
+    "CPU coverage": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CPU coverage"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Покрытие CPU"
+          }
+        }
+      }
+    },
+    "Interrupt wakeups/s": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Interrupt wakeups/s"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пробуждения от прерываний/с"
+          }
+        }
+      }
+    },
+    "macOS process enumeration is unavailable.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS process enumeration is unavailable."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Список процессов macOS недоступен."
+          }
+        }
+      }
+    },
+    "Gauge nominal charge capacity; separate from AppleRawMaxCapacity and the macOS maximum-capacity percentage.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gauge nominal charge capacity; separate from AppleRawMaxCapacity and the macOS maximum-capacity percentage."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Номинальная ёмкость контроллера; отдельный показатель от AppleRawMaxCapacity и оценки максимальной ёмкости macOS."
+          }
+        }
+      }
+    },
+    "Gauge nominal capacity divided by design capacity; distinct from raw full-charge retention and the macOS health estimate. Values above 100% are retained.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gauge nominal capacity divided by design capacity; distinct from raw full-charge retention and the macOS health estimate. Values above 100% are retained."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Номинальная ёмкость контроллера / проектная ёмкость; отдельный показатель от сырой полной ёмкости и оценки macOS. Значения выше 100% сохраняются."
+          }
+        }
+      }
+    },
+    "Cell-voltage mV scale inferred for the observed gauge profile, gated by three plausible cells and agreement with pack voltage. Independent cell sample age is unknown.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cell-voltage mV scale inferred for the observed gauge profile, gated by three plausible cells and agreement with pack voltage. Independent cell sample age is unknown."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Масштаб напряжений ячеек оценён для наблюдаемого контроллера при трёх допустимых значениях и согласованности с напряжением батареи. Независимое время измерений неизвестно."
+          }
+        }
+      }
+    },
+    "Difference between the largest and smallest reported cell voltages; no battery-fault or authenticity diagnosis is implied.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Difference between the largest and smallest reported cell voltages; no battery-fault or authenticity diagnosis is implied."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разность максимального и минимального напряжений ячеек по данным контроллера; это не диагноз неисправности и не проверка подлинности."
           }
         }
       }

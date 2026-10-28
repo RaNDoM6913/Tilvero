@@ -7,14 +7,14 @@ import SwiftUI
     func testLegacyLayoutKeepsOrderAndHiddenWhileNewBlocksStayOptional() throws {
         let data = Data(#"{"order":["history","temperature","forecast","power"],"hidden":["forecast"]}"#.utf8)
         let value = OverviewPreferences.load(data)
-        XCTAssertEqual(value.order.map(\.rawValue), ["history","temperature","forecast","power","chargeLimit","keepAwake"])
-        XCTAssertEqual(value.hidden, [.forecast,.chargeLimit,.keepAwake])
+        XCTAssertEqual(value.order.map(\.rawValue), ["history","temperature","forecast","power","chargeLimit","keepAwake","systemPower","adapter","batteryHealth","applications"])
+        XCTAssertEqual(value.hidden, [.forecast,.chargeLimit,.keepAwake,.systemPower,.adapter,.batteryHealth,.applications])
         XCTAssertEqual(OverviewPreferences.load(try JSONEncoder().encode(value)), value)
     }
     func testUnknownAndDuplicateIDsDoNotResetKnownComposition() {
         let value = OverviewPreferences.load(Data(#"{"order":["temperature","future","temperature","history","power","forecast"],"hidden":["power","future"]}"#.utf8))
-        XCTAssertEqual(value.order.map(\.rawValue), ["temperature","history","power","forecast","chargeLimit","keepAwake"])
-        XCTAssertEqual(value.hidden, [.power,.chargeLimit,.keepAwake])
+        XCTAssertEqual(value.order.map(\.rawValue), ["temperature","history","power","forecast","chargeLimit","keepAwake","systemPower","adapter","batteryHealth","applications"])
+        XCTAssertEqual(value.hidden, [.power,.chargeLimit,.keepAwake,.systemPower,.adapter,.batteryHealth,.applications])
     }
     func testAcceptedLocalDropMovesHiddenRowsBothDirectionsAndRejectsForeignPayload() {
         var value = OverviewPreferences()

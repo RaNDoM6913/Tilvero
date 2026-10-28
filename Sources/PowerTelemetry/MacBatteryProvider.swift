@@ -61,7 +61,8 @@ public struct MacBatteryProvider: Sendable {
         }
         func fieldSample(_ id: String, _ key: String) -> (Date?, TimeInterval?, TelemetryFreshness) {
             let date: Date?
-            if key.hasPrefix("PowerTelemetryData/") { return (nil, nil, .unknown) }
+            if key.contains("LifetimeData") { return (nil, nil, .unknown) }
+            else if key.hasPrefix("PowerTelemetryData/") { return (nil, nil, .unknown) }
             else if ["027", "060", "061"].contains(id) { date = timestamp(registry["FullPathUpdated"]) }
             else if ["029", "057", "058", "059", "062", "063"].contains(id) { date = timestamp(registry["BootPathUpdated"]) }
             else { date = sampleAt }
@@ -135,7 +136,7 @@ public struct MacBatteryProvider: Sendable {
             put("029", design.map(CatalogValue.decimal), source: "AppleSmartBattery", key: designPath)
             put("030", full.map(CatalogValue.decimal), source: "AppleSmartBattery", key: fullPath)
             put("031", remaining.map(CatalogValue.decimal), source: "AppleSmartBattery", key: remainingPath)
-            put("026", TelemetryDecoder.capacityRetention(full: full, design: design).map(CatalogValue.decimal), source: "AppleSmartBattery", key: "full/design (mAh)", provenance: .estimated,
+            put("026", TelemetryDecoder.capacityRetention(full: full, design: design).map(CatalogValue.decimal), source: "AppleSmartBattery", key: "capacityRetention/\(fullPath)/\(designPath)", provenance: .estimated,
                 reason: "Calculated capacity retention is independent of Apple's system maximum-capacity estimate; ratios above 100% are retained.")
             let rawRatio = remaining.flatMap { remaining in full.flatMap { full in full > 0 ? remaining / full * 100 : nil } }
             put("012", rawRatio.map(CatalogValue.decimal), source: "AppleSmartBattery", key: "raw remaining/full (mAh)", provenance: .estimated)
@@ -147,15 +148,17 @@ public struct MacBatteryProvider: Sendable {
                 let selected = keys.map(registryField).first { $0.0 != nil }
                 put(id, selected.flatMap { integer($0.0) ?? string($0.0) }, source: "AppleSmartBattery", key: selected?.1 ?? keys[0])
             }
-            let life = batteryData["LifetimeData"] as? [String: Any] ?? packData["LifetimeData"] as? [String: Any] ?? registry["LifetimeData"] as? [String: Any] ?? [:]
+            let lifetime = BatteryDetailDecoder.lifetime(in: registry)
+            let life = lifetime.values
             let hours = TelemetryDecoder.number(life["TotalOperatingTime"]).flatMap { $0 >= 0 && $0 < 1000000 ? $0 : nil }
-            put("064", hours.map(CatalogValue.decimal), source: "AppleSmartBattery", key: "BatteryData/LifetimeData/TotalOperatingTime",
+            put("064", hours.map(CatalogValue.decimal), source: "AppleSmartBattery", key: lifetime.path + "/TotalOperatingTime",
                 reason: "Reported operating-hours counter; this is not a manufacture timestamp or a precise battery age.")
             let (manufactureRaw, manufacturePath) = registryField("ManufactureDate")
             let manufactureDate = TelemetryDecoder.smartBatteryManufactureDate(manufactureRaw)
             put("063", manufactureDate.map(CatalogValue.date), source: "AppleSmartBattery", key: manufacturePath,
                 raw: integer(manufactureRaw), reason: manufactureDate == nil ? "Reported manufacture value is not a validated 16-bit Smart Battery date; opaque larger encodings are not decoded." : nil)
         }
+        fields.append(contentsOf: BatteryDetailDecoder.readings(registry: registry, model: system["model"], qualification: qualification, at: now))
         // XNU IOPMPowerSource documents these registry units and signed int amperage.
         let voltage = TelemetryDecoder.number(registry["Voltage"]).flatMap { $0 > 0 && $0 <= 100000 ? $0 / 1000 : nil }
         let current = TelemetryDecoder.currentAmps(registry["Amperage"], encoding: .signedInteger)
@@ -174,10 +177,10 @@ public struct MacBatteryProvider: Sendable {
                 reason: "Current direction does not establish physical battery isolation or a charge-control effect.")
         }
         if qualification == .appleSilicon, let telemetry = registry["PowerTelemetryData"] as? [String: Any] {
-            for (id, key, upper) in [("054", "SystemPowerIn", 1000000.0), ("055", "SystemVoltageIn", 100000.0), ("056", "SystemCurrentIn", 100000.0)] {
+            for (id, key, upper) in [("043", "SystemLoad", 1000000.0), ("054", "SystemPowerIn", 1000000.0), ("055", "SystemVoltageIn", 100000.0), ("056", "SystemCurrentIn", 100000.0)] {
                 let value = TelemetryDecoder.number(telemetry[key]).flatMap { $0 >= 0 && $0 <= upper ? $0 / 1000 : nil }
-                put(id, value.map(CatalogValue.decimal), source: "AppleSmartBattery", key: "PowerTelemetryData/\(key)", raw: number(telemetry[key]), provenance: .measured,
-                    reason: "Provider-reported live-input channel; no independent sensor timestamp is exposed, so freshness is unknown. Adapter rating is never substituted.")
+                put(id, value.map(CatalogValue.decimal), source: "AppleSmartBattery", key: "PowerTelemetryData/\(key)", raw: number(telemetry[key]), provenance: id == "043" ? .inferred : .measured,
+                    reason: id == "043" ? "System-load channel reported by the battery subsystem; mW scale inferred for the qualified Apple-silicon source. Not CPU power or wall-outlet power; independent sensor time is unknown." : "Provider-reported live-input channel; no independent sensor timestamp is exposed, so freshness is unknown. Adapter rating is never substituted.")
             }
         }
         put("075", sampleAt.map(CatalogValue.date), source: "AppleSmartBattery", key: "UpdateTime", raw: epoch.map(CatalogValue.decimal))

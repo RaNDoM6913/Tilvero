@@ -276,6 +276,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     }
 
     private func presentPopover() {
+        Task { await model.refreshProcessActivity() }
         try? model.keepAwake.reconcile()
         guard NSApplication.shared.isActive, let button = statusItem?.button else { return }
         (popover.contentViewController as? QuickPanelHostingController)?.updateMaximumHeight(panelMaximumHeight)

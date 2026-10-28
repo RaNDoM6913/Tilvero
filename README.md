@@ -30,9 +30,12 @@ Local **TEST** packages are internal ad-hoc builds. They are not a signed, notar
 | --- | --- |
 | Live battery monitoring | Charge, power-source status and available battery readings, with source, freshness and unavailable reasons |
 | Menu bar and detail window | Content-sized Overview / Charge / Modes panel, direct qualified charge actions, searchable detail readings, Russian/English and adjustable indicator sizing |
-| Quick-panel builder | Drag, show/hide and keyboard-reorder Overview blocks in Settings, with a passive real-data preview |
+| Quick-panel builder | Drag, show/hide and keyboard-reorder Overview blocks, including System, Adapter, Battery health and Application activity, with passive live preview |
 | Keep Mac Awake | Explicit finite idle-sleep prevention with visible Stop; duration persists but active state never restarts automatically |
 | Configurable modes | Saved Normal / Economy / Maximum autonomy plans with separate Save / Apply and per-action results; unqualified energy/display actions are excluded and background jobs preserved |
+| Power information | Separate battery power, reported system load and adapter input/capability; source-aware sparklines and observed min/mean/max |
+| Application activity | Read-only CPU energy/power estimates, CPU load, wakeups and disk I/O for accessible processes; verified app grouping and explicit partial coverage |
+| Battery details | Separate raw full-charge and nominal capacities, inferred device-scoped lifetime/cell readings and redacted opt-in raw diagnostics |
 | Local history | Minute samples, hourly aggregates, gaps and battery boundaries; CSV/JSON preview and export |
 | Sleep & drain | Separate detail section for future app-observed sleep intervals, qualified before/after charge change and current sleep blockers; incomplete evidence stays visible |
 | Diagnostics | Read-only discovery and a redacted report; no administrator approval needed for monitoring |
@@ -40,7 +43,7 @@ Local **TEST** packages are internal ad-hoc builds. They are not a signed, notar
 
 The normal battery silhouette is calibrated to a system reference; the custom percentage-inside option uses a lower iOS-inspired body with larger adaptive numerals. Unknown values and the adapter cue remain distinct from measured charge.
 
-The catalog defines **100 fields**. Availability depends on the Mac and macOS; it does not mean every device exposes 100 readings. Missing data stays unavailable.
+The catalog defines **115 fields**. Availability depends on the Mac and macOS; it does not mean every device exposes 100 readings. Missing data stays unavailable.
 
 Sleep reports begin with a sleep/wake interval observed while Tilvero is running and history is enabled. They are not backfilled from old sample gaps. The measured charge change spans the recorded observations; it does not prove battery-only operation or exact time asleep. Current process assertions explain what may prevent sleep **now**, not which application consumed energy during an earlier night. Internal wake counts, wake reasons and per-app energy are unavailable from this collection. Sleep records follow the selected detailed-history period, are erased with history, and are not included in the ordinary CSV/JSON export. Process names and assertion descriptions are not persisted.
 
@@ -67,6 +70,10 @@ The app starts in the menu bar. Click the battery item to open the quick panel, 
 Settings include General / Quick panel / History. The Quick panel constructor changes composition immediately, and Modes keeps saved-plan selection in the popover with **Edit modes…** for the full editor. Settings also offer icon only or percentage beside/inside the icon, System/Larger text, independent icon scale from 85–115%, reset, Russian/English and history preferences.
 
 **Keep Mac Awake** starts only after Start, for 15, 30, 60 or 120 minutes (default 30). Stop remains visible even when its Overview block is hidden. The display may turn off; closing the lid, forced sleep and low-battery sleep retain macOS behavior. Stop, OS timeout and normal quit end the process-owned session. Simulation and Monitoring Preview cannot activate it.
+
+Application power is derived from macOS **CPU energy** counters over an observed interval. It is not total application/device power or a battery percentage. System processes may deny access; no privilege bypass or automatic process termination is used. A first sample establishes a baseline, and sleep/PID reuse/reset breaks the calculation. Process identity stays in memory and is excluded from battery history and diagnostics exports.
+
+Additional battery ranges can be explicitly marked **inferred** for the observed device/gauge profile. Unknown formats remain raw or unavailable. Nominal capacity, raw full-charge retention and the macOS health estimate remain separate. Ordinary support reports exclude raw counter objects.
 
 For the separate Xcode app/helper targets:
 

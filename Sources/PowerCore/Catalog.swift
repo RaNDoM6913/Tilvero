@@ -153,7 +153,7 @@ public enum BatteryCatalog {
             ("Individual battery temperatures", "Температуры батарей", "°C", "040"),
             ("Individual cell voltages", "Напряжения ячеек", "V", "041"),
             ("Cell voltage spread", "Разброс напряжений", "mV", "042"),
-            ("Estimated system consumption", "Расчётное потребление системы", "W", "043"),
+            ("Reported system load power", "Мощность нагрузки по данным macOS", "W", "043"),
             ("System thermal state", "Тепловое состояние системы", nil, "044"),
             ("Reported adapter name", "Название адаптера", nil, "045"),
             ("Reported adapter manufacturer", "Производитель адаптера", nil, "046"),
@@ -211,12 +211,27 @@ public enum BatteryCatalog {
             ("Known raw properties", "Известные исходные свойства", nil, "098"),
             ("Unknown raw property inventory", "Неизвестные свойства", nil, "099"),
             ("Control request/readback journal", "Журнал управления", nil, "100"),
+            ("Reported lifetime counters", "Исходные lifetime-счётчики", nil, "101"),
+            ("Reported power telemetry counters", "Исходные счётчики питания", nil, "102"),
+            ("Lifetime maximum temperature (inferred scale)", "Максимум температуры за срок службы (оценка шкалы)", "°C", "103"),
+            ("Lifetime minimum temperature (inferred scale)", "Минимум температуры за срок службы (оценка шкалы)", "°C", "104"),
+            ("Lifetime average temperature (inferred scale)", "Средняя температура за срок службы (оценка шкалы)", "°C", "105"),
+            ("Lifetime maximum pack voltage (inferred scale)", "Максимальное напряжение батареи (оценка шкалы)", "V", "106"),
+            ("Lifetime minimum pack voltage (inferred scale)", "Минимальное напряжение батареи (оценка шкалы)", "V", "107"),
+            ("Lifetime maximum charge current (inferred scale)", "Максимальный ток заряда (оценка шкалы)", "A", "108"),
+            ("Lifetime maximum discharge current (inferred scale)", "Максимальный ток разряда (оценка шкалы)", "A", "109"),
+            ("Reported temperature sample count", "Число температурных измерений", nil, "110"),
+            ("Reported lifetime update (inferred timestamp)", "Обновление lifetime-счётчиков (оценка времени)", nil, "111"),
+            ("Full-charge capacity difference from design", "Отклонение полной ёмкости от проектной", "mAh", "112"),
+            ("Gauge nominal charge capacity", "Номинальная ёмкость контроллера", "mAh", "113"),
+            ("Additional raw gauge properties", "Дополнительные исходные данные контроллера", nil, "114"),
+            ("Gauge nominal capacity / design", "Номинальная ёмкость / проектная", "%", "115"),
         ]
         return rows.map { en, ru, unit, id in
             let n = Int(id)!
             let category = n <= 10 ? "device" : n <= 22 ? "charge" : n <= 34 ? "condition" : n <= 44 ? "electrical" : n <= 56 ? "adapter" : n <= 66 ? "identity" : n <= 76 ? "timing" : n <= 86 ? "history" : n <= 94 ? "cooling" : "diagnostics"
             return CatalogDefinition(id: id, titleEnglish: en, titleRussian: ru, category: category, unit: unit,
-                privacy: ["048", "059", "063", "066", "098", "099"].contains(id) ? .sensitive : .operational)
+                privacy: ["048", "059", "063", "066", "098", "099", "101", "102", "114"].contains(id) ? .sensitive : .operational)
         }
     }()
 }

@@ -23,8 +23,12 @@ import PowerCore
                 case .keepAwake:
                     if allowsAwakeActions && !model.keepAwake.hasOwnedAssertion { KeepAwakePanel(model: model, compact: true).id(model.language) }
                     else if !model.keepAwake.hasOwnedAssertion || !allowsAwakeActions { KeepAwakeSummary(service: model.keepAwake).id(model.language) }
-                case .power: metric("Power", symbol: "bolt", id: "038")
-                case .temperature: metric("Temperature", symbol: "thermometer.medium", id: "039")
+                case .power: PowerMetricCard(model: model, title: "Battery power", symbol: "bolt", id: "038")
+                case .temperature: PowerMetricCard(model: model, title: "Temperature", symbol: "thermometer.medium", id: "039", color: .red)
+                case .applications: ProcessActivityPanel(model: model, compact: true, allowsNavigation: allowsAwakeActions).id(model.language)
+                case .systemPower: PowerMetricCard(model: model, title: "System", symbol: "desktopcomputer", id: "043")
+                case .adapter: AdapterMetricCard(model: model)
+                case .batteryHealth: BatteryHealthMetricCard(model: model)
                 case .chargeLimit:
                     HStack {
                         Label(L10n.text("Charge limit"), systemImage: "battery.100percent")
@@ -62,15 +66,5 @@ import PowerCore
             return minutes >= 60 ? "\(minutes / 60) \(L10n.text("h")) \(minutes % 60) \(L10n.text("min"))" : "\(minutes) \(L10n.text("min"))"
         }
         return "≈ " + text(value.lowerSeconds) + "–" + text(value.upperSeconds)
-    }
-    @ViewBuilder private func metric(_ title: String, symbol: String, id: String) -> some View {
-        if let reading = model.snapshot.catalog.first(where: { $0.id == id }) {
-            HStack {
-                Label(L10n.text(title), systemImage: symbol)
-                Spacer()
-                Text(ReadingPresentation.display(reading, reveal: false, fahrenheit: model.fahrenheit)).monospacedDigit()
-                if reading.freshness == .stale { Text(L10n.text("Stale")).font(.caption2).foregroundStyle(.orange) }
-            }.font(.subheadline).help(L10n.text("Source") + ": " + reading.source)
-        }
     }
 }

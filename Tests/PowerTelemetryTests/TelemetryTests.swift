@@ -7,7 +7,7 @@ import PowerDiagnostics
 final class TelemetryTests: XCTestCase {
     func testEverySnapshotExposesAllCatalogAvailabilityResults() {
         let snapshot = BatterySnapshot.unavailable()
-        XCTAssertEqual(snapshot.catalog.map(\.id), (1...100).map { String(format: "%03d", $0) })
+        XCTAssertEqual(snapshot.catalog.map(\.id), (1...115).map { String(format: "%03d", $0) })
         XCTAssertTrue(snapshot.catalog.allSatisfy { $0.value == nil && $0.reason != nil && $0.freshness == .unknown })
     }
     func testDemoCatalogMatchesExplicitCompatibilityReadings() {

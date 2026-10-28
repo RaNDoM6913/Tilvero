@@ -1,16 +1,20 @@
 import Foundation
 
 enum OverviewMetric: String, CaseIterable, Codable, Identifiable, Sendable {
-    case forecast, power, temperature, history, chargeLimit, keepAwake
+    case forecast, power, temperature, history, chargeLimit, keepAwake, systemPower, adapter, batteryHealth, applications
     var id: String { rawValue }
     var title: String {
         switch self {
         case .forecast: "Time to 20%"
-        case .power: "Power"
+        case .power: "Battery power"
         case .temperature: "Temperature"
         case .history: "Last hour"
         case .chargeLimit: "Charge limit"
         case .keepAwake: "Keep Mac Awake"
+        case .systemPower: "System"
+        case .adapter: "Adapter"
+        case .batteryHealth: "Battery health"
+        case .applications: "Application activity"
         }
     }
     var symbol: String {
@@ -21,6 +25,10 @@ enum OverviewMetric: String, CaseIterable, Codable, Identifiable, Sendable {
         case .history: "chart.xyaxis.line"
         case .chargeLimit: "battery.100percent"
         case .keepAwake: "cup.and.saucer"
+        case .systemPower: "desktopcomputer"
+        case .adapter: "powerplug"
+        case .batteryHealth: "heart"
+        case .applications: "app.badge"
         }
     }
 }
@@ -54,7 +62,7 @@ struct OverviewDragState {
 }
 struct OverviewPreferences: Codable, Equatable {
     var order = OverviewMetric.allCases
-    var hidden: Set<OverviewMetric> = [.chargeLimit, .keepAwake]
+    var hidden: Set<OverviewMetric> = [.chargeLimit, .keepAwake, .systemPower, .adapter, .batteryHealth, .applications]
     init() {}
     private enum CodingKeys: String, CodingKey { case order, hidden }
     init(from decoder: any Decoder) throws {
@@ -67,7 +75,7 @@ struct OverviewPreferences: Codable, Equatable {
         let additions = OverviewMetric.allCases.filter { !known.contains($0) }
         order = known + additions
         hidden = Set(try values.decodeIfPresent([String].self, forKey: .hidden)?.compactMap(OverviewMetric.init(rawValue:)) ?? Array(Self().hidden))
-        hidden.formUnion(additions.filter { $0 == .chargeLimit || $0 == .keepAwake })
+        hidden.formUnion(additions.filter { Self().hidden.contains($0) })
     }
     func encode(to encoder: any Encoder) throws {
         var values = encoder.container(keyedBy: CodingKeys.self)

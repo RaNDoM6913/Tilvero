@@ -22,6 +22,13 @@ final class TilveroModel: ObservableObject {
     @Published private(set) var history: [HistorySample] = []
     @Published private(set) var historySummary: HistorySummary?
     @Published private(set) var sleepSessions: [SleepSessionRecord] = []
+    @Published private(set) var processActivity: ProcessActivitySnapshot?
+    private let processActivityProvider: @Sendable () async -> ProcessResourceCollection
+    private var processSampler = ProcessActivitySampler(timebaseNumerator: ProcessActivityProvider.timebase.numerator, timebaseDenominator: ProcessActivityProvider.timebase.denominator)
+    private var isReadingProcesses = false
+    private var processMonitorStopped = false
+    private var processRevision: UInt64 = 0
+    private var lastProcessRefreshUptime: Double?
     @Published private(set) var sleepActivity: SleepAssertionSnapshot?
     @Published private(set) var systemChargeLimit: SystemChargeLimitObservation?
     @Published private(set) var isReadingSystemChargeLimit = false
@@ -104,11 +111,13 @@ final class TilveroModel: ObservableObject {
          sleepActivityProvider: (@Sendable () async -> SleepAssertionSnapshot)? = nil,
          systemChargeLimitProvider: (@Sendable () async -> SystemChargeLimitObservation)? = nil,
          liveControl: LiveControlService? = nil,
-         keepAwakeTransport: (any KeepAwakeTransport)? = nil) {
+         keepAwakeTransport: (any KeepAwakeTransport)? = nil,
+         processActivityProvider: (@Sendable () async -> ProcessResourceCollection)? = nil) {
         self.systemChargeLimitProvider = systemChargeLimitProvider ?? {
             await Task.detached(priority: .utility) { SystemChargeLimitObservation.read() }.value
         }
         self.isDemo = isDemo
+        self.processActivityProvider = processActivityProvider ?? { await ProcessActivityProvider().read() }
         self.preferences = preferences
         keepAwakeDuration = KeepAwakeDuration(rawValue: preferences.integer(forKey: "keepAwakeMinutes")) ?? .halfHour
         let monitoring = Bundle.main.object(forInfoDictionaryKey: "TilveroReleaseMode") as? String == "monitoring"
@@ -250,6 +259,7 @@ final class TilveroModel: ObservableObject {
     }
     var fanless: Bool { snapshot.catalog.first { $0.id == "001" }?.value?.stringValue == "Mac17,3" && !isDemo }
     func start() {
+        processMonitorStopped = false
         guard pollingTask == nil else { return }
         if !isDemo { Task { await liveControl.start() }; observer.start { [weak self] in Task { await self?.refresh() } } }
         pollingTask = Task { @MainActor [weak self] in
@@ -258,6 +268,7 @@ final class TilveroModel: ObservableObject {
                 if !self.sleeping {
                     await self.refresh()
                     await self.refreshNativeCharge()
+                    await self.refreshProcessActivity()
                     if self.systemChargeLimit.map({ Date().timeIntervalSince($0.collectedAt) >= 30 }) ?? true {
                         await self.refreshSystemChargeLimit()
                     }
@@ -267,6 +278,7 @@ final class TilveroModel: ObservableObject {
         }
     }
     func stop() {
+        processMonitorStopped = true; processRevision &+= 1; processSampler.reset(); processActivity = nil
         try? keepAwake.stop()
         resetSleepObservation(reason: .applicationStopped, persist: true)
         pollingTask?.cancel(); pollingTask = nil; observer.stop(); try? store?.close()
@@ -275,6 +287,7 @@ final class TilveroModel: ObservableObject {
         if value && sleeping { return }
         if !value && !sleeping && observedWake { return }
         lifecycleEpoch &+= 1
+        processRevision &+= 1; processSampler.reset(); processActivity = nil; lastProcessRefreshUptime = nil
         sleeping = value
         systemChargeLimit = nil
         if value {
@@ -291,6 +304,17 @@ final class TilveroModel: ObservableObject {
             queuedWakeRefresh = true
             Task { await refresh() }
         }
+    }
+    func refreshProcessActivity(force: Bool = false) async {
+        guard !isDemo, !sleeping, !processMonitorStopped, !isReadingProcesses else { return }
+        if !force, let lastProcessRefreshUptime, ProcessInfo.processInfo.systemUptime - lastProcessRefreshUptime < 2 { return }
+        isReadingProcesses = true
+        let revision = processRevision
+        defer { isReadingProcesses = false }
+        let observed = await processActivityProvider()
+        guard revision == processRevision, !sleeping, !processMonitorStopped else { return }
+        processActivity = processSampler.accept(observed)
+        lastProcessRefreshUptime = ProcessInfo.processInfo.systemUptime
     }
     func refresh() async {
         try? keepAwake.reconcile()
