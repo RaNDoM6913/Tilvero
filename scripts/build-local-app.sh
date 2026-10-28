@@ -11,6 +11,16 @@ if (($#)); then
   [[ "$app_directory" == /* ]] || app_directory="$project_root/$app_directory"
   [[ ! -e "$app_directory" && ! -L "$app_directory" ]] || { echo 'Output already exists; preserve it and choose a fresh path.' >&2; exit 2; }
 fi
+# Never overwrite executable/resources under a live process. Use a fresh candidate
+# or quit normally first, so restoration and history shutdown can complete.
+python3 - "$app_directory" <<'PY_PREFLIGHT'
+from pathlib import Path
+import subprocess, sys
+executable = (Path(sys.argv[1]) / 'Contents/MacOS/TilveroApp').resolve()
+result = subprocess.run(['/bin/ps', '-axo', 'comm='], check=True, capture_output=True, text=True)
+if any(Path(line.strip()).resolve() == executable for line in result.stdout.splitlines() if line.strip()):
+    raise SystemExit('Output app is running. Quit Tilvero normally or use --output with a fresh candidate path.')
+PY_PREFLIGHT
 swift build -c release --product TilveroApp
 swift build -c release --product TilveroHelper
 binary_directory="$(swift build -c release --show-bin-path)"

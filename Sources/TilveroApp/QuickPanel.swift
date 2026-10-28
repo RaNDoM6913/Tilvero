@@ -191,15 +191,14 @@ struct ChargeLimitControl: View {
                         .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
             } else {
-                Text(L10n.text("This build monitors your Mac. Charge and power controls need a trusted signed helper and device validation."))
+                SystemChargeLimitPanel(model: model)
+                Text(L10n.text("Direct Tilvero control requires a trusted signed helper and verified hardware restoration."))
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 if isQuickPanel {
                     Button(L10n.text("Control availability…")) {
                         model.selectedSection = .diagnostics
                         model.openDetails?()
                     }
-                } else {
-                    Button(L10n.text("Battery Settings…")) { model.openBatterySettings() }
                 }
             }
         }

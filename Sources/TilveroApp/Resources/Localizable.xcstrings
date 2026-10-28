@@ -4096,6 +4096,310 @@
           }
         }
       }
+    },
+    "Another Tilvero copy is running": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Another Tilvero copy is running"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Уже запущена другая копия Tilvero"
+          }
+        }
+      }
+    },
+    "Open this copy only after the running copy quits and restores its settings.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open this copy only after the running copy quits and restores its settings."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эта копия откроется после обычного завершения работающей копии и восстановления её настроек."
+          }
+        }
+      }
+    },
+    "Running copy": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Running copy"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запущенная копия"
+          }
+        }
+      }
+    },
+    "Requested copy": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Requested copy"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открываемая копия"
+          }
+        }
+      }
+    },
+    "Quit running copy and open this one": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quit running copy and open this one"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Завершить старую и открыть эту"
+          }
+        }
+      }
+    },
+    "Keep running copy": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep running copy"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оставить работающую копию"
+          }
+        }
+      }
+    },
+    "The running copy has not quit": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The running copy has not quit"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Работающая копия ещё не завершена"
+          }
+        }
+      }
+    },
+    "Complete recovery or quit that copy, then reopen this app. No process was forced to stop.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Complete recovery or quit that copy, then reopen this app. No process was forced to stop."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Завершите восстановление или закройте ту копию, затем откройте приложение снова. Принудительная остановка не выполнялась."
+          }
+        }
+      }
+    },
+    "Direct Tilvero control requires a trusted signed helper and verified hardware restoration.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Direct Tilvero control requires a trusted signed helper and verified hardware restoration."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Прямому управлению Tilvero нужны доверенный подписанный помощник и проверенное восстановление настроек оборудования."
+          }
+        }
+      }
+    },
+    "macOS charge limit": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS charge limit"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Лимит зарядки macOS"
+          }
+        }
+      }
+    },
+    "Other system requests": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Other system requests"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Другие системные ограничения"
+          }
+        }
+      }
+    },
+    "Read from macOS": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Read from macOS"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Прочитано из macOS"
+          }
+        }
+      }
+    },
+    "Conflicting manual limits reported": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conflicting manual limits reported"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обнаружены противоречивые ручные лимиты"
+          }
+        }
+      }
+    },
+    "No manual limit registered": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No manual limit registered"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ручной лимит не зарегистрирован"
+          }
+        }
+      }
+    },
+    "Reading macOS charge limit…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading macOS charge limit…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Чтение лимита зарядки macOS…"
+          }
+        }
+      }
+    },
+    "macOS charge limit unavailable or stale": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS charge limit unavailable or stale"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Лимит macOS недоступен или устарел"
+          }
+        }
+      }
+    },
+    "Set 80–100% in Battery → Charging ⓘ → Charge Limit. macOS manages this setting independently of Tilvero.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set 80–100% in Battery → Charging ⓘ → Charge Limit. macOS manages this setting independently of Tilvero."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Задайте 80–100%: «Аккумулятор» → «Зарядка» ⓘ → лимит зарядки. Этой настройкой macOS управляет независимо от Tilvero."
+          }
+        }
+      }
+    },
+    "Change in macOS…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change in macOS…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Изменить в macOS…"
+          }
+        }
+      }
+    },
+    "Registered requests do not prove an exact cutoff. macOS may occasionally charge to 100% for calibration.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Registered requests do not prove an exact cutoff. macOS may occasionally charge to 100% for calibration."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Регистрация лимита не подтверждает точный порог отключения. macOS может иногда заряжать до 100% для калибровки."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

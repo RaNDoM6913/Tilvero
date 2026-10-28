@@ -9,6 +9,7 @@ import PowerPersistence
 import PowerDiagnostics
 import PowerSimulator
 import PowerPrivileged
+import ChargeBackends
 
 @MainActor
 final class TilveroModel: ObservableObject {
@@ -22,6 +23,9 @@ final class TilveroModel: ObservableObject {
     @Published private(set) var historySummary: HistorySummary?
     @Published private(set) var sleepSessions: [SleepSessionRecord] = []
     @Published private(set) var sleepActivity: SleepAssertionSnapshot?
+    @Published private(set) var systemChargeLimit: SystemChargeLimitObservation?
+    @Published private(set) var isReadingSystemChargeLimit = false
+    private let systemChargeLimitProvider: @Sendable () async -> SystemChargeLimitObservation
     @Published private(set) var sleepReportError: String?
     @Published private(set) var isReadingSleepActivity = false
     @Published var selectedSection: InfoSection = .overview { didSet {
@@ -83,7 +87,11 @@ final class TilveroModel: ObservableObject {
     init(isDemo: Bool, preferences: UserDefaults = .standard,
          historyURL: URL? = nil,
          snapshotProvider: (@Sendable () async -> BatterySnapshot)? = nil,
-         sleepActivityProvider: (@Sendable () async -> SleepAssertionSnapshot)? = nil) {
+         sleepActivityProvider: (@Sendable () async -> SleepAssertionSnapshot)? = nil,
+         systemChargeLimitProvider: (@Sendable () async -> SystemChargeLimitObservation)? = nil) {
+        self.systemChargeLimitProvider = systemChargeLimitProvider ?? {
+            await Task.detached(priority: .utility) { SystemChargeLimitObservation.read() }.value
+        }
         self.isDemo = isDemo
         self.preferences = preferences
         self.sleepActivityProvider = sleepActivityProvider ?? {
@@ -174,7 +182,12 @@ final class TilveroModel: ObservableObject {
         pollingTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
-                if !self.sleeping { await self.refresh() }
+                if !self.sleeping {
+                    await self.refresh()
+                    if self.systemChargeLimit.map({ Date().timeIntervalSince($0.collectedAt) >= 30 }) ?? true {
+                        await self.refreshSystemChargeLimit()
+                    }
+                }
                 try? await Task.sleep(for: .seconds(self.isPopoverVisible || self.isDetailVisible ? 5 : 30))
             }
         }
@@ -188,6 +201,7 @@ final class TilveroModel: ObservableObject {
         if !value && !sleeping && observedWake { return }
         lifecycleEpoch &+= 1
         sleeping = value
+        systemChargeLimit = nil
         if value {
             observedWake = false
             if !isDemo && historyEnabled {
@@ -430,6 +444,15 @@ final class TilveroModel: ObservableObject {
         lifecycleEpoch &+= 1
         if persist && !isDemo { saveSleepChanges(sleepTracker.accept(.interrupted(reason: reason, stamp: sleepStamp()))) }
         sleepTracker = SleepSessionTracker(); lastRawSleepEndpoint = nil; queuedWakeRefresh = false; observedWake = false
+    }
+    func refreshSystemChargeLimit() async {
+        guard !isDemo, !sleeping, !isReadingSystemChargeLimit else { return }
+        isReadingSystemChargeLimit = true
+        defer { isReadingSystemChargeLimit = false }
+        let epoch = lifecycleEpoch
+        let value = await systemChargeLimitProvider()
+        guard epoch == lifecycleEpoch, !sleeping else { return }
+        systemChargeLimit = value
     }
     func refreshSleepActivity() async {
         guard !isDemo, !sleeping, !isReadingSleepActivity else { return }

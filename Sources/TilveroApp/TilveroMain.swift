@@ -4,6 +4,7 @@ import PowerCore
 import PowerTelemetry
 import PowerDiagnostics
 import OSLog
+import ChargeBackends
 
 @main
 @MainActor
@@ -14,6 +15,15 @@ struct TilveroMain {
                 let report = try DoctorReport(snapshot: MacBatteryProvider().readSnapshot()).encodedJSON()
                 FileHandle.standardOutput.write(report); FileHandle.standardOutput.write(Data("\n".utf8))
             } catch { FileHandle.standardError.write(Data("Diagnostic collection failed.\n".utf8)); exit(1) }
+            return
+        }
+        if CommandLine.arguments.contains("--charge-status") {
+            let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            encoder.dateEncodingStrategy = .iso8601
+            do {
+                FileHandle.standardOutput.write(try encoder.encode(SystemChargeLimitObservation.read()))
+                FileHandle.standardOutput.write(Data("\n".utf8))
+            } catch { FileHandle.standardError.write(Data("Charge status collection failed.\n".utf8)); exit(1) }
             return
         }
         if CommandLine.arguments.contains("--sleep-status") {
@@ -40,11 +50,17 @@ struct TilveroMain {
             return
         }
         let application = NSApplication.shared
-        if let bundleID = Bundle.main.bundleIdentifier,
-           let existing = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first(where: { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }) {
-            existing.activate(options: [])
-            DistributedNotificationCenter.default().postNotificationName((try? ReleaseIdentity.current().reopenNotificationName) ?? Notification.Name("local.tilvero.showDetails"), object: nil)
-            return
+        let startup = TilveroStartupDelegate()
+        application.delegate = startup
+        application.setActivationPolicy(.accessory)
+        withExtendedLifetime(startup) { application.run() }
+    }
+
+    fileprivate static func prepare(application: NSApplication) -> TilveroAppDelegate? {
+        if let bundleID = Bundle.main.bundleIdentifier {
+            let existing = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+                .filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier && !$0.isTerminated }
+            guard AppInstancePolicy.mayStart(application: application, existing: existing) else { return nil }
         }
         let identity: ReleaseIdentity
         do {
@@ -66,12 +82,12 @@ struct TilveroMain {
                     showStartupBlock(
                         english: "Quit the Tilvero prototype, then reopen this app to copy your history safely. The prototype and its data have been preserved.",
                         russian: "Закройте прототип Tilvero и снова откройте приложение для безопасного переноса истории. Прототип и его данные сохранены.")
-                    return
+                    return nil
                 case .conflictingIdentity:
                     showStartupBlock(
                         english: "History and battery identity cannot be paired safely. Startup is blocked; both data stores and preferences have been preserved. Resolve the conflict before reopening. No fresh history was created.",
                         russian: "Не удалось безопасно сопоставить историю и идентификатор батареи. Запуск остановлен; обе базы и настройки сохранены. Устраните конфликт перед повторным запуском. Новая история не создавалась.")
-                    return
+                    return nil
                 case .notNeeded, .migrated: break
                 }
             }
@@ -79,14 +95,9 @@ struct TilveroMain {
             showStartupBlock(
                 english: "Tilvero could not prepare its data safely. Startup is blocked and the migration can be retried after the problem is resolved. Existing data has been preserved.",
                 russian: "Tilvero не смог безопасно подготовить данные. Запуск остановлен. После устранения проблемы перенос можно повторить; существующие данные сохранены.")
-            return
+            return nil
         }
-        let delegate = TilveroAppDelegate(historyURL: identity.historyURL())
-        application.delegate = delegate
-        application.setActivationPolicy(.accessory)
-        withExtendedLifetime(delegate) {
-            application.run()
-        }
+        return TilveroAppDelegate(historyURL: identity.historyURL())
     }
 
     // Do not read app localization/defaults before migration has committed.
@@ -100,6 +111,26 @@ struct TilveroMain {
         alert.informativeText = useRussian ? russian : english
         alert.addButton(withTitle: useRussian ? "Закрыть" : "Close")
         alert.runModal()
+    }
+}
+
+/// Finish AppKit launch before presenting modal startup decisions. Keep domain
+/// initialization behind those decisions so two copies cannot open the store.
+@MainActor
+private final class TilveroStartupDelegate: NSObject, NSApplicationDelegate {
+    private var runningDelegate: TilveroAppDelegate?
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        Task { @MainActor in
+            let application = NSApplication.shared
+            guard let delegate = TilveroMain.prepare(application: application) else {
+                application.terminate(nil)
+                return
+            }
+            runningDelegate = delegate
+            application.delegate = delegate
+            application.setActivationPolicy(.accessory)
+            delegate.start()
+        }
     }
 }
 
@@ -120,7 +151,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     private var activationGate = QuickPanelActivationGate()
     private let popoverLog = Logger(subsystem: Bundle.main.bundleIdentifier ?? ReleaseIdentity.prototypeBundleIdentifier, category: "MenuPopover")
 
-    func applicationDidFinishLaunching(_ notification: Notification) {
+    func start() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem = item
         item.button?.target = self

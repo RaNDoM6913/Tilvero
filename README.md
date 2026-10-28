@@ -52,10 +52,12 @@ From the repository directory:
 ```sh
 bash scripts/test.sh
 bash scripts/build-local-app.sh
-open build/Tilvero.app
+bash scripts/run-local.sh
 ```
 
 To preserve an existing development bundle, build into a fresh location with `bash scripts/build-local-app.sh --output build/dev-candidates/my-build/Tilvero.app`. The explicit output must not exist. `TilveroApp --sleep-status` is a read-only status check that omits process names and does not start migration or the app UI.
+
+The local builder refuses to overwrite a running app; quit it normally or use a fresh candidate output. The launcher opens the exact canonical bundle. If another copy is running, Tilvero shows both paths and waits for a normal quit before switching. Diagnostics shows the running bundle path.
 
 The app starts in the menu bar. Click the battery item to open the quick panel, then **Battery Info** for the detail window. Reopen Tilvero to restore the window if its menu item is hidden. In the app, **⌘⌥B** toggles the panel and **⌘,** opens Settings.
 
@@ -82,7 +84,7 @@ build/Tilvero.app/Contents/Library/HelperTools/TilveroHelper --discover
 Discovery is read-only. Review diagnostic content before sharing it. Quit the live app before launching the simulator:
 
 ```sh
-open build/Tilvero.app --args --demo
+open -n build/Tilvero.app --args --demo
 ```
 
 **DEMO** appears in the menu bar. Simulation exercises charging intent, pending lower targets, one-shot full charge, fan policies and schedules. Slider changes remain drafts until Apply. Demo behavior is not evidence of physical hardware support.
@@ -92,6 +94,12 @@ open build/Tilvero.app --args --demo
 Tilvero runs without an account, cloud service or telemetry upload. History stays in `~/Library/Application Support/Tilvero/History.sqlite`. Default retention is 30 days for detailed samples and up to 365 days for hourly aggregates; Settings can shorten detailed retention or erase all history.
 
 Normal presentation masks serials and identity tokens; ordinary exports exclude them. Diagnostics can be previewed before saving. Local diagnostic files and exports are yours to review and share deliberately.
+
+## System charge limit
+
+On Apple silicon with **macOS 26.4+**, Apple provides an independent **80–100% Charge Limit** in **System Settings → Battery → Charging ⓘ**. The Charge tab links there and displays the manual limit registered by macOS, with a read timestamp and Refresh action. Other OS requests, including Optimized Battery Charging, are shown separately. A missing or conflicting readback stays unavailable; it is not converted into a claimed 100% limit. Simulation never reads physical limits.
+
+The observation uses read-only `pmset -g battlimit`; it does not prove an exact charging cutoff or that Tilvero applied the setting. macOS can occasionally charge to 100% for calibration. See [Apple's charge-limit guidance](https://support.apple.com/en-us/102338). `TilveroApp --charge-status` prints the same read-only observation without starting the app, migration or a helper.
 
 ## Hardware controls: current boundary
 

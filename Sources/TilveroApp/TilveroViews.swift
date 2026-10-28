@@ -130,6 +130,9 @@ struct BatteryInfoView: View {
                 VStack(alignment: .leading, spacing: 9) {
                     Label(L10n.text(model.liveControl.hasOwnedSettings ? "App-owned settings require restoration" : "No active control session"), systemImage: "shield")
                     Text("\(L10n.text("Helper")): \(model.helperStatusText)")
+                    Text(L10n.text("Running copy") + ": " + Bundle.main.bundleURL.path)
+                        .font(.caption).textSelection(.enabled)
+                    if !model.isDemo { SystemChargeLimitPanel(model: model) }
                     Text(L10n.text(model.liveControl.message ?? "Signing and hardware validation required")).foregroundStyle(.secondary)
                     if model.liveControl.canRegister { Button(L10n.text("Enable supported controls")) { model.registerHelper() } }
                     if model.liveControl.hasOwnedSettings || model.liveControl.recoveryRequired { Button(L10n.text("Restore original settings")) { model.restoreAll() } }

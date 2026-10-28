@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — local launch and system charge-limit readback
+
+- Open the exact local bundle and show both paths when another copy is running; wait for a normal quit before switching and refuse to overwrite a running bundle.
+- Read the manual macOS charge limit separately from other registered system requests, with freshness, manual refresh and a link to Apple's Battery settings.
+- Keep Tilvero hardware writes and helper enrollment subject to their existing signing, qualification and restoration gates.
+
 ## Unreleased — A3 app refinement
 
 - Separate the quick panel into Overview, Charge and Modes with content-based height and bounded scrolling.
