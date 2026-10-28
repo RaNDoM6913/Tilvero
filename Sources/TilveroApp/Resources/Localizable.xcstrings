@@ -6000,6 +6000,38 @@
           }
         }
       }
+    },
+    "Charge policy unconfirmed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charge policy unconfirmed"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Лимит пока не подтверждён"
+          }
+        }
+      }
+    },
+    "Waiting for discharge below": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for discharge below"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ждём разряда ниже"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

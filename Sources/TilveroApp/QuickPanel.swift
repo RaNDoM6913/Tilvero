@@ -38,13 +38,12 @@ struct QuickPanel: View {
             HStack {
                 Text(AppIdentity.displayName).font(.headline)
                 Spacer()
-                Text(L10n.text(model.isDemo ? "Simulation" : "Live readings"))
-                    .font(.caption).foregroundStyle(.secondary)
+                if model.isDemo { Text(L10n.text("Simulation")).font(.caption).foregroundStyle(.secondary) }
                 settingsMenu
             }
             Picker(L10n.text("Battery menu"), selection: $section) {
                 ForEach(QuickPanelSection.allCases) { Text($0.title).tag($0) }
-            }.pickerStyle(.segmented).id(L10n.language)
+            }.pickerStyle(.segmented).labelsHidden().id(L10n.language)
             Group {
                 switch section {
                 case .overview: overview
@@ -52,7 +51,7 @@ struct QuickPanel: View {
                 case .modes: modes
                 }
             }
-            if let notice = model.notice {
+            if let notice = contextualNotice {
                 Text(notice).font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -67,10 +66,15 @@ struct QuickPanel: View {
                     Image(systemName: "chevron.right").font(.caption)
                 }.frame(maxWidth: .infinity)
             }.buttonStyle(.borderless)
-            Text("\(L10n.text("Last collection")): \(model.snapshot.collectedAt.formatted(.dateTime.hour().minute().locale(L10n.locale)))")
-                .font(.caption2).foregroundStyle(.secondary)
-                .help(L10n.text("This is an observation time, not necessarily the hardware measurement time."))
+
         }.padding(20).frame(width: 360, alignment: .leading)
+    }
+
+    private var contextualNotice: String? {
+        guard let notice = model.notice else { return nil }
+        if section == .charge, model.usesNativeCharge, notice == model.nativeCharge.message.map(L10n.text) { return nil }
+        if model.isDemo, notice == L10n.text("Simulation only — your Mac settings are unchanged.") { return nil }
+        return notice
     }
 
     private var overview: some View {
@@ -111,15 +115,17 @@ struct QuickPanel: View {
         VStack(alignment: .leading, spacing: 12) {
             ChargeLimitControl(model: model, isQuickPanel: true)
             if model.canShowChargeControls {
-                Button(L10n.text(model.isOneShotDemo ? "Cancel one-time charge" : "Charge to 100% once")) { model.toggleOneShotDemo() }
-                    .disabled(model.isApplying || !model.canChargeToFullOnce)
+                if model.canChargeToFullOnce || model.isOneShotDemo {
+                    Button(L10n.text(model.isOneShotDemo ? "Cancel one-time charge" : "Charge to 100% once")) { model.toggleOneShotDemo() }
+                        .disabled(model.isApplying)
+                }
                 Button(L10n.text("Return to system control")) { model.releaseControl() }
                     .disabled(model.isApplying || !model.canReleaseCharge)
             }
         }
     }
 
-    private var modes: some View { ModeEditorPanel(model: model) }
+    private var modes: some View { ModeEditorPanel(model: model, compact: true) }
 
     private var settingsMenu: some View {
         Menu {
@@ -170,16 +176,19 @@ struct ChargeLimitControl: View {
                     Button(L10n.text(model.isApplying ? "Applying…" : "Apply")) { model.applyDemoTarget() }
                         .buttonStyle(.borderedProminent).disabled(!model.canApply)
                 }
-                Text(L10n.text("Draft") + ": " + model.draftText + "%").font(.caption).foregroundStyle(.secondary)
-                Text(model.effectiveLimitText).font(.caption).foregroundStyle(.secondary)
-                if model.usesNativeCharge { NativeChargeStatusPanel(model: model) }
+                if !isQuickPanel { Text(L10n.text("Draft") + ": " + model.draftText + "%").font(.caption).foregroundStyle(.secondary) }
+                if !isQuickPanel || !model.usesNativeCharge { Text(model.effectiveLimitText).font(.subheadline).foregroundStyle(.secondary) }
+                if model.usesNativeCharge { NativeChargeStatusPanel(model: model, compact: isQuickPanel) }
                 if model.pendingTarget != nil {
                     Button(L10n.text("Cancel pending target")) { model.cancelPendingDemo() }
-                    Text(L10n.text("Reconnecting early may charge to the effective limit while a lower target is pending."))
-                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        .help(L10n.text("Reconnecting early may charge to the effective limit while a lower target is pending."))
+                    if !isQuickPanel {
+                        Text(L10n.text("Reconnecting early may charge to the effective limit while a lower target is pending."))
+                            .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             } else if model.usesNativeCharge {
-                NativeChargeStatusPanel(model: model)
+                NativeChargeStatusPanel(model: model, compact: isQuickPanel)
                 Button(L10n.text("Refresh")) { Task { await model.refreshNativeCharge() } }
             } else {
                 SystemChargeLimitPanel(model: model)

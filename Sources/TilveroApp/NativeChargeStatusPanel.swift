@@ -2,7 +2,40 @@ import SwiftUI
 
 @MainActor struct NativeChargeStatusPanel: View {
     @ObservedObject var model: TilveroModel
+    var compact = false
     var body: some View {
+        if compact { quickStatus } else { details }
+    }
+    private var quickStatus: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            if model.nativeCharge.recoveryRequired || model.nativeCharge.restorationPending || model.pendingTarget != nil || model.nativeCharge.hasOwnedSettings {
+                Text(model.effectiveLimitText).font(.subheadline)
+                    .foregroundStyle(model.nativeCharge.recoveryRequired ? .orange : .secondary)
+            } else if let observed = model.nativeCharge.observed {
+                Text(L10n.text("macOS charge limit") + ": " + (observed.configuration.enabled ? "\(observed.configuration.target)%" : L10n.text("System managed")))
+                    .font(.subheadline).foregroundStyle(.secondary)
+            } else {
+                Text(L10n.text("Charge policy unconfirmed")).font(.subheadline).foregroundStyle(.orange)
+                Button(L10n.text("Refresh")) { Task { await model.refreshNativeCharge() } }
+            }
+            if let target = model.pendingTarget ?? (model.nativeCharge.restorationPending ? model.nativeCharge.baselineTarget : nil) {
+                Text(L10n.text("Waiting for discharge below") + " \(target)%")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .help(L10n.text("Lower targets wait for natural discharge."))
+            }
+            Text(model.chargingStateText).font(.caption).foregroundStyle(.secondary)
+            if !model.nativeCharge.admitted && !model.nativeCharge.recoveryRequired {
+                Button(L10n.text("Validate native control…")) { model.qualifyNativeCharge() }
+                    .disabled(model.isApplying || model.nativeCharge.isBusy)
+                    .help(L10n.text("Native control needs one local setting-and-restoration check."))
+            }
+            if model.nativeCharge.recoveryRequired || model.nativeCharge.restorationPending {
+                Button(L10n.text("Restore previous macOS limit")) { model.releaseControl() }
+                    .disabled(model.isApplying || model.nativeCharge.isBusy)
+            }
+        }.help(model.nativeCharge.message.map(L10n.text) ?? "")
+    }
+    private var details: some View {
         VStack(alignment: .leading, spacing: 7) {
             if let observed = model.nativeCharge.observed {
                 Text(L10n.text(model.nativeCharge.recoveryRequired ? "Last confirmed macOS limit" : "macOS charge limit") + ": " + (observed.configuration.enabled ? "\(observed.configuration.target)%" : L10n.text("System managed")))

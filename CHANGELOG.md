@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased - compact quick panel
+
+- Match the approved A3 navigation without a visible picker heading or collection-time footer.
+- Keep one native charge state, concise pending/charging status and recovery actions. Move repeated technical explanations to Diagnostics/tooltips and omit unqualified full-once from quick actions.
+- Keep mode action statuses in the quick panel; retain detailed reasons in the full editor and tooltips. No charge-policy or hardware-authority change.
+
 ## Unreleased — native-control development checkpoint
 
 - Use public native SF Symbol layers with continuous measured fill.

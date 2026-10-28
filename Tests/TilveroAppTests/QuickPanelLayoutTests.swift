@@ -18,6 +18,23 @@ final class QuickPanelLayoutTests: XCTestCase {
         XCTAssertGreaterThan(size.height, 180)
     }
 
+    func testRussianPendingChargeFitsCompactDesignWithoutExplanatoryTail() async throws {
+        let saved = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
+        UserDefaults.standard.setVolatileDomain(saved.merging(["language": "ru"]) { _, value in value }, forName: UserDefaults.argumentDomain)
+        defer { UserDefaults.standard.setVolatileDomain(saved, forName: UserDefaults.argumentDomain) }
+        let fixture = try Fixture(isDemo: true); defer { fixture.cleanUp() }
+        fixture.model.demoPercent = 98
+        await fixture.model.refresh()
+        fixture.model.setDraft(80); fixture.model.applyDemoTarget()
+        for _ in 0..<100 where fixture.model.isApplying { await Task.yield() }
+        let host = NSHostingController(rootView: QuickPanel(model: fixture.model, maximumHeight: 1000, section: .charge))
+        let size = host.sizeThatFits(in: NSSize(width: 360, height: 1200))
+        print("Russian pending charge natural height: \(size.height)")
+        XCTAssertLessThanOrEqual(size.height, 470, "The quick charge surface needs state and actions without an explanatory tail")
+        XCTAssertEqual(fixture.model.control?.charge.pendingTarget, 80)
+        XCTAssertEqual(fixture.model.control?.charge.appliedTarget, 100)
+    }
+
     func testLongPendingChargeContentIsScreenBoundedAndScrollable() async throws {
         let fixture = try Fixture(isDemo: true)
         defer { fixture.cleanUp() }

@@ -2,10 +2,11 @@ import SwiftUI
 
 @MainActor struct ModeEditorPanel: View {
     @ObservedObject var model: TilveroModel
+    let compact: Bool
     @State private var draft: ModePlan
     @State private var message: String?
-    init(model: TilveroModel) {
-        self.model = model
+    init(model: TilveroModel, compact: Bool = false) {
+        self.model = model; self.compact = compact
         _draft = State(initialValue: model.modeLibrary.plan(model.selectedMode))
     }
     private var unsaved: Bool { draft != model.modeLibrary.plan(draft.mode) }
@@ -19,8 +20,8 @@ import SwiftUI
                 draft = model.modeLibrary.plan(mode); message = nil
             }
             if draft.mode == .normal {
-                Text(L10n.text("Normal restores only Tilvero-owned settings. Your other system preferences stay unchanged."))
-                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                if !compact { Text(L10n.text("Normal restores only Tilvero-owned settings. Your other system preferences stay unchanged."))
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
             } else {
                 Toggle(L10n.text("Request Low Power Mode"), isOn: $draft.lowPower)
                 Picker(L10n.text("Charge limit"), selection: $draft.chargeTarget) {
@@ -56,9 +57,11 @@ import SwiftUI
                         Spacer(minLength: 8)
                         Text(L10n.text(row.status.title)).foregroundStyle(row.status == .excluded ? .orange : .secondary)
                     }
-                    Text(L10n.text(row.detail)).font(.caption2).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }.font(.caption)
+                    if !compact {
+                        Text(L10n.text(row.detail)).font(.caption2).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }.font(.caption).help(L10n.text(row.detail))
             }
             HStack {
                 Button(L10n.text("Save mode")) {
@@ -79,13 +82,13 @@ import SwiftUI
                 Text(L10n.text(model.isDemo ? "Simulation result" : report.isComplete ? "Available actions completed" : "Partial result — see each action"))
                     .font(.caption).bold()
                 ForEach(report.rows) { row in
-                    Text(actionTitle(row.action) + ": " + L10n.text(row.status.title) + ". " + L10n.text(row.detail))
+                    Text(actionTitle(row.action) + ": " + L10n.text(row.status.title) + (compact ? "" : ". " + L10n.text(row.detail)))
                         .font(.caption2).foregroundStyle(row.status == .failed ? .red : .secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .fixedSize(horizontal: false, vertical: true).help(L10n.text(row.detail))
                 }
             }
-            Text(L10n.text("Excluded actions do not run. No extra CPU throttling or battery-life gain is claimed."))
-                .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            if !compact { Text(L10n.text("Excluded actions do not run. No extra CPU throttling or battery-life gain is claimed."))
+                .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
         }.disabled(model.isApplying)
     }
     private func actionTitle(_ action: ModeAction) -> String {
