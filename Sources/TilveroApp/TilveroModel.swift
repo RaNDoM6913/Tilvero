@@ -23,8 +23,10 @@ final class TilveroModel: ObservableObject {
     @Published private(set) var historySummary: HistorySummary?
     @Published private(set) var sleepSessions: [SleepSessionRecord] = []
     @Published private(set) var processActivity: ProcessActivitySnapshot?
+    @Published private(set) var highCPUApplications: [ProcessActivityRow] = []
     private let processActivityProvider: @Sendable () async -> ProcessResourceCollection
     private var processSampler = ProcessActivitySampler(timebaseNumerator: ProcessActivityProvider.timebase.numerator, timebaseDenominator: ProcessActivityProvider.timebase.denominator)
+    private var processHighlights = SustainedCPUActivity()
     private var isReadingProcesses = false
     private var processMonitorStopped = false
     private var processRevision: UInt64 = 0
@@ -279,6 +281,7 @@ final class TilveroModel: ObservableObject {
     }
     func stop() {
         processMonitorStopped = true; processRevision &+= 1; processSampler.reset(); processActivity = nil
+        processHighlights.reset(); highCPUApplications = []
         try? keepAwake.stop()
         resetSleepObservation(reason: .applicationStopped, persist: true)
         pollingTask?.cancel(); pollingTask = nil; observer.stop(); try? store?.close()
@@ -288,6 +291,7 @@ final class TilveroModel: ObservableObject {
         if !value && !sleeping && observedWake { return }
         lifecycleEpoch &+= 1
         processRevision &+= 1; processSampler.reset(); processActivity = nil; lastProcessRefreshUptime = nil
+        processHighlights.reset(); highCPUApplications = []
         sleeping = value
         systemChargeLimit = nil
         if value {
@@ -313,7 +317,9 @@ final class TilveroModel: ObservableObject {
         defer { isReadingProcesses = false }
         let observed = await processActivityProvider()
         guard revision == processRevision, !sleeping, !processMonitorStopped else { return }
-        processActivity = processSampler.accept(observed)
+        let activity = processSampler.accept(observed)
+        processActivity = activity
+        highCPUApplications = processHighlights.accept(activity, monotonic: observed.monotonic)
         lastProcessRefreshUptime = ProcessInfo.processInfo.systemUptime
     }
     func refresh() async {

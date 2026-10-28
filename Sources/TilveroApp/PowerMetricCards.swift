@@ -46,7 +46,9 @@ enum PowerMetricHistory {
                 Text(reading.map { (($0.value?.doubleValue != nil && [.estimated, .inferred].contains($0.provenance)) ? "≈ " : "") + ReadingPresentation.display($0, reveal: false, fahrenheit: model.fahrenheit) } ?? "—").monospacedDigit()
                 if reading?.freshness == .stale { Text(L10n.text("Stale")).font(.caption2).foregroundStyle(.orange) }
             }.font(.subheadline)
-            MetricSparkline(model: model, id: id, color: color)
+            if id != "039" && id != "026" {
+                MetricSparkline(model: model, id: id, color: color)
+            }
         }.help(reading.map { L10n.text("Source") + ": " + $0.source + " · " + L10n.text("Freshness") + ": " + $0.freshness.rawValue + "\n" + L10n.text($0.reason ?? "Recorded observations during the last hour.") } ?? L10n.text("Unavailable"))
     }
 }
@@ -117,7 +119,9 @@ enum PowerMetricHistory {
                                 Spacer()
                                 Text(L10n.text("Maximum") + ": " + format(summary.maximum, reading))
                             }.font(.caption).monospacedDigit()
-                            MetricSparkline(model: model, id: id, color: id == "039" ? .red : .orange)
+                            if id != "039" && id != "026" {
+                                MetricSparkline(model: model, id: id, color: .orange)
+                            }
                             Text(L10n.text("Observations") + ": \(summary.count)").font(.caption2).foregroundStyle(.secondary)
                         }
                     }

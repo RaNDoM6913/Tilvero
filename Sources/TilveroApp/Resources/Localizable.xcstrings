@@ -7280,6 +7280,38 @@
           }
         }
       }
+    },
+    "High CPU usage": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "High CPU usage"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Высокая нагрузка CPU"
+          }
+        }
+      }
+    },
+    "Shows accessible apps at 50% or more of one CPU for at least 30 seconds across three or more consecutive intervals. Other processes may be inaccessible.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shows accessible apps at 50% or more of one CPU for at least 30 seconds across three or more consecutive intervals. Other processes may be inaccessible."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показываются доступные приложения с нагрузкой от 50% одного CPU не менее 30 секунд за три или более последовательных интервала. Другие процессы могут быть недоступны."
+          }
+        }
+      }
     }
   },
   "version": "1.0"
