@@ -29,12 +29,17 @@ Local **TEST** packages are internal ad-hoc builds. They are not a signed, notar
 | Capability | Current behavior |
 | --- | --- |
 | Live battery monitoring | Charge, power-source status and available battery readings, with source, freshness and unavailable reasons |
-| Menu bar and detail window | Quick panel, searchable readings, light/dark appearance, Russian/English, temperature units and adjustable indicator sizing |
+| Menu bar and detail window | Content-sized Overview / Charge / Modes panel, direct qualified charge actions, searchable detail readings, Russian/English and adjustable indicator sizing |
 | Local history | Minute samples, hourly aggregates, gaps and battery boundaries; CSV/JSON preview and export |
+| Sleep & drain | Separate detail section for future app-observed sleep intervals, qualified before/after charge change and current sleep blockers; incomplete evidence stays visible |
 | Diagnostics | Read-only discovery and a redacted report; no administrator approval needed for monitoring |
 | Explicit demo mode | Clearly marked simulated readings and control policies, kept separate from live history |
 
+The normal battery silhouette is calibrated to a system reference; the custom percentage-inside option uses a lower iOS-inspired body with larger adaptive numerals. Unknown values and the adapter cue remain distinct from measured charge.
+
 The catalog defines **100 fields**. Availability depends on the Mac and macOS; it does not mean every device exposes 100 readings. Missing data stays unavailable.
+
+Sleep reports begin with a sleep/wake interval observed while Tilvero is running and history is enabled. They are not backfilled from old sample gaps. The measured charge change spans the recorded observations; it does not prove battery-only operation or exact time asleep. Current process assertions explain what may prevent sleep **now**, not which application consumed energy during an earlier night. Internal wake counts, wake reasons and per-app energy are unavailable from this collection. Sleep records follow the selected detailed-history period, are erased with history, and are not included in the ordinary CSV/JSON export. Process names and assertion descriptions are not persisted.
 
 ## Build and run
 
@@ -49,6 +54,8 @@ bash scripts/test.sh
 bash scripts/build-local-app.sh
 open build/Tilvero.app
 ```
+
+To preserve an existing development bundle, build into a fresh location with `bash scripts/build-local-app.sh --output build/dev-candidates/my-build/Tilvero.app`. The explicit output must not exist. `TilveroApp --sleep-status` is a read-only status check that omits process names and does not start migration or the app UI.
 
 The app starts in the menu bar. Click the battery item to open the quick panel, then **Battery Info** for the detail window. Reopen Tilvero to restore the window if its menu item is hidden. In the app, **⌘⌥B** toggles the panel and **⌘,** opens Settings.
 
@@ -96,7 +103,7 @@ Requested, applied and observed state remain separate. A lower charge target may
 
 ## Next directions
 
-The [roadmap](ROADMAP.md) explores sleep-loss reports, sleep blockers, Economy/Maximum autonomy modes and charging for a departure time. These are proposed work, awaiting scope decisions and relevant qualification. No fixed battery-life saving or asleep charging deadline is promised.
+The first read-only sleep-report stage is implemented. Economy/Maximum autonomy, quiet-sleep control and charging for a departure time remain proposed work in the [roadmap](ROADMAP.md), awaiting their own scope and qualification. No fixed battery-life saving or asleep charging deadline is promised.
 
 ## Development
 

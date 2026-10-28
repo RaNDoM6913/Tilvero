@@ -31,3 +31,7 @@ Work mode, sleep preference and a departure charging plan should be independent.
 - Exclude forced discharge cycles, legacy “deep sleep” recipes, arbitrary hardware writes and fixed savings promises from these milestones.
 
 Real Pro cooling, signed distribution and model-specific controls remain separate validation work. Contributions should target a coherent outcome and preserve the current working monitor. Discuss a proposal through a [feature request](https://github.com/RaNDoM6913/Tilvero/issues/new?template=feature_request.yml) before implementing a new control boundary.
+
+## Read-only sleep stage status
+
+The A3 source implements a separate Sleep & drain section: app-observed sleep/wake boundaries, qualified raw charge endpoints, incomplete/restart handling, current public-API sleep assertions, and bounded local persistence. Existing gaps are not reconstructed into sleep sessions. Process observations remain ephemeral and cannot attribute a past night's energy use. Actual sleep residence, internal wakes and wake reasons remain unavailable; real completed sleep/wake device observation still needs to occur naturally with the app running. This source work does not enable Economy/Maximum or sleep-aware physical control. DMG work is deferred while the app is refined.

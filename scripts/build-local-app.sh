@@ -4,10 +4,16 @@ project_root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$project_root"
 source "$project_root/scripts/toolchain.sh"
 [[ "$(uname -s)" == Darwin ]] || { echo 'Building Tilvero requires macOS.' >&2; exit 1; }
+app_directory="$project_root/build/Tilvero.app"
+if (($#)); then
+  [[ "$#" == 2 && "$1" == --output ]] || { echo 'Usage: build-local-app.sh [--output <new-app-path>]' >&2; exit 2; }
+  app_directory="$2"
+  [[ "$app_directory" == /* ]] || app_directory="$project_root/$app_directory"
+  [[ ! -e "$app_directory" && ! -L "$app_directory" ]] || { echo 'Output already exists; preserve it and choose a fresh path.' >&2; exit 2; }
+fi
 swift build -c release --product TilveroApp
 swift build -c release --product TilveroHelper
 binary_directory="$(swift build -c release --show-bin-path)"
-app_directory="$project_root/build/Tilvero.app"
 mkdir -p "$app_directory/Contents/MacOS" "$app_directory/Contents/Resources" "$app_directory/Contents/Library/HelperTools" "$app_directory/Contents/Library/LaunchDaemons"
 cp "$binary_directory/TilveroApp" "$app_directory/Contents/MacOS/TilveroApp"
 cp "$binary_directory/TilveroHelper" "$app_directory/Contents/Library/HelperTools/TilveroHelper"

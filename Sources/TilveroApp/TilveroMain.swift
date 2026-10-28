@@ -16,6 +16,23 @@ struct TilveroMain {
             } catch { FileHandle.standardError.write(Data("Diagnostic collection failed.\n".utf8)); exit(1) }
             return
         }
+        if CommandLine.arguments.contains("--sleep-status") {
+            let observed = SleepActivityProvider().readSnapshot()
+            let payload: [String: Any] = [
+                "collectedAt": ISO8601DateFormatter().string(from: observed.collectedAt),
+                "aggregateAvailability": observed.aggregateAvailability.rawValue,
+                "processAvailability": observed.processAvailability.rawValue,
+                "activeTypes": observed.activeTypes.map(\.rawValue),
+                "activeAssertionCount": observed.rows.count,
+                "processNamesIncluded": false,
+                "historicalAttributionAvailable": false
+            ]
+            do {
+                let data = try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
+                FileHandle.standardOutput.write(data); FileHandle.standardOutput.write(Data("\n".utf8))
+            } catch { FileHandle.standardError.write(Data("Sleep status collection failed.\n".utf8)); exit(1) }
+            return
+        }
         if let index = CommandLine.arguments.firstIndex(of: "--render-icons"), CommandLine.arguments.count > index + 1 {
             _ = NSApplication.shared
             do { try IconFixtures.render(to: URL(fileURLWithPath: CommandLine.arguments[index + 1])) }
@@ -113,8 +130,10 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
 
         popover.behavior = .transient
         popover.animates = false
-        popover.contentSize = NSSize(width: 360, height: 440)
-        popover.contentViewController = NSHostingController(rootView: QuickPanel(model: model))
+        let panel = QuickPanelHostingController(model: model, maximumHeight: panelMaximumHeight)
+        panel.onSizeChange = { [weak self] size in self?.popover.contentSize = size }
+        popover.contentViewController = panel
+        popover.contentSize = panel.preferredContentSize
         popover.delegate = self
 
         model.openDetails = { [weak self] in self?.showDetails() }
@@ -211,11 +230,19 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
 
     private func presentPopover() {
         guard NSApplication.shared.isActive, let button = statusItem?.button else { return }
+        (popover.contentViewController as? QuickPanelHostingController)?.updateMaximumHeight(panelMaximumHeight)
         model.isPopoverVisible = true
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         activatePopoverWindow()
         startPopoverEventMonitors()
         Task { await model.refresh() }
+    }
+
+    private var panelMaximumHeight: CGFloat {
+        let screen = statusItem?.button?.window?.screen ?? NSScreen.main
+        // Leave room for the popover arrow and screen-edge margins. The visible
+        // frame already excludes the menu bar and Dock on the anchor display.
+        return max(1, (screen?.visibleFrame.height ?? 700) - 32)
     }
 
     private func activatePopoverWindow() {

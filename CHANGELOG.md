@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — A3 app refinement
+
+- Separate the quick panel into Overview, Charge and Modes with content-based height and bounded scrolling.
+- Keep qualified charging actions inside the panel; move sleep analysis to a separate Sleep & drain detail section.
+- Record future observed sleep intervals with fresh raw endpoints, explicit incomplete evidence, local retention and shared-history erasure.
+- Show current read-only sleep assertions without storing process details or attributing historical energy to applications.
+- Refine the menu-bar battery silhouette against the measured system reference and add larger, contrast-adaptive iOS-inspired inside numerals without a tall stretched body.
+- Preserve a running development app by accepting a fresh explicit local-build output.
+
+DMG/release work is deferred. No new hardware-write qualification or public binary release is introduced.
+
 ## Unreleased — Monitoring Preview preparation
 
 - Prepare the helper-free Monitoring Preview distribution scope: battery monitoring, local history and read-only diagnostics on Apple silicon with macOS 26.0+.

@@ -149,6 +149,90 @@ final class NativeBatteryStatusImageTests: XCTestCase {
         }
     }
 
+    func testInsideDigitsHaveReadableHeightWithoutAnElongatedTube() async throws {
+        for textSize in MenuBarTextSize.allCases {
+            for ac in [false, true] {
+                let image = NativeBatteryStatusImage.make(level: 0, style: .inside, externalPower: ac, textSize: textSize)
+                XCTAssertLessThanOrEqual(image.size.width, 35, "The inside mode must remain a compact battery, including its AC cue.")
+                let rep = render(image, scale: 8)
+                // Measure the zero's central vertical stem, away from the shell
+                // and optional right-side adapter cue. At zero this is text only.
+                let unknown = render(NativeBatteryStatusImage.make(level: nil, style: .inside, externalPower: ac, textSize: textSize), scale: 8)
+                let textInk = occupied(rep, threshold: 0.7).filter {
+                    $0.x >= 6 * 8 && $0.x <= 20 * 8 && $0.y >= 4 * 8 && $0.y < 14 * 8 &&
+                    abs(rep.colorAt(x: $0.x, y: $0.y)!.alphaComponent - unknown.colorAt(x: $0.x, y: $0.y)!.alphaComponent) > 0.5
+                }
+                let height = (textInk.map(\.y).max() ?? 0) - (textInk.map(\.y).min() ?? 0) + 1
+                XCTAssertGreaterThanOrEqual(height, 7 * 8, "Inside numerals must be legible at actual menu-bar size.")
+            }
+        }
+    }
+
+    func testInsideFullBatteryKnocksOutDigitsInsteadOfPaintingOverFill() async throws {
+        let full = render(NativeBatteryStatusImage.make(level: 100, style: .inside, externalPower: false), scale: 8)
+        // A filled battery must contain contrasting numeral cutouts. A faint
+        // fill with dark text makes charge unreadable and visually near-empty.
+        let center = (5 * 8..<13 * 8).flatMap { y in
+            (6 * 8..<22 * 8).map { x in full.colorAt(x: x, y: y)!.alphaComponent }
+        }
+        XCTAssertGreaterThan(center.filter { $0 > 0.9 }.count, center.count / 3)
+        XCTAssertGreaterThan(center.filter { $0 < 0.1 }.count, center.count / 12)
+    }
+
+    func testNormalContourMatchesMeasuredNativeHeightAtTwoTimes() async throws {
+        // Owner reference: body 46×24 physical pixels, terminal 3×8 at 2×.
+        // Include secondary contour pixels using the same >90 channel cutoff
+        // as white ink over black, not a threshold that discards the outline.
+        let threshold = CGFloat(90) / 255
+        for style in [MenuBarDisplayStyle.beside, .iconOnly] {
+            for ac in [false, true] {
+                for level in [0, 88, 100, nil] {
+                    let rep = render(NativeBatteryStatusImage.make(level: level, style: style, externalPower: ac), scale: 2)
+                    let body = occupied(rep, threshold: threshold).filter { $0.x < 48 }
+                    XCTAssertEqual(body.map(\.x).max()! - body.map(\.x).min()! + 1, 46)
+                    XCTAssertEqual(body.map(\.y).max()! - body.map(\.y).min()! + 1, 24, "The normal contour, including its stroke, must match the measured reference.")
+                    let terminal = occupied(rep, threshold: threshold).filter { $0.x >= 48 }
+                    XCTAssertEqual(terminal.map(\.x).max()! - terminal.map(\.x).min()! + 1, 3)
+                    XCTAssertEqual(terminal.map(\.y).max()! - terminal.map(\.y).min()! + 1, 8)
+                }
+            }
+        }
+        let rep = render(NativeBatteryStatusImage.make(level: 0, style: .iconOnly, externalPower: false), scale: 2)
+        let maximumAlpha = occupied(rep).map { rep.colorAt(x: $0.x, y: $0.y)!.alphaComponent }.max() ?? 0
+        XCTAssertLessThan(maximumAlpha, 0.8)
+        XCTAssertGreaterThan(maximumAlpha, 0.4)
+    }
+
+    func testInsideThreeDigitsLeaveAVisibleGapBeforeAdapterBolt() async throws {
+        for textSize in MenuBarTextSize.allCases {
+            let rep = render(NativeBatteryStatusImage.make(level: 0, style: .inside, externalPower: true, textSize: textSize), scale: 8)
+            // The rightmost zero of 100 is wider than the zero fixture above.
+            // At full charge the intervening strip must be opaque reservoir,
+            // separating the clear numeral from the clear adapter bolt.
+            let full = render(NativeBatteryStatusImage.make(level: 100, style: .inside, externalPower: true, textSize: textSize), scale: 8)
+            for y in 6 * 8..<12 * 8 {
+                XCTAssertEqual(rep.colorAt(x: 25 * 8, y: y)!.alphaComponent, 0.2, accuracy: 0.02)
+                XCTAssertGreaterThan(full.colorAt(x: 25 * 8, y: y)!.alphaComponent, 0.95)
+            }
+        }
+    }
+
+    func testInsideMeasuredFillRemainsContinuousBelowDigits() async throws {
+        var amounts: [CGFloat] = []
+        for level in [0, 1, 9, 10, 50, 88, 99, 100] {
+            let rep = render(NativeBatteryStatusImage.make(level: level, style: .inside, externalPower: false), scale: 8)
+            // Bottom track excludes the text; include its centre-height left
+            // and right edges so 1% and 99–100% remain measurable despite
+            // rounded corners at the bottom of the track.
+            let amount = (0..<rep.pixelsWide).reduce(CGFloat.zero) { sum, x in
+                sum + rep.colorAt(x: x, y: 14 * 8)!.alphaComponent
+                    + ((x < 3 * 8 || x > 29 * 8) ? rep.colorAt(x: x, y: 9 * 8)!.alphaComponent : 0)
+            }
+            amounts.append(amount)
+        }
+        for index in 1..<amounts.count { XCTAssertGreaterThan(amounts[index], amounts[index - 1]) }
+    }
+
     private func render(_ image: NSImage, scale: Int) -> NSBitmapImageRep {
         let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int((image.size.width * CGFloat(scale)).rounded(.up)),
             pixelsHigh: Int((image.size.height * CGFloat(scale)).rounded(.up)), bitsPerSample: 8, samplesPerPixel: 4,

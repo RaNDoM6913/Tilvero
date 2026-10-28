@@ -4,105 +4,8 @@ import Charts
 import PowerCore
 import PowerPersistence
 
-@MainActor
-struct QuickPanel: View {
-    @ObservedObject var model: TilveroModel
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    Text(AppIdentity.displayName).font(.headline)
-                    Spacer()
-                    Label(L10n.text(model.isDemo ? "Simulation" : "Live readings"), systemImage: model.isDemo ? "testtube.2" : "circle.fill")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(model.chargeText).font(.system(size: 38, weight: .semibold, design: .rounded)).monospacedDigit()
-                    Text(model.chargingStateText).font(.subheadline).foregroundStyle(.secondary)
-                    if model.snapshot.chargePercent.freshness == .stale { Text(L10n.text("Stale")).font(.caption).foregroundStyle(.orange) }
-                }
-                Divider()
-                ChargeLimitControl(model: model)
-                if model.canShowChargeControls {
-                    Button(L10n.text(model.isOneShotDemo ? "Cancel one-time charge" : "Charge to 100% once")) { model.toggleOneShotDemo() }
-                        .disabled(model.isApplying)
-                }
-                if let notice = model.notice { Text(notice).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
-                Divider()
-                HStack {
-                    Button(L10n.text("Battery Info…")) { model.openDetails?() }
-                    Spacer()
-                    Menu {
-                        Button(L10n.text("Settings")) { model.selectedSection = .settings; model.openDetails?() }
-                        Picker(L10n.text("Menu bar"), selection: $model.displayStyle) {
-                            ForEach(MenuBarDisplayStyle.allCases) { style in Text(style.title).tag(style) }
-                        }
-                        Divider()
-                        Button(L10n.text("Quit Tilvero")) { NSApplication.shared.terminate(nil) }
-                    } label: { Image(systemName: "gearshape") }
-                    .menuStyle(.borderlessButton).fixedSize().accessibilityLabel(L10n.text("Settings"))
-                }
-                Text("\(L10n.text("Last collection")): \(model.snapshot.collectedAt.formatted(.dateTime.hour().minute().locale(L10n.locale)))")
-                    .font(.caption2).foregroundStyle(.secondary)
-                    .help(L10n.text("This is an observation time, not necessarily the hardware measurement time."))
-            }.padding(20)
-        }.frame(width: 360, height: 440)
-            .environment(\.locale, L10n.locale)
-            .id(model.language)
-    }
-}
-
-@MainActor
-struct ChargeLimitControl: View {
-    @ObservedObject var model: TilveroModel
-    var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            HStack {
-                Text(L10n.text("Charge limit")).font(.headline)
-                Spacer()
-                if model.canShowChargeControls {
-                    TextField(L10n.text("Desired percentage"), text: Binding(get: { model.draftText }, set: { model.draftText = $0; model.typedDraftChanged() }))
-                        .textFieldStyle(.roundedBorder).multilineTextAlignment(.trailing).frame(width: 55)
-                        .disabled(!model.canEdit).onSubmit { _ = model.validateTypedDraft() }
-                        .accessibilityLabel(L10n.text("Desired percentage"))
-                    Text("%")
-                }
-            }
-            if model.canShowChargeControls {
-                Slider(value: Binding(get: { model.sliderIndex }, set: model.setSliderIndex),
-                       in: 0...Double(max(1, model.acceptedTargets.count - 1)), step: 1)
-                    .disabled(!model.canEdit).accessibilityLabel(L10n.text("Charge limit"))
-                    .accessibilityValue("\(model.draftText)%, \(L10n.text("Draft"))")
-                HStack {
-                    Text(model.acceptedTargets.first.map { "\($0)%" } ?? "—")
-                    Spacer()
-                    Text(model.acceptedTargets.last.map { "\($0)%" } ?? "—")
-                }.font(.caption).foregroundStyle(.secondary)
-                HStack {
-                    ForEach([80, 90, 100], id: \.self) { target in
-                        Button("\(target)%") { model.setDraft(target) }.disabled(!model.canEdit || !model.acceptedTargets.contains(target))
-                    }
-                    Spacer()
-                    Button(L10n.text(model.isApplying ? "Applying…" : "Apply")) { model.applyDemoTarget() }
-                        .buttonStyle(.borderedProminent).disabled(!model.canApply)
-                }
-                Text(model.effectiveLimitText).font(.caption).foregroundStyle(.secondary)
-                if model.pendingTarget != nil {
-                    Button(L10n.text("Cancel pending target")) { model.cancelPendingDemo() }
-                    Text(L10n.text("Reconnecting early may charge to the effective limit while a lower target is pending."))
-                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                }
-            } else {
-                Text(L10n.text("This build monitors your Mac. Charge and power controls need a trusted signed helper and device validation."))
-                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                Button(L10n.text("Battery Settings…")) { model.openBatterySettings() }
-            }
-        }
-    }
-}
-
 enum InfoSection: String, CaseIterable, Identifiable {
-    case overview, battery, charging, cooling, history, diagnostics, settings
+    case overview, battery, charging, cooling, history, sleep, diagnostics, settings
     var id: String { rawValue }
     var title: String { L10n.text(key) }
     private var key: String {
@@ -112,6 +15,7 @@ enum InfoSection: String, CaseIterable, Identifiable {
         case .charging: "Charging & adapter"
         case .cooling: "Cooling"
         case .history: "History"
+        case .sleep: "Sleep & drain"
         case .diagnostics: "Diagnostics"
         case .settings: "Settings"
         }
@@ -123,6 +27,7 @@ enum InfoSection: String, CaseIterable, Identifiable {
         case .charging: "bolt"
         case .cooling: "fan"
         case .history: "chart.xyaxis.line"
+        case .sleep: "moon.zzz"
         case .diagnostics: "list.bullet.rectangle"
         case .settings: "gearshape"
         }
@@ -137,8 +42,16 @@ struct BatteryInfoView: View {
     @State private var reveal = false
     var body: some View {
         NavigationSplitView {
-            List(InfoSection.allCases, selection: Binding<InfoSection?>(get: { model.selectedSection }, set: { if let selected = $0 { model.selectedSection = selected } })) { item in
-                Label(item.title, systemImage: item.symbol).tag(item)
+            List(selection: Binding<InfoSection?>(get: { model.selectedSection }, set: { if let selected = $0 { model.selectedSection = selected } })) {
+                ForEach([InfoSection.overview, .battery, .charging, .cooling]) { item in
+                    Label(item.title, systemImage: item.symbol).tag(item)
+                }
+                Section(L10n.text("Analytics")) {
+                    ForEach([InfoSection.history, .sleep]) { item in Label(item.title, systemImage: item.symbol).tag(item) }
+                }
+                Section {
+                    ForEach([InfoSection.diagnostics, .settings]) { item in Label(item.title, systemImage: item.symbol).tag(item) }
+                }
             }.navigationSplitViewColumnWidth(min: 170, ideal: 185, max: 220)
         } detail: {
             ScrollView {
@@ -150,15 +63,15 @@ struct BatteryInfoView: View {
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Button { Task { await model.refresh() } } label: { Label(L10n.text("Refresh"), systemImage: "arrow.clockwise") }
+                        Button { Task { await model.refresh(); if model.selectedSection == .sleep { await model.refreshSleepActivity() } } } label: { Label(L10n.text("Refresh"), systemImage: "arrow.clockwise") }
                     }
-                    if model.selectedSection != .settings && model.selectedSection != .history {
+                    if model.selectedSection != .settings && model.selectedSection != .history && model.selectedSection != .sleep {
                         HStack {
                             TextField(L10n.text("Search measurements"), text: $search).textFieldStyle(.roundedBorder)
                             Toggle(L10n.text("Show unavailable fields"), isOn: $showUnavailable).toggleStyle(.checkbox)
                         }
                     }
-                    if !search.isEmpty { catalogRows(model.snapshot.catalog) }
+                    if !search.isEmpty && model.selectedSection != .sleep { catalogRows(model.snapshot.catalog) }
                     else { sectionContent }
                     if let error = model.storeError { Label(L10n.text("Data store error") + ": " + error, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange) }
                     if let notice = model.notice { Text(notice).font(.caption).foregroundStyle(.secondary) }
@@ -211,6 +124,7 @@ struct BatteryInfoView: View {
             else { Text(L10n.text("Fan control is not verified on this hardware.")).foregroundStyle(.secondary) }
             catalogRows(readings(["039", "040", "044", "087", "088", "089", "090", "091", "092", "093", "094"]))
         case .history: HistoryPanel(model: model)
+        case .sleep: SleepReportPanel(model: model)
         case .diagnostics:
             GroupBox {
                 VStack(alignment: .leading, spacing: 9) {
@@ -365,6 +279,7 @@ private struct SettingsPanel: View {
                     Toggle(L10n.text("Save history"), isOn: $model.historyEnabled).disabled(model.isDemo)
                     Picker(L10n.text("Detailed samples"), selection: $model.retentionDays) { ForEach([7,14,30], id: \.self) { Text(L10n.text("\($0) days")).tag($0) } }.frame(maxWidth: 350).disabled(model.isDemo)
                     Text(L10n.text("Minute samples use the selected period. Hourly aggregates are kept for 12 months.")).font(.caption).foregroundStyle(.secondary)
+                    Text(L10n.text("Sleep reports use the selected detailed-history period.")).font(.caption).foregroundStyle(.secondary)
                     Button(L10n.text("Erase history…"), role: .destructive) { confirmErase = true }.disabled(model.isDemo)
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(12)
             }
@@ -380,7 +295,7 @@ private struct SettingsPanel: View {
 }
 
 @MainActor
-private struct ProfilePanel: View {
+struct ProfilePanel: View {
     @ObservedObject var model: TilveroModel
     var body: some View {
         GroupBox(L10n.text("Profiles & schedules")) {

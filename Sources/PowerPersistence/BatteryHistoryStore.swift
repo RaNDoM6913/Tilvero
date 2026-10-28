@@ -7,6 +7,7 @@ import PowerCore
     private let coordinator: NSPersistentStoreCoordinator
     private let context: NSManagedObjectContext
     private var configuration: HistoryConfiguration
+    private var sleepRetentionDays: Int
     private var latest: HistorySample?
     private var latestIdentity: String?
     private var sequence: Int64 = 0
@@ -21,6 +22,7 @@ import PowerCore
 
     public init(url: URL?, configuration: HistoryConfiguration = .init()) throws {
         self.url = url; self.configuration = configuration
+        sleepRetentionDays = max(1, configuration.detailedDays)
         let coordinator = NSPersistentStoreCoordinator(managedObjectModel: Self.model(version: 2))
         self.coordinator = coordinator
         let context = NSManagedObjectContext(concurrencyType: .mainQueueConcurrencyType)
@@ -168,6 +170,72 @@ import PowerCore
             return try context.fetch(request).reversed().map { try decode(HistorySample.self, object: $0) }
         } catch { throw clean(error) }
     }
+    private struct SleepPayload: Codable { let version: Int; let record: SleepSessionRecord }
+
+    /// Updates one stable observation row. Assertions and process details never enter this payload.
+    public func upsertSleepSession(_ record: SleepSessionRecord) throws {
+        try ensureOpen()
+        guard record.isValidForPersistence, let at = record.observedAt else { throw HistoryStoreError.corruptRecord }
+        let previousSequence = sequence
+        do {
+            // Fail closed before changing anything if a future/corrupt sleep codec is present.
+            var existing = try validatedSleepRows()
+            let encoded = try JSONEncoder().encode(SleepPayload(version: 1, record: record))
+            guard encoded.count <= 131072 else { throw HistoryStoreError.corruptRecord }
+            let object: NSManagedObject
+            if let index = existing.firstIndex(where: { $0.1.id == record.id }) {
+                object = existing[index].0
+                existing[index] = (object, record)
+            }
+            else {
+                object = NSEntityDescription.insertNewObject(forEntityName: "HistoryRecord", into: context)
+                sequence += 1
+                object.setValue(record.id, forKey: "id"); object.setValue("sleep", forKey: "kind")
+                object.setValue(sequence, forKey: "sequence")
+                existing.append((object, record))
+            }
+            object.setValue(at, forKey: "atDate")
+            object.setValue(try (encoded as NSData).compressed(using: .lzfse) as Data, forKey: "payload")
+            pruneSleepRows(existing, referenceDate: Date())
+            try context.save()
+        } catch { context.rollback(); sequence = previousSequence; throw clean(error) }
+    }
+
+    /// Old rows use the selected detailed-history period; battery aggregates keep their own retention.
+    public func sleepSessions(limit: Int = 2000) throws -> [SleepSessionRecord] {
+        try ensureOpen()
+        do {
+            let rows = try validatedSleepRows()
+            let cutoff = Date().addingTimeInterval(-Double(sleepRetentionDays) * 86400)
+            let retained = rows.filter { $0.1.observedAt! >= cutoff }
+            for (object, record) in rows where record.observedAt! < cutoff { context.delete(object) }
+            for (object, _) in retained.dropLast(2000) { context.delete(object) }
+            if context.hasChanges { try context.save() }
+            return Array(retained.suffix(min(2000, max(0, limit))).map(\.1))
+        } catch { context.rollback(); throw clean(error) }
+    }
+
+    private func validatedSleepRows() throws -> [(NSManagedObject, SleepSessionRecord)] {
+        try records(kind: "sleep", ascending: true, limit: 0).map { object in
+            guard let payload = object.value(forKey: "payload") as? Data, payload.count <= 131072 else { throw HistoryStoreError.corruptRecord }
+            do {
+                let data = try (payload as NSData).decompressed(using: .lzfse) as Data
+                guard data.count <= 131072 else { throw HistoryStoreError.corruptRecord }
+                let decoded = try JSONDecoder().decode(SleepPayload.self, from: data)
+                guard decoded.version == 1, decoded.record.isValidForPersistence,
+                      object.value(forKey: "id") as? UUID == decoded.record.id,
+                      object.value(forKey: "atDate") as? Date == decoded.record.observedAt else { throw HistoryStoreError.corruptRecord }
+                return (object, decoded.record)
+            } catch { throw HistoryStoreError.corruptRecord }
+        }
+    }
+
+    private func pruneSleepRows(_ rows: [(NSManagedObject, SleepSessionRecord)], referenceDate: Date) {
+        let cutoff = referenceDate.addingTimeInterval(-Double(sleepRetentionDays) * 86400)
+        let retained = rows.filter { $0.1.observedAt! >= cutoff }
+        for (object, record) in rows where record.observedAt! < cutoff { context.delete(object) }
+        for (object, _) in retained.dropLast(2000) { context.delete(object) }
+    }
     public func summary() throws -> HistorySummary {
         try ensureOpen()
         if let summaryCache { return summaryCache }
@@ -223,7 +291,10 @@ import PowerCore
     public func markGap(_ reason: HistoryGapReason, at: Date = Date()) throws { try markGap(reason: reason, at: at) }
     public func configureRetention(_ days: Int) throws {
         configuration.detailedDays = min(configuration.retentionDays, min(30, max(1, days)))
+        sleepRetentionDays = max(1, configuration.detailedDays)
         try maintain(referenceDate: Date())
+        do { pruneSleepRows(try validatedSleepRows(), referenceDate: Date()); try context.save() }
+        catch { context.rollback(); throw clean(error) }
     }
     public func erase() throws {
         try ensureOpen()
@@ -343,7 +414,9 @@ import PowerCore
         do {
             let cutoff = referenceDate.addingTimeInterval(-Double(configuration.retentionDays) * 86400)
             let old = request(kind: nil, ascending: true, limit: 200000)
-            old.predicate = NSPredicate(format: "atDate < %@", cutoff as NSDate)
+            // Sleep payloads have their own validated retention pass. Unknown or
+            // corrupt versions must not disappear in ordinary sample maintenance.
+            old.predicate = NSPredicate(format: "atDate < %@ AND kind != %@", cutoff as NSDate, "sleep")
             for object in try context.fetch(old) { context.delete(object) }
             let detailCutoff = referenceDate.addingTimeInterval(-Double(configuration.detailedDays) * 86400)
             let candidates = try records(kind: "sample", ascending: true, limit: configuration.maximumSamples + 1)

@@ -20,13 +20,20 @@ final class TilveroModel: ObservableObject {
     @Published private(set) var storeError: String?
     @Published private(set) var history: [HistorySample] = []
     @Published private(set) var historySummary: HistorySummary?
-    @Published var selectedSection: InfoSection = .overview { didSet { preferences.set(selectedSection.rawValue, forKey: "lastSection") } }
+    @Published private(set) var sleepSessions: [SleepSessionRecord] = []
+    @Published private(set) var sleepActivity: SleepAssertionSnapshot?
+    @Published private(set) var sleepReportError: String?
+    @Published private(set) var isReadingSleepActivity = false
+    @Published var selectedSection: InfoSection = .overview { didSet {
+        preferences.set(selectedSection.rawValue, forKey: "lastSection")
+    } }
     @Published var language: String { didSet { preferences.set(language, forKey: "language"); onPresentationChange?() } }
     @Published var fahrenheit: Bool { didSet { preferences.set(fahrenheit, forKey: "fahrenheit") } }
     @Published var historyEnabled: Bool { didSet {
         preferences.set(historyEnabled, forKey: "historyEnabled")
         do { try store?.markGap(reason: .explicitBoundary) } catch { storeError = String(describing: error) }
         lastPersisted = nil
+        resetSleepObservation(reason: .historyDisabled, persist: !historyEnabled)
     } }
     @Published var retentionDays: Int { didSet { preferences.set(retentionDays, forKey: "retentionDays"); configureRetention() } }
     @Published var displayStyle: MenuBarDisplayStyle {
@@ -55,6 +62,13 @@ final class TilveroModel: ObservableObject {
     var onPresentationChange: (@MainActor () -> Void)?
     private var pollingTask: Task<Void, Never>?
     private var isReading = false
+    private var lifecycleEpoch: UInt64 = 0
+    private var queuedWakeRefresh = false
+    private var observedWake = false
+    private let sleepRunID = UUID()
+    private var sleepTracker = SleepSessionTracker()
+    private var lastRawSleepEndpoint: SleepBatteryEndpoint?
+    private let sleepActivityProvider: @Sendable () async -> SleepAssertionSnapshot
     private var sleeping = false
     private var draftDirty = false
     private var lastPersisted: BatterySnapshot?
@@ -68,9 +82,13 @@ final class TilveroModel: ObservableObject {
 
     init(isDemo: Bool, preferences: UserDefaults = .standard,
          historyURL: URL? = nil,
-         snapshotProvider: (@Sendable () async -> BatterySnapshot)? = nil) {
+         snapshotProvider: (@Sendable () async -> BatterySnapshot)? = nil,
+         sleepActivityProvider: (@Sendable () async -> SleepAssertionSnapshot)? = nil) {
         self.isDemo = isDemo
         self.preferences = preferences
+        self.sleepActivityProvider = sleepActivityProvider ?? {
+            await SleepActivityProvider().readSnapshot()
+        }
         liveControl = LiveControlService(preferences: preferences)
         let identitySalt = preferences.string(forKey: "identitySalt") ?? UUID().uuidString
         preferences.set(identitySalt, forKey: "identitySalt")
@@ -93,8 +111,12 @@ final class TilveroModel: ObservableObject {
             do {
                 let url = try historyURL ?? ReleaseIdentity.current().historyURL()
                 store = try BatteryHistoryStore(url: url)
-                try store?.configureRetention(retentionDays)
+                // Independent history readers must still run if sleep-codec validation
+                // rejects retention. Never turn a preserved corrupt record into empty success.
+                do { try store?.configureRetention(retentionDays) }
+                catch { storeError = String(describing: error) }
                 reloadHistory()
+                reloadSleepSessions()
             }
             catch { storeError = String(describing: error) }
         }
@@ -157,22 +179,61 @@ final class TilveroModel: ObservableObject {
             }
         }
     }
-    func stop() { pollingTask?.cancel(); pollingTask = nil; observer.stop(); try? store?.close() }
+    func stop() {
+        resetSleepObservation(reason: .applicationStopped, persist: true)
+        pollingTask?.cancel(); pollingTask = nil; observer.stop(); try? store?.close()
+    }
     func setSleeping(_ value: Bool) {
+        if value && sleeping { return }
+        if !value && !sleeping && observedWake { return }
+        lifecycleEpoch &+= 1
         sleeping = value
         if value {
+            observedWake = false
+            if !isDemo && historyEnabled {
+                saveSleepChanges(sleepTracker.accept(.willSleep(stamp: sleepStamp(), latestEndpoint: lastRawSleepEndpoint)))
+            }
             if !isDemo { Task { if !(await liveControl.prepareForSleep()) { notice = L10n.text("Recovery required") } } }
             do { try store?.markGap(reason: .sleep) } catch { storeError = String(describing: error) }
-        } else { Task { await refresh() } }
+        } else {
+            observedWake = true
+            if !isDemo && historyEnabled { saveSleepChanges(sleepTracker.accept(.didWake(stamp: sleepStamp(), epoch: lifecycleEpoch))) }
+            queuedWakeRefresh = true
+            Task { await refresh() }
+        }
     }
     func refresh() async {
         guard !isReading, !sleeping else { return }
         isReading = true
-        defer { isReading = false }
+        let readEpoch = lifecycleEpoch
+        defer {
+            isReading = false
+            if queuedWakeRefresh && !sleeping {
+                queuedWakeRefresh = false
+                Task { await refresh() }
+            }
+        }
         if isDemo { await refreshSimulation() }
         else {
-            snapshot = (await snapshotProvider()).retainingPreviousReadings(snapshot)
+            let raw = await snapshotProvider()
+            // Display-retained values are not new measurements. A read begun before
+            // a sleep/wake/erase boundary cannot become the post-wake endpoint.
+            guard readEpoch == lifecycleEpoch, !sleeping else { return }
+            queuedWakeRefresh = false
+            let previousPower = snapshot.isExternalPower.value
+            if historyEnabled {
+                lastRawSleepEndpoint = SleepBatteryEndpoint(snapshot: raw, stamp: sleepStamp())
+                if let endpoint = lastRawSleepEndpoint {
+                    saveSleepChanges(sleepTracker.accept(.freshReading(endpoint: endpoint, epoch: readEpoch)))
+                }
+                saveSleepChanges(sleepTracker.accept(.expire(stamp: sleepStamp())))
+            } else { lastRawSleepEndpoint = nil }
+            snapshot = raw.retainingPreviousReadings(snapshot)
             await liveControl.observe(snapshot)
+            guard readEpoch == lifecycleEpoch, !sleeping else { return }
+            if selectedSection == .sleep && previousPower != raw.isExternalPower.value {
+                Task { await refreshSleepActivity() }
+            }
             if historyEnabled {
                 do {
                     let changed = lastPersisted.map { $0.isCharging.value != snapshot.isCharging.value || $0.isExternalPower.value != snapshot.isExternalPower.value || $0.batteryIdentityToken != snapshot.batteryIdentityToken || $0.chargePercent.availability != snapshot.chargePercent.availability } ?? true
@@ -328,9 +389,57 @@ final class TilveroModel: ObservableObject {
         catch { storeError = String(describing: error) }
     }
     private func configureRetention() {
-        do { try store?.configureRetention(retentionDays); reloadHistory() } catch { storeError = String(describing: error) }
+        do { try store?.configureRetention(retentionDays) } catch { storeError = String(describing: error) }
+        reloadHistory(); reloadSleepSessions()
     }
-    func eraseHistory() { do { try store?.erase(); lastPersisted = nil; reloadHistory() } catch { storeError = String(describing: error) } }
+    func eraseHistory() {
+        resetSleepObservation(reason: .historyErased, persist: false)
+        do { try store?.erase(); lastPersisted = nil; reloadHistory(); reloadSleepSessions() }
+        catch { storeError = String(describing: error) }
+    }
+    private func sleepStamp() -> SleepObservationStamp {
+        SleepObservationStamp(wallDate: Date(), continuousSeconds: HelperClock.continuousSeconds(), runID: sleepRunID)
+    }
+    private func saveSleepChanges(_ records: [SleepSessionRecord]) {
+        guard !isDemo, !records.isEmpty else { return }
+        do {
+            guard let store else { throw HistoryStoreError.unavailable }
+            for record in records { try store.upsertSleepSession(record) }
+            reloadSleepSessions()
+        } catch { sleepReportError = L10n.text("Sleep report storage is unavailable. Existing data was preserved.") }
+    }
+    private func reloadSleepSessions() {
+        guard !isDemo else { sleepSessions = []; return }
+        do {
+            guard let store else { throw HistoryStoreError.unavailable }
+            var records = try store.sleepSessions(limit: 2000)
+            // Older-run pending observations can never resume, even when history
+            // is off and we deliberately avoid writing recovery metadata to disk.
+            let staleIDs = Set(records.filter { row in
+                row.isPending && (row.sleepBoundary?.runID ?? row.wakeBoundary?.runID) != sleepRunID
+            }.map(\.id))
+            if !staleIDs.isEmpty {
+                let stamp = sleepStamp()
+                records = records.map { staleIDs.contains($0.id) ? $0.interrupted(reason: .applicationRestarted, at: stamp) : $0 }
+                if historyEnabled { for record in records where staleIDs.contains(record.id) { try store.upsertSleepSession(record) } }
+            }
+            sleepSessions = records; sleepReportError = nil
+        } catch { sleepReportError = L10n.text("Sleep report storage is unavailable. Existing data was preserved.") }
+    }
+    private func resetSleepObservation(reason: SleepInterruptionReason, persist: Bool) {
+        lifecycleEpoch &+= 1
+        if persist && !isDemo { saveSleepChanges(sleepTracker.accept(.interrupted(reason: reason, stamp: sleepStamp()))) }
+        sleepTracker = SleepSessionTracker(); lastRawSleepEndpoint = nil; queuedWakeRefresh = false; observedWake = false
+    }
+    func refreshSleepActivity() async {
+        guard !isDemo, !sleeping, !isReadingSleepActivity else { return }
+        isReadingSleepActivity = true
+        defer { isReadingSleepActivity = false }
+        let epoch = lifecycleEpoch
+        let value = await sleepActivityProvider()
+        guard epoch == lifecycleEpoch, !sleeping else { return }
+        sleepActivity = value
+    }
     func inspectRawProperties() {
         guard !isDemo else { return }
         Task {
