@@ -7,14 +7,14 @@ import SwiftUI
     func testLegacyLayoutKeepsOrderAndHiddenWhileNewBlocksStayOptional() throws {
         let data = Data(#"{"order":["history","temperature","forecast","power"],"hidden":["forecast"]}"#.utf8)
         let value = OverviewPreferences.load(data)
-        XCTAssertEqual(value.order.map(\.rawValue), ["history","temperature","forecast","power","chargeLimit"])
-        XCTAssertEqual(value.hidden, [.forecast,.chargeLimit])
+        XCTAssertEqual(value.order.map(\.rawValue), ["history","temperature","forecast","power","chargeLimit","keepAwake"])
+        XCTAssertEqual(value.hidden, [.forecast,.chargeLimit,.keepAwake])
         XCTAssertEqual(OverviewPreferences.load(try JSONEncoder().encode(value)), value)
     }
     func testUnknownAndDuplicateIDsDoNotResetKnownComposition() {
         let value = OverviewPreferences.load(Data(#"{"order":["temperature","future","temperature","history","power","forecast"],"hidden":["power","future"]}"#.utf8))
-        XCTAssertEqual(value.order.map(\.rawValue), ["temperature","history","power","forecast","chargeLimit"])
-        XCTAssertEqual(value.hidden, [.power,.chargeLimit])
+        XCTAssertEqual(value.order.map(\.rawValue), ["temperature","history","power","forecast","chargeLimit","keepAwake"])
+        XCTAssertEqual(value.hidden, [.power,.chargeLimit,.keepAwake])
     }
     func testAcceptedLocalDropMovesHiddenRowsBothDirectionsAndRejectsForeignPayload() {
         var value = OverviewPreferences()
@@ -30,6 +30,26 @@ import SwiftUI
         XCTAssertEqual(Array(value.order.prefix(4)), [.forecast,.power,.temperature,.history])
         XCTAssertFalse(value.acceptDrop(second.payload, session: second, onto: .forecast))
         XCTAssertTrue(value.hidden.contains(.power))
+    }
+    func testCancelledOrCompletedSourceCannotAuthorizeAReplayedExternalDrop() {
+        var lifetime = OverviewDragState(), preferences = OverviewPreferences()
+        let original = preferences
+        let cancelled = lifetime.begin(.forecast)
+        lifetime.end()
+        XCTAssertNil(lifetime.prepareDrop())
+        XCTAssertFalse(lifetime.completeDrop(cancelled.payload, session: cancelled, onto: .history, preferences: &preferences))
+        XCTAssertEqual(preferences, original)
+        let accepted = lifetime.begin(.forecast)
+        XCTAssertEqual(lifetime.prepareDrop()?.payload, accepted.payload)
+        lifetime.end() // Native source-end precedes asynchronous provider completion.
+        XCTAssertTrue(lifetime.completeDrop(accepted.payload, session: accepted, onto: .history, preferences: &preferences))
+        XCTAssertEqual(preferences.order.first, .power)
+        XCTAssertFalse(lifetime.completeDrop(accepted.payload, session: accepted, onto: .power, preferences: &preferences))
+        let stale = lifetime.begin(.power)
+        _ = lifetime.prepareDrop()
+        _ = lifetime.begin(.history) // A new source invalidates an old pending callback.
+        XCTAssertFalse(lifetime.completeDrop(stale.payload, session: stale, onto: .forecast, preferences: &preferences))
+        lifetime.end()
     }
     func testPassivePreviewAndBuilderPersistWithoutApplyingActions() async throws {
         let suite = "TilveroBuilder-\(UUID())", preferences = UserDefaults(suiteName: suite)!

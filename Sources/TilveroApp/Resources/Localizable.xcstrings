@@ -6208,6 +6208,326 @@
           }
         }
       }
+    },
+    "Edit modes…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit modes…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Изменить режимы…"
+          }
+        }
+      }
+    },
+    "Keep Mac Awake": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep Mac Awake"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не давать Mac уснуть"
+          }
+        }
+      }
+    },
+    "Keep Mac Awake…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep Mac Awake…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не давать Mac уснуть…"
+          }
+        }
+      }
+    },
+    "Check session": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check session"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверьте сеанс"
+          }
+        }
+      }
+    },
+    "Keep Awake duration": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep Awake duration"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Длительность бодрствования"
+          }
+        }
+      }
+    },
+    "Time remaining": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Time remaining"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Осталось"
+          }
+        }
+      }
+    },
+    "Choose a supported Keep Awake duration.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a supported Keep Awake duration."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выберите доступную длительность бодрствования."
+          }
+        }
+      }
+    },
+    "A Keep Awake session is already running.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A Keep Awake session is already running."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сеанс бодрствования уже активен."
+          }
+        }
+      }
+    },
+    "Keep Awake is unavailable in this build or simulation.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep Awake is unavailable in this build or simulation."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бодрствование недоступно в этой сборке или симуляции."
+          }
+        }
+      }
+    },
+    "macOS could not start Keep Awake.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS could not start Keep Awake."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS не удалось включить бодрствование."
+          }
+        }
+      }
+    },
+    "macOS has not confirmed the Keep Awake state.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS has not confirmed the Keep Awake state."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS не подтвердила состояние бодрствования."
+          }
+        }
+      }
+    },
+    "Keep Awake could not be stopped. Try Stop again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep Awake could not be stopped. Try Stop again."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось завершить бодрствование. Нажмите «Остановить» ещё раз."
+          }
+        }
+      }
+    },
+    "The assertion no longer matches this Tilvero session. Nothing else was released.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The assertion no longer matches this Tilvero session. Nothing else was released."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Состояние macOS больше не соответствует этому сеансу Tilvero. Другие сеансы не изменены."
+          }
+        }
+      }
+    },
+    "Prevents idle system sleep for the chosen duration. The display can turn off; closing the lid or choosing Sleep still works. Quitting ends the session.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prevents idle system sleep for the chosen duration. The display can turn off; closing the lid or choosing Sleep still works. Quitting ends the session."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac не уснёт от бездействия в течение выбранного времени. Экран может выключиться; закрытие крышки и команда «Сон» работают как обычно. Выход из Tilvero завершает сеанс."
+          }
+        }
+      }
+    },
+    "The display can turn off. Closing the lid or choosing Sleep still works.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The display can turn off. Closing the lid or choosing Sleep still works."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Экран может выключиться. Закрытие крышки и команда «Сон» работают как обычно."
+          }
+        }
+      }
+    },
+    "Active": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Active"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Активен"
+          }
+        }
+      }
+    },
+    "Off": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выключено"
+          }
+        }
+      }
+    },
+    "Start": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Начать"
+          }
+        }
+      }
+    },
+    "Stop": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Остановить"
+          }
+        }
+      }
+    },
+    "Duration": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duration"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Длительность"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

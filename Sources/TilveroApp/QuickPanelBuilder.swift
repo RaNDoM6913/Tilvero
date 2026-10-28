@@ -13,7 +13,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
 
 @MainActor struct QuickPanelBuilder: View {
     @ObservedObject var model: TilveroModel
-    @State private var drag: OverviewDragSession?
+    @State private var drag = OverviewDragState()
     @State private var dropTarget: OverviewMetric?
     var body: some View {
         ViewThatFits(in: .horizontal) {
@@ -32,13 +32,9 @@ enum SettingsPage: String, CaseIterable, Identifiable {
             VStack(spacing: 6) {
                 ForEach(model.overviewPreferences.order) { item in
                     HStack(spacing: 10) {
-                        Image(systemName: "line.3.horizontal").foregroundStyle(.secondary)
-                            .frame(width: 20, height: 30).contentShape(Rectangle())
-                            .help(L10n.text("Drag to reorder"))
-                            .onDrag {
-                                let session = OverviewDragSession(source: item); drag = session
-                                return NSItemProvider(object: session.payload as NSString)
-                            }
+                        OverviewDragHandle(title: L10n.text(item.title), begin: { drag.begin(item).payload }, end: {
+                            drag.end(); dropTarget = nil
+                        }).frame(width: 20, height: 30)
                         Label(L10n.text(item.title), systemImage: item.symbol)
                         Spacer(minLength: 8)
                         Button { model.overviewPreferences.move(item, by: -1) } label: { Image(systemName: "chevron.up") }
@@ -83,27 +79,67 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     }
 }
 
-@MainActor private struct OverviewBlockDropDelegate: @preconcurrency DropDelegate {
+@MainActor private struct OverviewBlockDropDelegate: DropDelegate {
     let model: TilveroModel
     let target: OverviewMetric
-    @Binding var drag: OverviewDragSession?
+    @Binding var drag: OverviewDragState
     @Binding var dropTarget: OverviewMetric?
     func validateDrop(info: DropInfo) -> Bool {
-        return drag != nil && info.hasItemsConforming(to: [UTType.text])
+        return drag.active != nil && info.hasItemsConforming(to: [UTType.text])
     }
-    func dropEntered(info: DropInfo) { if drag != nil { dropTarget = target } }
+    func dropEntered(info: DropInfo) { if drag.active != nil { dropTarget = target } }
     func dropExited(info: DropInfo) { if dropTarget == target { dropTarget = nil } }
     func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
     func performDrop(info: DropInfo) -> Bool {
-        guard let session = drag, let provider = info.itemProviders(for: [UTType.text]).first else { return false }
+        guard let provider = info.itemProviders(for: [UTType.text]).first, let session = drag.prepareDrop() else { return false }
+        dropTarget = nil
         _ = provider.loadObject(ofClass: NSString.self) { value, _ in
-            guard let payload = value as? String else { return }
+            let payload = value as? String ?? ""
             Task { @MainActor in
-                guard drag?.payload == session.payload else { return }
-                model.overviewPreferences.acceptDrop(payload, session: session, onto: target)
-                drag = nil; dropTarget = nil
+                _ = drag.completeDrop(payload, session: session, onto: target, preferences: &model.overviewPreferences)
             }
         }
         return true
+    }
+}
+
+/// AppKit supplies the drag-end callback missing from SwiftUI's onDrag API.
+/// Only the dedicated handle starts a local move; buttons/toggles keep their input.
+@MainActor private struct OverviewDragHandle: NSViewRepresentable {
+    let title: String
+    let begin: () -> String
+    let end: () -> Void
+    func makeNSView(context: Context) -> Handle { Handle() }
+    func updateNSView(_ view: Handle, context: Context) {
+        view.begin = begin; view.end = end
+        view.toolTip = L10n.text("Drag to reorder")
+        view.setAccessibilityElement(true)
+        view.setAccessibilityLabel(L10n.text("Drag to reorder") + ": " + title)
+        view.setAccessibilityRole(.image)
+    }
+    final class Handle: NSView, NSDraggingSource {
+        var begin: (() -> String)?
+        var end: (() -> Void)?
+        private var handleImage: NSImage? {
+            NSImage(systemSymbolName: "line.3.horizontal", accessibilityDescription: nil)?
+                .withSymbolConfiguration(.init(paletteColors: [.secondaryLabelColor]))
+        }
+        override func draw(_ dirtyRect: NSRect) {
+            handleImage?.draw(in: NSRect(x: (bounds.width - 14) / 2, y: (bounds.height - 12) / 2, width: 14, height: 12))
+        }
+        override func resetCursorRects() { addCursorRect(bounds, cursor: .openHand) }
+        override func mouseDown(with event: NSEvent) {
+            guard let payload = begin?() else { return }
+            let pasteboard = NSPasteboardItem()
+            pasteboard.setString(payload, forType: .string)
+            let item = NSDraggingItem(pasteboardWriter: pasteboard)
+            let image = handleImage ?? NSImage(size: bounds.size)
+            item.setDraggingFrame(bounds, contents: image)
+            beginDraggingSession(with: [item], event: event, source: self)
+        }
+        func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
+            context == .withinApplication ? .move : []
+        }
+        func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) { end?() }
     }
 }

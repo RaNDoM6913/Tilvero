@@ -4,9 +4,10 @@ import PowerCore
 
 @MainActor struct OverviewMetricsPanel: View {
     @ObservedObject var model: TilveroModel
+    var allowsAwakeActions = false
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            ForEach(model.overviewPreferences.order.filter { !model.overviewPreferences.hidden.contains($0) }) { item in
+            ForEach(model.visibleOverviewMetrics) { item in
                 switch item {
                 case .forecast:
                     HStack(alignment: .firstTextBaseline) {
@@ -19,6 +20,9 @@ import PowerCore
                         }
                     }.font(.subheadline)
                         .help(L10n.text("Extrapolated from a recent continuous discharge. Changing the workload changes the forecast."))
+                case .keepAwake:
+                    if allowsAwakeActions && !model.keepAwake.hasOwnedAssertion { KeepAwakePanel(model: model, compact: true).id(model.language) }
+                    else if !model.keepAwake.hasOwnedAssertion || !allowsAwakeActions { KeepAwakeSummary(service: model.keepAwake).id(model.language) }
                 case .power: metric("Power", symbol: "bolt", id: "038")
                 case .temperature: metric("Temperature", symbol: "thermometer.medium", id: "039")
                 case .chargeLimit:

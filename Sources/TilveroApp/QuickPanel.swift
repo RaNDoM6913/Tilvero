@@ -41,6 +41,7 @@ struct QuickPanel: View {
                 if model.isDemo { Text(L10n.text("Simulation")).font(.caption).foregroundStyle(.secondary) }
                 settingsMenu
             }
+            if model.keepAwake.hasOwnedAssertion { KeepAwakeActivePanel(service: model.keepAwake).id(model.language) }
             Picker(L10n.text("Battery menu"), selection: $section) {
                 ForEach(QuickPanelSection.allCases) { Text($0.title).tag($0) }
             }.pickerStyle(.segmented).labelsHidden().id(L10n.language)
@@ -97,7 +98,7 @@ struct QuickPanel: View {
                 Text(L10n.text("Stale")).font(.caption).foregroundStyle(.orange)
             }
             Divider()
-            OverviewMetricsPanel(model: model)
+            OverviewMetricsPanel(model: model, allowsAwakeActions: true)
         }
     }
 
@@ -125,12 +126,13 @@ struct QuickPanel: View {
         }
     }
 
-    private var modes: some View { ModeEditorPanel(model: model, compact: true) }
+    private var modes: some View { SavedModePanel(model: model) }
 
     private var settingsMenu: some View {
         Menu {
             Button(L10n.text("Settings")) { model.selectedSection = .settings; model.openDetails?() }
             Button(L10n.text("Customize quick panel…")) { model.selectedSettingsPage = .quickPanel; model.selectedSection = .settings; model.openDetails?() }
+            Button(L10n.text("Keep Mac Awake…")) { model.selectedSettingsPage = .general; model.selectedSection = .settings; model.openDetails?() }
             Picker(L10n.text("Menu bar"), selection: $model.displayStyle) {
                 ForEach(MenuBarDisplayStyle.allCases) { style in Text(style.title).tag(style) }
             }

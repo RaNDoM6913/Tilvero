@@ -1,7 +1,7 @@
 import Foundation
 
 enum OverviewMetric: String, CaseIterable, Codable, Identifiable, Sendable {
-    case forecast, power, temperature, history, chargeLimit
+    case forecast, power, temperature, history, chargeLimit, keepAwake
     var id: String { rawValue }
     var title: String {
         switch self {
@@ -10,6 +10,7 @@ enum OverviewMetric: String, CaseIterable, Codable, Identifiable, Sendable {
         case .temperature: "Temperature"
         case .history: "Last hour"
         case .chargeLimit: "Charge limit"
+        case .keepAwake: "Keep Mac Awake"
         }
     }
     var symbol: String {
@@ -19,6 +20,7 @@ enum OverviewMetric: String, CaseIterable, Codable, Identifiable, Sendable {
         case .temperature: "thermometer.medium"
         case .history: "chart.xyaxis.line"
         case .chargeLimit: "battery.100percent"
+        case .keepAwake: "cup.and.saucer"
         }
     }
 }
@@ -28,9 +30,31 @@ struct OverviewDragSession: Sendable {
     var payload: String { "tilvero-overview:\(token.uuidString):\(source.rawValue)" }
     init(source: OverviewMetric) { self.source = source }
 }
+/// Native source-end invalidates active authorization; an already accepted drop
+/// may finish its provider read asynchronously, once, until a new drag begins.
+struct OverviewDragState {
+    private(set) var active: OverviewDragSession?
+    private var pending: OverviewDragSession?
+    mutating func begin(_ source: OverviewMetric) -> OverviewDragSession {
+        let session = OverviewDragSession(source: source)
+        active = session; pending = nil
+        return session
+    }
+    mutating func end() { active = nil }
+    mutating func prepareDrop() -> OverviewDragSession? {
+        guard let session = active else { return nil }
+        pending = session; active = nil
+        return session
+    }
+    mutating func completeDrop(_ payload: String, session: OverviewDragSession, onto target: OverviewMetric, preferences: inout OverviewPreferences) -> Bool {
+        guard pending?.payload == session.payload else { return false }
+        pending = nil
+        return preferences.acceptDrop(payload, session: session, onto: target)
+    }
+}
 struct OverviewPreferences: Codable, Equatable {
     var order = OverviewMetric.allCases
-    var hidden: Set<OverviewMetric> = [.chargeLimit]
+    var hidden: Set<OverviewMetric> = [.chargeLimit, .keepAwake]
     init() {}
     private enum CodingKeys: String, CodingKey { case order, hidden }
     init(from decoder: any Decoder) throws {
@@ -43,7 +67,7 @@ struct OverviewPreferences: Codable, Equatable {
         let additions = OverviewMetric.allCases.filter { !known.contains($0) }
         order = known + additions
         hidden = Set(try values.decodeIfPresent([String].self, forKey: .hidden)?.compactMap(OverviewMetric.init(rawValue:)) ?? Array(Self().hidden))
-        hidden.formUnion(additions.filter { $0 == .chargeLimit })
+        hidden.formUnion(additions.filter { $0 == .chargeLimit || $0 == .keepAwake })
     }
     func encode(to encoder: any Encoder) throws {
         var values = encoder.container(keyedBy: CodingKeys.self)

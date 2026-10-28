@@ -216,10 +216,11 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         NSWorkspace.shared.notificationCenter.removeObserver(self)
         NotificationCenter.default.removeObserver(self)
         DistributedNotificationCenter.default().removeObserver(self)
-        // Live mutation authority is unavailable in this build; no hardware ownership exists.
+        // Restoration was admitted above; stop also retries release of our idle-sleep assertion.
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
+        try? model.keepAwake.reconcile()
         if activationGate.applicationBecameActive() { presentPopover() }
         else if popover.isShown { activatePopoverWindow() }
     }
@@ -275,6 +276,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     }
 
     private func presentPopover() {
+        try? model.keepAwake.reconcile()
         guard NSApplication.shared.isActive, let button = statusItem?.button else { return }
         (popover.contentViewController as? QuickPanelHostingController)?.updateMaximumHeight(panelMaximumHeight)
         model.isPopoverVisible = true
@@ -336,6 +338,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     }
 
     private func showDetails() {
+        try? model.keepAwake.reconcile()
         closePopover(reason: "details opened")
         if detailsWindow == nil {
             let controller = NSHostingController(rootView: BatteryInfoView(model: model))

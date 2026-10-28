@@ -102,3 +102,50 @@ import SwiftUI
         return L10n.text(action.title) + (value.map { ": " + $0 } ?? "")
     }
 }
+
+/// Quick-panel mode selection reads the saved plan. Editing stays in Details.
+@MainActor struct SavedModePanel: View {
+    @ObservedObject var model: TilveroModel
+    private var plan: ModePlan { model.modeLibrary.plan(model.selectedMode) }
+    private var preview: [ModeActionRow] { model.modePreview(plan) }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Picker(L10n.text("Work mode"), selection: $model.selectedMode) {
+                ForEach(WorkMode.allCases) { Text(L10n.text($0.title)).tag($0) }
+            }.id(L10n.language)
+            ForEach(preview.filter { $0.status != .preserved || $0.action == .restore }) { row in
+                HStack(alignment: .firstTextBaseline) {
+                    Text(title(row.action))
+                    Spacer(minLength: 8)
+                    Text(L10n.text(row.status.title)).foregroundStyle(row.status == .excluded ? .orange : .secondary)
+                }.font(.caption).help(L10n.text(row.detail))
+            }
+            if let report = model.modeReport, report.plan == plan {
+                Text(L10n.text(model.isDemo ? "Simulation result" : report.isComplete ? "Available actions completed" : "Partial result — see each action"))
+                    .font(.caption).bold()
+                ForEach(report.rows.filter { [.applied, .failed, .pending].contains($0.status) }) { row in
+                    Text(title(row.action) + ": " + L10n.text(row.status.title))
+                        .font(.caption2).foregroundStyle(row.status == .failed ? .red : .secondary)
+                        .fixedSize(horizontal: false, vertical: true).help(L10n.text(row.detail))
+                }
+            }
+            HStack {
+                Button(L10n.text("Edit modes…")) { model.selectedSection = .charging; model.openDetails?() }
+                Spacer()
+                Button(L10n.text("Apply")) { Task { await model.applyMode(model.selectedMode) } }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(model.isApplying || model.nativeCharge.isBusy || model.nativeCharge.isQualifying || model.liveControl.isBusy || !preview.contains { $0.status == .available })
+            }
+        }
+    }
+    private func title(_ action: ModeAction) -> String {
+        let value: String?
+        switch action {
+        case .charge: value = plan.chargeTarget.map { "\($0)%" }
+        case .displayIdle: value = plan.displayIdleMinutes.map { "\($0) " + L10n.text("min") }
+        case .brightness: value = plan.brightnessPercent.map { "\($0)%" }
+        default: value = nil
+        }
+        return L10n.text(action.title) + (value.map { ": " + $0 } ?? "")
+    }
+}

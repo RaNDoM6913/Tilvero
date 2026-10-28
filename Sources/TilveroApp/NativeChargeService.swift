@@ -74,6 +74,12 @@ enum NativeChargeServiceError: Error, LocalizedError {
     var hasOwnedSettings: Bool { journal?.hasWritten == true }
     var isAvailable: Bool { !operationGate.pending && admitted && !monitoringOnly && !journalInvalid && observed?.isFresh == true && observed?.policyMatches == true }
     var canApply: Bool { isAvailable && !isBusy && !isQualifying && !recoveryRequired && !restorationPending }
+    func needsApply(target: Int) -> Bool {
+        guard canApply, acceptedTargets.contains(target) else { return false }
+        // An explicit lower pending intent still has a distinct cancellation path.
+        if pendingTarget != nil { return requestedIntent != .ceiling(target) }
+        return observed?.configuration.enabled != true || observed?.configuration.target != target
+    }
     var canChargeToFullOnce: Bool { canApply && fullOnceQualified }
     var isOneShot: Bool { journal?.oneShot == true }
     var requestedIntent: ChargeIntent? {

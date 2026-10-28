@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — configurable quick panel and Keep Awake
+
+- Complete the Settings constructor with native drag lifecycle, show/hide, keyboard reorder, responsive passive preview and stable layout migration.
+- Keep saved mode selection and concise action results in the popover; open the full editor from Edit modes. Hide irrelevant AC discharge prose and disable an unchanged confirmed native Apply.
+- Add explicit 15/30/60/120-minute Keep Mac Awake sessions, default 30 minutes, using a finite process-owned public macOS idle-sleep assertion. Keep Stop visible across panel tabs; release on Stop, OS timeout or normal exit, with no restart activation. Display idle and lid/forced sleep retain system behavior.
+- Keep simulation and Monitoring Preview unable to start Keep Awake. Hardware/signing/public-distribution gates remain separate.
+
 ## Unreleased - Settings builder foundation (work in progress)
 
 - Add General / Quick panel / History settings navigation, stable layout migration, optional native charge-limit block and passive real-data preview.

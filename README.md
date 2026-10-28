@@ -30,6 +30,8 @@ Local **TEST** packages are internal ad-hoc builds. They are not a signed, notar
 | --- | --- |
 | Live battery monitoring | Charge, power-source status and available battery readings, with source, freshness and unavailable reasons |
 | Menu bar and detail window | Content-sized Overview / Charge / Modes panel, direct qualified charge actions, searchable detail readings, Russian/English and adjustable indicator sizing |
+| Quick-panel builder | Drag, show/hide and keyboard-reorder Overview blocks in Settings, with a passive real-data preview |
+| Keep Mac Awake | Explicit finite idle-sleep prevention with visible Stop; duration persists but active state never restarts automatically |
 | Configurable modes | Saved Normal / Economy / Maximum autonomy plans with separate Save / Apply and per-action results; unqualified energy/display actions are excluded and background jobs preserved |
 | Local history | Minute samples, hourly aggregates, gaps and battery boundaries; CSV/JSON preview and export |
 | Sleep & drain | Separate detail section for future app-observed sleep intervals, qualified before/after charge change and current sleep blockers; incomplete evidence stays visible |
@@ -60,9 +62,11 @@ To preserve an existing development bundle, build into a fresh location with `ba
 
 The local builder refuses to overwrite a running app; quit it normally or use a fresh candidate output. The launcher opens the exact canonical bundle. If another copy is running, Tilvero shows both paths and waits for a normal quit before switching. Diagnostics shows the running bundle path.
 
-The app starts in the menu bar. Click the battery item to open the quick panel, then **Battery Info** for the detail window. Reopen Tilvero to restore the window if its menu item is hidden. In the app, **⌘⌥B** toggles the panel and **⌘,** opens Settings.
+The app starts in the menu bar. Click the battery item to open the quick panel, then **History & reports…** for the detail window or the gear menu for Settings. Reopen Tilvero to restore the window if its menu item is hidden. In the app, **⌘⌥B** toggles the panel and **⌘,** opens Settings.
 
-Settings offer icon only or percentage beside/inside the icon, System/Larger text, independent icon scale from 85–115%, reset, Russian/English and history preferences.
+Settings include General / Quick panel / History. The Quick panel constructor changes composition immediately, and Modes keeps saved-plan selection in the popover with **Edit modes…** for the full editor. Settings also offer icon only or percentage beside/inside the icon, System/Larger text, independent icon scale from 85–115%, reset, Russian/English and history preferences.
+
+**Keep Mac Awake** starts only after Start, for 15, 30, 60 or 120 minutes (default 30). Stop remains visible even when its Overview block is hidden. The display may turn off; closing the lid, forced sleep and low-battery sleep retain macOS behavior. Stop, OS timeout and normal quit end the process-owned session. Simulation and Monitoring Preview cannot activate it.
 
 For the separate Xcode app/helper targets:
 

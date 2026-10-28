@@ -65,6 +65,7 @@ struct BatteryInfoView: View {
                         Spacer()
                         Button { Task { await model.refresh(); if model.selectedSection == .sleep { await model.refreshSleepActivity() } } } label: { Label(L10n.text("Refresh"), systemImage: "arrow.clockwise") }
                     }
+                    if model.keepAwake.hasOwnedAssertion { KeepAwakeActivePanel(service: model.keepAwake) }
                     if model.selectedSection != .settings && model.selectedSection != .history && model.selectedSection != .sleep {
                         HStack {
                             TextField(L10n.text("Search measurements"), text: $search).textFieldStyle(.roundedBorder)
@@ -304,6 +305,9 @@ private struct SettingsPanel: View {
                         Button(L10n.text(model.loginStatus == "Enabled" ? "Disable" : "Enable")) { model.toggleLogin() }.disabled(model.isDemo || model.loginStatus == "Not available from this local build")
                     }
                 }.padding(12)
+            }
+            GroupBox {
+                KeepAwakePanel(model: model).padding(12).frame(maxWidth: .infinity, alignment: .leading)
             }
             Button(L10n.text("Customize quick panel…")) { model.selectedSettingsPage = .quickPanel }
         }
