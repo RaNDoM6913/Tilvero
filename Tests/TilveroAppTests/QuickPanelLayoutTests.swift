@@ -14,7 +14,7 @@ final class QuickPanelLayoutTests: XCTestCase {
         let size = host.sizeThatFits(in: NSSize(width: 360, height: 1000))
         print("Live overview fitted size: \(size)")
         XCTAssertEqual(size.width, 360, accuracy: 1)
-        XCTAssertLessThan(size.height, 420, "The live overview must fit its compact content, without the old fixed 440pt tail.")
+        XCTAssertLessThan(size.height, 620, "Forecast and real history may grow the overview; its height still follows content and remains screen-bounded.")
         XCTAssertGreaterThan(size.height, 180)
     }
 

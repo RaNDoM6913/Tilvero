@@ -4400,6 +4400,454 @@
           }
         }
       }
+    },
+    "Changes here use the same native limit as macOS Battery settings.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Changes here use the same native limit as macOS Battery settings."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Изменения используют тот же нативный лимит, что и настройки аккумулятора macOS."
+          }
+        }
+      }
+    },
+    "Native control needs one local setting-and-restoration check.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Native control needs one local setting-and-restoration check."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для нативного управления нужна одна локальная проверка применения и восстановления."
+          }
+        }
+      }
+    },
+    "Validate native control…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Validate native control…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверить нативное управление…"
+          }
+        }
+      }
+    },
+    "Restore previous macOS limit": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore previous macOS limit"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Восстановить прежний лимит macOS"
+          }
+        }
+      }
+    },
+    "Restoration waiting for natural discharge": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restoration waiting for natural discharge"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Восстановление ждёт естественного разряда"
+          }
+        }
+      }
+    },
+    "Keep Tilvero open and let the battery discharge naturally before restoring the previous limit.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep Tilvero open and let the battery discharge naturally before restoring the previous limit."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оставьте Tilvero открытым и дождитесь естественного разряда для возврата прежнего лимита."
+          }
+        }
+      }
+    },
+    "Native charging control has not completed its local validation.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Native charging control has not completed its local validation."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Локальная проверка нативного управления зарядкой ещё не завершена."
+          }
+        }
+      }
+    },
+    "A native charging operation is still in progress.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A native charging operation is still in progress."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Операция зарядки macOS ещё выполняется."
+          }
+        }
+      }
+    },
+    "Choose a charge target offered by this Mac.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a charge target offered by this Mac."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выберите лимит, доступный на этом Mac."
+          }
+        }
+      }
+    },
+    "A fresh battery reading is required before changing charging.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A fresh battery reading is required before changing charging."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для изменения зарядки нужно свежее показание аккумулятора."
+          }
+        }
+      }
+    },
+    "Reconcile the previous native charging session before applying another target.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reconcile the previous native charging session before applying another target."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перед новым лимитом завершите восстановление предыдущего сеанса."
+          }
+        }
+      }
+    },
+    "macOS has not independently confirmed the requested charge setting.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS has not independently confirmed the requested charge setting."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS ещё не подтвердила запрошенную настройку зарядки независимым чтением."
+          }
+        }
+      }
+    },
+    "Enabling the previous system target could discharge the battery. Waiting for natural discharge.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enabling the previous system target could discharge the battery. Waiting for natural discharge."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Включение прежнего лимита может вызвать разряд. Ожидается естественное снижение заряда."
+          }
+        }
+      }
+    },
+    "A previous native charge session needs explicit recovery. Saved intent was not reapplied.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A previous native charge session needs explicit recovery. Saved intent was not reapplied."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Предыдущему сеансу зарядки нужно восстановление. Сохранённая команда не применялась повторно."
+          }
+        }
+      }
+    },
+    "The saved native charge session cannot be read safely. It was preserved.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The saved native charge session cannot be read safely. It was preserved."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось безопасно прочитать журнал зарядки. Файл сохранён."
+          }
+        }
+      }
+    },
+    "For the bounded native test, unplug and let the battery fall at least two percentage points below the existing limit. No setting was written.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "For the bounded native test, unplug and let the battery fall at least two percentage points below the existing limit. No setting was written."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для безопасной проверки отключите питание и дождитесь заряда минимум на 2 процентных пункта ниже текущего лимита. Настройки не менялись."
+          }
+        }
+      }
+    },
+    "Native limit setting and restoration passed on this Mac. Physical cutoff remains separately observed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Native limit setting and restoration passed on this Mac. Physical cutoff remains separately observed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Применение и восстановление нативного лимита проверены на этом Mac. Фактический порог остановки зарядки проверяется отдельно."
+          }
+        }
+      }
+    },
+    "The macOS charge setting changed outside Tilvero. Control was released without overwriting it.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The macOS charge setting changed outside Tilvero. Control was released without overwriting it."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Лимит macOS изменён вне Tilvero. Управление освобождено без перезаписи настройки."
+          }
+        }
+      }
+    },
+    "The selected native limit is already active.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The selected native limit is already active."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выбранный нативный лимит уже активен."
+          }
+        }
+      }
+    },
+    "Waiting for natural discharge before applying the lower native limit. The current system setting remains active.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for natural discharge before applying the lower native limit. The current system setting remains active."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Снижение лимита ожидает естественного разряда. Сейчас действует прежняя системная настройка."
+          }
+        }
+      }
+    },
+    "The native macOS charge limit was independently confirmed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The native macOS charge limit was independently confirmed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нативный лимит macOS подтверждён независимым чтением."
+          }
+        }
+      }
+    },
+    "The outcome needs recovery. No additional setting was written after the unconfirmed operation.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The outcome needs recovery. No additional setting was written after the unconfirmed operation."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Результату операции нужно восстановление. После неподтверждённой операции дополнительные настройки не записывались."
+          }
+        }
+      }
+    },
+    "An unconfirmed native operation may still take effect. The recovery journal was preserved; no follow-up write was started.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An unconfirmed native operation may still take effect. The recovery journal was preserved; no follow-up write was started."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Неподтверждённая операция ещё может завершиться. Журнал сохранён; следующая запись не запускалась."
+          }
+        }
+      }
+    },
+    "The original macOS charge setting is confirmed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The original macOS charge setting is confirmed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Исходная настройка зарядки macOS подтверждена."
+          }
+        }
+      }
+    },
+    "An external macOS charge change was preserved.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An external macOS charge change was preserved."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Внешнее изменение зарядки macOS сохранено."
+          }
+        }
+      }
+    },
+    "Restoring the original limit is waiting for natural discharge. Keep Tilvero open; the current limit remains active.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restoring the original limit is waiting for natural discharge. Keep Tilvero open; the current limit remains active."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Возврат исходного лимита ждёт естественного разряда. Оставьте Tilvero открытым; сейчас действует текущий лимит."
+          }
+        }
+      }
+    },
+    "The original macOS charge setting was verified as restored.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The original macOS charge setting was verified as restored."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Восстановление исходной настройки зарядки macOS подтверждено."
+          }
+        }
+      }
+    },
+    "An external charge change was preserved before the next operation.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An external charge change was preserved before the next operation."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Внешнее изменение зарядки сохранено; следующая операция не выполнялась."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — native-control development checkpoint
+
+- Use public native SF Symbol layers with continuous measured fill.
+- Add a typed user-space PowerUI adapter, journaled native sessions, safe pending targets, external reconciliation and deadlines. Real writes remain behind per-Mac validation; full-once has a separate gate.
+- Add a real last-hour chart, conservative discharge forecast and saved overview preferences.
+- Modes editing, remaining localization, physical qualification and final acceptance remain open. This is a source checkpoint, not a release.
+
 ## Unreleased — local launch and system charge-limit readback
 
 - Open the exact local bundle and show both paths when another copy is running; wait for a normal quit before switching and refuse to overwrite a running bundle.

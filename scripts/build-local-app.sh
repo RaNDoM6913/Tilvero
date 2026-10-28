@@ -13,6 +13,7 @@ if (($#)); then
 fi
 # Never overwrite executable/resources under a live process. Use a fresh candidate
 # or quit normally first, so restoration and history shutdown can complete.
+if [[ -e "$app_directory" ]]; then
 python3 - "$app_directory" <<'PY_PREFLIGHT'
 from pathlib import Path
 import subprocess, sys
@@ -21,6 +22,7 @@ result = subprocess.run(['/bin/ps', '-axo', 'comm='], check=True, capture_output
 if any(Path(line.strip()).resolve() == executable for line in result.stdout.splitlines() if line.strip()):
     raise SystemExit('Output app is running. Quit Tilvero normally or use --output with a fresh candidate path.')
 PY_PREFLIGHT
+fi
 swift build -c release --product TilveroApp
 swift build -c release --product TilveroHelper
 binary_directory="$(swift build -c release --show-bin-path)"

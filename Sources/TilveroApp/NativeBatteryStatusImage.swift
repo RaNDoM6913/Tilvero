@@ -25,14 +25,14 @@ enum NativeStatusPresentation {
     }
 }
 
-/// Original AppKit paths approximate the supplied macOS silhouette. The inside
+/// Normal mode uses public native SF Symbol layers with continuous fill. The inside
 /// mode is deliberately custom and iOS-inspired. Template alpha, including text
 /// cutouts, lets the status bar adapt both modes to its actual appearance.
 @MainActor
 enum NativeBatteryStatusImage {
     static func make(level: Int?, style: MenuBarDisplayStyle, externalPower: Bool, scale: CGFloat = 1, textSize: MenuBarTextSize = .larger) -> NSImage {
         let inside = style == .inside
-        let canvas = NSSize(width: inside ? 35 : 27, height: 18)
+        let canvas = NSSize(width: inside ? 35 : 29, height: 18)
         let factor = CGFloat(MenuBarSizing.validatedIconScale(Double(scale)))
         let size = NSSize(width: canvas.width * factor, height: canvas.height * factor)
         let level = ReadingPresentation.validLevel(level)
@@ -55,6 +55,20 @@ enum NativeBatteryStatusImage {
     }
 
     private static func drawNormal(level: Int?, externalPower: Bool) {
+        let density = max(1, min(8, Int((NSGraphicsContext.current?.cgContext.ctm.a ?? 2).magnitude.rounded())))
+        if let native = SystemBatterySymbol.make(level: level ?? 0, adapter: externalPower, density: density) {
+            let offset = floor(1.5 * CGFloat(density)) / CGFloat(density)
+            native.draw(at: NSPoint(x: -offset, y: -3), from: .zero, operation: .sourceOver, fraction: 1)
+            if level == nil {
+                drawText("—", centeredAt: NSPoint(x: externalPower ? 7 : 12.5, y: 9), size: 8, operation: .sourceOver)
+            }
+            return
+        }
+        // A future symbol-topology change must retain truthful measured fill.
+        drawFallbackNormal(level: level, externalPower: externalPower)
+    }
+
+    private static func drawFallbackNormal(level: Int?, externalPower: Bool) {
         // Owner reference including contour: 46×24 pixels at 2×. The path
         // is 22×11 pt because its 1 pt stroke also contributes to those bounds.
         let body = NSBezierPath(roundedRect: NSRect(x: 1.5, y: 3.5, width: 22, height: 11), xRadius: 3.3, yRadius: 3.3)

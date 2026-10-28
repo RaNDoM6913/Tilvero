@@ -93,12 +93,7 @@ struct QuickPanel: View {
                 Text(L10n.text("Stale")).font(.caption).foregroundStyle(.orange)
             }
             Divider()
-            if let reading = model.snapshot.catalog.first(where: { $0.id == "038" }) {
-                metric("Power", symbol: "bolt", reading: reading)
-            }
-            if let reading = model.snapshot.catalog.first(where: { $0.id == "039" }) {
-                metric("Temperature", symbol: "thermometer.medium", reading: reading)
-            }
+            OverviewMetricsPanel(model: model)
         }
     }
 
@@ -117,9 +112,9 @@ struct QuickPanel: View {
             ChargeLimitControl(model: model, isQuickPanel: true)
             if model.canShowChargeControls {
                 Button(L10n.text(model.isOneShotDemo ? "Cancel one-time charge" : "Charge to 100% once")) { model.toggleOneShotDemo() }
-                    .disabled(model.isApplying)
+                    .disabled(model.isApplying || !model.canChargeToFullOnce)
                 Button(L10n.text("Return to system control")) { model.releaseControl() }
-                    .disabled(model.isApplying)
+                    .disabled(model.isApplying || !model.canReleaseCharge)
             }
         }
     }
@@ -139,6 +134,7 @@ struct QuickPanel: View {
     private var settingsMenu: some View {
         Menu {
             Button(L10n.text("Settings")) { model.selectedSection = .settings; model.openDetails?() }
+            Button(L10n.text("Customize quick panel…")) { model.selectedSection = .settings; model.openDetails?() }
             Picker(L10n.text("Menu bar"), selection: $model.displayStyle) {
                 ForEach(MenuBarDisplayStyle.allCases) { style in Text(style.title).tag(style) }
             }
@@ -184,12 +180,17 @@ struct ChargeLimitControl: View {
                     Button(L10n.text(model.isApplying ? "Applying…" : "Apply")) { model.applyDemoTarget() }
                         .buttonStyle(.borderedProminent).disabled(!model.canApply)
                 }
+                Text(L10n.text("Draft") + ": " + model.draftText + "%").font(.caption).foregroundStyle(.secondary)
                 Text(model.effectiveLimitText).font(.caption).foregroundStyle(.secondary)
+                if model.usesNativeCharge { NativeChargeStatusPanel(model: model) }
                 if model.pendingTarget != nil {
                     Button(L10n.text("Cancel pending target")) { model.cancelPendingDemo() }
                     Text(L10n.text("Reconnecting early may charge to the effective limit while a lower target is pending."))
                         .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
+            } else if model.usesNativeCharge {
+                NativeChargeStatusPanel(model: model)
+                Button(L10n.text("Refresh")) { Task { await model.refreshNativeCharge() } }
             } else {
                 SystemChargeLimitPanel(model: model)
                 Text(L10n.text("Direct Tilvero control requires a trusted signed helper and verified hardware restoration."))
@@ -201,7 +202,7 @@ struct ChargeLimitControl: View {
                     }
                 }
             }
-        }
+        }.task { await model.refreshNativeCharge() }
     }
 }
 

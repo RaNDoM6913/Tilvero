@@ -277,6 +277,7 @@ private struct SettingsPanel: View {
                     }
                 }.padding(12)
             }
+            OverviewPreferencesPanel(model: model)
             GroupBox(L10n.text("History")) {
                 VStack(alignment: .leading, spacing: 14) {
                     Toggle(L10n.text("Save history"), isOn: $model.historyEnabled).disabled(model.isDemo)

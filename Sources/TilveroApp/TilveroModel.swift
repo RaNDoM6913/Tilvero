@@ -31,6 +31,9 @@ final class TilveroModel: ObservableObject {
     @Published var selectedSection: InfoSection = .overview { didSet {
         preferences.set(selectedSection.rawValue, forKey: "lastSection")
     } }
+    @Published var overviewPreferences: OverviewPreferences { didSet {
+        if let data = try? JSONEncoder().encode(overviewPreferences) { preferences.set(data, forKey: "overviewPreferences.v1") }
+    } }
     @Published var language: String { didSet { preferences.set(language, forKey: "language"); onPresentationChange?() } }
     @Published var fahrenheit: Bool { didSet { preferences.set(fahrenheit, forKey: "fahrenheit") } }
     @Published var historyEnabled: Bool { didSet {
@@ -57,6 +60,8 @@ final class TilveroModel: ObservableObject {
     @Published var exportPreview: String?
     private var exportData: Data?
     private var exportType: UTType = .json
+    let nativeCharge: NativeChargeService
+    private var nativeSubscription: AnyCancellable?
     let liveControl: LiveControlService
     private var liveSubscription: AnyCancellable?
     let isDemo: Bool
@@ -94,10 +99,18 @@ final class TilveroModel: ObservableObject {
         }
         self.isDemo = isDemo
         self.preferences = preferences
+        overviewPreferences = OverviewPreferences.load(preferences.data(forKey: "overviewPreferences.v1"))
         self.sleepActivityProvider = sleepActivityProvider ?? {
             await SleepActivityProvider().readSnapshot()
         }
         liveControl = LiveControlService(preferences: preferences)
+        if isDemo {
+            nativeCharge = NativeChargeService(client: PowerUIChargeClient(),
+                journalURL: FileManager.default.temporaryDirectory.appendingPathComponent("TilveroDemo-\(UUID().uuidString)/native-session.json"), monitoringOnly: true)
+        } else {
+            let storage = historyURL ?? (try? ReleaseIdentity.current().historyURL()) ?? FileManager.default.temporaryDirectory.appendingPathComponent("TilveroUnavailable/History.sqlite")
+            nativeCharge = NativeChargeService(historyURL: storage)
+        }
         let identitySalt = preferences.string(forKey: "identitySalt") ?? UUID().uuidString
         preferences.set(identitySalt, forKey: "identitySalt")
         let provider = MacBatteryProvider(identitySalt: identitySalt)
@@ -130,19 +143,49 @@ final class TilveroModel: ObservableObject {
         }
         selectedSection = InfoSection(rawValue: preferences.string(forKey: "lastSection") ?? "") ?? .overview
         updateLoginStatus()
+        nativeSubscription = nativeCharge.objectWillChange.sink { [weak self] in
+            self?.objectWillChange.send()
+        }
         liveSubscription = liveControl.objectWillChange.sink { [weak self] in
             self?.objectWillChange.send()
             self?.onPresentationChange?()
         }
     }
 
+    var quickHistoryPoints: [HistoryChartPoint] {
+        HistoryChart.points(history.filter { !$0.isAggregate && $0.collectedAt >= snapshot.collectedAt.addingTimeInterval(-3600) && $0.collectedAt <= snapshot.collectedAt }.map {
+            ChartObservation(id: $0.id, date: $0.collectedAt, value: $0.chargePercent, continuityID: $0.segmentID.uuidString)
+        })
+    }
+    var dischargeForecast: DischargeForecast.Estimate? {
+        guard !isDemo else { return nil }
+        return DischargeForecast.estimate(history.map {
+            .init(date: $0.collectedAt, percent: $0.chargePercent, segment: $0.segmentID.uuidString,
+                  externalPower: $0.isExternalPower, charging: $0.isCharging, monotonic: $0.monotonicTime, aggregate: $0.isAggregate)
+        }, currentPercent: snapshot.chargePercent.value,
+        currentFresh: snapshot.chargePercent.availability == .available && snapshot.chargePercent.freshness == .fresh,
+        onBattery: snapshot.isExternalPower.availability == .available && snapshot.isExternalPower.freshness == .fresh && snapshot.isExternalPower.value == false,
+        now: snapshot.collectedAt)
+    }
     var chargeText: String {
         guard snapshot.chargePercent.availability == .available || snapshot.chargePercent.freshness == .stale else { return "—" }
         return ReadingPresentation.validLevel(snapshot.chargePercent.value).map { "\($0)%" } ?? "—"
     }
     var chargingStateText: String { L10n.text(ReadingPresentation.chargingStateKey(snapshot)) }
-    var chargeState: ChargePolicyState? { isDemo ? control?.charge : liveControl.chargeState }
-    var acceptedTargets: [Int] { isDemo ? control?.acceptedTargets ?? [] : liveControl.acceptedTargets }
+    var usesNativeCharge: Bool { !isDemo && !nativeCharge.isMonitoringOnly && nativeCharge.interfaceWasDiscovered }
+    var chargeState: ChargePolicyState? {
+        if isDemo { return control?.charge }
+        guard usesNativeCharge else { return liveControl.chargeState }
+        var state = ChargePolicyState()
+        let observed = nativeCharge.observed
+        state.requested = nativeCharge.requestedIntent
+        state.appliedTarget = !nativeCharge.recoveryRequired && observed?.isFresh == true && observed?.policyMatches == true && observed?.configuration.enabled == true ? observed?.configuration.target : nil
+        state.pendingTarget = nativeCharge.pendingTarget
+        state.phase = nativeCharge.recoveryRequired ? .fault : nativeCharge.restorationPending ? .restoring : nativeCharge.pendingTarget != nil ? .pendingLowerLimit : nativeCharge.hasOwnedSettings ? .managed : .observing
+        state.reason = nativeCharge.message
+        return state
+    }
+    var acceptedTargets: [Int] { isDemo ? control?.acceptedTargets ?? [] : nativeCharge.isMonitoringOnly ? [] : usesNativeCharge ? nativeCharge.acceptedTargets : liveControl.acceptedTargets }
     var canShowChargeControls: Bool { isDemo || !acceptedTargets.isEmpty }
     var canApplyProfiles: Bool { isDemo || liveControl.capabilities.contains { $0.readiness == .available } }
     var fanObservation: FanObservation? { liveControl.fanObservation }
@@ -160,16 +203,25 @@ final class TilveroModel: ObservableObject {
     }
     var draftTarget: Int? { ReadingPresentation.percentInput(draftText, acceptedTargets: acceptedTargets) }
     var isOneShotDemo: Bool { chargeState?.requested == .fullOnce }
-    var canEdit: Bool { (isDemo ? control != nil : liveControl.canCharge) && !isApplying && !liveControl.isBusy && !isOneShotDemo }
+    var canEdit: Bool { (isDemo ? control != nil : usesNativeCharge || liveControl.canCharge) && !isApplying && !nativeCharge.isBusy && !nativeCharge.isQualifying && !liveControl.isBusy && !isOneShotDemo }
+    var canPerformChargeActions: Bool { isDemo || (usesNativeCharge ? nativeCharge.canApply : liveControl.canCharge) }
+    var canChargeToFullOnce: Bool { isDemo || (usesNativeCharge ? nativeCharge.canChargeToFullOnce : liveControl.canCharge) }
+    var canReleaseCharge: Bool { isDemo || nativeCharge.hasOwnedSettings || nativeCharge.pendingTarget != nil || nativeCharge.recoveryRequired || liveControl.hasOwnedSettings }
+    var terminationRecoveryMessage: String? { nativeCharge.message.map(L10n.text) ?? liveControl.message.map(L10n.text) }
     var canApply: Bool {
         guard canEdit, let target = draftTarget else { return false }
+        if !isDemo && usesNativeCharge && !nativeCharge.canApply { return false }
         return (!isDemo && liveControl.needsExplicitReapply) || chargeState?.requested != .ceiling(target) || chargeState?.phase == .fault || chargeState?.phase == .externalChange
     }
     var sliderIndex: Double { Double(acceptedTargets.firstIndex(of: draftTarget ?? 80) ?? 0) }
     var pendingTarget: Int? { chargeState?.pendingTarget }
     var effectiveLimitText: String {
         guard let state = chargeState else { return L10n.text("Control unavailable") }
+        if !isDemo && nativeCharge.recoveryRequired { return L10n.text("Actual native limit is unconfirmed — recovery required") }
         let effective = state.appliedTarget.map { "\($0)%" } ?? L10n.text("Unknown")
+        if !isDemo && nativeCharge.restorationPending {
+            return L10n.text("Restoration waiting for natural discharge") + " · " + L10n.text("Effective") + " " + effective
+        }
         if let pending = state.pendingTarget { return "\(L10n.text("Pending")) \(pending)% · \(L10n.text("Effective")) \(effective)" }
         if state.requested == nil || state.requested == .system { return L10n.text("System managed") }
         if state.phase == .systemOverride { return L10n.text("System charging override") }
@@ -184,6 +236,7 @@ final class TilveroModel: ObservableObject {
                 guard let self else { return }
                 if !self.sleeping {
                     await self.refresh()
+                    await self.refreshNativeCharge()
                     if self.systemChargeLimit.map({ Date().timeIntervalSince($0.collectedAt) >= 30 }) ?? true {
                         await self.refreshSystemChargeLimit()
                     }
@@ -244,6 +297,8 @@ final class TilveroModel: ObservableObject {
             } else { lastRawSleepEndpoint = nil }
             snapshot = raw.retainingPreviousReadings(snapshot)
             await liveControl.observe(snapshot)
+            await nativeCharge.observeBattery(percent: raw.chargePercent.value,
+                fresh: raw.chargePercent.availability == .available && raw.chargePercent.freshness == .fresh)
             guard readEpoch == lifecycleEpoch, !sleeping else { return }
             if selectedSection == .sleep && previousPower != raw.isExternalPower.value {
                 Task { await refreshSleepActivity() }
@@ -292,7 +347,9 @@ final class TilveroModel: ObservableObject {
         if !isDetailVisible || selectedSection != .charging { discardDraft() }
     }
     func discardDraft() {
-        if !isDemo, case let .ceiling(target) = liveControl.requestedIntent { draftText = String(target) }
+        if !isDemo, case let .ceiling(target) = nativeCharge.requestedIntent { draftText = String(target) }
+        else if !isDemo, let observed = nativeCharge.observed { draftText = String(observed.configuration.target) }
+        else if !isDemo, case let .ceiling(target) = liveControl.requestedIntent { draftText = String(target) }
         else if case let .ceiling(target) = chargeState?.requested { draftText = String(target) }
         else if let value = chargeState?.appliedTarget, acceptedTargets.contains(value) { draftText = String(value) }
         else { draftText = acceptedTargets.first.map(String.init) ?? "" }
@@ -303,11 +360,41 @@ final class TilveroModel: ObservableObject {
     func releaseControl() { perform(.returnToSystemControl) }
     func cancelPendingDemo() {
         if isDemo { runSimulation { simulator in try await simulator.cancelPendingCharge() } }
+        else if usesNativeCharge { runNative { try $0.cancelPending() } }
         else { runLive { try await $0.cancelPending() } }
     }
     private func perform(_ request: ChargeControlRequest) {
         if isDemo { runSimulation { simulator in try await simulator.submit(request) } }
-        else { runLive { try await $0.submit(request) } }
+        else if usesNativeCharge {
+            let percent = snapshot.chargePercent.value
+            let fresh = snapshot.chargePercent.availability == .available && snapshot.chargePercent.freshness == .fresh
+            runNative { service in
+                switch request {
+                case .setCeiling(let target): try await service.apply(target, batteryPercent: percent, batteryFresh: fresh)
+                case .chargeToFullOnce: try await service.chargeToFullOnce(batteryPercent: percent, batteryFresh: fresh)
+                case .cancelOneShot: try await service.cancelOneShot(batteryPercent: percent, batteryFresh: fresh)
+                case .returnToSystemControl: _ = try await service.restore(batteryPercent: percent, batteryFresh: fresh)
+                }
+            }
+        } else { runLive { try await $0.submit(request) } }
+    }
+    func refreshNativeCharge() async {
+        guard !isDemo, !sleeping else { return }
+        await nativeCharge.refresh()
+        if !draftDirty { discardDraft() }
+    }
+    func qualifyNativeCharge() { runNative { try await $0.qualify() } }
+    private func runNative(_ action: @escaping @MainActor (NativeChargeService) async throws -> Void) {
+        guard !isDemo, !isApplying else { return }
+        isApplying = true; arbiter.recordManualAction(at: Date()); persistArbiter()
+        Task {
+            defer { isApplying = false }
+            do {
+                try await action(nativeCharge); draftDirty = false
+                if !nativeCharge.isBusy { await nativeCharge.refresh() }
+                discardDraft(); notice = nativeCharge.message.map(L10n.text)
+            } catch { notice = L10n.text(error.localizedDescription) }
+        }
     }
     private func runSimulation(_ action: @escaping @Sendable (SimulationController) async throws -> Void) {
         guard isDemo, !isApplying, let simulator else { return }
@@ -336,7 +423,16 @@ final class TilveroModel: ObservableObject {
     func restoreAll() { runLive { guard try await $0.restoreAll() else { throw PrivilegeError.recoveryRequired } } }
     func prepareForTermination() async -> Bool {
         if isDemo { return true }
-        return await liveControl.prepareForTermination()
+        guard !isApplying else { return false }
+        let helperRestored = await liveControl.prepareForTermination()
+        if nativeCharge.hasOwnedSettings || nativeCharge.recoveryRequired || nativeCharge.pendingTarget != nil {
+            do {
+                let restored = try await nativeCharge.restore(batteryPercent: snapshot.chargePercent.value,
+                    batteryFresh: snapshot.chargePercent.availability == .available && snapshot.chargePercent.freshness == .fresh)
+                return helperRestored && restored
+            } catch { notice = L10n.text(error.localizedDescription); return false }
+        }
+        return helperRestored
     }
     func advanceSimulation() { runSimulation { try await $0.advance(seconds: 60) } }
     func applyProfile(_ name: String) {

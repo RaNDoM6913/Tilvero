@@ -17,6 +17,21 @@ struct TilveroMain {
             } catch { FileHandle.standardError.write(Data("Diagnostic collection failed.\n".utf8)); exit(1) }
             return
         }
+        if CommandLine.arguments.contains("--native-charge-status") {
+            let completed = DispatchSemaphore(value: 0)
+            Task.detached {
+                do {
+                    let value = try await PowerUIChargeClient().read()
+                    let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]; encoder.dateEncodingStrategy = .iso8601
+                    FileHandle.standardOutput.write(try encoder.encode(value)); FileHandle.standardOutput.write(Data("\n".utf8))
+                } catch { FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8)); exit(1) }
+                completed.signal()
+            }
+            guard completed.wait(timeout: .now() + 15) == .success else {
+                FileHandle.standardError.write(Data("The read-only native query timed out.\n".utf8)); exit(2)
+            }
+            return
+        }
         if CommandLine.arguments.contains("--charge-status") {
             let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             encoder.dateEncodingStrategy = .iso8601
@@ -187,7 +202,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
             let restored = await model.prepareForTermination()
             if !restored {
                 let alert = NSAlert(); alert.messageText = L10n.text("Recovery required")
-                alert.informativeText = model.liveControl.message ?? L10n.text("Operation failed")
+                alert.informativeText = model.terminationRecoveryMessage ?? L10n.text("Operation failed")
                 alert.runModal()
                 model.selectedSection = .diagnostics; showDetails()
             }

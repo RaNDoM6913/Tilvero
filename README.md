@@ -97,6 +97,10 @@ Normal presentation masks serials and identity tokens; ordinary exports exclude 
 
 ## System charge limit
 
+Development checkpoint: the source includes a normal-user PowerUI adapter and a journaled native controller. Apply remains disabled until a local setting/readback/restoration check passes on that Mac. With an existing 80% limit, the check requires 78% charge or below and never forces a discharge. Real-device writes have not yet been validated for this checkpoint. The Modes editor, remaining localization and final whole-app acceptance are still in progress; this is a source checkpoint, not a finished release.
+
+The overview now includes a real last-hour chart, a conservative discharge forecast and saved content preferences. The normal indicator uses public native SF Symbol layers. Privileged power/fan control retains its separate signing and qualification gates.
+
 On Apple silicon with **macOS 26.4+**, Apple provides an independent **80–100% Charge Limit** in **System Settings → Battery → Charging ⓘ**. The Charge tab links there and displays the manual limit registered by macOS, with a read timestamp and Refresh action. Other OS requests, including Optimized Battery Charging, are shown separately. A missing or conflicting readback stays unavailable; it is not converted into a claimed 100% limit. Simulation never reads physical limits.
 
 The observation uses read-only `pmset -g battlimit`; it does not prove an exact charging cutoff or that Tilvero applied the setting. macOS can occasionally charge to 100% for calibration. See [Apple's charge-limit guidance](https://support.apple.com/en-us/102338). `TilveroApp --charge-status` prints the same read-only observation without starting the app, migration or a helper.
