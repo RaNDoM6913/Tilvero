@@ -34,6 +34,9 @@ final class TilveroModel: ObservableObject {
     @Published var overviewPreferences: OverviewPreferences { didSet {
         if let data = try? JSONEncoder().encode(overviewPreferences) { preferences.set(data, forKey: "overviewPreferences.v1") }
     } }
+    @Published private(set) var modeLibrary: ModeLibrary
+    @Published private(set) var modeReport: ModeApplicationReport?
+    @Published var selectedMode: WorkMode = .economy
     @Published var language: String { didSet { preferences.set(language, forKey: "language"); onPresentationChange?() } }
     @Published var fahrenheit: Bool { didSet { preferences.set(fahrenheit, forKey: "fahrenheit") } }
     @Published var historyEnabled: Bool { didSet {
@@ -93,17 +96,19 @@ final class TilveroModel: ObservableObject {
          historyURL: URL? = nil,
          snapshotProvider: (@Sendable () async -> BatterySnapshot)? = nil,
          sleepActivityProvider: (@Sendable () async -> SleepAssertionSnapshot)? = nil,
-         systemChargeLimitProvider: (@Sendable () async -> SystemChargeLimitObservation)? = nil) {
+         systemChargeLimitProvider: (@Sendable () async -> SystemChargeLimitObservation)? = nil,
+         liveControl: LiveControlService? = nil) {
         self.systemChargeLimitProvider = systemChargeLimitProvider ?? {
             await Task.detached(priority: .utility) { SystemChargeLimitObservation.read() }.value
         }
         self.isDemo = isDemo
         self.preferences = preferences
+        modeLibrary = ModeLibrary.load(preferences.data(forKey: isDemo ? "demoModePlans.v1" : "modePlans.v1"))
         overviewPreferences = OverviewPreferences.load(preferences.data(forKey: "overviewPreferences.v1"))
         self.sleepActivityProvider = sleepActivityProvider ?? {
             await SleepActivityProvider().readSnapshot()
         }
-        liveControl = LiveControlService(preferences: preferences)
+        self.liveControl = liveControl ?? LiveControlService(preferences: preferences)
         if isDemo {
             nativeCharge = NativeChargeService(client: PowerUIChargeClient(),
                 journalURL: FileManager.default.temporaryDirectory.appendingPathComponent("TilveroDemo-\(UUID().uuidString)/native-session.json"), monitoringOnly: true)
@@ -146,7 +151,7 @@ final class TilveroModel: ObservableObject {
         nativeSubscription = nativeCharge.objectWillChange.sink { [weak self] in
             self?.objectWillChange.send()
         }
-        liveSubscription = liveControl.objectWillChange.sink { [weak self] in
+        liveSubscription = self.liveControl.objectWillChange.sink { [weak self] in
             self?.objectWillChange.send()
             self?.onPresentationChange?()
         }
@@ -435,6 +440,68 @@ final class TilveroModel: ObservableObject {
         return helperRestored
     }
     func advanceSimulation() { runSimulation { try await $0.advance(seconds: 60) } }
+    func saveMode(_ plan: ModePlan) throws {
+        var updated = modeLibrary
+        try updated.save(plan)
+        let data = try JSONEncoder().encode(updated)
+        preferences.set(data, forKey: isDemo ? "demoModePlans.v1" : "modePlans.v1")
+        modeLibrary = updated
+    }
+    func modePreview(_ plan: ModePlan) -> [ModeActionRow] {
+        plan.preview(chargeTargets: acceptedTargets, chargeAvailable: isDemo || (usesNativeCharge && nativeCharge.canApply),
+                     restoreAvailable: isDemo || canReleaseCharge || liveControl.hasOwnedSettings || liveControl.recoveryRequired)
+    }
+    func applyMode(_ mode: WorkMode) async {
+        guard !isApplying, !nativeCharge.isBusy, !nativeCharge.isQualifying, !liveControl.isBusy else { return }
+        notice = nil
+        let plan = modeLibrary.plan(mode)
+        var rows = modePreview(plan)
+        guard rows.contains(where: { $0.status == .available }) else {
+            modeReport = .init(plan: plan, rows: rows)
+            return
+        }
+        isApplying = true
+        arbiter.recordManualAction(at: Date()); persistArbiter()
+        defer { isApplying = false }
+        for index in rows.indices where rows[index].status == .available {
+            do {
+                switch rows[index].action {
+                case .charge:
+                    guard let target = plan.chargeTarget else { throw PolicyError.invalidPolicy }
+                    if isDemo, let simulator {
+                        try await simulator.submit(.setCeiling(percent: target))
+                        await refreshSimulation()
+                    } else {
+                        try await nativeCharge.apply(target, batteryPercent: snapshot.chargePercent.value,
+                            batteryFresh: snapshot.chargePercent.availability == .available && snapshot.chargePercent.freshness == .fresh)
+                    }
+                    let pending = isDemo ? control?.charge.pendingTarget != nil : nativeCharge.pendingTarget != nil
+                    rows[index].status = pending ? .pending : .applied
+                    rows[index].detail = pending ? "Waiting for natural discharge; the requested limit is not active." : "Charge setting confirmed."
+                case .restore:
+                    if isDemo, let simulator {
+                        try await simulator.submit(.returnToSystemControl)
+                        await refreshSimulation()
+                        rows[index].status = .applied
+                        rows[index].detail = "Owned settings restored."
+                    } else {
+                        // Existing services restore journaled baselines only; no guessed Normal values.
+                        let helper = try await liveControl.restoreAll()
+                        let native = try await nativeCharge.restore(batteryPercent: snapshot.chargePercent.value,
+                            batteryFresh: snapshot.chargePercent.availability == .available && snapshot.chargePercent.freshness == .fresh)
+                        rows[index].status = helper && native ? .applied : .pending
+                        rows[index].detail = helper && native ? "Owned settings restored." : "Restoration is incomplete. Keep Tilvero open for recovery."
+                    }
+                default: throw PolicyError.unavailable
+                }
+            } catch {
+                rows[index].status = .failed
+                rows[index].detail = error.localizedDescription
+            }
+        }
+        modeReport = .init(plan: plan, rows: rows)
+        discardDraft()
+    }
     func applyProfile(_ name: String) {
         let profile = PowerProfile(name: name, chargeTarget: name == "At desk" ? 80 : nil, mode: name == "On battery profile" ? .low : .automatic)
         if name == "Before leaving" { perform(.chargeToFullOnce); return }

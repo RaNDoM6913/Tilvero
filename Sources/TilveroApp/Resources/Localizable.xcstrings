@@ -412,7 +412,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ожидает"
+            "value": "Ожидание"
           }
         }
       }
@@ -4524,7 +4524,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Операция зарядки macOS ещё выполняется."
+            "value": "Операция управления зарядом ещё выполняется."
           }
         }
       }
@@ -4845,6 +4845,1158 @@
           "stringUnit": {
             "state": "translated",
             "value": "Внешнее изменение зарядки сохранено; следующая операция не выполнялась."
+          }
+        }
+      }
+    },
+    "Normal": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Normal"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обычный"
+          }
+        }
+      }
+    },
+    "Economy": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Economy"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Экономия"
+          }
+        }
+      }
+    },
+    "Maximum autonomy": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maximum autonomy"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Максимальная автономность"
+          }
+        }
+      }
+    },
+    "Release Tilvero settings": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Release Tilvero settings"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Освободить настройки Tilvero"
+          }
+        }
+      }
+    },
+    "Low Power Mode": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Low Power Mode"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Режим энергосбережения"
+          }
+        }
+      }
+    },
+    "Display idle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Display idle"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выключение экрана"
+          }
+        }
+      }
+    },
+    "Display brightness": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Display brightness"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Яркость экрана"
+          }
+        }
+      }
+    },
+    "Background jobs": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Background jobs"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Фоновые задачи"
+          }
+        }
+      }
+    },
+    "Available": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Available"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Доступно"
+          }
+        }
+      }
+    },
+    "Excluded": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Excluded"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Исключено"
+          }
+        }
+      }
+    },
+    "Unchanged": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unchanged"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Без изменений"
+          }
+        }
+      }
+    },
+    "Applied": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Applied"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Применено"
+          }
+        }
+      }
+    },
+    "Failed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ошибка"
+          }
+        }
+      }
+    },
+    "Restore only settings owned by Tilvero.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore only settings owned by Tilvero."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Восстановятся только настройки, которыми управляет Tilvero."
+          }
+        }
+      }
+    },
+    "No Tilvero settings to restore.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Tilvero settings to restore."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нет настроек Tilvero для восстановления."
+          }
+        }
+      }
+    },
+    "Lower targets wait for natural discharge.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lower targets wait for natural discharge."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Понижение лимита ожидает естественного разряда."
+          }
+        }
+      }
+    },
+    "Native charging validation or an offered target is required.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Native charging validation or an offered target is required."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нужны проверка нативного управления и лимит, поддерживаемый macOS."
+          }
+        }
+      }
+    },
+    "Power mode writes require a qualified signed helper.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Power mode writes require a qualified signed helper."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Смена энергорежима требует подписанного и проверенного помощника."
+          }
+        }
+      }
+    },
+    "Display idle control is not qualified on this Mac.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Display idle control is not qualified on this Mac."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Управление таймером экрана на этом Mac не проверено."
+          }
+        }
+      }
+    },
+    "Brightness control is not qualified on this display.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Brightness control is not qualified on this display."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Управление яркостью этого экрана не проверено."
+          }
+        }
+      }
+    },
+    "Cooling stays under its current system policy.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cooling stays under its current system policy."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Текущая политика охлаждения сохраняется."
+          }
+        }
+      }
+    },
+    "Apps, downloads, audio and network stay running.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apps, downloads, audio and network stay running."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Приложения, загрузки, звук и сеть продолжают работать."
+          }
+        }
+      }
+    },
+    "Work mode": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Work mode"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Режим работы"
+          }
+        }
+      }
+    },
+    "Normal restores only Tilvero-owned settings. Your other system preferences stay unchanged.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Normal restores only Tilvero-owned settings. Your other system preferences stay unchanged."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обычный режим восстанавливает только настройки под управлением Tilvero. Остальные системные настройки сохраняются."
+          }
+        }
+      }
+    },
+    "Request Low Power Mode": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Request Low Power Mode"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запросить энергосбережение"
+          }
+        }
+      }
+    },
+    "Keep current": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep current"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оставить текущий"
+          }
+        }
+      }
+    },
+    "Shorter display idle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shorter display idle"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сократить таймер экрана"
+          }
+        }
+      }
+    },
+    "Idle after": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Idle after"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выключить через"
+          }
+        }
+      }
+    },
+    "Reduce display brightness": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reduce display brightness"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Снизить яркость экрана"
+          }
+        }
+      }
+    },
+    "Action preview": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Action preview"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Предпросмотр действий"
+          }
+        }
+      }
+    },
+    "Save mode": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save mode"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохранить режим"
+          }
+        }
+      }
+    },
+    "Mode saved. No settings were applied.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mode saved. No settings were applied."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Режим сохранён. Настройки не применялись."
+          }
+        }
+      }
+    },
+    "The mode could not be saved.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The mode could not be saved."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось сохранить режим."
+          }
+        }
+      }
+    },
+    "Apply available actions": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apply available actions"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Применить доступное"
+          }
+        }
+      }
+    },
+    "Unsaved changes — save before applying.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unsaved changes — save before applying."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Есть изменения — сохраните их перед применением."
+          }
+        }
+      }
+    },
+    "Simulation result": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Simulation result"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Результат симуляции"
+          }
+        }
+      }
+    },
+    "Available actions completed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Available actions completed"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Доступные действия выполнены"
+          }
+        }
+      }
+    },
+    "Partial result — see each action": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Partial result — see each action"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Частичный результат — проверьте каждое действие"
+          }
+        }
+      }
+    },
+    "Last application result": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last application result"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Результат последнего применения"
+          }
+        }
+      }
+    },
+    "Excluded actions do not run. No extra CPU throttling or battery-life gain is claimed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Excluded actions do not run. No extra CPU throttling or battery-life gain is claimed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Исключённые действия не выполняются. Дополнительное ограничение процессора и прирост автономности не заявлены."
+          }
+        }
+      }
+    },
+    "Time to 20%": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Time to 20%"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Время до 20%"
+          }
+        }
+      }
+    },
+    "Insufficient discharge observations": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Insufficient discharge observations"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Недостаточно наблюдений разряда"
+          }
+        }
+      }
+    },
+    "Extrapolated from a recent continuous discharge. Changing the workload changes the forecast.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Extrapolated from a recent continuous discharge. Changing the workload changes the forecast."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оценка по недавнему непрерывному разряду. При изменении нагрузки прогноз меняется."
+          }
+        }
+      }
+    },
+    "Last hour": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last hour"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "За последний час"
+          }
+        }
+      }
+    },
+    "Recorded charge during the last hour": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recorded charge during the last hour"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохранённый уровень заряда за последний час"
+          }
+        }
+      }
+    },
+    "20% already reached": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "20% already reached"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Уже достигнуты 20%"
+          }
+        }
+      }
+    },
+    "Quick panel contents": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quick panel contents"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Содержимое быстрого меню"
+          }
+        }
+      }
+    },
+    "Move up": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move up"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поднять"
+          }
+        }
+      }
+    },
+    "Move down": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move down"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Опустить"
+          }
+        }
+      }
+    },
+    "Reset quick panel": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset quick panel"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сбросить быстрое меню"
+          }
+        }
+      }
+    },
+    "Last confirmed macOS limit": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last confirmed macOS limit"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Последний подтверждённый лимит macOS"
+          }
+        }
+      }
+    },
+    "One-time full charging awaits a separate completion and cancellation check.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One-time full charging awaits a separate completion and cancellation check."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разовый заряд до 100% требует отдельной проверки завершения и отмены."
+          }
+        }
+      }
+    },
+    "macOS did not respond before the deadline. The call may still complete; further writes are blocked.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS did not respond before the deadline. The call may still complete; further writes are blocked."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS не ответила вовремя. Операция ещё может завершиться; новые изменения заблокированы."
+          }
+        }
+      }
+    },
+    "The delayed macOS call has returned. Read and reconcile its result before changing charging.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The delayed macOS call has returned. Read and reconcile its result before changing charging."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отложенный вызов macOS завершился. Перед новым изменением нужно прочитать и согласовать результат."
+          }
+        }
+      }
+    },
+    "The native policy readback is unavailable or inconsistent. The ownership journal was preserved.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The native policy readback is unavailable or inconsistent. The ownership journal was preserved."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нативная политика не подтверждена или противоречива. Журнал управления сохранён."
+          }
+        }
+      }
+    },
+    "Actual native limit is unconfirmed — recovery required": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actual native limit is unconfirmed — recovery required"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Текущий нативный лимит не подтверждён — нужно восстановление"
+          }
+        }
+      }
+    },
+    "Waiting for natural discharge; the requested limit is not active.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for natural discharge; the requested limit is not active."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ожидание естественного разряда; запрошенный лимит ещё не действует."
+          }
+        }
+      }
+    },
+    "Charge setting confirmed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charge setting confirmed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Настройка заряда подтверждена."
+          }
+        }
+      }
+    },
+    "Owned settings restored.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Owned settings restored."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Настройки под управлением Tilvero восстановлены."
+          }
+        }
+      }
+    },
+    "Restoration is incomplete. Keep Tilvero open for recovery.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restoration is incomplete. Keep Tilvero open for recovery."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Восстановление не завершено. Оставьте Tilvero открытой."
+          }
+        }
+      }
+    },
+    "Native charging": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Native charging"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нативное управление зарядом"
+          }
+        }
+      }
+    },
+    "No active native session": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No active native session"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нет активного нативного управления"
+          }
+        }
+      }
+    },
+    "Privileged controls": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Privileged controls"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Привилегированное управление"
+          }
+        }
+      }
+    },
+    "No active helper session": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No active helper session"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нет активной сессии помощника"
+          }
+        }
+      }
+    },
+    "Release control before removing Tilvero. Use Native charging and Privileged controls in Diagnostics to check restoration. Quit the app normally, then move its bundle to Trash. History can be erased separately.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Release control before removing Tilvero. Use Native charging and Privileged controls in Diagnostics to check restoration. Quit the app normally, then move its bundle to Trash. History can be erased separately."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перед удалением Tilvero освободите управление. Проверьте восстановление в разделах нативного и привилегированного управления в диагностике. Завершите приложение обычным способом и перенесите его в Корзину. Историю можно удалить отдельно."
+          }
+        }
+      }
+    },
+    "For validation with an existing 100% limit, first choose a lower supported limit in macOS and let the battery discharge naturally below it. No setting was written.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "For validation with an existing 100% limit, first choose a lower supported limit in macOS and let the battery discharge naturally below it. No setting was written."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для проверки при лимите 100% сначала выберите меньший поддерживаемый лимит в macOS и дождитесь естественного разряда ниже него. Настройки не менялись."
+          }
+        }
+      }
+    },
+    "macOS did not respond in time. Read and reconcile its result before trying again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS did not respond in time. Read and reconcile its result before trying again."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS не ответила вовремя. Перед новой попыткой прочитайте и согласуйте результат."
+          }
+        }
+      }
+    },
+    "Estimate": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estimate"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оценка"
+          }
+        }
+      }
+    },
+    "h": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "h"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ч"
+          }
+        }
+      }
+    },
+    "min": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "min"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "мин"
+          }
+        }
+      }
+    },
+    "Native macOS setting": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Native macOS setting"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нативная настройка macOS"
+          }
+        }
+      }
+    },
+    "The native setting is readable, but the active policy is unconfirmed. Connect power and refresh before validation or applying.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The native setting is readable, but the active policy is unconfirmed. Connect power and refresh before validation or applying."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нативная настройка доступна, но активная политика не подтверждена. Подключите питание и обновите данные перед проверкой или применением."
           }
         }
       }

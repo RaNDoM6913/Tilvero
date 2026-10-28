@@ -1,6 +1,7 @@
 import XCTest
 @testable import TilveroApp
 import ChargeBackends
+import PowerCore
 
 @MainActor final class NativeChargeServiceTests: XCTestCase {
     func testApplyAndRestorePreserveOriginalUserLimitAndOBC() async throws {
@@ -185,6 +186,39 @@ import ChargeBackends
         }
     }
 
+    func testNativeInterfaceStaysVisibleWhenOSHasNoRegisteredPolicyOnBattery() async throws {
+        let f = Fixture(admitted: false); defer { f.cleanup() }
+        await f.client.forceInvalidRead(target: 80, stale: false)
+        await f.service.refresh()
+        XCTAssertTrue(f.service.interfaceWasDiscovered, "A valid native setting must not fall back to a helper requirement")
+        XCTAssertEqual(f.service.acceptedTargets, [80,85,90,95,100])
+        XCTAssertEqual(f.service.nativeSetting?.configuration.target, 80)
+        XCTAssertNil(f.service.observed, "Independent registration is still required for confirmed control")
+        XCTAssertFalse(f.service.canApply)
+        do { try await f.service.apply(90, batteryPercent: 60, batteryFresh: true); XCTFail("No unconfirmed writes") } catch {}
+        let writes = await f.client.writes; XCTAssertTrue(writes.isEmpty)
+    }
+
+    func testExplicitApplyAndPendingUseDedicatedFreshObservationInsteadOfDisplayFreshness() async throws {
+        let f = Fixture(); defer { f.cleanup() }
+        let observation = NativeActionBattery()
+        let service = NativeChargeService(client: f.client, journalURL: f.url, admitted: true,
+            verificationAttempts: 2, batteryProvider: { await observation.read() })
+        await service.refresh()
+        try await service.apply(90, batteryPercent: nil, batteryFresh: false)
+        XCTAssertEqual(service.observed?.configuration.target, 90)
+        await observation.set(95)
+        try await service.apply(80, batteryPercent: nil, batteryFresh: false)
+        XCTAssertEqual(service.pendingTarget, 80)
+        await observation.set(75)
+        await service.observeBattery(percent: nil, fresh: false)
+        XCTAssertEqual(service.observed?.configuration.target, 80)
+        XCTAssertNil(service.pendingTarget)
+        await observation.set(nil)
+        do { try await service.apply(95, batteryPercent: 60, batteryFresh: true); XCTFail("Missing direct observation must not fall back to display data") } catch {}
+        let writes = await f.client.writes; XCTAssertEqual(writes, [90,80])
+    }
+
     @MainActor private struct Fixture {
         let client = NativeChargeFixtureClient()
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("TilveroNative-\(UUID().uuidString)/session.json")
@@ -225,4 +259,10 @@ actor NativeChargeFixtureClient: NativeChargeTransport {
     func disableAndFailAfterEnable() { enabled = false; failEnable = true }
     func changeAfterNextRead(to target: Int) { afterReadTarget = target }
     func external(target: Int) { self.target = target }
+}
+
+private actor NativeActionBattery {
+    private var percent: Int? = 60
+    func read() -> PowerCore.ChargeObservation { .init(percent: percent, externalPower: true, fresh: percent != nil) }
+    func set(_ value: Int?) { percent = value }
 }

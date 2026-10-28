@@ -109,8 +109,8 @@ struct BatteryInfoView: View {
             GroupBox { ChargeLimitControl(model: model).padding(12) }
             if model.canShowChargeControls {
                 HStack {
-                    Button(L10n.text(model.isOneShotDemo ? "Cancel one-time charge" : "Charge to 100% once")) { model.toggleOneShotDemo() }
-                    Button(L10n.text("Return to system control")) { model.releaseControl() }
+                    Button(L10n.text(model.isOneShotDemo ? "Cancel one-time charge" : "Charge to 100% once")) { model.toggleOneShotDemo() }.disabled(!model.canChargeToFullOnce)
+                    Button(L10n.text("Return to system control")) { model.releaseControl() }.disabled(!model.canReleaseCharge)
                 }.disabled(model.isApplying)
             }
             catalogRows(model.snapshot.catalog.filter { ("013"..."022").contains($0.id) || ("045"..."056").contains($0.id) })
@@ -126,17 +126,30 @@ struct BatteryInfoView: View {
         case .history: HistoryPanel(model: model)
         case .sleep: SleepReportPanel(model: model)
         case .diagnostics:
-            GroupBox {
+            if !model.isDemo {
+                GroupBox(L10n.text("Native charging")) {
+                    VStack(alignment: .leading, spacing: 9) {
+                        Label(L10n.text(model.nativeCharge.hasOwnedSettings || model.nativeCharge.recoveryRequired ? "App-owned settings require restoration" : "No active native session"), systemImage: "battery.100percent")
+                        NativeChargeStatusPanel(model: model)
+                        SystemChargeLimitPanel(model: model)
+                        Button(L10n.text("Refresh")) { Task { await model.refreshNativeCharge(); await model.refreshSystemChargeLimit() } }
+                    }.frame(maxWidth: .infinity, alignment: .leading).padding(10)
+                }
+            }
+            GroupBox(L10n.text("Privileged controls")) {
                 VStack(alignment: .leading, spacing: 9) {
-                    Label(L10n.text(model.liveControl.hasOwnedSettings ? "App-owned settings require restoration" : "No active control session"), systemImage: "shield")
+                    Label(L10n.text(model.liveControl.hasOwnedSettings ? "App-owned settings require restoration" : "No active helper session"), systemImage: "shield")
                     Text("\(L10n.text("Helper")): \(model.helperStatusText)")
-                    Text(L10n.text("Running copy") + ": " + Bundle.main.bundleURL.path)
-                        .font(.caption).textSelection(.enabled)
-                    if !model.isDemo { SystemChargeLimitPanel(model: model) }
                     Text(L10n.text(model.liveControl.message ?? "Signing and hardware validation required")).foregroundStyle(.secondary)
                     if model.liveControl.canRegister { Button(L10n.text("Enable supported controls")) { model.registerHelper() } }
                     if model.liveControl.hasOwnedSettings || model.liveControl.recoveryRequired { Button(L10n.text("Restore original settings")) { model.restoreAll() } }
                     if model.liveControl.registrationState == .enabled { Button(L10n.text("Disable helper after restoration")) { model.removeHelper() } }
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(10)
+            }
+            GroupBox(L10n.text("Diagnostics")) {
+                VStack(alignment: .leading, spacing: 9) {
+                    Text(L10n.text("Running copy") + ": " + Bundle.main.bundleURL.path)
+                        .font(.caption).textSelection(.enabled)
                     Button(L10n.text("Export diagnostics…")) { model.prepareExport(diagnostics: true) }
                     Button(L10n.text("Read property inventory")) { model.inspectRawProperties() }
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(10)
@@ -288,7 +301,7 @@ private struct SettingsPanel: View {
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(12)
             }
             GroupBox(L10n.text("Recovery & uninstall")) {
-                Text(L10n.text("Release control before removing Tilvero. This local monitoring build has acquired no overrides. Quit the app, then move its bundle to Trash. History can be erased separately.")).frame(maxWidth: .infinity, alignment: .leading).padding(12)
+                Text(L10n.text("Release control before removing Tilvero. Use Native charging and Privileged controls in Diagnostics to check restoration. Quit the app normally, then move its bundle to Trash. History can be erased separately.")).frame(maxWidth: .infinity, alignment: .leading).padding(12)
             }
             Text(L10n.text("Local and offline. No account or uploads.")).font(.caption).foregroundStyle(.secondary)
         }.alert(L10n.text("Erase history"), isPresented: $confirmErase) {
@@ -304,12 +317,8 @@ struct ProfilePanel: View {
     var body: some View {
         GroupBox(L10n.text("Profiles & schedules")) {
             VStack(alignment: .leading, spacing: 14) {
-                Text(L10n.text("Profiles require verified control capabilities. Saving a plan never applies it.")).foregroundStyle(.secondary)
-                HStack {
-                    ForEach(["At desk", "On battery profile", "Before leaving", "Sustained work"], id: \.self) { name in
-                        Button(L10n.text(name)) { model.applyProfile(name) }.disabled(!model.canApplyProfiles || model.isApplying)
-                    }
-                }
+                ModeEditorPanel(model: model)
+                Divider()
                 Picker(L10n.text("Scheduled profile"), selection: $model.scheduleProfileName) {
                     ForEach(["At desk", "On battery profile", "Before leaving", "Sustained work"], id: \.self) { Text(L10n.text($0)).tag($0) }
                 }

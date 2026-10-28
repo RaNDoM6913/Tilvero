@@ -10,6 +10,12 @@ import SwiftUI
                 Text(L10n.text("Changes here use the same native limit as macOS Battery settings."))
                     .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
+            if model.nativeCharge.observed == nil, let setting = model.nativeCharge.nativeSetting, setting.isFresh {
+                Text(L10n.text("Native macOS setting") + ": " + (setting.configuration.enabled ? "\(setting.configuration.target)%" : L10n.text("System managed")))
+                    .font(.caption).monospacedDigit()
+                Text(L10n.text("The native setting is readable, but the active policy is unconfirmed. Connect power and refresh before validation or applying."))
+                    .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
             if !model.nativeCharge.admitted {
                 Text(L10n.text("Native control needs one local setting-and-restoration check."))
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)

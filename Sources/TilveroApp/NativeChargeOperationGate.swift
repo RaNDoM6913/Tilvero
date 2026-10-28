@@ -3,7 +3,15 @@ import Foundation
 /// A deadline returns control to the UI without pretending that the underlying
 /// XPC call was cancelled. No next operation is admitted until that call returns.
 @MainActor final class NativeChargeOperationGate {
-    enum Failure: Error { case busy, timedOut }
+    enum Failure: Error, LocalizedError {
+        case busy, timedOut
+        var errorDescription: String? {
+            switch self {
+            case .busy: "A native charging operation is still in progress."
+            case .timedOut: "macOS did not respond in time. Read and reconcile its result before trying again."
+            }
+        }
+    }
     private(set) var pending = false
     var onTimeout: (() -> Void)?
     var onLateCompletion: (() -> Void)?

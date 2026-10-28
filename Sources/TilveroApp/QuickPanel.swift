@@ -44,7 +44,7 @@ struct QuickPanel: View {
             }
             Picker(L10n.text("Battery menu"), selection: $section) {
                 ForEach(QuickPanelSection.allCases) { Text($0.title).tag($0) }
-            }.pickerStyle(.segmented)
+            }.pickerStyle(.segmented).id(L10n.language)
             Group {
                 switch section {
                 case .overview: overview
@@ -119,17 +119,7 @@ struct QuickPanel: View {
         }
     }
 
-    private var modes: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(L10n.text("Profiles")).font(.headline)
-            Text(L10n.text("Profiles require verified control capabilities."))
-                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            ForEach(["At desk", "On battery profile", "Before leaving", "Sustained work"], id: \.self) { name in
-                Button(L10n.text(name)) { model.applyProfile(name) }
-                    .disabled(!model.canApplyProfiles || model.isApplying)
-            }
-        }
-    }
+    private var modes: some View { ModeEditorPanel(model: model) }
 
     private var settingsMenu: some View {
         Menu {

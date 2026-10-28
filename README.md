@@ -16,7 +16,7 @@
 
 **Monitor and control your Mac.** A native Swift menu bar utility for battery, charging, power and cooling. Local data, a compact panel and an honest view of what your Mac can report.
 
-**Monitoring Preview:** live monitoring, history and diagnostics work in the current local source build. Physical charging, power and fan controls remain disabled pending trusted signing and device qualification.
+**Monitoring Preview** packages remain read-only. Development source includes a normal-user native charge controller gated by a local per-Mac setting/readback/restoration check. Privileged power/fan controls retain separate signing and device-qualification gates.
 
 ## Get Tilvero
 
@@ -30,6 +30,7 @@ Local **TEST** packages are internal ad-hoc builds. They are not a signed, notar
 | --- | --- |
 | Live battery monitoring | Charge, power-source status and available battery readings, with source, freshness and unavailable reasons |
 | Menu bar and detail window | Content-sized Overview / Charge / Modes panel, direct qualified charge actions, searchable detail readings, Russian/English and adjustable indicator sizing |
+| Configurable modes | Saved Normal / Economy / Maximum autonomy plans with separate Save / Apply and per-action results; unqualified energy/display actions are excluded and background jobs preserved |
 | Local history | Minute samples, hourly aggregates, gaps and battery boundaries; CSV/JSON preview and export |
 | Sleep & drain | Separate detail section for future app-observed sleep intervals, qualified before/after charge change and current sleep blockers; incomplete evidence stays visible |
 | Diagnostics | Read-only discovery and a redacted report; no administrator approval needed for monitoring |
@@ -97,9 +98,9 @@ Normal presentation masks serials and identity tokens; ordinary exports exclude 
 
 ## System charge limit
 
-Development checkpoint: the source includes a normal-user PowerUI adapter and a journaled native controller. Apply remains disabled until a local setting/readback/restoration check passes on that Mac. With an existing 80% limit, the check requires 78% charge or below and never forces a discharge. Real-device writes have not yet been validated for this checkpoint. The Modes editor, remaining localization and final whole-app acceptance are still in progress; this is a source checkpoint, not a finished release.
+Development checkpoint: the source includes a normal-user PowerUI adapter and a journaled native controller. Apply remains disabled until a local setting/readback/restoration check passes on that Mac. With an existing 80% limit, the check requires 78% charge or below and never forces a discharge. Native discovery remains visible when macOS has no registered active policy on battery; writes still require independent confirmation. One-time full charging has a separate completion/cancellation gate. This is development source, not a finished release.
 
-The overview now includes a real last-hour chart, a conservative discharge forecast and saved content preferences. The normal indicator uses public native SF Symbol layers. Privileged power/fan control retains its separate signing and qualification gates.
+The overview includes a real last-hour chart, a conservative discharge forecast and saved content preferences. Modes have editable parameters and per-action results. Saving or reopening a plan never applies it. The normal indicator uses public native SF Symbol layers. Privileged power/fan control retains its separate signing and qualification gates.
 
 On Apple silicon with **macOS 26.4+**, Apple provides an independent **80–100% Charge Limit** in **System Settings → Battery → Charging ⓘ**. The Charge tab links there and displays the manual limit registered by macOS, with a read timestamp and Refresh action. Other OS requests, including Optimized Battery Charging, are shown separately. A missing or conflicting readback stays unavailable; it is not converted into a claimed 100% limit. Simulation never reads physical limits.
 
@@ -109,13 +110,13 @@ The observation uses read-only `pmset -g battlimit`; it does not prove an exact 
 
 The source includes typed backends, authenticated XPC, original-state journals and a separate recovery guardian. Charging policies, power profiles and fan control have source and fixture coverage, but the **physical-write qualification list is empty**. No helper enrollment or live control support is claimed for this preview.
 
-Enabling a control requires trusted app/helper signing, normal macOS authorization, demonstrated per-device behavior and verified restoration. Cooling also needs a real MacBook Pro and a qualified sensor mapping. A readable key or model name alone does not establish write support. Do not register the development helper to bypass these gates.
+Enabling a privileged control requires trusted app/helper signing, normal macOS authorization, demonstrated per-device behavior and verified restoration. Cooling also needs a real MacBook Pro and a qualified sensor mapping. A readable key or model name alone does not establish write support. Do not register the development helper to bypass these gates.
 
 Requested, applied and observed state remain separate. A lower charge target may stay visibly pending until natural discharge; fan policies default to System Auto. See the [control architecture](Helper/README.md) and [compatibility and validation gates](docs/COMPATIBILITY.md).
 
 ## Next directions
 
-The first read-only sleep-report stage is implemented. Economy/Maximum autonomy, quiet-sleep control and charging for a departure time remain proposed work in the [roadmap](ROADMAP.md), awaiting their own scope and qualification. No fixed battery-life saving or asleep charging deadline is promised.
+The first read-only sleep-report stage is implemented. Qualified energy/display actions for Economy/Maximum autonomy, quiet-sleep control and charging for a departure time remain proposed work in the [roadmap](ROADMAP.md), awaiting their own scope and qualification. No fixed battery-life saving or asleep charging deadline is promised.
 
 ## Development
 

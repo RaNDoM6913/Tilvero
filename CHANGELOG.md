@@ -5,7 +5,11 @@
 - Use public native SF Symbol layers with continuous measured fill.
 - Add a typed user-space PowerUI adapter, journaled native sessions, safe pending targets, external reconciliation and deadlines. Real writes remain behind per-Mac validation; full-once has a separate gate.
 - Add a real last-hour chart, conservative discharge forecast and saved overview preferences.
-- Modes editing, remaining localization, physical qualification and final acceptance remain open. This is a source checkpoint, not a release.
+- Add durable Normal / Economy / Maximum autonomy plans with separate Save / Apply, action preview and partial outcomes; preserve background jobs and exclude unqualified energy/display actions.
+- Complete overview/native/mode RU/EN strings, refresh native picker labels on language changes, and separate native from helper diagnostics.
+- Preserve native discovery when an on-battery policy is unregistered; keep writes gated by independent confirmation.
+- Handle the previous limit recalled by enableMCL after disabled100, with fresh battery checks and verified baseline restoration.
+- Cutoff, full-once, privileged controls and trusted distribution retain separate gates. This is development source, not a release.
 
 ## Unreleased — local launch and system charge-limit readback
 

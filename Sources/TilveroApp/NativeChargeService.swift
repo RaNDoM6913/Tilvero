@@ -37,7 +37,15 @@ enum NativeChargeServiceError: Error, LocalizedError {
 /// helper, changes OBC, guesses a root qualification, or fights external edits.
 @MainActor final class NativeChargeService: ObservableObject {
     @Published private(set) var observed: NativeChargeSnapshot? {
-        didSet { if let observed, observed.isFresh && observed.policyMatches { knownTargets = observed.supportedTargets } }
+        didSet { if let observed { rememberNativeSetting(observed) } }
+    }
+    /// The native preference can exist while macOS registers no active charging
+    /// policy on battery. Keep discovery separate from independent confirmation.
+    @Published private(set) var nativeSetting: NativeChargeSnapshot?
+    private func rememberNativeSetting(_ value: NativeChargeSnapshot) {
+        guard value.isFresh else { return }
+        nativeSetting = value
+        knownTargets = value.supportedTargets
     }
     private var knownTargets: [Int] = []
     @Published private(set) var pendingTarget: Int?
@@ -135,9 +143,12 @@ enum NativeChargeServiceError: Error, LocalizedError {
         defer { isQualifying = false }
         let baseline = try await readNative()
         let battery = await batteryProvider()
+        guard baseline.configuration.target != 100 else {
+            message = "For validation with an existing 100% limit, first choose a lower supported limit in macOS and let the battery discharge naturally below it. No setting was written."
+            throw NativeChargeServiceError.staleBattery
+        }
         guard baseline.isFresh && baseline.policyMatches && baseline.supportedTargets.contains(100),
-              battery.fresh, let percent = battery.percent, percent <= min(baseline.configuration.target, 100) - 2,
-              baseline.configuration.target != 100 else {
+              battery.fresh, let percent = battery.percent, percent <= baseline.configuration.target - 2 else {
             message = "For the bounded native test, unplug and let the battery fall at least two percentage points below the existing limit. No setting was written."
             throw NativeChargeServiceError.staleBattery
         }
@@ -170,6 +181,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
         isBusy = true; defer { isBusy = false }
         do {
             let value = try await readNative()
+            rememberNativeSetting(value)
             guard value.isFresh && value.policyMatches else {
                 observed = nil
                 message = "The native policy readback is unavailable or inconsistent. The ownership journal was preserved."
@@ -192,9 +204,14 @@ enum NativeChargeServiceError: Error, LocalizedError {
         guard !monitoringOnly, admitted, !journalInvalid else { throw NativeChargeServiceError.unavailable }
         guard !isBusy, !operationGate.pending else { throw NativeChargeServiceError.busy }
         guard !recoveryRequired && !restorationPending else { throw NativeChargeServiceError.recoveryRequired }
-        guard batteryFresh, let percent = batteryPercent, (0...100).contains(percent) else { throw NativeChargeServiceError.staleBattery }
-        self.batteryPercent = percent; self.batteryFresh = true
         isBusy = true; defer { isBusy = false }
+        // Presentation readings can honestly have unknown sensor age. Explicit
+        // native control uses the same dedicated current observation as qualification.
+        let actionBattery = await batteryProvider?()
+        let fresh = actionBattery?.fresh ?? batteryFresh
+        let actionPercent = actionBattery != nil ? actionBattery!.percent : batteryPercent
+        guard fresh, let percent = actionPercent, (0...100).contains(percent) else { throw NativeChargeServiceError.staleBattery }
+        self.batteryPercent = percent; self.batteryFresh = true
         let current = try await readNative()
         observed = current
         guard current.isFresh && current.policyMatches else { throw NativeChargeServiceError.readbackMismatch }
@@ -252,7 +269,11 @@ enum NativeChargeServiceError: Error, LocalizedError {
 
     func observeBattery(percent: Int?, fresh: Bool) async {
         batteryPercent = percent; batteryFresh = fresh
-        guard !isBusy, !isQualifying, !operationGate.pending, !recoveryRequired, fresh, let percent else { return }
+        guard !isBusy, !isQualifying, !operationGate.pending, !recoveryRequired else { return }
+        let observation = (pendingTarget != nil || restorationPending || isOneShot) ? await batteryProvider?() : nil
+        let currentFresh = observation?.fresh ?? fresh
+        let currentPercent = observation != nil ? observation!.percent : percent
+        guard currentFresh, let percent = currentPercent else { return }
         if isOneShot && percent >= 100 {
             try? await cancelOneShot(batteryPercent: percent, batteryFresh: true)
         } else if restorationPending {
@@ -298,6 +319,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
         self.batteryPercent = percent; self.batteryFresh = true
         let safeRestoreFloor = current.configuration.enabled ? saved.baseline.target : min(saved.baseline.target, current.configuration.target)
         let needsTargetChange = current.configuration.target != saved.baseline.target
+        let restoringFromDisabled100 = !current.configuration.enabled && current.configuration.target == 100 && saved.baseline.enabled
         let canDisableWithoutTargetChange = !saved.baseline.enabled && !needsTargetChange
         if !canDisableWithoutTargetChange && safeRestoreFloor <= percent {
             journal?.phase = .restorationPending; restorationPending = true
@@ -309,11 +331,13 @@ enum NativeChargeServiceError: Error, LocalizedError {
         do {
             journal?.lastVerified = current.configuration; try saveJournal()
             if !current.configuration.enabled {
-                try await mutate(expected: .init(enabled: true, target: current.configuration.target, optimizedCharging: current.configuration.optimizedCharging)) {
+                try await mutate(expected: .init(enabled: true, target: current.configuration.target, optimizedCharging: current.configuration.optimizedCharging),
+                                 allowRestoredBaseline: restoringFromDisabled100) {
                     try await self.setNativeEnabled(true)
                 }
             }
-            if needsTargetChange {
+            // enableMCL may recall the previously selected limit itself.
+            if observed?.configuration.target != saved.baseline.target {
                 try await mutate(expected: .init(enabled: true, target: saved.baseline.target, optimizedCharging: current.configuration.optimizedCharging)) {
                     try await self.setNativeLimit(saved.baseline.target)
                 }
@@ -324,6 +348,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
                 }
             }
             let value = try await verify(target: saved.baseline.target, enabled: saved.baseline.enabled)
+            guard !restoringFromDisabled100 || value.configuration == saved.baseline else { throw NativeChargeServiceError.readbackMismatch }
             observed = value; try relinquish()
             message = "The original macOS charge setting was verified as restored."
             return true
@@ -363,7 +388,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
     }
 
     private func mutate(expected: NativeChargeConfiguration, permitDisabled100: Bool = false,
-                        operation: @MainActor () async throws -> Void) async throws {
+                        allowRestoredBaseline: Bool = false, operation: @MainActor () async throws -> Void) async throws {
         guard let saved = journal else { throw NativeChargeServiceError.recoveryRequired }
         let before = try await readNative(); observed = before
         guard before.isFresh, before.policyReadbackAvailable, before.policyMatches else {
@@ -384,12 +409,18 @@ enum NativeChargeServiceError: Error, LocalizedError {
         if expected.enabled && !before.configuration.enabled && percent >= before.configuration.target {
             throw NativeChargeServiceError.unsafeEnable
         }
+        let recalledBaseline = allowRestoredBaseline && saved.phase == .restoring && !before.configuration.enabled
+            && before.configuration.target == 100 && saved.baseline.enabled ? saved.baseline : nil
+        if let recalledBaseline, percent >= recalledBaseline.target {
+            throw NativeChargeServiceError.unsafeEnable
+        }
         // Write-ahead state includes even intermediate enable/disable operations.
         // A crash or error cannot make an unacknowledged mutation look untouched.
         journal?.expectedMutation = expected; journal?.hasWritten = true; try saveJournal()
         try await operation()
         let after = try await readNative(); observed = after
-        guard after.isFresh && (after.configuration.matchesManual(expected) || (permitDisabled100 && after.configuration.target == 100)) else {
+        let baselineWasRecalled = recalledBaseline.map { after.configuration == $0 && after.policyMatches } ?? false
+        guard after.isFresh && (after.configuration.matchesManual(expected) || (permitDisabled100 && after.configuration.target == 100) || baselineWasRecalled) else {
             throw NativeChargeServiceError.readbackMismatch
         }
         journal?.lastVerified = after.configuration; journal?.expectedMutation = nil; try saveJournal()

@@ -88,6 +88,26 @@ import PowerPrivileged
         XCTAssertFalse(awaited4)
         cleanup(fixture.preferences)
     }
+    func testNormalModeRestoresWithoutTerminatingTheHelperService() async throws {
+        let fixture = makeFixture(owned: [.charging])
+        defer { cleanup(fixture.preferences) }
+        await fixture.service.start()
+        await fixture.service.observe(snapshot(60))
+        XCTAssertTrue(fixture.service.canCharge)
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let model = TilveroModel(isDemo: false, preferences: fixture.preferences,
+            historyURL: directory.appendingPathComponent("History.sqlite"),
+            snapshotProvider: { .unavailable(reason: "Mode fixture — no physical reads") }, liveControl: fixture.service)
+        await model.applyMode(.normal)
+        XCTAssertFalse(fixture.service.hasOwnedSettings)
+        XCTAssertTrue(fixture.service.connected, "Mode switching must not invalidate the helper transport")
+        await fixture.service.observe(snapshot(60))
+        XCTAssertTrue(fixture.service.canCharge, "Normal must allow another explicit action without relaunch")
+        XCTAssertEqual(model.modeReport?.rows.first { $0.action == .restore }?.status, .applied)
+        model.stop()
+    }
+
     func testTerminationRestoresBeforeInvalidatingTransport() async throws {
         let fixture = makeFixture(owned: [.charging])
         await fixture.service.start()

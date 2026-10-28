@@ -38,9 +38,12 @@ public protocol NativeChargeTransport: Sendable {
 public actor PowerUIChargeClient: NativeChargeTransport {
     public init() {}
     public func read() async throws -> NativeChargeSnapshot {
-        var error: NSError?
-        let value = TVNativeChargeRead(&error)
-        if let error { throw error }
+        let value = try autoreleasepool {
+            var error: NSError?
+            let value = TVNativeChargeRead(&error)
+            if let error { throw error }
+            return value
+        }
         guard let raw = value, let enabled = raw["enabled"] as? Bool, let target = raw["target"] as? Int,
               let optimized = raw["optimizedCharging"] as? Bool, let targets = raw["targets"] as? [Int],
               (80...100).contains(target), targets == targets.sorted(), Set(targets).count == targets.count,
@@ -52,15 +55,19 @@ public actor PowerUIChargeClient: NativeChargeTransport {
     }
     public func setLimit(_ target: Int) async throws {
         guard (80...100).contains(target) else { throw PolicyError.unsupportedTarget }
-        var error: NSError?
-        let success = TVNativeChargeSetLimit(UInt8(target), &error)
-        if let error { throw error }
-        guard success else { throw PolicyError.readbackMismatch }
+        try autoreleasepool {
+            var error: NSError?
+            let success = TVNativeChargeSetLimit(UInt8(target), &error)
+            if let error { throw error }
+            guard success else { throw PolicyError.readbackMismatch }
+        }
     }
     public func setEnabled(_ enabled: Bool) async throws {
-        var error: NSError?
-        let success = TVNativeChargeSetEnabled(enabled, &error)
-        if let error { throw error }
-        guard success else { throw PolicyError.readbackMismatch }
+        try autoreleasepool {
+            var error: NSError?
+            let success = TVNativeChargeSetEnabled(enabled, &error)
+            if let error { throw error }
+            guard success else { throw PolicyError.readbackMismatch }
+        }
     }
 }

@@ -19,14 +19,14 @@ Tilvero is a development preview for Apple silicon Macs running macOS26.0 or lat
 | History and export | Implemented and fixture-tested; real local history observed | SQLite history begins with collection; no invented samples across gaps; exports preview and redact identifiers |
 | Sleep & drain | Read-only source and fixture implementation; separate detail section | Future app-observed boundaries only; no backfill, measured sleep residence, dark-wake count or per-app energy attribution. Real completed sleep/wake observation remains a device gate |
 | Charge-policy logic | Implemented and fixture-tested | Pending lower targets, explicit Apply, one-shot return/cancel and stale-generation handling; no qualified physical writes |
-| Power profiles and local schedules | Implemented in source/fixtures | Awake scheduling is distinct from charging by a deadline or executing while asleep |
+| Modes editor and local schedules | Durable Normal / Economy / Maximum autonomy plans with separate Save / Apply and per-action results; unqualified energy/display actions excluded | Awake scheduling is distinct from charging by a deadline or executing while asleep |
 | Privileged helper and recovery | Implemented and fixture-tested | Trusted signed OS XPC/enrollment/denial/update/removal acceptance remains open |
-| Native charge control | Disabled in the live build | Requires trusted helper, accepted-target discovery, real cutoff/recharge behavior and verified restoration |
+| Native charge control | User-space PowerUI route with local per-Mac admission | OS-offered targets, fresh battery/policy and journaled setting/readback/restoration checks; no root helper for this route. Cutoff and full-once retain separate gates |
 | Energy-mode control | Disabled in the live build | Requires independent battery/adapter qualification and restoration |
 | MacBook Pro cooling control | Disabled in the live build | Requires a named real Pro, qualified sensors, actual RPM response and Auto/recovery evidence |
 | Extended charge bands, sub80 and forced discharge | Unavailable | Each needs its own supported contract and hardware validation |
 
-The shipped physical-write qualification set is empty. A readable registry/SMC key, matching model name, successful build or simulator result does not enable a write. There is no UI or environment override for this gate.
+The privileged physical-write qualification set remains empty. User-space native admission is separate for the exact Mac/OS/ABI after a bounded setting-and-restoration check; it never enables helper or fan control. A readable registry/SMC key, matching model name, successful build or simulator result does not enable a write. There is no UI or environment override for this gate.
 
 MacBook Air is fanless; a Pro simulator does not certify Pro hardware. Model-specific behavior must be demonstrated on the actual OS/firmware combination before a support claim is added.
 
@@ -40,6 +40,6 @@ Local execution journals, private machine snapshots and owner screenshots are no
 
 Use source builds for monitoring and explicitly labeled simulation. Monitoring requires no administrator approval. Launch-at-login from an installed bundle, signed lifecycle behavior, physical unplug/sleep transitions and remaining accessibility acceptance still need their relevant real-environment checks.
 
-Sleep interval reporting and current sleep assertions are read-only features. Economy/Maximum autonomy modes, quiet-sleep control and deadline charging remain proposals in the [roadmap](../ROADMAP.md), not enabled control capabilities. No fixed runtime extension, sleep consumption or asleep charging deadline is promised.
+Sleep interval reporting and current sleep assertions are read-only features. Qualified energy/display actions for Economy/Maximum autonomy, quiet-sleep control and deadline charging remain proposals in the [roadmap](../ROADMAP.md), not enabled control capabilities. No fixed runtime extension, sleep consumption or asleep charging deadline is promised.
 
 See the [README](../README.md) for build/run commands and the [helper architecture](../Helper/README.md) for the trust and recovery contract.
