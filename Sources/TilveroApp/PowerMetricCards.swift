@@ -63,7 +63,7 @@ enum PowerMetricHistory {
                     .foregroundStyle(color).interpolationMethod(.linear)
                 PointMark(x: .value("Time", point.date), y: .value("Value", point.value)).foregroundStyle(color).symbolSize(3)
             }.chartXScale(domain: model.snapshot.collectedAt.addingTimeInterval(-3600)...model.snapshot.collectedAt)
-                .chartYScale(domain: .automatic(includesZero: true)).chartXAxis(.hidden).chartYAxis(.hidden).frame(height: 40)
+                .chartYScale(domain: .automatic(includesZero: true)).chartXAxis(.hidden).chartYAxis(.hidden).frame(height: 28)
                 .accessibilityLabel(L10n.text("Recorded observations during the last hour."))
                 .help(L10n.text("Recorded observations during the last hour."))
         } else {

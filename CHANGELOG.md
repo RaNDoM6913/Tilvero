@@ -2,6 +2,7 @@
 
 ## Unreleased — power information expansion
 
+- Reduce recorded sparkline and last-hour chart heights by about 30% in the quick panel and its Settings preview.
 - Add optional System, Adapter, Battery health and Application activity constructor blocks, recorded battery/temperature/power sparklines and latest comparable observation statistics.
 - Keep reported system load, adapter input/capability, battery power and CPU-only process energy separate, with source/freshness and partial coverage.
 - Expand the append-only catalog to115fields with exact raw counters, device-scoped inferred lifetime/cell readings, separate nominal capacity and derived retention; preserve unsupported values as unavailable.

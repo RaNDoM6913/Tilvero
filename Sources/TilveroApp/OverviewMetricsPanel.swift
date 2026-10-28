@@ -48,7 +48,7 @@ import PowerCore
                                 .chartXScale(domain: model.snapshot.collectedAt.addingTimeInterval(-3600)...model.snapshot.collectedAt)
                                 .chartYAxis { AxisMarks(values: [0,50,100]) }
                                 .chartXAxis { AxisMarks(values: .automatic(desiredCount: 3)) }
-                                .frame(height: 88)
+                                .frame(height: 62)
                                 .accessibilityLabel(L10n.text("Recorded charge during the last hour"))
                         } else {
                             Text(L10n.text("No recorded measurements yet")).font(.caption).foregroundStyle(.secondary)
