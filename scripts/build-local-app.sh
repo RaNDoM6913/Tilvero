@@ -10,6 +10,10 @@ if (($#)); then
   app_directory="$2"
   [[ "$app_directory" == /* ]] || app_directory="$project_root/$app_directory"
   [[ ! -e "$app_directory" && ! -L "$app_directory" ]] || { echo 'Output already exists; preserve it and choose a fresh path.' >&2; exit 2; }
+  if [[ "$app_directory" == "$project_root/build/"* && "$app_directory" != "$project_root/build/Tilvero.app" && "$app_directory" != *".noindex/"* ]]; then
+    echo 'Development candidates inside build/ must use a .noindex folder, such as build/dev-candidates.noindex/example/Tilvero.app, to keep duplicate apps out of macOS search.' >&2
+    exit 2
+  fi
 fi
 # Never overwrite executable/resources under a live process. Use a fresh candidate
 # or quit normally first, so restoration and history shutdown can complete.

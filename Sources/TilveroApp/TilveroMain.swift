@@ -175,7 +175,6 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         item.button?.font = NativeStatusPresentation.font(for: model.menuBarTextSize)
 
         popover.behavior = .transient
-        popover.animates = false
         let panel = QuickPanelHostingController(model: model, maximumHeight: panelMaximumHeight)
         panel.onSizeChange = { [weak self] size in self?.popover.contentSize = size }
         popover.contentViewController = panel
@@ -281,6 +280,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         guard NSApplication.shared.isActive, let button = statusItem?.button else { return }
         (popover.contentViewController as? QuickPanelHostingController)?.updateMaximumHeight(panelMaximumHeight)
         model.isPopoverVisible = true
+        QuickPanelMotion.configure(popover, reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         activatePopoverWindow()
         startPopoverEventMonitors()
@@ -372,6 +372,14 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         let mode = (model.isDemo ? L10n.text("Simulation") + " · " : "") + (model.snapshot.chargePercent.freshness == .stale ? L10n.text("Stale") + " · " : "")
         button.toolTip = "\(AppIdentity.displayName) · \(mode)\(model.chargeText) · \(model.chargingStateText)"
         button.setAccessibilityLabel("\(AppIdentity.displayName), \(mode)\(model.chargeText), \(model.chargingStateText)")
+    }
+}
+
+/// Read the current accessibility preference at each presentation, including
+/// after it changes while the panel is closed. AppKit owns the transition.
+@MainActor enum QuickPanelMotion {
+    static func configure(_ popover: NSPopover, reduceMotion: Bool) {
+        popover.animates = !reduceMotion
     }
 }
 

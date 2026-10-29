@@ -121,7 +121,7 @@ final class QuickPanelLayoutTests: XCTestCase {
         var reported: NSSize?
         host.onSizeChange = { size in reported = size; window.setContentSize(size) }
         let segments = try XCTUnwrap(descendants(of: host.view).compactMap { $0 as? NSSegmentedControl }.first)
-        XCTAssertEqual(segments.segmentCount, 3)
+        XCTAssertEqual(segments.segmentCount, 4)
         segments.selectedSegment = 1
         _ = segments.sendAction(segments.action, to: segments.target)
         try await Task.sleep(for: .milliseconds(30))

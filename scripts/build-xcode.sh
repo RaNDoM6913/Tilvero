@@ -4,7 +4,7 @@ project_root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$project_root"
 source "$project_root/scripts/toolchain.sh"
 configuration=Debug
-derived_data="$project_root/build/Xcode"
+derived_data="$project_root/build/Xcode.noindex"
 output= release_config=
 while (($#)); do
   case "$1" in

@@ -7312,6 +7312,22 @@
           }
         }
       }
+    },
+    "Awake": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Awake"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не спать"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

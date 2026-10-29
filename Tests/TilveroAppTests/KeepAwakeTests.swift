@@ -120,7 +120,7 @@ import XCTest
     }
 }
 
-@MainActor private final class AwakeFixture: KeepAwakeTransport {
+@MainActor final class AwakeFixture: KeepAwakeTransport {
     var assertions: [UInt32: KeepAwakeAssertion] = [:]
     var failCreate = false, failRelease = false, wrongKind = false
     var releaseCount = 0

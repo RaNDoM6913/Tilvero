@@ -31,7 +31,7 @@ import SwiftUI
                     Button(L10n.text("Start")) {
                         do { try model.keepAwake.start(seconds: model.keepAwakeDuration.seconds); error = nil }
                         catch { self.error = error.localizedDescription }
-                    }.disabled(!model.keepAwake.isAvailable)
+                    }.disabled(!model.keepAwake.isAvailable).accessibilityIdentifier("keep-awake-start")
                 }
             }
             if let error { Text(L10n.text(error)).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true) }
@@ -61,7 +61,7 @@ import SwiftUI
                             .accessibilityLabel(L10n.text("Time remaining") + ": " + time)
                     }
                 }
-                Button(L10n.text("Stop")) { try? service.stop() }
+                Button(L10n.text("Stop")) { try? service.stop() }.accessibilityIdentifier("keep-awake-stop")
             }
             if let message = service.message {
                 Text(L10n.text(message)).font(.caption2).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)

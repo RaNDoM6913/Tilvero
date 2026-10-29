@@ -3,13 +3,14 @@ import SwiftUI
 import PowerCore
 
 enum QuickPanelSection: String, CaseIterable, Identifiable {
-    case overview, charge, modes
+    case overview, charge, modes, awake
     var id: String { rawValue }
     var title: String {
         switch self {
         case .overview: L10n.text("Overview")
         case .charge: L10n.text("Charge")
         case .modes: L10n.text("Modes")
+        case .awake: L10n.text("Awake")
         }
     }
 }
@@ -50,6 +51,7 @@ struct QuickPanel: View {
                 case .overview: overview
                 case .charge: charge
                 case .modes: modes
+                case .awake: KeepAwakePanel(model: model).id(model.language)
                 }
             }
             if let notice = contextualNotice {

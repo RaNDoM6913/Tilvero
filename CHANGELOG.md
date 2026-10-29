@@ -2,6 +2,8 @@
 
 ## Unreleased — power information expansion
 
+- Add a dedicated Awake quick-panel tab sharing the existing finite session controls with Settings, and use native popover animation while respecting Reduce Motion.
+- Keep inactive development app copies outside Spotlight and build Xcode products under a `.noindex` directory.
 - Reduce recorded sparkline and last-hour chart heights by about 30% in the quick panel and its Settings preview.
 - Keep temperature and capacity retention as numeric readings without sparklines; retain their recorded data and observation statistics.
 - Keep quick-panel application activity silent until a verified app sustains at least 50% of one CPU for 30 seconds across three or more consecutive intervals; keep full process accounting in details.
