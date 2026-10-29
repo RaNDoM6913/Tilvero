@@ -20,18 +20,27 @@ import XCTest
     func testCreateFailureAndInvalidDurationNeverClaimActive() {
         let driver = AwakeFixture(), service = KeepAwakeService(driver: driver)
         XCTAssertThrowsError(try service.start(seconds: 0))
-        XCTAssertThrowsError(try service.start(seconds: 7201))
+        XCTAssertThrowsError(try service.start(seconds: 86401))
         driver.failCreate = true
         XCTAssertThrowsError(try service.start(seconds: 900))
         XCTAssertFalse(service.isActive); XCTAssertFalse(service.hasOwnedAssertion)
     }
+    func testFiniteBoundaryOneSecondAndTwentyFourHours() throws {
+        let driver = AwakeFixture(), service = KeepAwakeService(driver: driver)
+        for seconds in [1, 86_400] {
+            try service.start(seconds: seconds)
+            XCTAssertTrue(service.isActive)
+            XCTAssertEqual(driver.assertions[try XCTUnwrap(service.ownedAssertionID)]?.seconds, seconds)
+            try service.stop()
+        }
+    }
     func testMismatchedReadbackCleansOwnAssertionAndReleaseFailureKeepsRetry() throws {
         let driver = AwakeFixture(), service = KeepAwakeService(driver: driver)
-        driver.wrongKind = true
+        driver.wrongTimeoutOnCreate = true
         XCTAssertThrowsError(try service.start(seconds: 900))
         XCTAssertTrue(driver.assertions.isEmpty)
         XCTAssertFalse(service.isActive)
-        driver.wrongKind = false
+        driver.wrongTimeoutOnCreate = false
         try service.start(seconds: 900)
         driver.failRelease = true
         XCTAssertThrowsError(try service.stop())
@@ -122,16 +131,37 @@ import XCTest
 
 @MainActor final class AwakeFixture: KeepAwakeTransport {
     var assertions: [UInt32: KeepAwakeAssertion] = [:]
-    var failCreate = false, failRelease = false, wrongKind = false
-    var releaseCount = 0
+    var failCreate = false, failRelease = false, wrongTimeoutOnCreate = false
+    var failUpdate = false, wrongUpdatedTimeout = false
+    var beforeUpdate: ((AwakeFixture, UInt32) -> Void)?
+    var afterUpdate: ((AwakeFixture, UInt32) -> Void)?
+    var failRead = false
+    var releaseCount = 0, createCount = 0, updateCount = 0
     private var next: UInt32 = 1
     func create(seconds: Int, name: String) throws -> UInt32 {
+        try create(timeout: seconds, name: name)
+    }
+    func createUntilStopped(name: String) throws -> UInt32 { try create(timeout: nil, name: name) }
+    private func create(timeout: Int?, name: String) throws -> UInt32 {
         if failCreate { throw KeepAwakeError.creationFailed }
+        createCount += 1
         let id = next; next += 1
-        assertions[id] = .init(name: name, kind: wrongKind ? "wrong" : "PreventUserIdleSystemSleep", active: true, seconds: seconds, releasesOnTimeout: true)
+        assertions[id] = .init(name: name, kind: "PreventUserIdleSystemSleep", active: true, seconds: timeout.map { wrongTimeoutOnCreate ? $0 + 1 : $0 }, releasesOnTimeout: true)
         return id
     }
-    func read(_ id: UInt32) throws -> KeepAwakeAssertion? { assertions[id] }
+    func setTimeout(_ id: UInt32, seconds: Int, name: String) throws {
+        beforeUpdate?(self, id)
+        guard let old = assertions[id], old.name == name, old.kind == "PreventUserIdleSystemSleep" else { throw KeepAwakeError.foreignAssertion }
+        guard old.active, old.seconds != nil else { throw KeepAwakeError.unconfirmed }
+        if failUpdate { throw KeepAwakeError.updateFailed }
+        updateCount += 1
+        assertions[id] = .init(name: name, kind: old.kind, active: old.active, seconds: wrongUpdatedTimeout ? seconds + 1 : seconds, releasesOnTimeout: true)
+        afterUpdate?(self, id)
+    }
+    func read(_ id: UInt32) throws -> KeepAwakeAssertion? {
+        if failRead { throw KeepAwakeError.unconfirmed }
+        return assertions[id]
+    }
     func release(_ id: UInt32, name: String) throws {
         guard assertions[id]?.name == name else { throw KeepAwakeError.foreignAssertion }
         if failRelease { throw KeepAwakeError.releaseFailed }

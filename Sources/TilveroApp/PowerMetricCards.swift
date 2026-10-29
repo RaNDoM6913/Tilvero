@@ -43,7 +43,7 @@ enum PowerMetricHistory {
             HStack(alignment: .firstTextBaseline) {
                 Label(L10n.text(title), systemImage: symbol)
                 Spacer(minLength: 8)
-                Text(reading.map { (($0.value?.doubleValue != nil && [.estimated, .inferred].contains($0.provenance)) ? "≈ " : "") + ReadingPresentation.display($0, reveal: false, fahrenheit: model.fahrenheit) } ?? "—").monospacedDigit()
+                Text(reading.map { CatalogDataPresentation.value($0, reveal: false, fahrenheit: model.fahrenheit) } ?? "—").monospacedDigit()
                 if reading?.freshness == .stale { Text(L10n.text("Stale")).font(.caption2).foregroundStyle(.orange) }
             }.font(.subheadline)
             if id != "039" && id != "026" {
@@ -77,7 +77,7 @@ enum PowerMetricHistory {
 @MainActor struct AdapterMetricCard: View {
     @ObservedObject var model: TilveroModel
     private var rating: String {
-        model.snapshot.catalog.first { $0.id == "050" }.map { ReadingPresentation.display($0, reveal: false, fahrenheit: false) } ?? "—"
+        model.snapshot.catalog.first { $0.id == "050" }.map { CatalogDataPresentation.value($0, reveal: false, fahrenheit: false) } ?? "—"
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -90,7 +90,7 @@ enum PowerMetricHistory {
 @MainActor struct BatteryHealthMetricCard: View {
     @ObservedObject var model: TilveroModel
     private func value(_ id: String) -> String {
-        model.snapshot.catalog.first { $0.id == id }.map { ReadingPresentation.display($0, reveal: false, fahrenheit: false) } ?? "—"
+        model.snapshot.catalog.first { $0.id == id }.map { CatalogDataPresentation.value($0, reveal: false, fahrenheit: false) } ?? "—"
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -104,36 +104,48 @@ enum PowerMetricHistory {
 @MainActor struct PowerObservationsPanel: View {
     @ObservedObject var model: TilveroModel
     private let fields = ["043", "054", "038", "039", "026"]
+    private var availableSummaries: [(CatalogReading, PowerMetricHistory.Summary)] {
+        fields.compactMap { id in
+            guard let reading = model.snapshot.catalog.first(where: { $0.id == id }),
+                  let summary = PowerMetricHistory.summary(PowerMetricHistory.points(model.history, id: id, since: model.snapshot.collectedAt.addingTimeInterval(-3600))) else { return nil }
+            return (reading, summary)
+        }
+    }
     var body: some View {
         GroupBox(L10n.text("Power observations")) {
             VStack(alignment: .leading, spacing: 14) {
-                ForEach(fields, id: \.self) { id in
-                    if let reading = model.snapshot.catalog.first(where: { $0.id == id }),
-                       let summary = PowerMetricHistory.summary(PowerMetricHistory.points(model.history, id: id, since: model.snapshot.collectedAt.addingTimeInterval(-3600))) {
+                if availableSummaries.isEmpty {
+                    Label(L10n.text("No recorded measurements yet"), systemImage: "chart.xyaxis.line")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                }
+                ForEach(availableSummaries, id: \.0.id) { reading, summary in
                         VStack(alignment: .leading, spacing: 4) {
                             Text(L10n.language == "ru" ? reading.titleRussian : reading.titleEnglish).font(.subheadline)
-                            HStack {
-                                Text(L10n.text("Minimum") + ": " + format(summary.minimum, reading))
-                                Spacer()
-                                Text(L10n.text("Observation mean") + ": " + format(summary.mean, reading))
-                                Spacer()
-                                Text(L10n.text("Maximum") + ": " + format(summary.maximum, reading))
-                            }.font(.caption).monospacedDigit()
-                            if id != "039" && id != "026" {
-                                MetricSparkline(model: model, id: id, color: .orange)
+                            HStack(alignment: .top, spacing: 16) {
+                                statistic("Minimum", summary.minimum, reading)
+                                statistic("Observation mean", summary.mean, reading)
+                                statistic("Maximum", summary.maximum, reading)
+                            }
+                            if reading.id != "039" && reading.id != "026" {
+                                MetricSparkline(model: model, id: reading.id, color: .orange)
                             }
                             Text(L10n.text("Observations") + ": \(summary.count)").font(.caption2).foregroundStyle(.secondary)
                         }
-                    }
                 }
                 Text(L10n.text("Statistics use the latest comparable continuous segment within the last hour. Means describe recorded observations; unknown sensor timing is not upgraded to measured energy."))
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }.padding(10).frame(maxWidth: .infinity, alignment: .leading)
         }
     }
+    private func statistic(_ title: String, _ value: Double, _ reading: CatalogReading) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(L10n.text(title)).font(.caption2).foregroundStyle(.secondary)
+            Text(format(value, reading)).font(.subheadline).monospacedDigit()
+        }.frame(maxWidth: .infinity, alignment: .leading)
+    }
     private func format(_ value: Double, _ reading: CatalogReading) -> String {
         let fahrenheit = model.fahrenheit && reading.unit == "°C"
         let number = fahrenheit ? value * 9 / 5 + 32 : value
-        return number.formatted(.number.locale(L10n.locale).precision(.fractionLength(0...2))) + " " + (fahrenheit ? "°F" : reading.unit ?? "")
+        return number.formatted(.number.locale(L10n.locale).precision(.fractionLength(0...2))) + " " + (fahrenheit ? "°F" : CatalogDataPresentation.unit(reading.unit ?? ""))
     }
 }

@@ -75,9 +75,73 @@ final class TilveroModel: ObservableObject {
     private var exportType: UTType = .json
     let keepAwake: KeepAwakeService
     private var awakeSubscription: AnyCancellable?
-    @Published var keepAwakeDuration: KeepAwakeDuration { didSet {
-        preferences.set(keepAwakeDuration.rawValue, forKey: "keepAwakeMinutes")
+    private var awakeMessageSubscription: AnyCancellable?
+    private var lastAwakeFailureNotice: String?
+    @Published var keepAwakeDraft: KeepAwakeDraft { didSet {
+        if case .duration(let duration) = keepAwakeDraft {
+            preferences.set(duration.rawValue, forKey: "keepAwakeMinutes")
+        }
     } }
+    @Published var keepAwakeUsesCustomDuration = false
+    @Published var keepAwakeCustomMinutes: String { didSet {
+        if keepAwakeUsesCustomDuration, let minutes = Int(keepAwakeCustomMinutes),
+           let duration = KeepAwakeDuration(rawValue: minutes) { keepAwakeDraft = .duration(duration) }
+    } }
+    var keepAwakeDuration: KeepAwakeDuration {
+        get {
+            if case .duration(let duration) = keepAwakeDraft { return duration }
+            return KeepAwakeDuration.load(preferences.object(forKey: "keepAwakeMinutes"))
+        }
+        set {
+            keepAwakeUsesCustomDuration = !KeepAwakeDuration.allCases.contains(newValue)
+            keepAwakeCustomMinutes = String(newValue.rawValue)
+            keepAwakeDraft = .duration(newValue)
+        }
+    }
+    /// Positive values are finite presets, -1 custom, -2 a concrete Date, 0 explicit infinity.
+    var keepAwakeSelectedOption: Int {
+        switch keepAwakeDraft {
+        case .duration(let duration): keepAwakeUsesCustomDuration ? -1 : duration.rawValue
+        case .until: -2
+        case .untilStopped: 0
+        }
+    }
+    func selectKeepAwakeOption(_ value: Int) {
+        switch value {
+        case -1:
+            let duration = keepAwakeDuration
+            keepAwakeCustomMinutes = String(duration.rawValue)
+            keepAwakeUsesCustomDuration = true
+            keepAwakeDraft = .duration(duration)
+        case -2:
+            if case .until = keepAwakeDraft { return }
+            keepAwakeDraft = .until(Date().addingTimeInterval(1800))
+        case 0: keepAwakeDraft = .untilStopped
+        default:
+            guard let duration = KeepAwakeDuration(rawValue: value) else { return }
+            keepAwakeDuration = duration
+        }
+    }
+    var canStartKeepAwakeDraft: Bool {
+        guard keepAwake.isAvailable, !keepAwake.hasOwnedAssertion else { return false }
+        switch keepAwakeDraft {
+        case .duration:
+            return !keepAwakeUsesCustomDuration || Int(keepAwakeCustomMinutes).flatMap(KeepAwakeDuration.init(rawValue:)) != nil
+        case .until(let date): return date.timeIntervalSinceNow > 0 && date.timeIntervalSinceNow <= 86_400
+        case .untilStopped: return true
+        }
+    }
+    func startKeepAwakeDraft() throws {
+        switch keepAwakeDraft {
+        case .duration(let duration):
+            if keepAwakeUsesCustomDuration {
+                guard let minutes = Int(keepAwakeCustomMinutes), let custom = KeepAwakeDuration(rawValue: minutes) else { throw KeepAwakeError.invalidDuration }
+                try keepAwake.start(seconds: custom.seconds)
+            } else { try keepAwake.start(seconds: duration.seconds) }
+        case .until(let date): try keepAwake.start(until: date)
+        case .untilStopped: try keepAwake.startUntilStopped()
+        }
+    }
     let nativeCharge: NativeChargeService
     private var nativeSubscription: AnyCancellable?
     let liveControl: LiveControlService
@@ -121,7 +185,10 @@ final class TilveroModel: ObservableObject {
         self.isDemo = isDemo
         self.processActivityProvider = processActivityProvider ?? { await ProcessActivityProvider().read() }
         self.preferences = preferences
-        keepAwakeDuration = KeepAwakeDuration(rawValue: preferences.integer(forKey: "keepAwakeMinutes")) ?? .halfHour
+        let savedAwakeDuration = KeepAwakeDuration.load(preferences.object(forKey: "keepAwakeMinutes"))
+        keepAwakeDraft = .duration(savedAwakeDuration)
+        keepAwakeCustomMinutes = String(savedAwakeDuration.rawValue)
+        keepAwakeUsesCustomDuration = !KeepAwakeDuration.allCases.contains(savedAwakeDuration)
         let monitoring = Bundle.main.object(forInfoDictionaryKey: "TilveroReleaseMode") as? String == "monitoring"
         keepAwake = KeepAwakeService(driver: keepAwakeTransport ?? NativeKeepAwakeTransport(), allowed: !isDemo && !monitoring)
         modeLibrary = ModeLibrary.load(preferences.data(forKey: isDemo ? "demoModePlans.v1" : "modePlans.v1"))
@@ -170,6 +237,14 @@ final class TilveroModel: ObservableObject {
         selectedSection = InfoSection(rawValue: preferences.string(forKey: "lastSection") ?? "") ?? .overview
         updateLoginStatus()
         awakeSubscription = keepAwake.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
+        awakeMessageSubscription = keepAwake.$message.sink { [weak self] message in
+            guard let self else { return }
+            // Safe cleanup removes the pinned session. Keep its failure visible on every tab.
+            let endedFailure = self.keepAwake.hasOwnedAssertion ? nil : message.map(L10n.text)
+            if let endedFailure { self.notice = endedFailure }
+            else if self.notice == self.lastAwakeFailureNotice { self.notice = nil }
+            self.lastAwakeFailureNotice = endedFailure
+        }
         nativeSubscription = nativeCharge.objectWillChange.sink { [weak self] in
             self?.objectWillChange.send()
         }

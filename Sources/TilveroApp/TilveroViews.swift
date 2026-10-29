@@ -40,7 +40,7 @@ enum InfoSection: String, CaseIterable, Identifiable {
 struct BatteryInfoView: View {
     @ObservedObject var model: TilveroModel
     @State private var search = ""
-    @State private var showUnavailable = false
+    @State private var showUnavailable = true
     @State private var reveal = false
     var body: some View {
         NavigationSplitView {
@@ -60,7 +60,7 @@ struct BatteryInfoView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     HStack(alignment: .top) {
                         VStack(alignment: .leading, spacing: 5) {
-                            Text(model.selectedSection.title).font(.largeTitle.bold())
+                            Text(model.selectedSection.title).font(.title2.weight(.semibold))
                             Text(L10n.text(model.isDemo ? "Simulation only — your Mac settings are unchanged." : "Live readings"))
                                 .foregroundStyle(.secondary)
                         }
@@ -68,19 +68,25 @@ struct BatteryInfoView: View {
                         Button { Task { await model.refresh(); if model.selectedSection == .sleep { await model.refreshSleepActivity() } } } label: { Label(L10n.text("Refresh"), systemImage: "arrow.clockwise") }
                     }
                     if model.keepAwake.hasOwnedAssertion { KeepAwakeActivePanel(service: model.keepAwake) }
-                    if model.selectedSection != .settings && model.selectedSection != .history && model.selectedSection != .sleep && model.selectedSection != .activity {
-                        HStack {
-                            TextField(L10n.text("Search measurements"), text: $search).textFieldStyle(.roundedBorder)
-                            Toggle(L10n.text("Show unavailable fields"), isOn: $showUnavailable).toggleStyle(.checkbox)
-                        }
+                    if [.overview, .battery, .charging, .cooling, .diagnostics].contains(model.selectedSection) {
+                        ViewThatFits(in: .horizontal) {
+                            HStack(spacing: 16) {
+                                measurementSearch.frame(minWidth: 150)
+                                measurementOptions.fixedSize()
+                            }
+                            VStack(alignment: .leading, spacing: 10) {
+                                measurementSearch
+                                measurementOptions
+                            }
+                        }.font(.subheadline)
                     }
-                    if !search.isEmpty && model.selectedSection != .sleep && model.selectedSection != .activity { catalogRows(model.snapshot.catalog) }
+                    if !search.isEmpty && [.overview, .battery, .charging, .cooling, .diagnostics].contains(model.selectedSection) { catalogRows(model.snapshot.catalog) }
                     else { sectionContent }
                     if let error = model.storeError { Label(L10n.text("Data store error") + ": " + error, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange) }
                     if let notice = model.notice { Text(notice).font(.caption).foregroundStyle(.secondary) }
                     Text("\(L10n.text("Last collection")): \(model.snapshot.collectedAt.formatted(.dateTime.locale(L10n.locale)))")
                         .font(.caption).foregroundStyle(.secondary)
-                }.padding(28).frame(maxWidth: .infinity, alignment: .leading)
+                }.padding(24).frame(maxWidth: 1080, alignment: .leading).frame(maxWidth: .infinity, alignment: .topLeading)
             }
         }.frame(minWidth: 760, minHeight: 540)
             .environment(\.locale, L10n.locale)
@@ -94,34 +100,30 @@ struct BatteryInfoView: View {
                 }.padding(24).frame(width: 620, height: 470)
             }
     }
+    private var measurementSearch: some View {
+        TextField(L10n.text("Search measurements"), text: $search).textFieldStyle(.roundedBorder)
+    }
+    private var measurementOptions: some View {
+        HStack(spacing: 16) {
+            Toggle(L10n.text("Show unavailable fields"), isOn: $showUnavailable).toggleStyle(.checkbox)
+            if [.battery, .charging, .diagnostics].contains(model.selectedSection) {
+                Toggle(L10n.text("Reveal identifiers"), isOn: $reveal).toggleStyle(.checkbox)
+            }
+        }
+    }
     @ViewBuilder private var sectionContent: some View {
         switch model.selectedSection {
         case .overview:
-            HStack(alignment: .firstTextBaseline, spacing: 20) {
-                Text(model.chargeText).font(.system(size: 52, weight: .semibold, design: .rounded)).monospacedDigit()
-                Text(model.chargingStateText).foregroundStyle(.secondary)
-            }
+            BatteryStateHeading(model: model)
             catalogRows(readings(["023", "024", "027", "026", "039", "067", "069", "044"]))
             Text(L10n.text("Capacity retention is calculated separately from the macOS health assessment.")).font(.callout).foregroundStyle(.secondary)
             if model.isDemo { SimulationPanel(model: model) }
         case .activity:
             ProcessActivityPanel(model: model)
         case .battery:
-            Toggle(L10n.text("Reveal identifiers"), isOn: $reveal).toggleStyle(.checkbox)
-            catalogRows(model.snapshot.catalog.filter { ("023"..."042").contains($0.id) || ("057"..."071").contains($0.id) || ("103"..."115").contains($0.id) })
-            Text(L10n.text("Cell manufacturer is not inferred from the reported pack manufacturer.")).font(.callout).foregroundStyle(.secondary)
+            BatteryDataPanel(model: model, showUnavailable: showUnavailable, reveal: reveal)
         case .charging:
-            GroupBox { ChargeLimitControl(model: model).padding(12) }
-            if model.canShowChargeControls {
-                HStack {
-                    Button(L10n.text(model.isOneShotDemo ? "Cancel one-time charge" : "Charge to 100% once")) { model.toggleOneShotDemo() }.disabled(!model.canChargeToFullOnce)
-                    Button(L10n.text("Return to system control")) { model.releaseControl() }.disabled(!model.canReleaseCharge)
-                }.disabled(model.isApplying)
-            }
-            catalogRows(model.snapshot.catalog.filter { ("013"..."022").contains($0.id) || ("045"..."056").contains($0.id) })
-            PowerObservationsPanel(model: model)
-            Label(L10n.text("Power mode") + ": " + L10n.text(ProcessInfo.processInfo.isLowPowerModeEnabled ? "Low Power" : "Automatic"), systemImage: "bolt.circle")
-            ProfilePanel(model: model)
+            PowerDataPanel(model: model, showUnavailable: showUnavailable, reveal: reveal)
         case .cooling:
             if model.fanless {
                 Label(L10n.text("Fanless cooling"), systemImage: "leaf").font(.title2)
@@ -160,63 +162,18 @@ struct BatteryInfoView: View {
                     Button(L10n.text("Read property inventory")) { model.inspectRawProperties() }
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(10)
             }
-            Toggle(L10n.text("Reveal identifiers"), isOn: $reveal).toggleStyle(.checkbox)
             catalogRows(model.snapshot.catalog)
         case .settings: SettingsPanel(model: model)
         }
     }
     private func readings(_ ids: [String]) -> [CatalogReading] { model.snapshot.catalog.filter { ids.contains($0.id) } }
-    private func filtered(_ rows: [CatalogReading]) -> [CatalogReading] {
-        rows.filter { reading in
-            let matches = search.isEmpty || "\(reading.titleEnglish) \(reading.titleRussian) \(reading.id)".localizedCaseInsensitiveContains(search)
-            return matches && (showUnavailable || !search.isEmpty || reading.value != nil)
-        }
-    }
     @ViewBuilder private func catalogRows(_ rows: [CatalogReading]) -> some View {
-        let visible = filtered(rows)
+        let visible = CatalogDataGroup.filtered(rows, search: search, showUnavailable: showUnavailable)
         if visible.isEmpty {
             Text(L10n.text("No matching measurements")).foregroundStyle(.secondary)
         } else {
-            GroupBox {
-                LazyVStack(spacing: 0) {
-                    ForEach(visible) { reading in
-                        CatalogMetricRow(reading: reading, reveal: reveal, fahrenheit: model.fahrenheit)
-                        if reading.id != visible.last?.id { Divider() }
-                    }
-                }.padding(8)
-            }
+            CatalogReadingTable(readings: visible, reveal: reveal, fahrenheit: model.fahrenheit)
         }
-    }
-}
-
-@MainActor
-private struct CatalogMetricRow: View {
-    let reading: CatalogReading
-    let reveal: Bool
-    let fahrenheit: Bool
-    @State private var expanded = false
-    var body: some View {
-        DisclosureGroup(isExpanded: $expanded) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text("\(L10n.text("Source")): \(reading.source) \(reading.keyPath)")
-                Text("\(L10n.text("Availability")): \(reading.availability.rawValue) · \(L10n.text("Freshness")): \(reading.freshness.rawValue)")
-                Text("\(L10n.text("Provenance")): \(reading.provenance.rawValue)")
-                Text("\(L10n.text("Collected")): \(reading.collectedAt.formatted())")
-                Text("\(L10n.text("Source sample")): \(reading.sourceSampleAt.map { $0.formatted() } ?? L10n.text("No source timestamp"))")
-                if let reason = reading.reason { Text(reason) }
-                if let raw = reading.rawValue, reading.privacy != .sensitive || reveal { Text("\(L10n.text("Raw value")): \(raw.displayText)") }
-            }.font(.caption).foregroundStyle(.secondary).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 6)
-        } label: {
-            HStack(alignment: .firstTextBaseline) {
-                Text(L10n.language == "ru" ? reading.titleRussian : reading.titleEnglish)
-                Spacer(minLength: 16)
-                VStack(alignment: .trailing, spacing: 3) {
-                    Text(ReadingPresentation.display(reading, reveal: reveal, fahrenheit: fahrenheit)).monospacedDigit().textSelection(.enabled)
-                        .foregroundStyle(reading.value == nil ? Color.secondary : Color.primary)
-                    if reading.freshness == .stale { Text(L10n.text("Stale")).font(.caption2).foregroundStyle(.orange) }
-                }
-            }.padding(.vertical, 8)
-        }.help(L10n.text("Source details"))
     }
 }
 
@@ -289,8 +246,7 @@ private struct SettingsPanel: View {
     }
     private var general: some View {
         VStack(alignment: .leading, spacing: 18) {
-            GroupBox {
-                Form {
+            Form {
                     Picker(L10n.text("Menu bar"), selection: $model.displayStyle) { ForEach(MenuBarDisplayStyle.allCases) { Text($0.title).tag($0) } }
                     Picker(L10n.text("Percentage size"), selection: $model.menuBarTextSize) {
                         ForEach(MenuBarTextSize.allCases) { Text($0.title).tag($0) }
@@ -309,13 +265,12 @@ private struct SettingsPanel: View {
                         Text(L10n.text(model.loginStatus)).foregroundStyle(.secondary)
                         Button(L10n.text(model.loginStatus == "Enabled" ? "Disable" : "Enable")) { model.toggleLogin() }.disabled(model.isDemo || model.loginStatus == "Not available from this local build")
                     }
-                }.padding(12)
-            }
+            }.formStyle(.grouped).scrollContentBackground(.hidden)
             GroupBox {
                 KeepAwakePanel(model: model).padding(12).frame(maxWidth: .infinity, alignment: .leading)
             }
             Button(L10n.text("Customize quick panel…")) { model.selectedSettingsPage = .quickPanel }
-        }
+        }.frame(maxWidth: 680, alignment: .leading)
     }
     private var historySettings: some View {
         VStack(alignment: .leading, spacing: 20) {

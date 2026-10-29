@@ -1,0 +1,205 @@
+import SwiftUI
+import PowerCore
+
+/// Graphic qualification is independent of the platform's charging-status label.
+/// A connected adapter alone never establishes a battery-current direction.
+struct EnergyVisualSnapshot: Equatable {
+    enum Direction: Equatable { case intoBattery, fromBattery, stationary, unknown }
+    let level: Int?
+    let levelIsStale: Bool
+    let direction: Direction
+    let sourceConnected: Bool?
+    let canAnimateLevel: Bool
+
+    init(_ snapshot: BatterySnapshot) {
+        let charge = snapshot.chargePercent
+        level = charge.availability == .available || charge.freshness == .stale ? ReadingPresentation.validLevel(charge.value) : nil
+        levelIsStale = charge.freshness == .stale
+        let source = snapshot.isExternalPower
+        sourceConnected = source.availability == .available && source.freshness != .stale ? source.value : nil
+        if let flow = snapshot.catalog.first(where: { $0.id == "017" }), flow.availability == .available, flow.freshness == .fresh {
+            switch flow.value {
+            case .text("intoBattery"): direction = .intoBattery
+            case .text("fromBattery"): direction = .fromBattery
+            case .text("nearZeroMeasuredCurrent"): direction = .stationary
+            default: direction = .unknown
+            }
+        } else { direction = .unknown }
+        // Interpolating an observed level change does not claim an independent sensor sample time.
+        // Direction remains stricter: unknown/stale flow never animates or gains a direction.
+        canAnimateLevel = level != nil && charge.availability == .available && charge.freshness != .stale
+    }
+}
+
+/// An original pack illustration, not a reconstruction of the Mac's cell layout.
+/// All motion is a finite response to changed observations; there is no render timer.
+@MainActor struct EnergyStateIllustration: View {
+    let state: EnergyVisualSnapshot
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var visible = false
+    private var accent: Color { state.levelIsStale || state.level == nil ? .secondary : .teal }
+    private var surface: Color { Color(nsColor: .controlBackgroundColor) }
+
+    var body: some View {
+        ZStack {
+            Ellipse().fill(.primary.opacity(colorScheme == .dark ? 0.09 : 0.05))
+                .frame(width: 190, height: 17).offset(y: 58).blur(radius: 9)
+            pack
+            if state.direction == .intoBattery || state.direction == .fromBattery {
+                Image(systemName: state.direction == .intoBattery ? "arrow.down.left" : "arrow.up.right")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(accent)
+                    .padding(8).background(surface, in: Circle())
+                    .overlay(Circle().strokeBorder(.primary.opacity(0.07)))
+                    .offset(x: 92, y: -47)
+                    .contentTransition(.symbolEffect(.replace))
+                    .transaction { if reduceMotion || !visible || !state.canAnimateLevel { $0.animation = nil } }
+            }
+        }
+        .frame(width: 240, height: 150)
+        .accessibilityHidden(true)
+        .onAppear { visible = true }
+        .onDisappear { visible = false }
+    }
+
+    private var pack: some View {
+        ZStack(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 19)
+                .fill(LinearGradient(colors: [surface, Color(nsColor: .separatorColor).opacity(0.45)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                .overlay(RoundedRectangle(cornerRadius: 19).strokeBorder(.primary.opacity(0.16), lineWidth: 1))
+            RoundedRectangle(cornerRadius: 14).fill(Color(nsColor: .underPageBackgroundColor))
+                .padding(7)
+            GeometryReader { geometry in
+                let width = max(0, geometry.size.width - 22)
+                RoundedRectangle(cornerRadius: 9)
+                    .fill(LinearGradient(colors: [accent.opacity(0.6), accent.opacity(0.28)], startPoint: .leading, endPoint: .trailing))
+                    .frame(width: width * CGFloat(state.level ?? 0) / 100, height: geometry.size.height - 22)
+                    .padding(11)
+                    .animation(visible && !reduceMotion && state.canAnimateLevel ? .easeInOut(duration: 0.45) : nil, value: state.level)
+            }
+            if !reduceTransparency {
+                RoundedRectangle(cornerRadius: 10).fill(.white.opacity(colorScheme == .dark ? 0.05 : 0.28))
+                    .frame(height: 34).padding(.horizontal, 12).offset(y: -22)
+            }
+            HStack {
+                VStack(spacing: 47) {
+                    Circle().fill(.primary.opacity(0.14)).frame(width: 3, height: 3)
+                    Circle().fill(.primary.opacity(0.14)).frame(width: 3, height: 3)
+                }
+                Spacer()
+                if state.level == nil || state.direction == .intoBattery {
+                    Image(systemName: state.level == nil ? "questionmark" : "bolt.fill")
+                        .font(.system(size: 21, weight: .light)).foregroundStyle(accent.opacity(0.55))
+                }
+            }.padding(.horizontal, 17)
+        }
+        .frame(width: 198, height: 112)
+        .background(alignment: .trailing) {
+            RoundedRectangle(cornerRadius: 4).fill(.primary.opacity(0.24))
+                .frame(width: 9, height: 34).offset(x: 6)
+        }
+        .opacity(state.levelIsStale ? 0.48 : 1)
+        .shadow(color: .black.opacity(colorScheme == .dark ? 0.15 : 0.08), radius: 11, x: 3, y: 9)
+    }
+}
+
+@MainActor struct BatteryEnergyHeading: View {
+    @ObservedObject var model: TilveroModel
+    private var state: EnergyVisualSnapshot { .init(model.snapshot) }
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 30) { illustration; information.frame(minWidth: 190, maxWidth: .infinity, alignment: .leading) }
+            VStack(alignment: .leading, spacing: 10) { illustration.frame(maxWidth: .infinity); information }
+        }.padding(.vertical, 8)
+    }
+    private var illustration: some View { EnergyStateIllustration(state: state) }
+    private var information: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(model.chargeText).font(.system(size: 44, weight: .medium, design: .rounded)).monospacedDigit()
+                .contentTransition(.numericText())
+            Text(model.chargingStateText).font(.subheadline).foregroundStyle(.secondary)
+            if state.levelIsStale { Label(L10n.text("Stale"), systemImage: "clock").font(.caption).foregroundStyle(.orange) }
+            Text(L10n.text("Source") + ": " + model.snapshot.chargePercent.source)
+                .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+            if model.isDemo { Text(L10n.text("Simulation only — your Mac settings are unchanged.")).font(.caption).foregroundStyle(.secondary) }
+        }.fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+struct PowerHeadlineReading {
+    let value: String
+    let source: String?
+    let qualificationKey: String?
+    init(_ reading: CatalogReading?) {
+        guard let reading else { value = "—"; source = nil; qualificationKey = "Unavailable"; return }
+        value = CatalogDataPresentation.value(reading, reveal: false, fahrenheit: false)
+        source = reading.source
+        if reading.value == nil || (reading.availability != .available && reading.freshness != .stale) {
+            qualificationKey = "Unavailable"
+        } else {
+            switch reading.freshness {
+            case .stale: qualificationKey = "Stale"
+            case .unknown: qualificationKey = "Freshness unknown"
+            case .fresh: qualificationKey = nil
+            }
+        }
+    }
+}
+
+@MainActor struct PowerConnectionHeading: View {
+    @ObservedObject var model: TilveroModel
+    private var state: EnergyVisualSnapshot { .init(model.snapshot) }
+    private func reading(_ id: String) -> PowerHeadlineReading {
+        .init(model.snapshot.catalog.first(where: { $0.id == id }))
+    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .center, spacing: 18) {
+                VStack(spacing: 8) {
+                    node(symbol: state.sourceConnected == nil ? "powerplug.portrait" : "powerplug", title: "Adapter input", value: state.sourceConnected == false ? "—" : reading("054").value)
+                    qualification(reading("054"))
+                }.frame(maxWidth: .infinity)
+                connection.frame(minWidth: 40, maxWidth: 140)
+                VStack(spacing: 8) {
+                    node(symbol: "laptopcomputer", title: "Mac", value: L10n.text(state.sourceConnected == true ? "Power adapter" : state.sourceConnected == false ? "On battery" : "Power source unavailable"))
+                    Text(L10n.text("Reported power source")).font(.caption).foregroundStyle(.secondary)
+                    if model.snapshot.isExternalPower.freshness == .unknown {
+                        Text(L10n.text("Freshness unknown")).font(.caption).foregroundStyle(.secondary)
+                    }
+                }.frame(maxWidth: .infinity)
+            }.frame(maxWidth: .infinity).padding(.vertical, 12)
+            HStack(alignment: .firstTextBaseline, spacing: 14) {
+                Label(L10n.text("Battery power"), systemImage: "battery.100percent")
+                Spacer()
+                Text(reading("038").value).monospacedDigit()
+            }.font(.subheadline)
+            qualification(reading("038"))
+            Text(L10n.text("Separate battery measurement")).font(.caption).foregroundStyle(.secondary)
+        }.padding(.vertical, 8)
+    }
+    private func qualification(_ reading: PowerHeadlineReading) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            if let key = reading.qualificationKey {
+                Text(L10n.text(key)).foregroundStyle(key == "Stale" ? Color.orange : Color.secondary)
+            }
+            if let source = reading.source { Text(L10n.text("Source") + ": " + source).foregroundStyle(.secondary) }
+        }.font(.caption).fixedSize(horizontal: false, vertical: true)
+    }
+    private var connection: some View {
+        HStack(spacing: 6) {
+            Rectangle().fill(.secondary.opacity(state.sourceConnected == true ? 0.5 : 0.2)).frame(height: 1)
+            Image(systemName: state.sourceConnected == true ? "link" : state.sourceConnected == nil ? "questionmark" : "minus")
+                .font(.caption).foregroundStyle(.secondary).accessibilityHidden(true)
+            Rectangle().fill(.secondary.opacity(state.sourceConnected == true ? 0.5 : 0.2)).frame(height: 1)
+        }.accessibilityHidden(true)
+    }
+    private func node(symbol: String, title: String, value: String) -> some View {
+        VStack(spacing: 9) {
+            Image(systemName: symbol).font(.system(size: 34, weight: .ultraLight)).foregroundStyle(.secondary).frame(height: 40).accessibilityHidden(true)
+            Text(L10n.text(title)).font(.caption).foregroundStyle(.secondary)
+            Text(value).font(.title3.weight(.medium)).monospacedDigit().multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+        }.frame(maxWidth: .infinity)
+    }
+}

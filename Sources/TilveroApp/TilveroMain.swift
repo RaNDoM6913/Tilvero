@@ -189,6 +189,8 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         )
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(willSleep), name: NSWorkspace.willSleepNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(powerChanged), name: .NSProcessInfoPowerStateDidChange, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(clockChanged), name: NSNotification.Name.NSSystemClockDidChange, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(clockChanged), name: NSNotification.Name.NSSystemTimeZoneDidChange, object: nil)
         DistributedNotificationCenter.default().addObserver(self, selector: #selector(reopenDetails), name: (try? ReleaseIdentity.current().reopenNotificationName) ?? Notification.Name("local.tilvero.showDetails"), object: nil)
         buildMenu()
         updateStatusItem()
@@ -240,6 +242,10 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     @objc private func didWake() { model.setSleeping(false) }
     @objc private func willSleep() { model.setSleeping(true) }
     @objc private func powerChanged() { Task { await model.refresh() } }
+    @objc private func clockChanged() {
+        try? model.keepAwake.reconcile()
+        model.objectWillChange.send() // Reformat the same absolute Until target after a zone change.
+    }
     @objc private func reopenDetails() { showDetails() }
     @objc private func openSettings() { model.selectedSection = .settings; showDetails() }
     private func buildMenu() {

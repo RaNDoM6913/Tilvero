@@ -51,7 +51,7 @@ struct QuickPanel: View {
                 case .overview: overview
                 case .charge: charge
                 case .modes: modes
-                case .awake: KeepAwakePanel(model: model).id(model.language)
+                case .awake: KeepAwakePanel(model: model, compact: true).id(model.language)
                 }
             }
             if let notice = contextualNotice {
