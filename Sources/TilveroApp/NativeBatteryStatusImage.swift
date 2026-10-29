@@ -1,4 +1,37 @@
 import AppKit
+import Combine
+
+/// Ownership alone is insufficient evidence that the assertion remains active.
+enum KeepAwakeStatusIndicator: Equatable, Sendable {
+    case off, active, unconfirmed
+
+    @MainActor init(service: KeepAwakeService) {
+        self = !service.hasOwnedAssertion ? .off : service.isActive && service.message == nil ? .active : .unconfirmed
+    }
+
+    @MainActor var accessibilitySuffix: String? {
+        switch self {
+        case .off: nil
+        case .active: L10n.text("Keep Awake active")
+        case .unconfirmed: L10n.text("Keep Awake state unconfirmed")
+        }
+    }
+}
+
+/// @Published sends before assigning its storage. Read the settled state on the
+/// next main-actor turn, including failed Stop/reconcile, without a telemetry poll.
+@MainActor final class NativeKeepAwakeStatusBinding {
+    private var observation: AnyCancellable?
+    init(service: KeepAwakeService, onChange: @escaping @MainActor (KeepAwakeStatusIndicator) -> Void) {
+        onChange(.init(service: service))
+        observation = service.objectWillChange.sink { [weak service] in
+            Task { @MainActor in
+                guard let service else { return }
+                onChange(.init(service: service))
+            }
+        }
+    }
+}
 
 /// Presentation shared by the status button and offline fixtures. The title is
 /// formatted independently of the measured percentage used to draw the battery.
@@ -27,12 +60,15 @@ enum NativeStatusPresentation {
 
 /// Normal mode uses public native SF Symbol layers with continuous fill. The inside
 /// mode is deliberately custom and iOS-inspired. Template alpha, including text
-/// cutouts, lets the status bar adapt both modes to its actual appearance.
+/// cutouts, lets the status bar adapt both modes to its actual appearance. Only a
+/// confirmed own Keep Awake session uses blue, with a separate monochrome cup.
 @MainActor
 enum NativeBatteryStatusImage {
-    static func make(level: Int?, style: MenuBarDisplayStyle, externalPower: Bool, scale: CGFloat = 1, textSize: MenuBarTextSize = .larger) -> NSImage {
+    static func make(level: Int?, style: MenuBarDisplayStyle, externalPower: Bool, scale: CGFloat = 1, textSize: MenuBarTextSize = .larger,
+                     awake: KeepAwakeStatusIndicator = .off, highlighted: Bool = false) -> NSImage {
         let inside = style == .inside
-        let canvas = NSSize(width: inside ? 35 : 29, height: 18)
+        let batteryWidth: CGFloat = inside ? 35 : 29
+        let canvas = NSSize(width: batteryWidth + (awake == .off ? 0 : 10), height: 18)
         let factor = CGFloat(MenuBarSizing.validatedIconScale(Double(scale)))
         let size = NSSize(width: canvas.width * factor, height: canvas.height * factor)
         let level = ReadingPresentation.validLevel(level)
@@ -48,10 +84,43 @@ enum NativeBatteryStatusImage {
             } else {
                 drawNormal(level: level, externalPower: externalPower)
             }
+            if awake != .off { drawAwakeBadge(awake, x: batteryWidth + 1) }
+            if awake == .active && !highlighted {
+                // Tint the existing alpha mask; measured fill and numeral/bolt
+                // cutouts remain identical to the native template presentation.
+                NSColor.systemBlue.setFill()
+                NSRect(origin: .zero, size: canvas).fill(using: .sourceIn)
+            }
             return true
         }
-        image.isTemplate = true
+        image.isTemplate = awake != .active || highlighted
         return image
+    }
+
+    private static func drawAwakeBadge(_ state: KeepAwakeStatusIndicator, x: CGFloat) {
+        NSColor.black.setStroke()
+        NSColor.black.setFill()
+        if state == .unconfirmed {
+            let circle = NSBezierPath(ovalIn: NSRect(x: x + 0.5, y: 5.25, width: 7, height: 7))
+            circle.lineWidth = 1; circle.stroke()
+            drawText("?", centeredAt: NSPoint(x: x + 4, y: 8.8), size: 6, operation: .sourceOver)
+            return
+        }
+        // Original cup and steam. A dedicated strip preserves charging and
+        // percentage semantics rather than replacing them with an Awake cue.
+        let cup = NSBezierPath(roundedRect: NSRect(x: x + 0.5, y: 5.5, width: 5.5, height: 5), xRadius: 1.1, yRadius: 1.1)
+        cup.lineWidth = 1; cup.stroke()
+        let handle = NSBezierPath()
+        handle.move(to: NSPoint(x: x + 6, y: 9.5))
+        handle.curve(to: NSPoint(x: x + 6, y: 6.5), controlPoint1: NSPoint(x: x + 8, y: 10), controlPoint2: NSPoint(x: x + 8, y: 6))
+        handle.lineWidth = 1; handle.stroke()
+        let details = NSBezierPath()
+        details.move(to: NSPoint(x: x, y: 4)); details.line(to: NSPoint(x: x + 7.5, y: 4))
+        for offset: CGFloat in [1.5, 4.5] {
+            details.move(to: NSPoint(x: x + offset, y: 12))
+            details.curve(to: NSPoint(x: x + offset, y: 14.5), controlPoint1: NSPoint(x: x + offset - 1, y: 13), controlPoint2: NSPoint(x: x + offset + 1, y: 13.5))
+        }
+        details.lineWidth = 1; details.lineCapStyle = .round; details.stroke()
     }
 
     private static func drawNormal(level: Int?, externalPower: Bool) {

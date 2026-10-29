@@ -17,11 +17,12 @@ def build(name, file): return add('build:'+name, isa='PBXBuildFile', fileRef=fil
 appFiles=[ref(str(p.relative_to(root))) for p in sorted((root/'Sources/TilveroApp').glob('*.swift'))]
 helperFiles=[ref(str(p.relative_to(root))) for p in sorted((root/'Helper').glob('*.swift'))]
 resource=ref('Sources/TilveroApp/Resources/Localizable.xcstrings','text.json')
+artworkFiles=[ref(str(p.relative_to(root)),'image.png') for p in sorted((root/'Sources/TilveroApp/Resources').glob('*.png'))]
 assets=ref('Config/Assets.xcassets','folder.assetcatalog')
 appProduct=ref('Tilvero.app','wrapper.application','BUILT_PRODUCTS_DIR')
 helperProduct=ref('TilveroHelper','compiled.mach-o.executable','BUILT_PRODUCTS_DIR')
 productGroup=add('products',isa='PBXGroup',children=[appProduct,helperProduct],name='Products',sourceTree='<group>')
-mainGroup=add('mainGroup',isa='PBXGroup',children=appFiles+helperFiles+[resource,assets,productGroup],sourceTree='<group>')
+mainGroup=add('mainGroup',isa='PBXGroup',children=appFiles+helperFiles+[resource,assets,productGroup]+artworkFiles,sourceTree='<group>')
 package=add('package',isa='XCLocalSwiftPackageReference',relativePath='.')
 def configs(name,extra):
     rows=[]
@@ -35,14 +36,14 @@ def target(name,files,product,productType,libs,extra,phases=None):
     sources=add(name+'sources',isa='PBXSourcesBuildPhase',buildActionMask=2147483647,files=[build(name+file,file) for file in files],runOnlyForDeploymentPostprocessing=0)
     return add(name,isa='PBXNativeTarget',name=name,productName=name,productReference=product,productType=productType,buildConfigurationList=configs(name,extra),buildPhases=[sources,framework]+(phases or []),buildRules=[],dependencies=[],packageProductDependencies=deps)
 helper=target('TilveroHelper',helperFiles,helperProduct,'com.apple.product-type.tool',['PowerPrivileged'],{'PRODUCT_BUNDLE_IDENTIFIER':'local.tilvero.prototype.helper','PRODUCT_NAME':'TilveroHelper','SKIP_INSTALL':'YES','CREATE_INFOPLIST_SECTION_IN_BINARY':'YES','INFOPLIST_FILE':'Config/HelperInfo.plist'})
-resources=add('resources',isa='PBXResourcesBuildPhase',buildActionMask=2147483647,files=[build('catalog',resource),build('assets',assets)],runOnlyForDeploymentPostprocessing=0)
+resources=add('resources',isa='PBXResourcesBuildPhase',buildActionMask=2147483647,files=[build('catalog',resource),build('assets',assets)]+[build('artwork'+file,file) for file in artworkFiles],runOnlyForDeploymentPostprocessing=0)
 embedHelper=add('embedHelper',isa='PBXCopyFilesBuildPhase',buildActionMask=2147483647,dstPath='Contents/Library/HelperTools',dstSubfolderSpec=1,files=[build('embedHelper',helperProduct)],name='Embed helper',runOnlyForDeploymentPostprocessing=0)
 launchFiles=[]
 for path in sorted((root/'Config/LaunchDaemons').glob('*.plist')):
     file=ref(str(path.relative_to(root)),'text.plist.xml'); objects[mainGroup]['children'].append(file); launchFiles.append(build('daemon'+path.name,file))
 embedJobs=add('embedJobs',isa='PBXCopyFilesBuildPhase',buildActionMask=2147483647,dstPath='Contents/Library/LaunchDaemons',dstSubfolderSpec=1,files=launchFiles,name='Embed launch jobs',runOnlyForDeploymentPostprocessing=0)
 legal=add('legal',isa='PBXShellScriptBuildPhase',buildActionMask=2147483647,files=[],inputPaths=[],outputPaths=[],name='Bundle legal resources',shellPath='/bin/bash',shellScript='set -euo pipefail\ndestination="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/Legal"\nmkdir -p "$destination/Helper"\ncp "$SRCROOT/LICENSE" "$SRCROOT/COPYRIGHT" "$SRCROOT/THIRD_PARTY_NOTICES.md" "$destination/"\ncp "$SRCROOT/Helper/THIRD_PARTY_NOTICES.md" "$destination/Helper/"\nif [[ -f "$SRCROOT/Config/ReleaseMetadata.json" ]]; then cp "$SRCROOT/Config/ReleaseMetadata.json" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/"; fi\n',runOnlyForDeploymentPostprocessing=0)
-app=target('Tilvero',appFiles,appProduct,'com.apple.product-type.application',['PowerCore','PowerTelemetry','PowerPersistence','PowerDiagnostics','PowerSimulator','PowerPrivileged','ChargeBackends','FanBackends'],{'PRODUCT_BUNDLE_IDENTIFIER':release['bundleID'] if release else 'local.tilvero.prototype','ASSETCATALOG_COMPILER_APPICON_NAME':'AppIcon','ENABLE_USER_SCRIPT_SANDBOXING':'NO','PRODUCT_NAME':'Tilvero','EXECUTABLE_NAME':'TilveroApp','INFOPLIST_FILE':'Config/ReleaseInfo.plist' if release else 'Config/Info.plist','GENERATE_INFOPLIST_FILE':'NO','LD_RUNPATH_SEARCH_PATHS':'$(inherited) @executable_path/../Frameworks'},[resources,legal]+([] if release else [embedHelper,embedJobs]))
+app=target('Tilvero',appFiles,appProduct,'com.apple.product-type.application',['PowerCore','PowerTelemetry','PowerPersistence','PowerDiagnostics','PowerSimulator','PowerPrivileged','ChargeBackends','FanBackends','KeyboardBackends'],{'PRODUCT_BUNDLE_IDENTIFIER':release['bundleID'] if release else 'local.tilvero.prototype','ASSETCATALOG_COMPILER_APPICON_NAME':'AppIcon','ENABLE_USER_SCRIPT_SANDBOXING':'NO','PRODUCT_NAME':'Tilvero','EXECUTABLE_NAME':'TilveroApp','INFOPLIST_FILE':'Config/ReleaseInfo.plist' if release else 'Config/Info.plist','GENERATE_INFOPLIST_FILE':'NO','LD_RUNPATH_SEARCH_PATHS':'$(inherited) @executable_path/../Frameworks'},[resources,legal]+([] if release else [embedHelper,embedJobs]))
 proxy=add('helperProxy',isa='PBXContainerItemProxy',containerPortal=ident('project'),proxyType=1,remoteGlobalIDString=helper,remoteInfo='TilveroHelper')
 objects[app]['dependencies']=[] if release else [add('helperDependency',isa='PBXTargetDependency',target=helper,targetProxy=proxy)]
 project=add('project',isa='PBXProject',attributes={'LastUpgradeCheck':'2700'},buildConfigurationList=configs('project',{}),compatibilityVersion='Xcode 14.0',developmentRegion='en',hasScannedForEncodings=0,knownRegions=['en','ru','Base'],mainGroup=mainGroup,productRefGroup=productGroup,projectDirPath='',projectRoot='',targets=[app,helper],packageReferences=[package])

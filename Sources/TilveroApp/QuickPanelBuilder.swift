@@ -118,7 +118,9 @@ enum SettingsPage: String, CaseIterable, Identifiable {
                 Spacer()
                 Image(systemName: "chevron.right").font(.caption)
             }.font(.callout).foregroundStyle(.secondary)
-        }.padding(20).frame(width: 360, alignment: .leading).environment(\.locale, L10n.locale)
+        }.padding(20).frame(width: 360, alignment: .leading)
+            .tint(.blue).accentColor(.blue)
+            .environment(\.locale, L10n.locale)
     }
     private var passiveSession: some View {
         VStack(alignment: .leading, spacing: 8) {

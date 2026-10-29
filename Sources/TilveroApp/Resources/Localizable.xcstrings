@@ -8400,6 +8400,438 @@
           }
         }
       }
+    },
+    "Keep Awake active": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep Awake active"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Режим «Не спать» активен"
+          }
+        }
+      }
+    },
+    "Keep Awake state unconfirmed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep Awake state unconfirmed"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Состояние «Не спать» не подтверждено"
+          }
+        }
+      }
+    },
+    "Schematic battery illustration": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schematic battery illustration"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Условная иллюстрация батареи"
+          }
+        }
+      }
+    },
+    "The illustration does not identify this Mac's physical cell layout.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The illustration does not identify this Mac's physical cell layout."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Иллюстрация не определяет физическое расположение ячеек в этом Mac."
+          }
+        }
+      }
+    },
+    "Charge level": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charge level"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Уровень заряда"
+          }
+        }
+      }
+    },
+    "Device illustrations are schematic.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Device illustrations are schematic."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Устройства показаны условно."
+          }
+        }
+      }
+    },
+    "Keyboard backlight": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keyboard backlight"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подсветка клавиатуры"
+          }
+        }
+      }
+    },
+    "Refresh keyboard backlight": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refresh keyboard backlight"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновить состояние подсветки"
+          }
+        }
+      }
+    },
+    "macOS brightness setting": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS brightness setting"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Яркость по данным macOS"
+          }
+        }
+      }
+    },
+    "macOS has dimmed or suppressed the backlight. The setting does not confirm illuminated keys.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS has dimmed or suppressed the backlight. The setting does not confirm illuminated keys."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS приглушила или отключила подсветку. Значение яркости не подтверждает освещение клавиш."
+          }
+        }
+      }
+    },
+    "Turn on": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn on"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Включить"
+          }
+        }
+      }
+    },
+    "Turn off": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn off"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выключить"
+          }
+        }
+      }
+    },
+    "Automatic keyboard brightness remains enabled in macOS.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatic keyboard brightness remains enabled in macOS."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Автояркость клавиатуры в macOS остаётся включённой."
+          }
+        }
+      }
+    },
+    "Automatic keyboard brightness is disabled in macOS.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatic keyboard brightness is disabled in macOS."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Автояркость клавиатуры в macOS выключена."
+          }
+        }
+      }
+    },
+    "Keyboard controls are unavailable in this build or simulation.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keyboard controls are unavailable in this build or simulation."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Управление клавиатурой недоступно в этой сборке или симуляции."
+          }
+        }
+      }
+    },
+    "Keyboard backlight state is unavailable.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keyboard backlight state is unavailable."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Состояние подсветки клавиатуры недоступно."
+          }
+        }
+      }
+    },
+    "Turning on restores the last nonzero brightness; without a previous reading it requests 25%.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turning on restores the last nonzero brightness; without a previous reading it requests 25%."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Включение возвращает последнюю ненулевую яркость; если прежнего показания нет — запрашивает 25%."
+          }
+        }
+      }
+    },
+    "Keyboard backlight is unavailable. Refresh to try again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keyboard backlight is unavailable. Refresh to try again."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подсветка клавиатуры недоступна. Обновите состояние, чтобы повторить попытку."
+          }
+        }
+      }
+    },
+    "The macOS keyboard interface changed. No setting was written.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The macOS keyboard interface changed. No setting was written."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Интерфейс управления клавиатурой macOS изменился. Настройки не записывались."
+          }
+        }
+      }
+    },
+    "A supported built-in backlit keyboard was not found.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A supported built-in backlit keyboard was not found."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поддерживаемая встроенная клавиатура с подсветкой не найдена."
+          }
+        }
+      }
+    },
+    "macOS returned an invalid keyboard brightness reading.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS returned an invalid keyboard brightness reading."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS вернула некорректное показание яркости клавиатуры."
+          }
+        }
+      }
+    },
+    "Keyboard brightness must be between 0 and 1.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keyboard brightness must be between 0 and 1."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Яркость клавиатуры должна быть в пределах от 0 до 1."
+          }
+        }
+      }
+    },
+    "macOS did not accept the keyboard brightness change.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS did not accept the keyboard brightness change."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS не приняла изменение яркости клавиатуры."
+          }
+        }
+      }
+    },
+    "The keyboard brightness change is not confirmed. Refresh to check its actual state.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The keyboard brightness change is not confirmed. Refresh to check its actual state."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Изменение яркости клавиатуры не подтверждено. Обновите фактическое состояние."
+          }
+        }
+      }
+    },
+    "Set a nonzero keyboard brightness in System Settings once, then refresh.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set a nonzero keyboard brightness in System Settings once, then refresh."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Установите ненулевую яркость клавиатуры в системных настройках и обновите состояние."
+          }
+        }
+      }
+    },
+    "Automatic keyboard brightness changed during the operation. Check System Settings.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatic keyboard brightness changed during the operation. Check System Settings."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Во время операции изменилась автояркость клавиатуры. Проверьте системные настройки."
+          }
+        }
+      }
+    },
+    "Keyboard control is unavailable in simulation.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keyboard control is unavailable in simulation."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Управление клавиатурой недоступно в симуляции."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

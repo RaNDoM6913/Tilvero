@@ -1,6 +1,36 @@
 import SwiftUI
 import PowerCore
 
+@MainActor enum EnergyArtwork {
+    private static let bundle: Bundle = {
+        #if SWIFT_PACKAGE
+        return Bundle.module
+        #else
+        return Bundle.main
+        #endif
+    }()
+    private static func load(_ name: String) -> NSImage? {
+        bundle.url(forResource: name, withExtension: "png").flatMap(NSImage.init(contentsOf:))
+    }
+    static let image = load("BatteryAssembly")
+    static let adapter = load("AdapterIllustration")
+    static let mac = load("MacIllustration")
+}
+
+/// Original energy-line mark. It is branding, not an activity trace or measurement.
+struct TilveroEnergyMark: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint { .init(x: rect.minX + x * rect.width, y: rect.minY + y * rect.height) }
+        path.move(to: point(0.04, 0.66))
+        path.addCurve(to: point(0.29, 0.25), control1: point(0.13, 0.66), control2: point(0.16, 0.13))
+        path.addCurve(to: point(0.56, 0.74), control1: point(0.40, 0.25), control2: point(0.42, 0.74))
+        path.addCurve(to: point(0.82, 0.26), control1: point(0.68, 0.74), control2: point(0.69, 0.26))
+        path.addCurve(to: point(0.96, 0.40), control1: point(0.87, 0.26), control2: point(0.90, 0.40))
+        return path
+    }
+}
+
 /// Graphic qualification is independent of the platform's charging-status label.
 /// A connected adapter alone never establishes a battery-current direction.
 struct EnergyVisualSnapshot: Equatable {
@@ -39,26 +69,32 @@ struct EnergyVisualSnapshot: Equatable {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorScheme) private var colorScheme
     @State private var visible = false
-    private var accent: Color { state.levelIsStale || state.level == nil ? .secondary : .teal }
+    private var accent: Color { state.levelIsStale || state.level == nil ? .secondary : .accentColor }
     private var surface: Color { Color(nsColor: .controlBackgroundColor) }
 
     var body: some View {
         ZStack {
-            Ellipse().fill(.primary.opacity(colorScheme == .dark ? 0.09 : 0.05))
-                .frame(width: 190, height: 17).offset(y: 58).blur(radius: 9)
-            pack
+            if let artwork = EnergyArtwork.image {
+                Image(nsImage: artwork).resizable().interpolation(.high).scaledToFit()
+                    .frame(width: 320, height: 215)
+                    .opacity(state.level == nil ? 0.3 : state.levelIsStale ? 0.48 : 1)
+            } else {
+                Ellipse().fill(.primary.opacity(colorScheme == .dark ? 0.09 : 0.05))
+                    .frame(width: 190, height: 17).offset(y: 58).blur(radius: 9)
+                pack
+            }
             if state.direction == .intoBattery || state.direction == .fromBattery {
                 Image(systemName: state.direction == .intoBattery ? "arrow.down.left" : "arrow.up.right")
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(accent)
                     .padding(8).background(surface, in: Circle())
                     .overlay(Circle().strokeBorder(.primary.opacity(0.07)))
-                    .offset(x: 92, y: -47)
+                    .offset(x: 137, y: -76)
                     .contentTransition(.symbolEffect(.replace))
                     .transaction { if reduceMotion || !visible || !state.canAnimateLevel { $0.animation = nil } }
             }
         }
-        .frame(width: 240, height: 150)
+        .frame(width: 330, height: 225)
         .accessibilityHidden(true)
         .onAppear { visible = true }
         .onDisappear { visible = false }
@@ -114,17 +150,48 @@ struct EnergyVisualSnapshot: Equatable {
             VStack(alignment: .leading, spacing: 10) { illustration.frame(maxWidth: .infinity); information }
         }.padding(.vertical, 8)
     }
-    private var illustration: some View { EnergyStateIllustration(state: state) }
+    private var illustration: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            EnergyStateIllustration(state: state)
+            Text(L10n.text("Schematic battery illustration")).font(.caption2).foregroundStyle(.secondary)
+                .help(L10n.text("The illustration does not identify this Mac's physical cell layout."))
+        }
+    }
     private var information: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(model.chargeText).font(.system(size: 44, weight: .medium, design: .rounded)).monospacedDigit()
                 .contentTransition(.numericText())
+            if let level = state.level {
+                ProgressView(value: Double(level), total: 100)
+                    .tint(state.levelIsStale ? Color.secondary : Color.accentColor)
+                    .frame(maxWidth: 240)
+                    .accessibilityLabel(L10n.text("Charge level"))
+                    .accessibilityValue(model.chargeText)
+            }
             Text(model.chargingStateText).font(.subheadline).foregroundStyle(.secondary)
             if state.levelIsStale { Label(L10n.text("Stale"), systemImage: "clock").font(.caption).foregroundStyle(.orange) }
             Text(L10n.text("Source") + ": " + model.snapshot.chargePercent.source)
                 .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+            KeepAwakeEnergyBadge(service: model.keepAwake)
             if model.isDemo { Text(L10n.text("Simulation only — your Mac settings are unchanged.")).font(.caption).foregroundStyle(.secondary) }
         }.fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+@MainActor private struct KeepAwakeEnergyBadge: View {
+    @ObservedObject var service: KeepAwakeService
+    var body: some View {
+        switch KeepAwakeStatusIndicator(service: service) {
+        case .off: EmptyView()
+        case .active:
+            Label(L10n.text("Keep Awake active"), systemImage: "cup.and.saucer.fill")
+                .font(.caption).foregroundStyle(Color.accentColor)
+                .padding(.horizontal, 8).padding(.vertical, 5)
+                .background(Color.accentColor.opacity(0.1), in: Capsule())
+        case .unconfirmed:
+            Label(L10n.text("Keep Awake state unconfirmed"), systemImage: "questionmark.circle")
+                .font(.caption).foregroundStyle(.orange)
+        }
     }
 }
 
@@ -158,12 +225,13 @@ struct PowerHeadlineReading {
         VStack(alignment: .leading, spacing: 18) {
             HStack(alignment: .center, spacing: 18) {
                 VStack(spacing: 8) {
-                    node(symbol: state.sourceConnected == nil ? "powerplug.portrait" : "powerplug", title: "Adapter input", value: state.sourceConnected == false ? "—" : reading("054").value)
+                    node(symbol: state.sourceConnected == nil ? "powerplug.portrait" : "powerplug", artwork: EnergyArtwork.adapter,
+                         dimmed: state.sourceConnected != true, title: "Adapter input", value: state.sourceConnected == false ? "—" : reading("054").value)
                     qualification(reading("054"))
                 }.frame(maxWidth: .infinity)
                 connection.frame(minWidth: 40, maxWidth: 140)
                 VStack(spacing: 8) {
-                    node(symbol: "laptopcomputer", title: "Mac", value: L10n.text(state.sourceConnected == true ? "Power adapter" : state.sourceConnected == false ? "On battery" : "Power source unavailable"))
+                    node(symbol: "laptopcomputer", artwork: EnergyArtwork.mac, title: "Mac", value: L10n.text(state.sourceConnected == true ? "Power adapter" : state.sourceConnected == false ? "On battery" : "Power source unavailable"))
                     Text(L10n.text("Reported power source")).font(.caption).foregroundStyle(.secondary)
                     if model.snapshot.isExternalPower.freshness == .unknown {
                         Text(L10n.text("Freshness unknown")).font(.caption).foregroundStyle(.secondary)
@@ -171,12 +239,17 @@ struct PowerHeadlineReading {
                 }.frame(maxWidth: .infinity)
             }.frame(maxWidth: .infinity).padding(.vertical, 12)
             HStack(alignment: .firstTextBaseline, spacing: 14) {
-                Label(L10n.text("Battery power"), systemImage: "battery.100percent")
+                Label {
+                    Text(L10n.text("Battery power"))
+                } icon: {
+                    Image(systemName: "battery.100percent").foregroundStyle(.green)
+                }
                 Spacer()
                 Text(reading("038").value).monospacedDigit()
             }.font(.subheadline)
             qualification(reading("038"))
             Text(L10n.text("Separate battery measurement")).font(.caption).foregroundStyle(.secondary)
+            Text(L10n.text("Device illustrations are schematic.")).font(.caption2).foregroundStyle(.secondary)
         }.padding(.vertical, 8)
     }
     private func qualification(_ reading: PowerHeadlineReading) -> some View {
@@ -195,9 +268,16 @@ struct PowerHeadlineReading {
             Rectangle().fill(.secondary.opacity(state.sourceConnected == true ? 0.5 : 0.2)).frame(height: 1)
         }.accessibilityHidden(true)
     }
-    private func node(symbol: String, title: String, value: String) -> some View {
+    private func node(symbol: String, artwork: NSImage? = nil, dimmed: Bool = false, title: String, value: String) -> some View {
         VStack(spacing: 9) {
-            Image(systemName: symbol).font(.system(size: 34, weight: .ultraLight)).foregroundStyle(.secondary).frame(height: 40).accessibilityHidden(true)
+            Group {
+                if let artwork {
+                    Image(nsImage: artwork).resizable().interpolation(.high).scaledToFit().frame(width: 160, height: 110)
+                        .opacity(dimmed ? 0.38 : 1)
+                } else {
+                    Image(systemName: symbol).font(.system(size: 34, weight: .ultraLight)).foregroundStyle(.secondary).frame(height: 110)
+                }
+            }.accessibilityHidden(true)
             Text(L10n.text(title)).font(.caption).foregroundStyle(.secondary)
             Text(value).font(.title3.weight(.medium)).monospacedDigit().multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
         }.frame(maxWidth: .infinity)

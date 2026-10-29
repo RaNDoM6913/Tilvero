@@ -4,6 +4,102 @@ import XCTest
 
 @MainActor
 final class NativeBatteryStatusImageTests: XCTestCase {
+    func testActiveAwakeAddsCupWithoutChangingBatteryMeasurementsOrCutouts() async throws {
+        for style in MenuBarDisplayStyle.allCases {
+            for ac in [false, true] {
+                for level in [0, 1, 50, 100, nil] {
+                    let original = NativeBatteryStatusImage.make(level: level, style: style, externalPower: ac)
+                    let active = NativeBatteryStatusImage.make(level: level, style: style, externalPower: ac, awake: .active)
+                    XCTAssertFalse(active.isTemplate)
+                    let before = render(original, scale: 2), after = render(active, scale: 2)
+                    for y in 0..<before.pixelsHigh { for x in 0..<before.pixelsWide {
+                        XCTAssertEqual(before.colorAt(x: x, y: y)!.alphaComponent,
+                                       after.colorAt(x: x, y: y)!.alphaComponent, accuracy: 0.02)
+                    } }
+                    let badge = occupied(after).filter { $0.x >= before.pixelsWide }
+                    XCTAssertGreaterThan(badge.count, 20, "Awake must remain identifiable without color.")
+                    let blue = after.colorAt(x: badge[0].x, y: badge[0].y)!.usingColorSpace(.deviceRGB)!
+                    XCTAssertGreaterThan(blue.blueComponent, blue.redComponent + 0.25)
+                    XCTAssertLessThan(edgeAlpha(after), 0.35)
+                }
+            }
+        }
+    }
+
+    func testAwakeSelectedMaskAndUnconfirmedStayTemplateWithSeparateBadges() async throws {
+        for style in MenuBarDisplayStyle.allCases {
+            for scale in [CGFloat(0.85), 1, 1.15] {
+                let active = NativeBatteryStatusImage.make(level: nil, style: style, externalPower: true, scale: scale, awake: .active)
+                let selected = NativeBatteryStatusImage.make(level: nil, style: style, externalPower: true, scale: scale, awake: .active, highlighted: true)
+                let uncertain = NativeBatteryStatusImage.make(level: nil, style: style, externalPower: true, scale: scale, awake: .unconfirmed)
+                XCTAssertTrue(selected.isTemplate, "AppKit must adapt selected content to its highlight.")
+                XCTAssertTrue(uncertain.isTemplate, "Unconfirmed ownership must never show active blue.")
+                XCTAssertEqual(active.size, selected.size)
+                XCTAssertEqual(active.size, uncertain.size)
+                let first = render(active, scale: 2), second = render(selected, scale: 2)
+                for y in 0..<first.pixelsHigh { for x in 0..<first.pixelsWide {
+                    XCTAssertEqual(first.colorAt(x: x, y: y)!.alphaComponent,
+                                   second.colorAt(x: x, y: y)!.alphaComponent, accuracy: 0.02)
+                } }
+                XCTAssertNotEqual(pixels(selected), pixels(uncertain), "Question and cup cannot claim the same state.")
+            }
+        }
+        // Explicit opt-in fixture export; ordinary tests leave no render files.
+        if let path = ProcessInfo.processInfo.environment["TILVERO_AWAKE_RENDER_DIR"] {
+            let root = URL(fileURLWithPath: path)
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            for style in MenuBarDisplayStyle.allCases {
+                for (name, state, selected) in [("off", KeepAwakeStatusIndicator.off, false), ("active", .active, false),
+                                                ("selected-mask", .active, true), ("unconfirmed", .unconfirmed, false)] {
+                    let image = NativeBatteryStatusImage.make(level: 80, style: style, externalPower: true, awake: state, highlighted: selected)
+                    let data = try XCTUnwrap(render(image, scale: 4).representation(using: .png, properties: [:]))
+                    try data.write(to: root.appendingPathComponent("\(style.rawValue)-\(name).png"))
+                }
+            }
+        }
+    }
+
+    func testAwakeBindingUpdatesAfterStartReconcileStopAndUnconfirmedRelease() async throws {
+        let driver = StatusAwakeFixture()
+        let service = KeepAwakeService(driver: driver)
+        var states: [KeepAwakeStatusIndicator] = []
+        let binding = NativeKeepAwakeStatusBinding(service: service) { states.append($0) }
+        XCTAssertEqual(states.last, .off)
+        try service.startUntilStopped()
+        for _ in 0..<10 { await Task.yield() }
+        XCTAssertEqual(states.last, .active)
+        driver.failRead = true; driver.failRelease = true
+        XCTAssertThrowsError(try service.reconcile())
+        for _ in 0..<10 { await Task.yield() }
+        XCTAssertEqual(states.last, .unconfirmed)
+        driver.failRead = false; driver.failRelease = false
+        try service.stop()
+        for _ in 0..<10 { await Task.yield() }
+        XCTAssertEqual(states.last, .off)
+        try service.startUntilStopped()
+        for _ in 0..<10 { await Task.yield() }
+        XCTAssertEqual(states.last, .active)
+        driver.assertion = nil
+        try service.reconcile()
+        for _ in 0..<10 { await Task.yield() }
+        XCTAssertEqual(states.last, .off)
+        withExtendedLifetime(binding) {}
+    }
+
+    func testFailedStopCannotRemainActiveBlueEvenWhenServiceRetainsActiveFlag() async throws {
+        let driver = StatusAwakeFixture()
+        let running = KeepAwakeService(driver: driver)
+        XCTAssertEqual(KeepAwakeStatusIndicator(service: running), .off)
+        try running.startUntilStopped()
+        driver.failRead = true; driver.failRelease = true
+        XCTAssertThrowsError(try running.stop())
+        XCTAssertTrue(running.isActive, "The service retains its last active flag when release fails.")
+        XCTAssertEqual(KeepAwakeStatusIndicator(service: running), .unconfirmed)
+        driver.failRead = false; driver.failRelease = false
+        try running.stop()
+        XCTAssertEqual(KeepAwakeStatusIndicator(service: running), .off)
+    }
+
     func testNativeSymbolsExistOnTheSupportedOS() async throws {
         for name in ["battery.0percent", "battery.100percent", "battery.100percent.bolt"] {
             XCTAssertNotNil(NSImage(systemSymbolName: name, accessibilityDescription: nil), name)
@@ -266,5 +362,28 @@ final class NativeBatteryStatusImageTests: XCTestCase {
     private func pixels(_ image: NSImage) -> Data {
         let rep = render(image, scale: 2)
         return Data(bytes: rep.bitmapData!, count: rep.bytesPerRow * rep.pixelsHigh)
+    }
+}
+
+@MainActor private final class StatusAwakeFixture: KeepAwakeTransport {
+    var assertion: KeepAwakeAssertion?
+    var failRead = false
+    var failRelease = false
+    func create(seconds: Int, name: String) throws -> UInt32 {
+        assertion = .init(name: name, kind: "PreventUserIdleSystemSleep", active: true, seconds: seconds, releasesOnTimeout: true)
+        return 7
+    }
+    func createUntilStopped(name: String) throws -> UInt32 {
+        assertion = .init(name: name, kind: "PreventUserIdleSystemSleep", active: true, seconds: nil, releasesOnTimeout: true)
+        return 7
+    }
+    func setTimeout(_ id: UInt32, seconds: Int, name: String) throws { throw KeepAwakeError.updateFailed }
+    func read(_ id: UInt32) throws -> KeepAwakeAssertion? {
+        if failRead { throw KeepAwakeError.unconfirmed }
+        return assertion
+    }
+    func release(_ id: UInt32, name: String) throws {
+        if failRelease { throw KeepAwakeError.releaseFailed }
+        assertion = nil
     }
 }

@@ -158,6 +158,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         super.init()
     }
     private var statusItem: NSStatusItem?
+    private var keepAwakeStatusBinding: NativeKeepAwakeStatusBinding?
     private let popover = NSPopover()
     private var detailsWindow: NSWindow?
     private var outsideClickMonitor: Any?
@@ -183,6 +184,9 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
 
         model.openDetails = { [weak self] in self?.showDetails() }
         model.onPresentationChange = { [weak self] in self?.updateStatusItem() }
+        keepAwakeStatusBinding = NativeKeepAwakeStatusBinding(service: model.keepAwake) { [weak self] _ in
+            self?.updateStatusItem()
+        }
         NSWorkspace.shared.notificationCenter.addObserver(
             self, selector: #selector(didWake),
             name: NSWorkspace.didWakeNotification, object: nil
@@ -305,6 +309,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         popover.contentViewController?.view.window?.makeKeyAndOrderFront(nil)
         statusItem?.button?.state = .on
         statusItem?.button?.highlight(true)
+        updateStatusItem()
     }
 
     private func closePopover(reason: String) {
@@ -314,6 +319,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
             stopPopoverEventMonitors()
             statusItem?.button?.state = .off
             statusItem?.button?.highlight(false)
+            updateStatusItem()
         }
         guard popover.isShown else { return }
         popoverLog.info("Closing quick panel: \(reason, privacy: .public)")
@@ -370,14 +376,17 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         let level = model.snapshot.chargePercent.availability == .available || model.snapshot.chargePercent.freshness == .stale ? ReadingPresentation.validLevel(model.snapshot.chargePercent.value) : nil
         let power = model.snapshot.isExternalPower
         let attached = power.availability == .available && power.freshness != .stale && power.value == true
+        let awake = KeepAwakeStatusIndicator(service: model.keepAwake)
         button.font = NativeStatusPresentation.font(for: model.menuBarTextSize)
-        button.image = NativeBatteryStatusImage.make(level: level, style: model.displayStyle, externalPower: attached, scale: CGFloat(model.menuBarIconScale), textSize: model.menuBarTextSize)
+        button.image = NativeBatteryStatusImage.make(level: level, style: model.displayStyle, externalPower: attached, scale: CGFloat(model.menuBarIconScale), textSize: model.menuBarTextSize, awake: awake, highlighted: button.state == .on)
+        button.alternateImage = awake == .active ? NativeBatteryStatusImage.make(level: level, style: model.displayStyle, externalPower: attached, scale: CGFloat(model.menuBarIconScale), textSize: model.menuBarTextSize, awake: awake, highlighted: true) : nil
         let percentageTitle = model.displayStyle == .beside ? NativeStatusPresentation.percentageTitle(level: level) : ""
         // Development-only marker: fixtures must remain identifiable even when closed.
         button.title = percentageTitle + (model.isDemo ? " DEMO" : "")
         let mode = (model.isDemo ? L10n.text("Simulation") + " · " : "") + (model.snapshot.chargePercent.freshness == .stale ? L10n.text("Stale") + " · " : "")
-        button.toolTip = "\(AppIdentity.displayName) · \(mode)\(model.chargeText) · \(model.chargingStateText)"
-        button.setAccessibilityLabel("\(AppIdentity.displayName), \(mode)\(model.chargeText), \(model.chargingStateText)")
+        let awakeSuffix = awake.accessibilitySuffix.map { " · " + $0 } ?? ""
+        button.toolTip = "\(AppIdentity.displayName) · \(mode)\(model.chargeText) · \(model.chargingStateText)\(awakeSuffix)"
+        button.setAccessibilityLabel("\(AppIdentity.displayName), \(mode)\(model.chargeText), \(model.chargingStateText)\(awakeSuffix)")
     }
 }
 
@@ -399,6 +408,7 @@ extension TilveroAppDelegate: NSPopoverDelegate {
         stopPopoverEventMonitors()
         statusItem?.button?.state = .off
         statusItem?.button?.highlight(false)
+        updateStatusItem()
         model.quickPanelDidClose()
         popoverLog.info("Quick panel closed; event monitors removed")
     }

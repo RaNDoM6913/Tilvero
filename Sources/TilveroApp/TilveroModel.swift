@@ -143,6 +143,7 @@ final class TilveroModel: ObservableObject {
         }
     }
     let nativeCharge: NativeChargeService
+    let keyboardBacklight: KeyboardBacklightService
     private var nativeSubscription: AnyCancellable?
     let liveControl: LiveControlService
     private var liveSubscription: AnyCancellable?
@@ -178,7 +179,8 @@ final class TilveroModel: ObservableObject {
          systemChargeLimitProvider: (@Sendable () async -> SystemChargeLimitObservation)? = nil,
          liveControl: LiveControlService? = nil,
          keepAwakeTransport: (any KeepAwakeTransport)? = nil,
-         processActivityProvider: (@Sendable () async -> ProcessResourceCollection)? = nil) {
+         processActivityProvider: (@Sendable () async -> ProcessResourceCollection)? = nil,
+         keyboardBacklight: KeyboardBacklightService? = nil) {
         self.systemChargeLimitProvider = systemChargeLimitProvider ?? {
             await Task.detached(priority: .utility) { SystemChargeLimitObservation.read() }.value
         }
@@ -190,6 +192,8 @@ final class TilveroModel: ObservableObject {
         keepAwakeCustomMinutes = String(savedAwakeDuration.rawValue)
         keepAwakeUsesCustomDuration = !KeepAwakeDuration.allCases.contains(savedAwakeDuration)
         let monitoring = Bundle.main.object(forInfoDictionaryKey: "TilveroReleaseMode") as? String == "monitoring"
+        self.keyboardBacklight = keyboardBacklight ?? KeyboardBacklightService(
+            storage: UserDefaultsKeyboardBacklightStorage(defaults: preferences), allowed: !isDemo && !monitoring)
         keepAwake = KeepAwakeService(driver: keepAwakeTransport ?? NativeKeepAwakeTransport(), allowed: !isDemo && !monitoring)
         modeLibrary = ModeLibrary.load(preferences.data(forKey: isDemo ? "demoModePlans.v1" : "modePlans.v1"))
         overviewPreferences = OverviewPreferences.load(preferences.data(forKey: "overviewPreferences.v1"))

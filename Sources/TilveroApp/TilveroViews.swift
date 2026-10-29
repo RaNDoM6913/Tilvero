@@ -44,17 +44,28 @@ struct BatteryInfoView: View {
     @State private var reveal = false
     var body: some View {
         NavigationSplitView {
-            List(selection: Binding<InfoSection?>(get: { model.selectedSection }, set: { if let selected = $0 { model.selectedSection = selected } })) {
+            List {
                 ForEach([InfoSection.overview, .battery, .charging, .cooling]) { item in
-                    Label(item.title, systemImage: item.symbol).tag(item)
+                    sidebarItem(item)
                 }
                 Section(L10n.text("Analytics")) {
-                    ForEach([InfoSection.history, .sleep, .activity]) { item in Label(item.title, systemImage: item.symbol).tag(item) }
+                    ForEach([InfoSection.history, .sleep, .activity]) { item in sidebarItem(item) }
                 }
                 Section {
-                    ForEach([InfoSection.diagnostics, .settings]) { item in Label(item.title, systemImage: item.symbol).tag(item) }
+                    ForEach([InfoSection.diagnostics, .settings]) { item in sidebarItem(item) }
                 }
-            }.navigationSplitViewColumnWidth(min: 170, ideal: 185, max: 220)
+            }
+            .scrollContentBackground(.hidden)
+            .background(Color(nsColor: .windowBackgroundColor))
+            .safeAreaInset(edge: .top, spacing: 8) {
+                HStack(spacing: 9) {
+                    TilveroEnergyMark().stroke(Color.accentColor, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                        .frame(width: 24, height: 20).accessibilityHidden(true)
+                    Text(AppIdentity.displayName).font(.headline)
+                    Spacer()
+                }.padding(.horizontal, 15).padding(.top, 17).padding(.bottom, 5)
+            }
+            .navigationSplitViewColumnWidth(min: 170, ideal: 185, max: 220)
         } detail: {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
@@ -87,8 +98,10 @@ struct BatteryInfoView: View {
                     Text("\(L10n.text("Last collection")): \(model.snapshot.collectedAt.formatted(.dateTime.locale(L10n.locale)))")
                         .font(.caption).foregroundStyle(.secondary)
                 }.padding(24).frame(maxWidth: 1080, alignment: .leading).frame(maxWidth: .infinity, alignment: .topLeading)
-            }
+            }.background(Color(nsColor: .windowBackgroundColor))
         }.frame(minWidth: 760, minHeight: 540)
+            .tint(.green)
+            .accentColor(.green)
             .environment(\.locale, L10n.locale)
             .id(model.language)
             .sheet(isPresented: Binding(get: { model.exportPreview != nil }, set: { if !$0 { model.exportPreview = nil } })) {
@@ -99,6 +112,22 @@ struct BatteryInfoView: View {
                     HStack { Button(L10n.text("Cancel")) { model.exportPreview = nil }; Spacer(); Button(L10n.text("Save…")) { model.saveExport() }.buttonStyle(.borderedProminent) }
                 }.padding(24).frame(width: 620, height: 470)
             }
+    }
+    private func sidebarItem(_ item: InfoSection) -> some View {
+        let selected = model.selectedSection == item
+        return Button { model.selectedSection = item } label: {
+            Label(item.title, systemImage: item.symbol)
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 8).padding(.vertical, 7)
+                .background {
+                    RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(selected ? 0.06 : 0))
+                        .shadow(color: .black.opacity(selected ? 0.1 : 0), radius: 4, x: 0, y: 1)
+                }
+                .contentShape(RoundedRectangle(cornerRadius: 8))
+        }.buttonStyle(.plain)
+            .accessibilityAddTraits(selected ? .isSelected : [])
+            .listRowBackground(Color.clear)
     }
     private var measurementSearch: some View {
         TextField(L10n.text("Search measurements"), text: $search).textFieldStyle(.roundedBorder)
@@ -114,7 +143,7 @@ struct BatteryInfoView: View {
     @ViewBuilder private var sectionContent: some View {
         switch model.selectedSection {
         case .overview:
-            BatteryStateHeading(model: model)
+            BatteryEnergyHeading(model: model)
             catalogRows(readings(["023", "024", "027", "026", "039", "067", "069", "044"]))
             Text(L10n.text("Capacity retention is calculated separately from the macOS health assessment.")).font(.callout).foregroundStyle(.secondary)
             if model.isDemo { SimulationPanel(model: model) }
@@ -246,6 +275,7 @@ private struct SettingsPanel: View {
     }
     private var general: some View {
         VStack(alignment: .leading, spacing: 18) {
+            KeyboardBacklightPanel(service: model.keyboardBacklight)
             Form {
                     Picker(L10n.text("Menu bar"), selection: $model.displayStyle) { ForEach(MenuBarDisplayStyle.allCases) { Text($0.title).tag($0) } }
                     Picker(L10n.text("Percentage size"), selection: $model.menuBarTextSize) {

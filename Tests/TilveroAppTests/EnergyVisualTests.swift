@@ -3,6 +3,14 @@ import PowerCore
 @testable import TilveroApp
 
 final class EnergyVisualTests: XCTestCase {
+    @MainActor func testSchematicArtworkIsBundledAndDecodesAsLandscape() throws {
+        for artwork in [EnergyArtwork.image, EnergyArtwork.adapter, EnergyArtwork.mac] {
+            let image = try XCTUnwrap(artwork)
+            XCTAssertTrue(image.isValid)
+            XCTAssertGreaterThan(image.size.width, image.size.height)
+        }
+    }
+
     func testProminentPowerRetainsVisibleStaleQualificationAndSource() {
         for id in ["054", "038"] {
             let reading = CatalogReading(definition: BatteryCatalog.definition(id), value: .decimal(24.6), source: "fixture/" + id, freshness: .stale)
