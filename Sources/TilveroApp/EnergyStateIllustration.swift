@@ -15,6 +15,84 @@ import PowerCore
     static let image = load("BatteryAssembly")
     static let adapter = load("AdapterIllustration")
     static let mac = load("MacIllustration")
+    static let rest = load("RestIllustration")
+}
+
+/// Opaque, adaptive surfaces shared by the main application. Menu-bar content
+/// keeps its own native blue/material styling and does not use this wrapper.
+struct ProductSurface<Content: View>: View {
+    var title: String? = nil
+    var symbol: String? = nil
+    @ViewBuilder var content: () -> Content
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if let title {
+                HStack(spacing: 8) {
+                    if let symbol { Image(systemName: symbol).foregroundStyle(Color.accentColor) }
+                    Text(L10n.text(title)).font(.headline)
+                }
+            }
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading).padding(20)
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.primary.opacity(0.06)))
+    }
+}
+
+struct ProductSectionHeading: View {
+    let title: String
+    var subtitle: String? = nil
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(L10n.text(title)).font(.headline)
+            if let subtitle { Text(L10n.text(subtitle)).font(.callout).foregroundStyle(.secondary) }
+        }.fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+@MainActor struct ProductIntro: View {
+    let title: String
+    let subtitle: String
+    let symbol: String
+    var artwork: NSImage? = nil
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 24) { picture; information.frame(width: 320, alignment: .leading) }
+            VStack(alignment: .leading, spacing: 16) { picture; information }
+        }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 6)
+    }
+    private var picture: some View {
+        Group {
+            if let artwork {
+                Image(nsImage: artwork).resizable().interpolation(.high).scaledToFit().frame(width: 160, height: 120)
+            } else {
+                Image(systemName: symbol).font(.system(size: 34, weight: .light))
+                    .foregroundStyle(Color.accentColor).frame(width: 72, height: 72)
+                    .background(Color.accentColor.opacity(0.07), in: RoundedRectangle(cornerRadius: 20))
+            }
+        }.accessibilityHidden(true)
+    }
+    private var information: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(L10n.text(title)).font(.title2.weight(.medium))
+            Text(L10n.text(subtitle)).font(.callout).foregroundStyle(.secondary)
+        }.frame(maxWidth: .infinity, alignment: .leading).fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+struct ProductMetric: View {
+    let title: String
+    let value: String
+    var detail: String? = nil
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(L10n.text(title)).font(.caption).foregroundStyle(.secondary)
+            Text(value).font(.system(size: 24, weight: .medium, design: .rounded)).monospacedDigit()
+                .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+            if let detail { Text(detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+        }.frame(maxWidth: .infinity, alignment: .leading)
+    }
 }
 
 /// Original energy-line mark. It is branding, not an activity trace or measurement.
@@ -146,13 +224,13 @@ struct EnergyVisualSnapshot: Equatable {
     private var state: EnergyVisualSnapshot { .init(model.snapshot) }
     var body: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(spacing: 30) { illustration; information.frame(minWidth: 190, maxWidth: .infinity, alignment: .leading) }
+            HStack(spacing: 24) { illustration; information.frame(width: 230, alignment: .leading) }
             VStack(alignment: .leading, spacing: 10) { illustration.frame(maxWidth: .infinity); information }
         }.padding(.vertical, 8)
     }
     private var illustration: some View {
         VStack(alignment: .leading, spacing: 5) {
-            EnergyStateIllustration(state: state)
+            EnergyStateIllustration(state: state).scaleEffect(0.85).frame(width: 280, height: 200)
             Text(L10n.text("Schematic battery illustration")).font(.caption2).foregroundStyle(.secondary)
                 .help(L10n.text("The illustration does not identify this Mac's physical cell layout."))
         }

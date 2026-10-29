@@ -8832,6 +8832,598 @@
           }
         }
       }
+    },
+    "Your Mac at a glance.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your Mac at a glance."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Главное о вашем Mac."
+          }
+        }
+      }
+    },
+    "Charge, condition and the readings behind them.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charge, condition and the readings behind them."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Заряд, состояние и исходные показания."
+          }
+        }
+      }
+    },
+    "Power sources, measured input and charging policy.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Power sources, measured input and charging policy."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Источники питания, входные измерения и управление зарядкой."
+          }
+        }
+      }
+    },
+    "Thermal observations and system cooling.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thermal observations and system cooling."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Температуры и системное охлаждение."
+          }
+        }
+      }
+    },
+    "Your recorded energy timeline.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your recorded energy timeline."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "История записанных измерений."
+          }
+        }
+      }
+    },
+    "Before sleep, after wake and what was observed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Before sleep, after wake and what was observed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Что удалось измерить до сна и после пробуждения."
+          }
+        }
+      }
+    },
+    "Accessible CPU activity, with its measurement limits.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accessible CPU activity, with its measurement limits."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Доступные измерения CPU и границы наблюдения."
+          }
+        }
+      }
+    },
+    "Sources, control ownership and local diagnostics.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sources, control ownership and local diagnostics."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Источники данных, управление и локальная диагностика."
+          }
+        }
+      }
+    },
+    "Make Tilvero work the way you do.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Make Tilvero work the way you do."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Настройте Tilvero под себя."
+          }
+        }
+      }
+    },
+    "Clear search": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear search"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Очистить поиск"
+          }
+        }
+      }
+    },
+    "Battery & system": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Battery & system"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Батарея и система"
+          }
+        }
+      }
+    },
+    "Capacity, cells and source details": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Capacity, cells and source details"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ёмкость, ячейки и источники данных"
+          }
+        }
+      }
+    },
+    "Adapter and energy flow": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adapter and energy flow"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Адаптер и поток энергии"
+          }
+        }
+      }
+    },
+    "Recorded measurements and gaps": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recorded measurements and gaps"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Записанные измерения и пропуски"
+          }
+        }
+      }
+    },
+    "System cooling": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System cooling"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Системное охлаждение"
+          }
+        }
+      }
+    },
+    "Thermal observations": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thermal observations"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Температурные показания"
+          }
+        }
+      }
+    },
+    "Fan observations": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fan observations"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показания вентиляторов"
+          }
+        }
+      }
+    },
+    "Local diagnostics": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Local diagnostics"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Локальная диагностика"
+          }
+        }
+      }
+    },
+    "Monitoring works without a privileged helper. Control ownership and restoration are shown separately.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monitoring works without a privileged helper. Control ownership and restoration are shown separately."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Мониторинг работает без привилегированного помощника. Состояние управления и восстановления показано отдельно."
+          }
+        }
+      }
+    },
+    "Recorded measurements": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recorded measurements"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Записанные измерения"
+          }
+        }
+      }
+    },
+    "All recorded history": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All recorded history"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вся записанная история"
+          }
+        }
+      }
+    },
+    "Observed sessions": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Observed sessions"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Наблюдаемые сеансы"
+          }
+        }
+      }
+    },
+    "Period": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Period"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Период"
+          }
+        }
+      }
+    },
+    "Measurement": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Measurement"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показатель"
+          }
+        }
+      }
+    },
+    "App preferences": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App preferences"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Настройки приложения"
+          }
+        }
+      }
+    },
+    "Observation details": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Observation details"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Детали наблюдения"
+          }
+        }
+      }
+    },
+    "Process assertions": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Process assertions"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запросы процессов, мешающие сну"
+          }
+        }
+      }
+    },
+    "CPU usage": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CPU usage"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Загрузка CPU"
+          }
+        }
+      }
+    },
+    "Collection coverage": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collection coverage"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Покрытие наблюдения"
+          }
+        }
+      }
+    },
+    "Observed applications": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Observed applications"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Наблюдаемые приложения"
+          }
+        }
+      }
+    },
+    "System maximum capacity": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System maximum capacity"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Максимальная ёмкость macOS"
+          }
+        }
+      }
+    },
+    "Charge capacity": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charge capacity"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ёмкость заряда"
+          }
+        }
+      }
+    },
+    "Health & design reference": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Health & design reference"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Состояние и проектные параметры"
+          }
+        }
+      }
+    },
+    "Battery voltage": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Battery voltage"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Напряжение батареи"
+          }
+        }
+      }
+    },
+    "Cell voltage spread": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cell voltage spread"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разброс напряжений ячеек"
+          }
+        }
+      }
+    },
+    "Recorded observations": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recorded observations"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Записанные наблюдения"
+          }
+        }
+      }
+    },
+    "Missing thermal and fan readings remain unavailable. Sensors are not reconstructed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Missing thermal and fan readings remain unavailable. Sensors are not reconstructed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Недоступные показания температур и вентиляторов не восстанавливаются расчётно."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

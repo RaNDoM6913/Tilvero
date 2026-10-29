@@ -68,70 +68,104 @@ struct SustainedCPUActivity {
         }.accessibilityElement(children: .contain)
     }
     private var detailedContent: some View {
-        VStack(alignment: .leading, spacing: compact ? 7 : 14) {
-            HStack {
-                Label(L10n.text("Application activity"), systemImage: "app.badge").font(compact ? .subheadline : .headline)
-                Spacer()
-                if compact && allowsNavigation {
-                    Button { model.selectedSection = .activity; model.openDetails?() } label: { Image(systemName: "chevron.right") }
-                        .buttonStyle(.borderless).accessibilityLabel(L10n.text("Application details"))
-                }
-            }
+        VStack(alignment: .leading, spacing: 18) {
+            ProductIntro(title: "Application activity",
+                         subtitle: "CPU power is an interval estimate from macOS CPU energy counters, not total app or battery consumption.",
+                         symbol: "app.badge")
             if model.isDemo {
-                Text(L10n.text("Process activity is unavailable in simulation.")).font(.caption).foregroundStyle(.secondary)
+                ProductSurface {
+                    Label(L10n.text("Process activity is unavailable in simulation."), systemImage: "testtube.2")
+                        .foregroundStyle(.secondary)
+                }
             } else if let snapshot = model.processActivity {
-                if Date().timeIntervalSince(snapshot.collectedAt) > 90 { Text(L10n.text("Stale")).font(.caption).foregroundStyle(.orange) }
-                if let error = snapshot.collectionError { Text(L10n.text(error)).font(.caption).foregroundStyle(.secondary) }
-                if snapshot.isWarmingUp && snapshot.collectionError == nil {
-                    Text(L10n.text("Baseline collected. Waiting for the next sample.")).font(.caption).foregroundStyle(.secondary)
-                } else if snapshot.rows.isEmpty && snapshot.collectionError == nil {
-                    Text(L10n.text("No comparable process samples.")).font(.caption).foregroundStyle(.secondary)
-                }
-                if !compact {
-                    Text(L10n.text("Accessible processes") + ": \(snapshot.accessibleCount)/\(snapshot.listedCount) · " + L10n.text("Denied") + ": \(snapshot.deniedCount)")
-                        .font(.caption).foregroundStyle(.secondary)
-                    Text(L10n.text("CPU power is an interval estimate from macOS CPU energy counters, not total app or battery consumption."))
-                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                }
-                ForEach(Array(snapshot.rows.prefix(compact ? 3 : 100))) { row in
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(alignment: .firstTextBaseline) {
-                            Text(row.name).lineLimit(1).truncationMode(.middle)
-                            Spacer(minLength: 8)
-                            if let watts = row.cpuPowerWatts { Text("≈ " + number(watts, places: 3) + " W CPU").monospacedDigit() }
-                            else { Text(row.cpuPercent.map { number($0, places: 1) + "% CPU" } ?? "—").monospacedDigit() }
-                        }.font(compact ? .caption : .body)
-                        if row.energyProcessCount < row.processCount || row.cpuProcessCount < row.processCount {
-                            Text(L10n.text("Partial process coverage")).font(.caption2).foregroundStyle(.secondary)
-                        }
-                        if !compact {
-                            HStack {
-                                Text(row.cpuPercent.map { number($0, places: 1) + "% CPU" } ?? "—")
-                                Text(L10n.text("CPU coverage") + ": \(row.cpuProcessCount)/\(row.processCount)")
-                                Text(L10n.text("Processes") + ": \(row.processCount)")
-                                Text(L10n.text("CPU energy coverage") + ": \(row.energyProcessCount)/\(row.processCount)")
-                            }.font(.caption).foregroundStyle(.secondary)
-                            Text(L10n.text("Idle wakeups/s") + ": " + optional(row.idleWakeupsPerSecond) + " · " + L10n.text("Interrupt wakeups/s") + ": " + optional(row.interruptWakeupsPerSecond))
-                                .font(.caption).foregroundStyle(.secondary)
-                            Text(L10n.text("Disk read/write") + ": " + rate(row.readBytesPerSecond) + " / " + rate(row.writtenBytesPerSecond))
-                                .font(.caption).foregroundStyle(.secondary)
-                            if let share = row.performanceCPUShare { Text(L10n.text("Performance CPU energy share") + ": " + number(share, places: 1) + "%").font(.caption).foregroundStyle(.secondary) }
-                        }
-                    }.accessibilityElement(children: .combine).help(L10n.text("CPU power is an interval estimate from macOS CPU energy counters, not total app or battery consumption."))
-                }
-                Text(L10n.text("Accessible processes") + ": \(snapshot.accessibleCount)/\(snapshot.listedCount)" + (snapshot.truncated ? " · " + L10n.text("Limited scan") : ""))
-                    .font(.caption2).foregroundStyle(.secondary)
-                if !compact {
-                    Text(L10n.text("Denied") + ": \(snapshot.deniedCount) · " + L10n.text("Unavailable") + ": \(snapshot.unavailableCount)").font(.caption).foregroundStyle(.secondary)
-                    Text(L10n.text("CPU power is an interval estimate from macOS CPU energy counters, not total app or battery consumption."))
-                        .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                collectionCoverage(snapshot)
+                ProductSurface(title: "Observed applications", symbol: "square.stack.3d.up") {
+                    if snapshot.isWarmingUp && snapshot.collectionError == nil {
+                        Label(L10n.text("Baseline collected. Waiting for the next sample."), systemImage: "clock")
+                            .foregroundStyle(.secondary)
+                    } else if snapshot.rows.isEmpty && snapshot.collectionError == nil {
+                        Text(L10n.text("No comparable process samples.")).foregroundStyle(.secondary)
+                    }
+                    ForEach(Array(snapshot.rows.prefix(100).enumerated()), id: \.element.id) { index, row in
+                        if index > 0 { Divider() }
+                        applicationRow(row)
+                    }
                     Text(L10n.text("100% CPU means one full CPU. System processes can be inaccessible. Only verified app-bundle members are grouped; child rollups are not added."))
                         .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
             } else {
-                Text(L10n.text("Waiting for process observations.")).font(.caption).foregroundStyle(.secondary)
+                ProductSurface {
+                    Label(L10n.text("Waiting for process observations."), systemImage: "clock")
+                        .foregroundStyle(.secondary)
+                }
             }
         }.accessibilityElement(children: .contain)
+    }
+
+    private func collectionCoverage(_ snapshot: ProcessActivitySnapshot) -> some View {
+        ProductSurface(title: "Collection coverage", symbol: "waveform.path") {
+            HStack(alignment: .top, spacing: 20) {
+                ProductMetric(title: "Accessible processes", value: "\(snapshot.accessibleCount)/\(snapshot.listedCount)")
+                ProductMetric(title: "Denied", value: "\(snapshot.deniedCount)")
+                ProductMetric(title: "Unavailable", value: "\(snapshot.unavailableCount)")
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(L10n.text("Observed") + ": " + snapshot.collectedAt.formatted(.dateTime.hour().minute().second().locale(L10n.locale)))
+                if snapshot.truncated { Label(L10n.text("Limited scan"), systemImage: "info.circle") }
+            }.font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            if Date().timeIntervalSince(snapshot.collectedAt) > 90 {
+                Label(L10n.text("Stale"), systemImage: "clock.badge.exclamationmark").font(.callout).foregroundStyle(.orange)
+            }
+            if let error = snapshot.collectionError {
+                Label(L10n.text(error), systemImage: "exclamationmark.triangle")
+                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func applicationRow(_ row: ProcessActivityRow) -> some View {
+        DisclosureGroup {
+            VStack(alignment: .leading, spacing: 10) {
+                detail("CPU usage", value: row.cpuPercent.map { number($0, places: 1) + "% CPU" } ?? "—")
+                detail("CPU coverage", value: "\(row.cpuProcessCount)/\(row.processCount)")
+                detail("CPU energy coverage", value: "\(row.energyProcessCount)/\(row.processCount)")
+                detail("Idle wakeups/s", value: optional(row.idleWakeupsPerSecond))
+                detail("Interrupt wakeups/s", value: optional(row.interruptWakeupsPerSecond))
+                detail("Disk read/write", value: rate(row.readBytesPerSecond) + " / " + rate(row.writtenBytesPerSecond))
+                if let share = row.performanceCPUShare {
+                    detail("Performance CPU energy share", value: number(share, places: 1) + "%")
+                }
+            }.padding(.leading, 34).padding(.top, 10)
+        } label: {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: row.bundlePath == nil ? "gearshape" : "app")
+                    .font(.title3).foregroundStyle(.secondary).frame(width: 24, height: 28).accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(row.name).font(.body.weight(.medium)).fixedSize(horizontal: false, vertical: true)
+                    Text(L10n.text("Processes") + ": \(row.processCount)").font(.caption).foregroundStyle(.secondary)
+                    if row.energyProcessCount < row.processCount || row.cpuProcessCount < row.processCount {
+                        Text(L10n.text("Partial process coverage")).font(.caption).foregroundStyle(.secondary)
+                    }
+                }.frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .trailing, spacing: 5) {
+                    if let watts = row.cpuPowerWatts {
+                        Text("≈ " + number(watts, places: 3) + " W CPU").font(.body.weight(.medium))
+                        Text(row.cpuPercent.map { number($0, places: 1) + "% CPU" } ?? "—")
+                            .font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        Text(row.cpuPercent.map { number($0, places: 1) + "% CPU" } ?? "—").font(.body.weight(.medium))
+                    }
+                }.monospacedDigit().fixedSize(horizontal: true, vertical: false)
+            }.padding(.vertical, 3)
+        }.help(L10n.text("CPU power is an interval estimate from macOS CPU energy counters, not total app or battery consumption."))
+    }
+
+    private func detail(_ title: String, value: String) -> some View {
+        LabeledContent {
+            Text(value).monospacedDigit().textSelection(.enabled)
+        } label: {
+            Text(L10n.text(title)).foregroundStyle(.secondary)
+        }.font(.caption).fixedSize(horizontal: false, vertical: true)
     }
     private func number(_ value: Double, places: Int) -> String { value.formatted(.number.locale(L10n.locale).precision(.fractionLength(places))) }
     private func optional(_ value: Double?) -> String { value.map { number($0, places: 1) } ?? "—" }

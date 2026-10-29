@@ -18,10 +18,10 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     var body: some View {
         ViewThatFits(in: .horizontal) {
             HStack(alignment: .top, spacing: 24) {
-                controls.frame(minWidth: 300, idealWidth: 320, maxWidth: .infinity)
+                ProductSurface { controls }.frame(minWidth: 300, idealWidth: 340, maxWidth: .infinity)
                 preview.frame(width: 360)
             }
-            VStack(alignment: .leading, spacing: 20) { controls; preview.frame(width: 360) }
+            VStack(alignment: .leading, spacing: 20) { ProductSurface { controls }; preview.frame(width: 360) }
         }
     }
     private var controls: some View {

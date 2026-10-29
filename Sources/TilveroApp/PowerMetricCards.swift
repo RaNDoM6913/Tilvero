@@ -112,36 +112,36 @@ enum PowerMetricHistory {
         }
     }
     var body: some View {
-        GroupBox(L10n.text("Power observations")) {
-            VStack(alignment: .leading, spacing: 14) {
-                if availableSummaries.isEmpty {
+        VStack(alignment: .leading, spacing: 16) {
+            if availableSummaries.isEmpty {
+                ProductSurface(title: "Recorded observations", symbol: "chart.xyaxis.line") {
                     Label(L10n.text("No recorded measurements yet"), systemImage: "chart.xyaxis.line")
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
-                ForEach(availableSummaries, id: \.0.id) { reading, summary in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(L10n.language == "ru" ? reading.titleRussian : reading.titleEnglish).font(.subheadline)
-                            HStack(alignment: .top, spacing: 16) {
-                                statistic("Minimum", summary.minimum, reading)
-                                statistic("Observation mean", summary.mean, reading)
-                                statistic("Maximum", summary.maximum, reading)
-                            }
-                            if reading.id != "039" && reading.id != "026" {
-                                MetricSparkline(model: model, id: reading.id, color: .orange)
-                            }
-                            Text(L10n.text("Observations") + ": \(summary.count)").font(.caption2).foregroundStyle(.secondary)
-                        }
+            }
+            ForEach(availableSummaries, id: \.0.id) { reading, summary in
+                ProductSurface {
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        Text(L10n.language == "ru" ? reading.titleRussian : reading.titleEnglish).font(.headline)
+                        Spacer(minLength: 8)
+                        Text(L10n.text("Observations") + ": \(summary.count)").font(.caption).foregroundStyle(.secondary)
+                    }
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 135), alignment: .topLeading)], alignment: .leading, spacing: 14) {
+                        statistic("Minimum", summary.minimum, reading)
+                        statistic("Observation mean", summary.mean, reading)
+                        statistic("Maximum", summary.maximum, reading)
+                    }
+                    if reading.id != "039" && reading.id != "026" {
+                        MetricSparkline(model: model, id: reading.id, color: .accentColor)
+                    }
                 }
-                Text(L10n.text("Statistics use the latest comparable continuous segment within the last hour. Means describe recorded observations; unknown sensor timing is not upgraded to measured energy."))
-                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            }.padding(10).frame(maxWidth: .infinity, alignment: .leading)
+            }
+            Text(L10n.text("Statistics use the latest comparable continuous segment within the last hour. Means describe recorded observations; unknown sensor timing is not upgraded to measured energy."))
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
     }
     private func statistic(_ title: String, _ value: Double, _ reading: CatalogReading) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(L10n.text(title)).font(.caption2).foregroundStyle(.secondary)
-            Text(format(value, reading)).font(.subheadline).monospacedDigit()
-        }.frame(maxWidth: .infinity, alignment: .leading)
+        ProductMetric(title: title, value: format(value, reading))
     }
     private func format(_ value: Double, _ reading: CatalogReading) -> String {
         let fahrenheit = model.fahrenheit && reading.unit == "°C"

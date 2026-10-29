@@ -16,6 +16,16 @@ import PowerCore
         XCTAssertEqual(CatalogDataGroup.filtered(rows, search: "номинальная", showUnavailable: false).map(\.id), ["113", "115"])
     }
 
+    func testWhitespaceSearchBehavesLikeEmptyAndTrimmedQueryRetainsUnavailableMatches() {
+        let available = CatalogReading(definition: BatteryCatalog.definition("038"), value: .decimal(-8.4), source: "fixture")
+        let unavailable = BatteryCatalog.unavailable().first { $0.id == "115" }!
+        let rows = [available, unavailable]
+        XCTAssertEqual(CatalogDataGroup.filtered(rows, search: " ", showUnavailable: false).map(\.id), ["038"])
+        XCTAssertEqual(CatalogDataGroup.filtered(rows, search: " \n\t ", showUnavailable: false).map(\.id), ["038"])
+        XCTAssertEqual(CatalogDataGroup.filtered(rows, search: "", showUnavailable: false).map(\.id), ["038"])
+        XCTAssertEqual(CatalogDataGroup.filtered(rows, search: " \n115\t ", showUnavailable: false).map(\.id), ["115"])
+    }
+
     func testDisplayPreservesExactIntegerAndQualifiesDerivedAndPrivateValues() {
         let counter = CatalogReading(definition: BatteryCatalog.definition("110"), value: .integer(9_007_199_254_740_993), source: "fixture")
         let shown = CatalogDataPresentation.value(counter, reveal: false, fahrenheit: false)

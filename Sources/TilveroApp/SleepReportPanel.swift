@@ -12,25 +12,34 @@ struct SleepReportPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text(L10n.text("Sleep reports start with the next sleep observed while Tilvero is running. Previous nights are not reconstructed."))
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            ProductIntro(title: "Sleep & drain",
+                         subtitle: "Sleep reports start with the next sleep observed while Tilvero is running. Previous nights are not reconstructed.",
+                         symbol: "moon.zzz", artwork: EnergyArtwork.rest)
             if model.isDemo {
-                Label(L10n.text("Sleep reports are not collected in Simulation."), systemImage: "testtube.2")
+                ProductSurface {
+                    Label(L10n.text("Sleep reports are not collected in Simulation."), systemImage: "testtube.2")
+                }
             } else {
-                if !model.historyEnabled { Label(L10n.text("History is off. New sleep intervals are not recorded."), systemImage: "pause.circle") }
-                if let error = model.sleepReportError { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange) }
+                if !model.historyEnabled {
+                    Label(L10n.text("History is off. New sleep intervals are not recorded."), systemImage: "pause.circle")
+                        .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                if let error = model.sleepReportError {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                }
                 if let record = selected {
-                    Picker(L10n.text("Observed interval"), selection: Binding(get: { record.id }, set: { selectedID = $0 })) {
-                        ForEach(records) { row in Text(date(row.observedAt)).tag(row.id) }
-                    }.frame(maxWidth: 420)
-                    interval(record)
+                    ProductSurface {
+                        ProductSectionHeading(title: "Observed interval")
+                        Picker(L10n.text("Observed interval"), selection: Binding(get: { record.id }, set: { selectedID = $0 })) {
+                            ForEach(records) { row in Text(date(row.observedAt)).tag(row.id) }
+                        }.labelsHidden().frame(maxWidth: 420, alignment: .leading)
+                        interval(record)
+                    }
                 } else if model.sleepReportError == nil {
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Label(L10n.text("No observed sleep intervals yet"), systemImage: "moon.zzz").font(.headline)
-                            Text(L10n.text("After a normal sleep and wake, this section will show the available before/after readings. Keep history enabled."))
-                                .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                        }.frame(maxWidth: .infinity, alignment: .leading).padding(10)
+                    ProductSurface(title: "No observed sleep intervals yet", symbol: "moon.zzz") {
+                        Text(L10n.text("After a normal sleep and wake, this section will show the available before/after readings. Keep history enabled."))
+                            .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 currentAssertions
@@ -41,95 +50,117 @@ struct SleepReportPanel: View {
     }
 
     private func interval(_ record: SleepSessionRecord) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 16) {
-                metric("Charge change", record.chargeChangePercentagePoints.map(change) ?? "—")
-                metric("Observed interval", record.notificationIntervalSeconds.map(duration) ?? "—")
-                metric("Status", L10n.text(phase(record.phase)))
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .top, spacing: 20) {
+                ProductMetric(title: "Charge change", value: record.chargeChangePercentagePoints.map(change) ?? "—")
+                ProductMetric(title: "Observed interval", value: record.notificationIntervalSeconds.map(duration) ?? "—")
             }
-            GroupBox(L10n.text("Battery observations")) {
-                VStack(alignment: .leading, spacing: 8) {
-                    endpoint("Before sleep", record.before, boundary: record.sleepBoundary, before: true)
-                    endpoint("After wake", record.after, boundary: record.wakeBoundary, before: false)
-                    Text(L10n.text(power(record.powerEvidence))).font(.caption).foregroundStyle(.secondary)
-                    Text(L10n.text("Power changes between observations are unknown. A zero percentage change does not mean zero energy use."))
-                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                }.frame(maxWidth: .infinity, alignment: .leading).padding(10)
+            Label(L10n.text(phase(record.phase)), systemImage: record.phase == .closed ? "checkmark.circle" : "clock")
+                .font(.callout).foregroundStyle(.secondary)
+            Divider()
+            ProductSectionHeading(title: "Battery observations")
+            HStack(alignment: .top, spacing: 24) {
+                endpoint("Before sleep", record.before)
+                endpoint("After wake", record.after)
             }
+            Text(L10n.text(power(record.powerEvidence)))
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Text(L10n.text("Power changes between observations are unknown. A zero percentage change does not mean zero energy use."))
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            DisclosureGroup(L10n.text("Observation details")) {
+                VStack(alignment: .leading, spacing: 16) {
+                    endpointDetails("Before sleep", record.before, boundary: record.sleepBoundary, before: true)
+                    Divider()
+                    endpointDetails("After wake", record.after, boundary: record.wakeBoundary, before: false)
+                }.padding(.top, 10)
+            }.font(.callout)
             if !record.issues.isEmpty {
-                VStack(alignment: .leading, spacing: 5) {
+                Divider()
+                VStack(alignment: .leading, spacing: 8) {
                     ForEach(record.issues, id: \.self) { issue in
-                        Label(L10n.text(issueText(issue)), systemImage: "info.circle").font(.caption).foregroundStyle(.secondary)
+                        Label(L10n.text(issueText(issue)), systemImage: "info.circle")
+                            .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
         }
     }
-    private func metric(_ title: String, _ value: String) -> some View {
+
+    private func endpoint(_ title: String, _ value: SleepBatteryEndpoint?) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(L10n.text(title)).font(.caption).foregroundStyle(.secondary)
-            Text(value).font(.title3.weight(.semibold)).textSelection(.enabled)
-        }.frame(maxWidth: .infinity, alignment: .leading)
-    }
-    private func endpoint(_ title: String, _ value: SleepBatteryEndpoint?, boundary: SleepObservationStamp?, before: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-        HStack(alignment: .firstTextBaseline) {
-            Text(L10n.text(title))
-            Spacer()
+            Text(value.map { $0.chargePercent.formatted(.number.precision(.fractionLength(0...1))) + "%" } ?? L10n.text("Unavailable"))
+                .font(.title2.weight(.medium)).monospacedDigit().textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
             if let value {
-                Text("\(value.chargePercent.formatted(.number.precision(.fractionLength(0...1))))% · \(date(value.collectedAt))")
-                    .monospacedDigit().textSelection(.enabled)
-            } else { Text(L10n.text("Unavailable")).foregroundStyle(.secondary) }
-        }
-        if let sampled = value?.sourceSampleAt {
-            Text("\(L10n.text("Source measurement time")): \(date(sampled))").font(.caption).foregroundStyle(.secondary)
-        }
-        if let boundary {
-            Text("\(L10n.text(before ? "Sleep notification" : "Wake notification")): \(date(boundary.wallDate))")
-                .font(.caption).foregroundStyle(.secondary)
-            if let value, let delay = SleepEndpointTiming.seconds(value, boundary: boundary, before: before) {
-                Text("\(L10n.text(before ? "Reading before notification" : "Reading after notification")): \(delay.formatted(.number.precision(.fractionLength(0)))) \(L10n.text("seconds"))")
-                    .font(.caption).foregroundStyle(.secondary)
-            } else { Text(L10n.text("Reading delay unavailable")).font(.caption).foregroundStyle(.secondary) }
-        }
-        }
+                Text(date(value.collectedAt)).font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+            }
+        }.frame(maxWidth: .infinity, alignment: .leading).accessibilityElement(children: .combine)
     }
+
+    private func endpointDetails(_ title: String, _ value: SleepBatteryEndpoint?, boundary: SleepObservationStamp?, before: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(L10n.text(title)).font(.subheadline.weight(.medium))
+            if let sampled = value?.sourceSampleAt {
+                Text("\(L10n.text("Source measurement time")): \(date(sampled))")
+            }
+            if let boundary {
+                Text("\(L10n.text(before ? "Sleep notification" : "Wake notification")): \(date(boundary.wallDate))")
+                if let value, let delay = SleepEndpointTiming.seconds(value, boundary: boundary, before: before) {
+                    Text("\(L10n.text(before ? "Reading before notification" : "Reading after notification")): \(delay.formatted(.number.precision(.fractionLength(0)))) \(L10n.text("seconds"))")
+                } else { Text(L10n.text("Reading delay unavailable")) }
+            } else {
+                Text(L10n.text("Unavailable"))
+            }
+        }.font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            .textSelection(.enabled)
+    }
+
     private var currentAssertions: some View {
-        GroupBox(L10n.text("Current sleep blockers")) {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Text(L10n.text("Current observations do not explain past sleep intervals.")).font(.caption).foregroundStyle(.secondary)
-                    Spacer()
-                    Button(L10n.text("Refresh")) { Task { await model.refreshSleepActivity() } }
-                        .disabled(model.isReadingSleepActivity)
-                }
-                if model.isReadingSleepActivity { ProgressView().controlSize(.small) }
-                if let activity = model.sleepActivity {
-                    if activity.aggregateAvailability == .available {
-                        if activity.activeTypes.isEmpty { Text(L10n.text("No active sleep-prevention types observed.")) }
-                        else {
+        ProductSurface(title: "Current sleep blockers", symbol: "moon.circle") {
+            HStack(alignment: .top, spacing: 16) {
+                Text(L10n.text("Current observations do not explain past sleep intervals."))
+                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                Button(L10n.text("Refresh")) { Task { await model.refreshSleepActivity() } }
+                    .disabled(model.isReadingSleepActivity)
+            }
+            if model.isReadingSleepActivity { ProgressView().controlSize(.small) }
+            if let activity = model.sleepActivity {
+                if activity.aggregateAvailability == .available {
+                    if activity.activeTypes.isEmpty { Text(L10n.text("No active sleep-prevention types observed.")) }
+                    else {
+                        VStack(alignment: .leading, spacing: 8) {
                             ForEach(activity.activeTypes, id: \.self) { type in
                                 Label(L10n.text(assertion(type)), systemImage: "info.circle")
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                         }
-                    } else { Text(L10n.text("Aggregate sleep-prevention status is unavailable.")).foregroundStyle(.secondary) }
-                    Divider()
-                    if activity.processAvailability == .available {
-                        if activity.rows.isEmpty { Text(L10n.text("No active process assertions observed.")) }
-                        ForEach(Array(activity.rows.prefix(20))) { row in
-                            HStack {
-                                Text(row.processName ?? row.processID.map { "\(L10n.text("Process")) \($0)" } ?? L10n.text("Process name unavailable"))
-                                Spacer()
-                                Text(L10n.text(assertion(row.type))).foregroundStyle(.secondary)
-                            }.font(.caption)
+                    }
+                } else { Text(L10n.text("Aggregate sleep-prevention status is unavailable.")).foregroundStyle(.secondary) }
+                Divider()
+                if activity.processAvailability == .available {
+                    if activity.rows.isEmpty { Text(L10n.text("No active process assertions observed.")) }
+                    else {
+                        DisclosureGroup(L10n.text("Process assertions")) {
+                            VStack(alignment: .leading, spacing: 12) {
+                                ForEach(Array(activity.rows.prefix(20))) { row in
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(row.processName ?? row.processID.map { "\(L10n.text("Process")) \($0)" } ?? L10n.text("Process name unavailable"))
+                                            .font(.callout)
+                                        Text(L10n.text(assertion(row.type))).font(.caption).foregroundStyle(.secondary)
+                                    }.fixedSize(horizontal: false, vertical: true).accessibilityElement(children: .combine)
+                                }
+                                if activity.rows.count > 20 { Text(L10n.text("Showing the first 20 current assertions.")).font(.caption).foregroundStyle(.secondary) }
+                            }.padding(.top, 10).frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        if activity.rows.count > 20 { Text(L10n.text("Showing the first 20 current assertions.")).font(.caption) }
-                    } else { Text(L10n.text("Per-process sleep-prevention status is unavailable.")).foregroundStyle(.secondary) }
-                    Text("\(L10n.text("Observed")): \(date(activity.collectedAt))").font(.caption2).foregroundStyle(.secondary)
-                } else if !model.isReadingSleepActivity { Text(L10n.text("Not collected yet")).foregroundStyle(.secondary) }
-                Text(L10n.text("Process observations stay in memory. Names, paths and assertion descriptions are not written to sleep history."))
-                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            }.frame(maxWidth: .infinity, alignment: .leading).padding(10)
+                    }
+                } else { Text(L10n.text("Per-process sleep-prevention status is unavailable.")).foregroundStyle(.secondary) }
+                Text("\(L10n.text("Observed")): \(date(activity.collectedAt))").font(.caption).foregroundStyle(.secondary)
+            } else if !model.isReadingSleepActivity { Text(L10n.text("Not collected yet")).foregroundStyle(.secondary) }
+            Text(L10n.text("Process observations stay in memory. Names, paths and assertion descriptions are not written to sleep history."))
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
     }
     private func date(_ value: Date?) -> String {

@@ -5,7 +5,7 @@ import KeyboardBackends
 @MainActor struct KeyboardBacklightPanel: View {
     @ObservedObject var service: KeyboardBacklightService
     var body: some View {
-        GroupBox {
+        ProductSurface {
             VStack(alignment: .leading, spacing: 9) {
                 HStack {
                     Label(L10n.text("Keyboard backlight"), systemImage: "keyboard")
@@ -49,7 +49,7 @@ import KeyboardBackends
                 }
                 Text(L10n.text("Turning on restores the last nonzero brightness; without a previous reading it requests 25%."))
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            }.padding(10).frame(maxWidth: .infinity, alignment: .leading)
+            }.frame(maxWidth: .infinity, alignment: .leading)
         }
         .task { await service.refresh() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
