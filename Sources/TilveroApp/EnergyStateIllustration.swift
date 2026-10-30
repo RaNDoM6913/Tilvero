@@ -15,6 +15,7 @@ import PowerCore
     static let image = load("BatteryAssembly")
     static let adapter = load("AdapterIllustration")
     static let mac = load("MacIllustration")
+    static let overviewMac = load("OverviewMacIllustration")
     static let rest = load("RestIllustration")
 }
 

@@ -9424,6 +9424,470 @@
           }
         }
       }
+    },
+    "Reading details": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading details"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сведения о показании"
+          }
+        }
+      }
+    },
+    "Technical details": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Technical details"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Технические сведения"
+          }
+        }
+      }
+    },
+    "Value": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Value"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Значение"
+          }
+        }
+      }
+    },
+    "Reason": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reason"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Причина"
+          }
+        }
+      }
+    },
+    "Done": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Готово"
+          }
+        }
+      }
+    },
+    "Sample age (seconds)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sample age (seconds)"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Возраст измерения (секунды)"
+          }
+        }
+      }
+    },
+    "values": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "values"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "значений"
+          }
+        }
+      }
+    },
+    "properties": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "properties"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "свойств"
+          }
+        }
+      }
+    },
+    "The charge level reported by macOS.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The charge level reported by macOS."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Уровень заряда по данным macOS."
+          }
+        }
+      }
+    },
+    "The maximum-capacity assessment reported by macOS.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The maximum-capacity assessment reported by macOS."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оценка максимальной ёмкости по данным macOS."
+          }
+        }
+      }
+    },
+    "Full-charge capacity compared with design capacity. Calculated separately from the macOS health assessment.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Full-charge capacity relative to design capacity; separate from macOS health."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ёмкость полного заряда относительно проектной. Это отдельный расчёт, а не оценка macOS."
+          }
+        }
+      }
+    },
+    "The accumulated battery cycle count reported by the source.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The accumulated battery cycle count reported by the source."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Накопленное число циклов батареи по данным источника."
+          }
+        }
+      }
+    },
+    "The design charge capacity reported for the battery.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The design charge capacity reported for the battery."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проектная зарядная ёмкость по данным батареи."
+          }
+        }
+      }
+    },
+    "The reported charge capacity of the battery when full.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The reported charge capacity of the battery when full."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Зарядная ёмкость полностью заряженной батареи по данным источника."
+          }
+        }
+      }
+    },
+    "The reported charge capacity currently remaining in the battery.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The reported charge capacity currently remaining in the battery."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оставшаяся зарядная ёмкость батареи по данным источника."
+          }
+        }
+      }
+    },
+    "The electrical voltage reported for the battery pack.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The electrical voltage reported for the battery pack."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Напряжение батареи по данным источника."
+          }
+        }
+      }
+    },
+    "Approximate battery power calculated from voltage and current.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Approximate battery power calculated from voltage and current."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Приблизительная мощность батареи, рассчитанная по напряжению и току."
+          }
+        }
+      }
+    },
+    "The temperature reading reported for the battery.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The temperature reading reported for the battery."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показание температуры батареи по данным источника."
+          }
+        }
+      }
+    },
+    "The difference between the highest and lowest reported cell voltages.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The difference between the highest and lowest reported cell voltages."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разница между наибольшим и наименьшим напряжением ячеек по данным источника."
+          }
+        }
+      }
+    },
+    "The adapter's reported power capability, which can differ from current power use.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The adapter's reported power capability, which can differ from current power use."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Заявленная мощность адаптера может отличаться от текущего потребления."
+          }
+        }
+      }
+    },
+    "The input-power reading reported by the battery subsystem.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The input-power reading reported by the battery subsystem."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показание входной мощности по данным подсистемы батареи."
+          }
+        }
+      }
+    },
+    "A time estimate that can change with activity and charging conditions.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A time estimate that can change with activity and charging conditions."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Прогноз времени может меняться в зависимости от нагрузки и условий зарядки."
+          }
+        }
+      }
+    },
+    "Availability depends on the data reported for this Mac.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Availability depends on the data reported for this Mac."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Доступность показания зависит от данных, которые сообщает этот Mac."
+          }
+        }
+      }
+    },
+    "Every catalog field remains available here. Use the info button for an explanation and technical details.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Every catalog field remains available here. Use the info button for an explanation and technical details."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Здесь доступны все поля каталога. Кнопка сведений открывает пояснение и технические данные."
+          }
+        }
+      }
+    },
+    "Charge over 24 hours": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charge over 24 hours"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Заряд за сутки"
+          }
+        }
+      }
+    },
+    "Open history": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open history"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть историю"
+          }
+        }
+      }
+    },
+    "Recorded charge over the last 24 hours. Missing observations remain gaps.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recorded charge over the last 24 hours. Missing observations remain gaps."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Записанный заряд за последние сутки. Пропущенные наблюдения остаются пробелами."
+          }
+        }
+      }
+    },
+    "macOS manages this setting independently of Tilvero.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS manages this setting independently of Tilvero."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Этой настройкой macOS управляет независимо от Tilvero."
+          }
+        }
+      }
+    },
+    "Details": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Details"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подробнее"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

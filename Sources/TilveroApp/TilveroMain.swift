@@ -357,6 +357,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
             let controller = NSHostingController(rootView: BatteryInfoView(model: model))
             let window = NSWindow(contentViewController: controller)
             window.title = AppIdentity.displayName
+            window.appearance = NSAppearance(named: .aqua)
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             window.setContentSize(NSSize(width: 940, height: 680))
             window.minSize = NSSize(width: 760, height: 540)

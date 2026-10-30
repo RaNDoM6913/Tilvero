@@ -39,7 +39,7 @@ let package = Package(
             dependencies: ["PowerCore", "PowerTelemetry", "PowerPersistence", "PowerDiagnostics", "PowerSimulator", "PowerPrivileged", "ChargeBackends", "FanBackends", "KeyboardBackends"],
             resources: [.copy("Resources/Localizable.xcstrings"), .copy("Resources/BatteryAssembly.png"),
                         .copy("Resources/AdapterIllustration.png"), .copy("Resources/MacIllustration.png"),
-                        .copy("Resources/RestIllustration.png")],
+                        .copy("Resources/RestIllustration.png"), .copy("Resources/OverviewMacIllustration.png")],
             linkerSettings: [
                 .linkedFramework("AppKit", .when(platforms: [.macOS])),
                 .linkedFramework("SwiftUI", .when(platforms: [.macOS]))

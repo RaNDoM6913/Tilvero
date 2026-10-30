@@ -93,7 +93,7 @@ struct BatteryInfoView: View {
                         Button { Task { await model.refresh(); if model.selectedSection == .sleep { await model.refreshSleepActivity() } } } label: { Label(L10n.text("Refresh"), systemImage: "arrow.clockwise") }
                     }
                     if model.keepAwake.hasOwnedAssertion { KeepAwakeActivePanel(service: model.keepAwake) }
-                    if [.overview, .battery, .charging, .cooling, .diagnostics].contains(model.selectedSection) {
+                    if [.battery, .charging, .cooling, .diagnostics].contains(model.selectedSection) {
                         ViewThatFits(in: .horizontal) {
                             HStack(spacing: 16) {
                                 measurementSearch.frame(minWidth: 150)
@@ -105,12 +105,14 @@ struct BatteryInfoView: View {
                             }
                         }.font(.subheadline)
                     }
-                    if !query.isEmpty && [.overview, .battery, .charging, .cooling, .diagnostics].contains(model.selectedSection) { catalogRows(model.snapshot.catalog) }
+                    if !query.isEmpty && [.battery, .charging, .cooling, .diagnostics].contains(model.selectedSection) { catalogRows(model.snapshot.catalog) }
                     else { sectionContent }
                     if let error = model.storeError { Label(L10n.text("Data store error") + ": " + error, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange) }
                     if let notice = model.notice { Text(notice).font(.caption).foregroundStyle(.secondary) }
-                    Text("\(L10n.text("Last collection")): \(model.snapshot.collectedAt.formatted(.dateTime.locale(L10n.locale)))")
-                        .font(.caption).foregroundStyle(.secondary)
+                    if model.selectedSection != .overview {
+                        Text("\(L10n.text("Last collection")): \(model.snapshot.collectedAt.formatted(.dateTime.locale(L10n.locale)))")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                 }.padding(24).frame(maxWidth: 1080, alignment: .leading).frame(maxWidth: .infinity, alignment: .topLeading)
             }.background(Color(nsColor: .windowBackgroundColor)).id(model.selectedSection)
         }.frame(minWidth: 760, minHeight: 540)
@@ -166,14 +168,7 @@ struct BatteryInfoView: View {
     @ViewBuilder private var sectionContent: some View {
         switch model.selectedSection {
         case .overview:
-            overview
-            DataReadingSection(title: "Battery & system", readings: CatalogDataGroup.filtered(readings(["023", "024", "027", "026", "039", "044"]), search: query, showUnavailable: showUnavailable), fahrenheit: model.fahrenheit)
-            Text(L10n.text("Capacity retention is calculated separately from the macOS health assessment.")).font(.caption).foregroundStyle(.secondary)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), alignment: .leading)], alignment: .leading, spacing: 12) {
-                overviewLink(.battery, detail: "Capacity, cells and source details")
-                overviewLink(.charging, detail: "Adapter and energy flow")
-                overviewLink(.history, detail: "Recorded measurements and gaps")
-            }
+            OverviewDashboard(model: model)
             if model.isDemo { SimulationPanel(model: model) }
         case .activity:
             ProcessActivityPanel(model: model)
@@ -227,45 +222,6 @@ struct BatteryInfoView: View {
             }
         case .settings: SettingsPanel(model: model)
         }
-    }
-    private var overview: some View {
-        ProductSurface {
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 24) { macIllustration; overviewCharge }
-                VStack(alignment: .leading, spacing: 18) { macIllustration.frame(maxWidth: .infinity); overviewCharge }
-            }
-        }
-    }
-    private var macIllustration: some View {
-        Group {
-            if let artwork = EnergyArtwork.mac {
-                Image(nsImage: artwork).resizable().interpolation(.high).scaledToFit().frame(width: 250, height: 175)
-            } else { Image(systemName: "laptopcomputer").font(.system(size: 72, weight: .ultraLight)).frame(width: 250, height: 175) }
-        }.accessibilityHidden(true)
-    }
-    private var overviewCharge: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(model.chargeText).font(.system(size: 46, weight: .medium, design: .rounded)).monospacedDigit()
-            Text(model.chargingStateText).font(.callout).foregroundStyle(.secondary)
-            if model.snapshot.chargePercent.freshness == .stale { Label(L10n.text("Stale"), systemImage: "clock").font(.caption).foregroundStyle(.orange) }
-            if model.snapshot.chargePercent.freshness == .unknown { Text(L10n.text("Freshness unknown")).font(.caption).foregroundStyle(.secondary) }
-            Text(L10n.text("Source") + ": " + model.snapshot.chargePercent.source).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
-            Text(L10n.text("Device illustrations are schematic.")).font(.caption2).foregroundStyle(.secondary)
-        }.frame(minWidth: 180, maxWidth: .infinity, alignment: .leading).fixedSize(horizontal: false, vertical: true)
-    }
-    private func overviewLink(_ section: InfoSection, detail: String) -> some View {
-        Button { model.selectedSection = section } label: {
-            HStack(alignment: .top, spacing: 10) {
-                Image(systemName: section.symbol).foregroundStyle(Color.accentColor).frame(width: 22)
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(section.title).font(.subheadline.weight(.medium))
-                    Text(L10n.text(detail)).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary)
-            }.frame(maxWidth: .infinity, alignment: .leading).padding(14)
-                .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
-        }.buttonStyle(.plain)
     }
     private var diagnosticExport: some View { Button(L10n.text("Export diagnostics…")) { model.prepareExport(diagnostics: true) } }
     private var diagnosticInventory: some View { Button(L10n.text("Read property inventory")) { model.inspectRawProperties() } }

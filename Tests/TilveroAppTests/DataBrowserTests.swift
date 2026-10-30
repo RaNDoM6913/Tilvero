@@ -52,6 +52,103 @@ import PowerCore
         XCTAssertEqual(CatalogDataGroup.filtered([stale, missing], search: "", showUnavailable: true).count, 2)
     }
 
+    func testEverydayQualityKeepsIndependentFreshnessDerivationAndAvailability() {
+        let unknown = CatalogReading(definition: BatteryCatalog.definition("026"), value: .decimal(94.2),
+                                     source: "fixture", provenance: .inferred, freshness: .unknown)
+        XCTAssertEqual(CatalogDataPresentation.qualifications(unknown), [L10n.text("Freshness unknown"), L10n.text("Inferred")])
+        let stale = CatalogReading(definition: BatteryCatalog.definition("026"), value: .decimal(94.2),
+                                   source: "fixture", provenance: .estimated, availability: .temporarilyUnavailable, freshness: .stale)
+        XCTAssertEqual(CatalogDataPresentation.qualifications(stale),
+                       [L10n.text("temporarilyUnavailable"), L10n.text("Stale"), L10n.text("Estimate")])
+        let denied = CatalogReading(definition: BatteryCatalog.definition("026"), source: "fixture", availability: .requiresPermission)
+        XCTAssertEqual(CatalogDataPresentation.qualifications(denied), [L10n.text("requiresPermission")])
+        XCTAssertEqual(CatalogDataPresentation.conciseValue(stale, reveal: false, fahrenheit: false),
+                       CatalogDataPresentation.value(stale, reveal: false, fahrenheit: false))
+    }
+
+    func testConciseInfoAndTechnicalDetailsUseTheSameExplicitPrivacyBoundary() {
+        let reading = CatalogReading(definition: BatteryCatalog.definition("059"),
+                                     value: .text("PRIVATE-VALUE-SENTINEL"), rawValue: .text("PRIVATE-RAW-SENTINEL"),
+                                     source: "TECHNICAL-SOURCE-SENTINEL", keyPath: "TECHNICAL-PATH-SENTINEL",
+                                     freshness: .fresh, reason: "TECHNICAL-REASON-SENTINEL")
+        let hidden = ReadingInfoPresentation(reading: reading)
+        // These are exactly the data consumed by the concise popover's Text views.
+        let concise = ([hidden.title, hidden.value, hidden.explanation] + hidden.qualifications + [hidden.sourceDate?.value].compactMap { $0 }).joined(separator: " ")
+        for sentinel in ["PRIVATE-VALUE-SENTINEL", "PRIVATE-RAW-SENTINEL", "TECHNICAL-SOURCE-SENTINEL", "TECHNICAL-PATH-SENTINEL", "TECHNICAL-REASON-SENTINEL"] {
+            XCTAssertFalse(concise.contains(sentinel))
+        }
+        XCTAssertEqual(hidden.value, "••••••")
+        XCTAssertNil(hidden.sourceDate, "Collection time must not be presented as a source measurement time")
+        XCTAssertFalse(hidden.technicalFields.map(\.value).joined().contains("PRIVATE-VALUE-SENTINEL"))
+        XCTAssertFalse(hidden.technicalFields.map(\.value).joined().contains("PRIVATE-RAW-SENTINEL"))
+        let revealed = ReadingInfoPresentation(reading: reading, reveal: true)
+        XCTAssertEqual(revealed.value, "PRIVATE-VALUE-SENTINEL")
+        XCTAssertTrue(revealed.technicalFields.map(\.value).contains("PRIVATE-RAW-SENTINEL"))
+        XCTAssertTrue(revealed.technicalFields.map(\.value).contains("TECHNICAL-PATH-SENTINEL"))
+        XCTAssertTrue(revealed.technicalFields.map(\.value).contains("TECHNICAL-REASON-SENTINEL"))
+    }
+
+    func testConciseSourceDateIsReservedForStaleDataWhileTechnicalDateStaysComplete() {
+        let sample = Date(timeIntervalSince1970: 1_700_000_000)
+        let fresh = CatalogReading(definition: BatteryCatalog.definition("039"), value: .decimal(30),
+                                   source: "fixture", sourceSampleAt: sample, freshness: .fresh)
+        let old = CatalogReading(definition: BatteryCatalog.definition("039"), value: .decimal(30),
+                                 source: "fixture", sourceSampleAt: sample, freshness: .stale)
+        XCTAssertNil(ReadingInfoPresentation(reading: fresh).sourceDate)
+        XCTAssertNotNil(ReadingInfoPresentation(reading: old).sourceDate)
+        XCTAssertTrue(ReadingInfoPresentation(reading: fresh).technicalFields.contains { $0.label == L10n.text("Source sample") && $0.value == "2023-11-14T22:13:20.000Z" })
+    }
+
+    func testCompleteTechnicalProjectionRetainsExactCountersMetadataAndCompositeContents() {
+        let sample = Date(timeIntervalSince1970: 1_700_000_000.125)
+        let reading = CatalogReading(definition: BatteryCatalog.definition("110"),
+                                     value: .integer(9_007_199_254_740_993), rawValue: .integer(9_007_199_254_740_993),
+                                     source: "source-sentinel", keyPath: "path-sentinel", collectedAt: sample.addingTimeInterval(5),
+                                     sourceSampleAt: sample, monotonicAgeSeconds: 5, provenance: .recorded,
+                                     freshness: .stale, reason: "reason-sentinel")
+        let info = ReadingInfoPresentation(reading: reading)
+        XCTAssertEqual(info.value.filter(\.isNumber), "9007199254740993")
+        func field(_ name: String) -> String? { info.technicalFields.first { $0.label == L10n.text(name) }?.value }
+        XCTAssertEqual(field("Raw value"), "9007199254740993")
+        XCTAssertEqual(field("Source"), "source-sentinel")
+        XCTAssertEqual(field("Source path"), "path-sentinel")
+        XCTAssertEqual(field("Reason"), "reason-sentinel")
+        XCTAssertEqual(field("Availability"), L10n.text("available"))
+        XCTAssertEqual(field("Freshness"), L10n.text("stale"))
+        XCTAssertEqual(field("Provenance"), L10n.text("recorded"))
+        XCTAssertEqual(field("Collected"), "2023-11-14T22:13:25.125Z")
+        XCTAssertEqual(field("Source sample"), "2023-11-14T22:13:20.125Z")
+        XCTAssertEqual(field("Sample age (seconds)"), "5.0")
+        XCTAssertNotNil(info.sourceDate)
+        let composite = CatalogReading(definition: BatteryCatalog.definition("098"), value: .object(["counter": .integer(9_007_199_254_740_993)]),
+                                       source: "fixture", freshness: .fresh)
+        let grouped = ReadingInfoPresentation(reading: composite, reveal: true)
+        XCTAssertFalse(grouped.value.contains("9007199254740993"), "Composite diagnostics must not create an enormous default popover")
+        XCTAssertTrue(grouped.technicalFields.first { $0.label == L10n.text("Value") }?.value.contains("9007199254740993") == true)
+    }
+
+    func testConciseCellVoltagesKeepShortReadingsWhileLongNestedAndPrivateListsStayCompact() {
+        func reading(_ values: [CatalogValue], sensitive: Bool = false) -> CatalogReading {
+            CatalogReading(definition: BatteryCatalog.definition(sensitive ? "098" : "041"), value: .list(values),
+                           source: "fixture", provenance: .inferred, freshness: .fresh)
+        }
+        let cells = reading([.decimal(3.91), .decimal(3.92), .decimal(3.93)])
+        let shown = CatalogDataPresentation.conciseValue(cells, reveal: false, fahrenheit: false)
+        XCTAssertEqual(shown.filter(\.isNumber), "391392393", "Everyday Cells must retain each reported voltage")
+        XCTAssertTrue(shown.hasPrefix("≈ "), "Compact lists retain the inference qualification")
+        let long = reading(Array(repeating: .decimal(3.91), count: 12))
+        XCTAssertEqual(CatalogDataPresentation.conciseValue(long, reveal: false, fahrenheit: false), "12 " + L10n.text("values"))
+        let nested = reading([.list([.decimal(3.91)])])
+        XCTAssertEqual(CatalogDataPresentation.conciseValue(nested, reveal: false, fahrenheit: false), "1 " + L10n.text("values"))
+        let lengthy = reading([.text(String(repeating: "long payload ", count: 20))])
+        XCTAssertEqual(CatalogDataPresentation.conciseValue(lengthy, reveal: false, fahrenheit: false), "1 " + L10n.text("values"))
+        let privateList = reading([.text("PRIVATE-LIST-SENTINEL")], sensitive: true)
+        XCTAssertEqual(CatalogDataPresentation.conciseValue(privateList, reveal: false, fahrenheit: false), "••••••")
+        XCTAssertTrue(CatalogDataPresentation.conciseValue(privateList, reveal: true, fahrenheit: false).contains("PRIVATE-LIST-SENTINEL"))
+        let exact = reading([.integer(9_007_199_254_740_993)])
+        XCTAssertEqual(CatalogDataPresentation.conciseValue(exact, reveal: false, fahrenheit: false).filter(\.isNumber), "9007199254740993")
+    }
+
     func testDataTabsAndEveryPassivePreviewTabRenderWithoutMutatingActionsOrComposition() async throws {
         let suite = "TilveroDataUI-\(UUID())", prefs = UserDefaults(suiteName: suite)!
         defer { prefs.removePersistentDomain(forName: suite) }

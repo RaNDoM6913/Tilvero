@@ -91,43 +91,236 @@ enum CatalogDataPresentation {
     }
 }
 
+/// Only notable qualifications appear beside everyday values. They are independent:
+/// retaining an old estimate must not hide either its age or its derivation.
+extension CatalogDataPresentation {
+    static func qualifications(_ reading: CatalogReading) -> [String] {
+        var labels: [String] = []
+        if reading.availability != .available { labels.append(L10n.text(reading.availability.rawValue)) }
+        if reading.freshness == .stale { labels.append(L10n.text("Stale")) }
+        else if reading.value != nil && reading.freshness == .unknown { labels.append(L10n.text("Freshness unknown")) }
+        if [.estimated, .inferred].contains(reading.provenance) {
+            labels.append(L10n.text(reading.provenance == .inferred ? "Inferred" : "Estimate"))
+        }
+        return labels
+    }
+
+    static func conciseValue(_ reading: CatalogReading, reveal: Bool, fahrenheit: Bool) -> String {
+        // Apply the same reveal/availability boundary before inspecting composite values.
+        guard reading.privacy != .sensitive || reveal,
+              reading.availability == .available || reading.freshness == .stale,
+              let value = reading.value else {
+            return reading.value == nil ? L10n.text("Unavailable") : self.value(reading, reveal: reveal, fahrenheit: fahrenheit)
+        }
+        switch value {
+        case .list(let values):
+            // Preserve useful small readings such as the three reported cell
+            // voltages. Diagnostic payloads still require deliberate inspection.
+            if !values.isEmpty && values.count <= 6 {
+                let parts = values.compactMap { value -> String? in
+                    switch value {
+                    case .integer, .decimal, .boolean, .text, .date:
+                        let text = value.displayText
+                        return text.count <= 32 && text.rangeOfCharacter(from: .newlines) == nil ? text : nil
+                    case .list, .object: return nil
+                    }
+                }
+                if parts.count == values.count && parts.joined(separator: ", ").count <= 120 {
+                    return self.value(reading, reveal: reveal, fahrenheit: fahrenheit)
+                }
+            }
+            return "\(values.count) " + L10n.text("values")
+        case .object(let properties): return "\(properties.count) " + L10n.text("properties")
+        default: return self.value(reading, reveal: reveal, fahrenheit: fahrenheit)
+        }
+    }
+}
+
+struct ReadingDetailField: Identifiable {
+    let label: String
+    let value: String
+    var id: String { label }
+}
+
+/// The concise surface never consumes technical source strings or raw values.
+/// The complete projection remains available on the deliberately opened sheet.
+struct ReadingInfoPresentation {
+    let reading: CatalogReading
+    var reveal = false
+    var fahrenheit = false
+    var title: String { L10n.language == "ru" ? reading.titleRussian : reading.titleEnglish }
+    var qualifications: [String] { CatalogDataPresentation.qualifications(reading) }
+    var value: String { CatalogDataPresentation.conciseValue(reading, reveal: reveal, fahrenheit: fahrenheit) }
+    var explanation: String {
+        let key: String
+        switch reading.id {
+        case "011": key = "The charge level reported by macOS."
+        case "025": key = "The maximum-capacity assessment reported by macOS."
+        case "026": key = "Full-charge capacity compared with design capacity. Calculated separately from the macOS health assessment."
+        case "027": key = "The accumulated battery cycle count reported by the source."
+        case "029": key = "The design charge capacity reported for the battery."
+        case "030": key = "The reported charge capacity of the battery when full."
+        case "031": key = "The reported charge capacity currently remaining in the battery."
+        case "035": key = "The electrical voltage reported for the battery pack."
+        case "038": key = "Approximate battery power calculated from voltage and current."
+        case "039": key = "The temperature reading reported for the battery."
+        case "042": key = "The difference between the highest and lowest reported cell voltages."
+        case "050": key = "The adapter's reported power capability, which can differ from current power use."
+        case "054": key = "The input-power reading reported by the battery subsystem."
+        case "067", "068", "069", "070": key = "A time estimate that can change with activity and charging conditions."
+        default: key = "Availability depends on the data reported for this Mac."
+        }
+        return L10n.text(key)
+    }
+    var sourceDate: ReadingDetailField? {
+        guard reading.freshness == .stale, let date = reading.sourceSampleAt else { return nil }
+        return .init(label: L10n.text("Source sample"), value: date.formatted(.dateTime.locale(L10n.locale)))
+    }
+    var technicalFields: [ReadingDetailField] {
+        func field(_ label: String, _ value: String) -> ReadingDetailField { .init(label: L10n.text(label), value: value) }
+        var fields = [
+            field("Value", CatalogDataPresentation.value(reading, reveal: reveal, fahrenheit: fahrenheit)),
+            field("Source", reading.source), field("Source path", reading.keyPath),
+            field("Availability", L10n.text(reading.availability.rawValue)),
+            field("Freshness", L10n.text(reading.freshness.rawValue)),
+            field("Provenance", L10n.text(reading.provenance.rawValue)),
+            field("Collected", timestamp(reading.collectedAt)),
+            field("Source sample", reading.sourceSampleAt.map(timestamp) ?? L10n.text("No source timestamp"))
+        ]
+        if let age = reading.monotonicAgeSeconds { fields.append(field("Sample age (seconds)", String(age))) }
+        if let reason = reading.reason { fields.append(field("Reason", reason)) }
+        if let raw = CatalogDataPresentation.rawValue(reading, reveal: reveal) { fields.append(field("Raw value", raw)) }
+        return fields
+    }
+    private func timestamp(_ date: Date) -> String {
+        date.ISO8601Format(.init(includingFractionalSeconds: true))
+    }
+}
+
+/// Both presentations belong to this persistent button, rather than presenting a
+/// sheet from a popover subtree that disappears as the popover closes.
+@MainActor struct ReadingInfoButton: View {
+    let reading: CatalogReading
+    var reveal = false
+    var fahrenheit = false
+    @State private var showingInfo = false
+    @State private var showingTechnicalDetails = false
+    @State private var technicalDetailsRequested = false
+    @FocusState private var buttonFocused: Bool
+    private var presentation: ReadingInfoPresentation {
+        .init(reading: reading, reveal: reveal, fahrenheit: fahrenheit)
+    }
+    var body: some View {
+        Button { showingInfo = true } label: {
+            Image(systemName: "info.circle").font(.body).frame(width: 24, height: 24).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .focusable()
+        .focused($buttonFocused)
+        .onKeyPress(.space) { showingInfo = true; return .handled }
+        .onKeyPress(.return) { showingInfo = true; return .handled }
+        .accessibilityLabel(L10n.text("Reading details") + ": " + presentation.title)
+        .accessibilityIdentifier("reading-info-" + reading.id)
+        .help(L10n.text("Reading details"))
+        .popover(isPresented: $showingInfo, arrowEdge: .trailing) {
+            ReadingInfoPopover(presentation: presentation) {
+                technicalDetailsRequested = true
+                showingInfo = false
+            }
+        }
+        .onChange(of: showingInfo) { _, visible in
+            if !visible {
+                if technicalDetailsRequested {
+                    technicalDetailsRequested = false
+                    // Let the native popover complete dismissal before opening a sheet.
+                    Task { @MainActor in
+                        await Task.yield()
+                        showingTechnicalDetails = true
+                    }
+                } else { buttonFocused = true }
+            }
+        }
+        .sheet(isPresented: $showingTechnicalDetails, onDismiss: { buttonFocused = true }) {
+            ReadingTechnicalDetails(presentation: presentation)
+        }
+    }
+}
+
+@MainActor struct ReadingInfoPopover: View {
+    let presentation: ReadingInfoPresentation
+    let showTechnicalDetails: () -> Void
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(presentation.title).font(.headline).fixedSize(horizontal: false, vertical: true)
+            Text(presentation.value).font(.title2).monospacedDigit().textSelection(.enabled)
+                .lineLimit(3).fixedSize(horizontal: false, vertical: true)
+            Text(presentation.explanation).fixedSize(horizontal: false, vertical: true)
+            if !presentation.qualifications.isEmpty {
+                Text(presentation.qualifications.joined(separator: " · ")).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let date = presentation.sourceDate {
+                Text(date.label + ": " + date.value).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Divider()
+            Button(L10n.text("Technical details"), action: showTechnicalDetails)
+                .accessibilityIdentifier("reading-technical-" + presentation.reading.id)
+        }
+        .font(.body).padding(18).frame(width: 320, alignment: .leading)
+    }
+}
+
+@MainActor struct ReadingTechnicalDetails: View {
+    let presentation: ReadingInfoPresentation
+    @Environment(\.dismiss) private var dismiss
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(presentation.title).font(.title2).fixedSize(horizontal: false, vertical: true)
+            Text(L10n.text("Technical details")).font(.headline).foregroundStyle(.secondary)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    ForEach(presentation.technicalFields) { field in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(field.label).font(.headline)
+                            Text(field.value).frame(maxWidth: .infinity, alignment: .leading)
+                                .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                        }
+                    }
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(.trailing, 10)
+            }
+            HStack {
+                Spacer()
+                Button(L10n.text("Done")) { dismiss() }.keyboardShortcut(.defaultAction)
+            }
+        }.font(.body).padding(24).frame(width: 560, height: 560)
+            .onExitCommand { dismiss() }
+    }
+}
+
 @MainActor private struct CatalogDataRow: View {
     let reading: CatalogReading
     let reveal: Bool
     let fahrenheit: Bool
-    @State private var expanded = false
     var body: some View {
-        DisclosureGroup(isExpanded: $expanded) {
-            VStack(alignment: .leading, spacing: 5) {
-                detail("Source", reading.source)
-                detail("Source path", reading.keyPath)
-                detail("Availability", L10n.text(reading.availability.rawValue))
-                detail("Freshness", L10n.text(reading.freshness.rawValue))
-                detail("Provenance", L10n.text(reading.provenance.rawValue))
-                detail("Collected", reading.collectedAt.formatted(.dateTime.locale(L10n.locale)))
-                detail("Source sample", reading.sourceSampleAt.map { $0.formatted(.dateTime.locale(L10n.locale)) } ?? L10n.text("No source timestamp"))
-                if let reason = reading.reason { Text(reason).fixedSize(horizontal: false, vertical: true) }
-                if let raw = CatalogDataPresentation.rawValue(reading, reveal: reveal) { detail("Raw value", raw) }
-            }.font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 9)
-        } label: {
-            HStack(alignment: .firstTextBaseline, spacing: 16) {
-                Text(L10n.language == "ru" ? reading.titleRussian : reading.titleEnglish)
-                    .frame(maxWidth: .infinity, alignment: .leading).fixedSize(horizontal: false, vertical: true)
-                VStack(alignment: .trailing, spacing: 3) {
-                    Text(reading.value == nil ? L10n.text("Unavailable") : CatalogDataPresentation.value(reading, reveal: reveal, fahrenheit: fahrenheit))
-                        .monospacedDigit().textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
-                        .foregroundStyle(reading.value == nil ? Color.secondary : Color.primary)
-                    if reading.freshness == .stale { Text(L10n.text("Stale")).foregroundStyle(.orange).font(.caption2) }
-                    else if [.estimated, .inferred].contains(reading.provenance) {
-                        Text(L10n.text(reading.provenance == .inferred ? "Inferred" : "Estimate")).foregroundStyle(.secondary).font(.caption2)
-                    }
-                }.frame(minWidth: 110, idealWidth: 180, maxWidth: 230, alignment: .trailing)
-            }.font(.subheadline).padding(.vertical, 9)
-        }.padding(.horizontal, 12).help(L10n.text("Source details"))
-    }
-    private func detail(_ key: String, _ value: String) -> some View {
-        Text(L10n.text(key) + ": " + value).frame(maxWidth: .infinity, alignment: .leading)
+        HStack(alignment: .center, spacing: 12) {
+            Text(L10n.language == "ru" ? reading.titleRussian : reading.titleEnglish)
+                .frame(maxWidth: .infinity, alignment: .leading).fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(CatalogDataPresentation.conciseValue(reading, reveal: reveal, fahrenheit: fahrenheit))
+                    .monospacedDigit().textSelection(.enabled).lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .foregroundStyle(reading.value == nil ? Color.secondary : Color.primary)
+                let qualifications = CatalogDataPresentation.qualifications(reading)
+                if !qualifications.isEmpty {
+                    Text(qualifications.joined(separator: " · "))
+                        .foregroundStyle(reading.freshness == .stale ? Color.orange : Color.secondary)
+                        .font(.callout).fixedSize(horizontal: false, vertical: true)
+                }
+            }.frame(minWidth: 100, idealWidth: 160, maxWidth: 230, alignment: .trailing)
+            ReadingInfoButton(reading: reading, reveal: reveal, fahrenheit: fahrenheit)
+        }.font(.body).padding(.vertical, 10).padding(.horizontal, 12)
     }
 }
 
@@ -146,8 +339,7 @@ enum CatalogDataPresentation {
     }
 }
 
-/// A main-window summary of a catalog reading, using the same privacy and
-/// qualification rules as its expandable source row below.
+/// Summary readings share the value, privacy and quality rules of their detail rows.
 @MainActor private struct CatalogSummaryMetric: View {
     @ObservedObject var model: TilveroModel
     let id: String
@@ -156,23 +348,22 @@ enum CatalogDataPresentation {
     private var reading: CatalogReading? { model.snapshot.catalog.first { $0.id == id } }
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            ProductMetric(title: title,
-                          value: reading.map { CatalogDataPresentation.value($0, reveal: reveal, fahrenheit: model.fahrenheit) } ?? "—")
-            if let reading {
-                if reading.value == nil || (reading.availability != .available && reading.freshness != .stale) {
-                    Text(L10n.text("Unavailable")).foregroundStyle(.secondary)
-                } else if reading.freshness == .stale {
-                    Label(L10n.text("Stale"), systemImage: "clock").foregroundStyle(.orange)
-                } else if reading.freshness == .unknown {
-                    Text(L10n.text("Freshness unknown")).foregroundStyle(.secondary)
+            HStack(alignment: .top, spacing: 8) {
+                ProductMetric(title: title,
+                              value: reading.map { CatalogDataPresentation.conciseValue($0, reveal: reveal, fahrenheit: model.fahrenheit) } ?? "—")
+                if let reading {
+                    ReadingInfoButton(reading: reading, reveal: reveal, fahrenheit: model.fahrenheit)
                 }
-                if [.estimated, .inferred].contains(reading.provenance) {
-                    Text(L10n.text(reading.provenance == .inferred ? "Inferred" : "Estimate")).foregroundStyle(.secondary)
-                }
-                Text(L10n.text("Source") + ": " + reading.source).foregroundStyle(.secondary)
-                    .textSelection(.enabled)
             }
-        }.font(.caption).fixedSize(horizontal: false, vertical: true)
+            if let reading {
+                let quality = CatalogDataPresentation.qualifications(reading)
+                if !quality.isEmpty {
+                    Text(quality.joined(separator: " · "))
+                        .foregroundStyle(reading.freshness == .stale ? Color.orange : Color.secondary)
+                        .font(.callout)
+                }
+            }
+        }.fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
@@ -225,7 +416,7 @@ enum CatalogDataPresentation {
                 section("Reported lifetime observations", (103...111).map { String(format: "%03d", $0) })
             case .allData:
                 ProductIntro(title: "All data",
-                             subtitle: "Every catalog field remains available here. Expand a row for its source and qualification.",
+                             subtitle: "Every catalog field remains available here. Use the info button for an explanation and technical details.",
                              symbol: "list.bullet.rectangle")
                 ForEach(CatalogDataGroup.allData(model.snapshot.catalog)) { group in
                     DataReadingSection(title: group.title, readings: filtered(group.readings), reveal: reveal, fahrenheit: model.fahrenheit)

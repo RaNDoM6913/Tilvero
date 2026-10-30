@@ -9,3 +9,5 @@ The image is an illustrative graphite battery enclosure with an optical-glass co
 `RestIllustration.png` is original transparent artwork generated with the built-in tool on2026-10-29 for the Sleep & drain header. The closed unbranded notebook and sculptural moon are decorative, not evidence of a detected model or sleep state. The exact prompt is retained in `planning/docs/full-product-ui-20261029/ARTWORK_PROMPT.md`.
 
 The energy-line branding mark is an original code-native path in `TilveroEnergyMark`, shared with the application/Dock icon. It is not an activity chart. The icon is rendered deterministically with AppKit from the same curve, with a green line on a softly shaded neutral tile; no external icon or font is copied.
+
+`OverviewMacIllustration.png` is a separate original built-in image-generation edit of `MacIllustration.png`, made on2026-10-30 for the owner-selected centered Overview. It requests the same unbranded schematic device with a sage-green wallpaper and retains alpha transparency. The original asset is preserved. It carries no hardware identity, charge level or sensor evidence; actual readings are rendered separately by native UI.
