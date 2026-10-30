@@ -13,7 +13,7 @@ enum PowerDataTab: String, CaseIterable, Identifiable {
     case flow, adapter, statistics
     var id: String { rawValue }
     var title: String {
-        switch self { case .flow: "Energy flow"; case .adapter: "Adapter"; case .statistics: "Statistics" }
+        switch self { case .flow: "Power"; case .adapter: "Adapter"; case .statistics: "Observations" }
     }
 }
 
@@ -79,15 +79,16 @@ enum CatalogDataPresentation {
     let readings: [CatalogReading]
     var reveal = false
     var fahrenheit = false
+    var titles: [String: String] = [:]
+    var showsIDs = false
     var body: some View {
         VStack(spacing: 0) {
             ForEach(readings) { reading in
-                CatalogDataRow(reading: reading, reveal: reveal, fahrenheit: fahrenheit)
-                if reading.id != readings.last?.id { Divider().padding(.horizontal, 12) }
+                CatalogDataRow(reading: reading, reveal: reveal, fahrenheit: fahrenheit,
+                               title: titles[reading.id], showsID: showsIDs)
+                if reading.id != readings.last?.id { Divider().opacity(0.55) }
             }
         }
-        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.primary.opacity(0.06)))
     }
 }
 
@@ -212,7 +213,7 @@ struct ReadingInfoPresentation {
     }
     var body: some View {
         Button { showingInfo = true } label: {
-            Image(systemName: "info.circle").font(.body).frame(width: 24, height: 24).contentShape(Rectangle())
+            Image(systemName: "info.circle").font(.system(size: 12)).frame(width: 20, height: 20).contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .foregroundStyle(.secondary)
@@ -303,11 +304,17 @@ struct ReadingInfoPresentation {
     let reading: CatalogReading
     let reveal: Bool
     let fahrenheit: Bool
+    var title: String? = nil
+    var showsID = false
+    private var label: String {
+        let name = title.map(L10n.text) ?? (L10n.language == "ru" ? reading.titleRussian : reading.titleEnglish)
+        return name + (showsID ? " · " + reading.id : "")
+    }
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Text(L10n.language == "ru" ? reading.titleRussian : reading.titleEnglish)
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text(label).foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading).fixedSize(horizontal: false, vertical: true)
-            VStack(alignment: .trailing, spacing: 4) {
+            VStack(alignment: .trailing, spacing: 3) {
                 Text(CatalogDataPresentation.conciseValue(reading, reveal: reveal, fahrenheit: fahrenheit))
                     .monospacedDigit().textSelection(.enabled).lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
@@ -316,11 +323,11 @@ struct ReadingInfoPresentation {
                 if !qualifications.isEmpty {
                     Text(qualifications.joined(separator: " · "))
                         .foregroundStyle(reading.freshness == .stale ? Color.orange : Color.secondary)
-                        .font(.callout).fixedSize(horizontal: false, vertical: true)
+                        .font(.system(size: 11)).fixedSize(horizontal: false, vertical: true)
                 }
-            }.frame(minWidth: 100, idealWidth: 160, maxWidth: 230, alignment: .trailing)
+            }.fixedSize(horizontal: false, vertical: true)
             ReadingInfoButton(reading: reading, reveal: reveal, fahrenheit: fahrenheit)
-        }.font(.body).padding(.vertical, 10).padding(.horizontal, 12)
+        }.font(.system(size: 12)).padding(.vertical, 8)
     }
 }
 
@@ -329,12 +336,15 @@ struct ReadingInfoPresentation {
     let readings: [CatalogReading]
     var reveal = false
     var fahrenheit = false
+    var titles: [String: String] = [:]
+    var showsIDs = false
     var body: some View {
         if !readings.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                ProductSectionHeading(title: title)
-                CatalogReadingTable(readings: readings, reveal: reveal, fahrenheit: fahrenheit)
-            }
+            VStack(alignment: .leading, spacing: 10) {
+                if !title.isEmpty { ProductSectionHeading(title: title) }
+                CatalogReadingTable(readings: readings, reveal: reveal, fahrenheit: fahrenheit,
+                                    titles: titles, showsIDs: showsIDs)
+            }.frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
@@ -346,13 +356,24 @@ struct ReadingInfoPresentation {
     let title: String
     var reveal = false
     private var reading: CatalogReading? { model.snapshot.catalog.first { $0.id == id } }
+    private var value: String {
+        guard let reading else { return "—" }
+        // The metric's explicit cycle label supplies the unit; keep the counter exact.
+        if reading.unit == "cycles", reading.privacy != .sensitive || reveal,
+           reading.availability == .available || reading.freshness == .stale,
+           case .integer(let count) = reading.value {
+            return ([.estimated, .inferred].contains(reading.provenance) ? "≈ " : "")
+                + count.formatted(.number.locale(L10n.locale))
+        }
+        return CatalogDataPresentation.value(reading, reveal: reveal, fahrenheit: model.fahrenheit)
+    }
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(reading.map { CatalogDataPresentation.value($0, reveal: reveal, fahrenheit: model.fahrenheit) } ?? "—")
-                .font(.system(size: 26, weight: .medium, design: .rounded)).monospacedDigit()
-                .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
-            HStack(alignment: .firstTextBaseline, spacing: 5) {
-                Text(L10n.text(title)).font(.callout).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 7) {
+            Text(value)
+                .font(.system(size: value.rangeOfCharacter(from: .decimalDigits) == nil ? 22 : 28, weight: .medium, design: .rounded))
+                .monospacedDigit().textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .firstTextBaseline, spacing: 3) {
+                Text(L10n.text(title)).font(.system(size: 12)).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 if let reading { ReadingInfoButton(reading: reading, reveal: reveal, fahrenheit: model.fahrenheit) }
             }
@@ -361,7 +382,7 @@ struct ReadingInfoPresentation {
                 if !quality.isEmpty {
                     Text(quality.joined(separator: " · "))
                         .foregroundStyle(reading.freshness == .stale ? Color.orange : Color.secondary)
-                        .font(.callout)
+                        .font(.system(size: 11)).fixedSize(horizontal: false, vertical: true)
                 }
             }
         }.fixedSize(horizontal: false, vertical: true)
@@ -371,71 +392,81 @@ struct ReadingInfoPresentation {
 
 @MainActor struct BatteryDataPanel: View {
     @ObservedObject var model: TilveroModel
-    var search = ""
     var showUnavailable = true
     var reveal = false
+    var options: AnyView? = nil
     @State var tab: BatteryDataTab = .overview
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 22) {
             Picker(L10n.text("Battery section"), selection: $tab) {
                 ForEach(BatteryDataTab.allCases) { Text(L10n.text($0.title)).tag($0) }
-            }.pickerStyle(.segmented).labelsHidden()
+            }.pickerStyle(.segmented).labelsHidden().accessibilityIdentifier("battery-tabs")
             batteryContent.id(tab).transition(.opacity)
-                .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: tab)
-        }
+        }.animation(ProductMotion.animation(reduceMotion: reduceMotion), value: tab)
     }
     @ViewBuilder private var batteryContent: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            switch tab {
-            case .overview:
+        switch tab {
+        case .overview:
+            VStack(spacing: 18) {
                 BatteryEnergyHeading(model: model)
-                section("Battery state", ["011", "013", "014", "015", "016", "023", "024"])
-                section("Current readings", ["038", "039", "067", "068", "069", "070", "071"])
-            case .capacity:
-                ProductIntro(title: "Capacity & condition",
-                             subtitle: "Capacity retention is calculated separately from the macOS health assessment.",
-                             symbol: "battery.100percent", artwork: EnergyArtwork.image)
-                Text(L10n.text("Schematic battery illustration")).font(.caption2).foregroundStyle(.secondary)
-                    .help(L10n.text("The illustration does not identify this Mac's physical cell layout."))
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), alignment: .topLeading)], alignment: .leading, spacing: 24) {
+                HStack(alignment: .top, spacing: 20) {
+                    section("Battery", [("023", "Condition"), ("057", "Pack manufacturer"), ("062", "Technology"),
+                                        ("033", "Design energy"), ("034", "Full-charge energy")])
+                    section("Current readings", [("011", "Charge"), ("031", "Remaining charge capacity"),
+                                                 ("035", "Voltage"), ("039", "Temperature"), ("027", "Cycles")])
+                }
+            }
+        case .capacity:
+            VStack(alignment: .leading, spacing: 22) {
+                EnergyArtworkView(image: EnergyArtwork.image, symbol: "battery.100percent", height: 145)
+                    .frame(maxWidth: .infinity)
+                EnergySchematicCaption()
+                HStack(alignment: .top, spacing: 22) {
                     metric("026", "Capacity retention")
-                    metric("025", "System maximum capacity")
-                    metric("027", "Cycle count")
-                }.padding(.vertical, 8)
-                section("Charge capacity", ["029", "030", "031", "112", "113", "115"])
-                section("Health & design reference", ["025", "026", "027", "028", "032", "033", "034"])
-                section("Battery identity", (57...66).map { String(format: "%03d", $0) })
-                Text(L10n.text("Cell manufacturer is not inferred from the reported pack manufacturer.")).font(.caption).foregroundStyle(.secondary)
-            case .cells:
-                ProductIntro(title: "Pack & cells",
-                             subtitle: "Only reported cell readings are shown. Missing sensors are not reconstructed.",
-                             symbol: "square.stack.3d.up")
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), alignment: .topLeading)], alignment: .leading, spacing: 24) {
-                    metric("035", "Battery voltage")
+                    metric("025", "macOS assessment")
+                    metric("027", "Cycles")
+                }
+                section("Charge capacity", [("029", "Design capacity"), ("030", "At full charge"), ("031", "Now")])
+                section("Condition & identity", [("023", "Battery condition"), ("057", "Pack manufacturer"), ("059", "Serial number")])
+                Text(L10n.text("Cell manufacturer is not inferred from the reported pack manufacturer."))
+                    .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+        case .cells:
+            VStack(alignment: .leading, spacing: 22) {
+                EnergyArtworkView(image: EnergyArtwork.image, symbol: "battery.100percent", height: 155)
+                    .frame(maxWidth: .infinity)
+                EnergySchematicCaption()
+                HStack(alignment: .top, spacing: 20) {
+                    metric("035", "Pack voltage")
                     metric("039", "Battery temperature")
                     metric("042", "Cell voltage spread")
-                }.padding(.vertical, 8)
-                section("Pack & cells", ["035", "036", "037", "039", "040", "041", "042"])
-                section("Reported lifetime observations", (103...111).map { String(format: "%03d", $0) })
-            case .allData:
-                ProductIntro(title: "All data",
-                             subtitle: "Every catalog field remains available here. Use the info button for an explanation and technical details.",
-                             symbol: "list.bullet.rectangle")
+                }
+                section("Reported cells", [("041", "Voltages"), ("036", "Battery current"), ("040", "Cell temperatures")])
+                Text(L10n.text("Only reported cell readings are shown. Missing sensors are not reconstructed."))
+                    .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                section("Reported lifetime observations", (103...111).map { (String(format: "%03d", $0), "") })
+            }
+        case .allData:
+            VStack(alignment: .leading, spacing: 22) {
+                if let options { options }
+                Text(L10n.text("Every catalog field remains available here. Use the info button for an explanation and technical details."))
+                    .font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 ForEach(CatalogDataGroup.allData(model.snapshot.catalog)) { group in
-                    DataReadingSection(title: group.title, readings: filtered(group.readings), reveal: reveal, fahrenheit: model.fahrenheit)
+                    DataReadingSection(title: group.title,
+                                       readings: CatalogDataGroup.filtered(group.readings, search: "", showUnavailable: showUnavailable),
+                                       reveal: reveal, fahrenheit: model.fahrenheit, showsIDs: true)
                 }
             }
         }
     }
-    private func filtered(_ readings: [CatalogReading]) -> [CatalogReading] {
-        CatalogDataGroup.filtered(readings, search: search, showUnavailable: showUnavailable)
-    }
     private func metric(_ id: String, _ title: String) -> some View {
         CatalogSummaryMetric(model: model, id: id, title: title, reveal: reveal)
     }
-    private func section(_ title: String, _ ids: [String]) -> some View {
-        DataReadingSection(title: title, readings: filtered(ids.compactMap { id in model.snapshot.catalog.first { $0.id == id } }), reveal: reveal, fahrenheit: model.fahrenheit)
+    private func section(_ title: String, _ fields: [(String, String)]) -> some View {
+        let readings = fields.compactMap { id, _ in model.snapshot.catalog.first { $0.id == id } }
+        let titles = Dictionary(uniqueKeysWithValues: fields.filter { !$0.1.isEmpty })
+        return DataReadingSection(title: title, readings: readings, reveal: reveal, fahrenheit: model.fahrenheit, titles: titles)
     }
 }
 
@@ -462,72 +493,88 @@ struct ReadingInfoPresentation {
     @ObservedObject var model: TilveroModel
     var showUnavailable = true
     var reveal = false
+    var options: AnyView? = nil
     @State var tab: PowerDataTab = .flow
     @State private var showControls = false
+    @State private var showRecorded = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 22) {
             Picker(L10n.text("Power section"), selection: $tab) {
                 ForEach(PowerDataTab.allCases) { Text(L10n.text($0.title)).tag($0) }
-            }.pickerStyle(.segmented).labelsHidden()
+            }.pickerStyle(.segmented).labelsHidden().accessibilityIdentifier("power-tabs")
             powerContent.id(tab).transition(.opacity)
-                .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: tab)
-        }
+        }.animation(ProductMotion.animation(reduceMotion: reduceMotion), value: tab)
     }
     @ViewBuilder private var powerContent: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            switch tab {
-            case .flow:
+        switch tab {
+        case .flow:
+            VStack(spacing: 20) {
                 PowerConnectionHeading(model: model)
                 chargingControls
-                section("Electrical boundaries", ["054", "043", "038", "017", "035", "036", "037"])
-                Text(L10n.text("Adapter input and battery power measure different electrical boundaries. Rated capability is not current consumption."))
-                    .font(.callout).foregroundStyle(.secondary)
-                section("Charging state", (13...22).map { String(format: "%03d", $0) })
-            case .adapter:
-                ProductIntro(title: "Adapter",
-                             subtitle: "Device illustrations are schematic.", symbol: "powerplug", artwork: EnergyArtwork.adapter)
-                ProductSurface {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), alignment: .topLeading)], alignment: .leading, spacing: 18) {
-                        CatalogSummaryMetric(model: model, id: "050", title: "Rated capability", reveal: reveal)
-                        CatalogSummaryMetric(model: model, id: "054", title: "Adapter input", reveal: reveal)
-                    }
-                    Text(L10n.text("Adapter input and battery power measure different electrical boundaries. Rated capability is not current consumption."))
-                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+        case .adapter:
+            VStack(alignment: .leading, spacing: 22) {
+                EnergyArtworkView(image: EnergyArtwork.adapter, symbol: "powerplug", height: 200)
+                    .frame(maxWidth: .infinity)
+                HStack(alignment: .top, spacing: 24) {
+                    CatalogSummaryMetric(model: model, id: "050", title: "Rated capability", reveal: reveal)
+                    CatalogSummaryMetric(model: model, id: "054", title: "Input power", reveal: reveal)
                 }
-                section("Adapter identity", (45...49).map { String(format: "%03d", $0) })
-                section("Connection capability", ["050", "051", "052", "053"])
-                section("Measured input", ["054", "055", "056"])
+                if let options { options }
+                section("Adapter data", ["015", "050", "051", "052", "047", "048"],
+                        titles: ["015": "Connection", "050": "Rated capability", "051": "Negotiated voltage",
+                                 "052": "Current ceiling", "047": "Adapter identifier", "048": "Serial number"],
+                        includeUnavailable: showUnavailable)
+                Text(L10n.text("Device illustrations are schematic. Exact adapter model and authenticity are not established by power capability."))
+                    .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                DisclosureGroup(L10n.text("More adapter readings")) {
+                    section("", ["045", "046", "049", "053", "055", "056"], includeUnavailable: showUnavailable)
+                        .padding(.top, 12)
+                }.font(.callout)
                 chargingControls
-            case .statistics:
-                ProductIntro(title: "Power observations",
-                             subtitle: "History starts with observations made by Tilvero. Sleep and missing readings remain gaps.",
-                             symbol: "chart.xyaxis.line")
-                PowerObservationsPanel(model: model)
-                section("Recorded sessions", (72...86).map { String(format: "%03d", $0) })
+            }
+        case .statistics:
+            VStack(alignment: .leading, spacing: 22) {
+                section("Independent observations", ["015", "013", "054", "038", "069", "070"],
+                        titles: ["015": "External power · 015", "013": "Charging · 013", "054": "Input power · 054",
+                                 "038": "Battery power · 038", "069": "Until full charge · 069", "070": "Until target level"])
+                Label(L10n.text("Input power and battery power do not describe the Mac's complete power consumption. Component energy use is not calculated here."), systemImage: "info.circle")
+                    .font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                DisclosureGroup(isExpanded: $showRecorded) {
+                    VStack(alignment: .leading, spacing: 18) {
+                        PowerObservationsPanel(model: model)
+                        section("Recorded sessions", (72...86).map { String(format: "%03d", $0) }, includeUnavailable: showUnavailable)
+                    }.padding(.top, 12)
+                } label: { Text(L10n.text("Recorded observations")).font(.callout.weight(.medium)) }
+                    .animation(ProductMotion.animation(reduceMotion: reduceMotion), value: showRecorded)
                 chargingControls
             }
         }
     }
     private var chargingControls: some View {
-        ProductSurface {
-            DisclosureGroup(L10n.text("Charging controls & modes"), isExpanded: $showControls) {
-                VStack(alignment: .leading, spacing: 18) {
-                    ChargeLimitControl(model: model).padding(.top, 10)
-                    if model.canShowChargeControls {
-                        HStack {
-                            Button(L10n.text(model.isOneShotDemo ? "Cancel one-time charge" : "Charge to 100% once")) { model.toggleOneShotDemo() }.disabled(!model.canChargeToFullOnce)
-                            Button(L10n.text("Return to system control")) { model.releaseControl() }.disabled(!model.canReleaseCharge)
-                        }.disabled(model.isApplying)
-                    }
-                    Label(L10n.text("Power mode") + ": " + L10n.text(ProcessInfo.processInfo.isLowPowerModeEnabled ? "Low Power" : "Automatic"), systemImage: "bolt.circle")
-                    ProfilePanel(model: model)
+        DisclosureGroup(isExpanded: $showControls) {
+            VStack(alignment: .leading, spacing: 18) {
+                ChargeLimitControl(model: model).padding(.top, 10)
+                if model.canShowChargeControls {
+                    HStack {
+                        Button(L10n.text(model.isOneShotDemo ? "Cancel one-time charge" : "Charge to 100% once")) { model.toggleOneShotDemo() }.disabled(!model.canChargeToFullOnce)
+                        Button(L10n.text("Return to system control")) { model.releaseControl() }.disabled(!model.canReleaseCharge)
+                    }.disabled(model.isApplying)
                 }
-            }
+                Label(L10n.text("Power mode") + ": " + L10n.text(ProcessInfo.processInfo.isLowPowerModeEnabled ? "Low Power" : "Automatic"), systemImage: "bolt.circle")
+                ProfilePanel(model: model)
+            }.padding(.top, 12).padding(.bottom, 4)
+        } label: {
+            Text(L10n.text("Charging controls & modes")).font(.callout.weight(.medium)).foregroundStyle(.primary)
         }
+        .padding(12).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 9))
+        .animation(ProductMotion.animation(reduceMotion: reduceMotion), value: showControls)
     }
-    private func section(_ title: String, _ ids: [String]) -> some View {
+    private func section(_ title: String, _ ids: [String], titles: [String: String] = [:], includeUnavailable: Bool = true) -> some View {
         let readings = ids.compactMap { id in model.snapshot.catalog.first { $0.id == id } }
-        return DataReadingSection(title: title, readings: CatalogDataGroup.filtered(readings, search: "", showUnavailable: showUnavailable), reveal: reveal, fahrenheit: model.fahrenheit)
+        return DataReadingSection(title: title,
+                                  readings: CatalogDataGroup.filtered(readings, search: "", showUnavailable: includeUnavailable),
+                                  reveal: reveal, fahrenheit: model.fahrenheit, titles: titles)
     }
 }

@@ -36,14 +36,14 @@ enum InfoSection: String, CaseIterable, Identifiable {
     }
     var symbol: String {
         switch self {
-        case .overview: "square.grid.2x2"
+        case .overview: "house"
         case .battery: "battery.100percent"
-        case .charging: "bolt"
+        case .charging: "powerplug"
         case .cooling: "fan"
         case .history: "chart.xyaxis.line"
         case .sleep: "moon.zzz"
-        case .activity: "app.badge"
-        case .diagnostics: "list.bullet.rectangle"
+        case .activity: "square.stack.3d.up"
+        case .diagnostics: "checkmark.shield"
         case .settings: "gearshape"
         }
     }
@@ -56,72 +56,68 @@ struct BatteryInfoView: View {
     @State private var search = ""
     @State private var showUnavailable = true
     @State private var reveal = false
+    @State private var measurementsExpanded = false
     private var query: String { CatalogDataGroup.normalizedSearch(search) }
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach([InfoSection.overview, .battery, .charging, .cooling]) { item in
-                    sidebarItem(item)
-                }
-                Section(L10n.text("Analytics")) {
-                    ForEach([InfoSection.history, .sleep, .activity]) { item in sidebarItem(item) }
-                }
-                Section {
-                    ForEach([InfoSection.diagnostics, .settings]) { item in sidebarItem(item) }
-                }
-            }
-            .scrollContentBackground(.hidden)
-            .background(Color(nsColor: .windowBackgroundColor))
-            .safeAreaInset(edge: .top, spacing: 8) {
-                HStack(spacing: 9) {
-                    TilveroEnergyMark().stroke(Color.accentColor, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                        .frame(width: 24, height: 20).accessibilityHidden(true)
-                    Text(AppIdentity.displayName).font(.headline)
-                    Spacer()
-                }.padding(.horizontal, 15).padding(.top, 17).padding(.bottom, 5)
-            }
-            .navigationSplitViewColumnWidth(min: 200, ideal: 215, max: 250)
-        } detail: {
+        HStack(spacing: 0) {
+            sidebar.frame(width: 190)
             ZStack(alignment: .topLeading) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    HStack(alignment: .top) {
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text(model.selectedSection.title).font(.title2.weight(.semibold))
-                            Text(L10n.text(model.isDemo ? "Simulation only — your Mac settings are unchanged." : model.selectedSection.subtitle))
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Button { Task { await model.refresh(); if model.selectedSection == .sleep { await model.refreshSleepActivity() } } } label: { Label(L10n.text("Refresh"), systemImage: "arrow.clockwise") }
+                VStack(alignment: .leading, spacing: 22) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(model.selectedSection.title).font(.system(size: 24, weight: .semibold))
+                        Spacer(minLength: 8)
+                        Button { Task { await model.refresh(); if model.selectedSection == .sleep { await model.refreshSleepActivity() } } } label: { Image(systemName: "arrow.clockwise") }
+                            .accessibilityLabel(L10n.text("Refresh"))
+                    }
+                    if model.isDemo {
+                        Label(L10n.text("Simulation only — your Mac settings are unchanged."), systemImage: "testtube.2")
+                            .font(.system(size: 11)).foregroundStyle(.secondary)
                     }
                     if model.keepAwake.hasOwnedAssertion { KeepAwakeActivePanel(service: model.keepAwake) }
-                    if [.battery, .charging, .cooling, .diagnostics].contains(model.selectedSection) {
-                        ViewThatFits(in: .horizontal) {
-                            HStack(spacing: 16) {
-                                measurementSearch.frame(minWidth: 150)
-                                measurementOptions.fixedSize()
+                    if !model.isDemo && (model.nativeCharge.hasOwnedSettings || model.nativeCharge.pendingTarget != nil || model.nativeCharge.recoveryRequired || model.nativeCharge.restorationPending) {
+                        ProductSurface(title: "Charging state") {
+                            Text(model.usesNativeCharge ? model.effectiveLimitText : L10n.text("App-owned settings require restoration"))
+                                .foregroundStyle(model.nativeCharge.recoveryRequired || model.nativeCharge.restorationPending ? Color.orange : Color.primary)
+                            NativeChargeStatusPanel(model: model)
+                            if model.nativeCharge.pendingTarget != nil {
+                                Button(L10n.text("Cancel pending target")) { model.cancelPendingDemo() }
+                                    .disabled(model.isApplying || model.nativeCharge.isBusy)
                             }
-                            VStack(alignment: .leading, spacing: 10) {
-                                measurementSearch
-                                measurementOptions
+                            if model.nativeCharge.hasOwnedSettings && !model.nativeCharge.recoveryRequired && !model.nativeCharge.restorationPending {
+                                Button(L10n.text("Return to system control")) { model.releaseControl() }
+                                    .disabled(!model.canReleaseCharge)
                             }
-                        }.font(.subheadline)
+                        }
                     }
-                    if !query.isEmpty && [.battery, .charging, .cooling, .diagnostics].contains(model.selectedSection) { catalogRows(model.snapshot.catalog) }
-                    else { sectionContent }
+                    if model.liveControl.hasOwnedSettings || model.liveControl.recoveryRequired || (!model.usesNativeCharge && model.pendingTarget != nil) {
+                        ProductSurface(title: "Privileged controls") {
+                            if !model.usesNativeCharge { Text(model.effectiveLimitText) }
+                            if model.liveControl.recoveryRequired {
+                                Label(L10n.text("App-owned settings require restoration"), systemImage: "exclamationmark.triangle")
+                                    .foregroundStyle(.orange)
+                            }
+                            if let message = model.liveControl.message { Text(L10n.text(message)).font(.system(size: 12)) }
+                            Button(L10n.text("Restore original settings")) { model.restoreAll() }
+                        }
+                    }
+                    sectionContent
                     if let error = model.storeError { Label(L10n.text("Data store error") + ": " + error, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange) }
                     if let notice = model.notice { Text(notice).font(.caption).foregroundStyle(.secondary) }
                     if model.selectedSection != .overview {
                         Text("\(L10n.text("Last collection")): \(model.snapshot.collectedAt.formatted(.dateTime.locale(L10n.locale)))")
                             .font(.caption).foregroundStyle(.secondary)
                     }
-                }.padding(24).frame(maxWidth: 1080, alignment: .leading).frame(maxWidth: .infinity, alignment: .topLeading)
-            }.background(Color(nsColor: .windowBackgroundColor))
+                }.padding(.horizontal, 24).padding(.top, 25).padding(.bottom, 24).frame(maxWidth: .infinity, alignment: .topLeading)
+            }.background(Color.white)
                 .id(model.selectedSection).transition(.opacity)
-            }.animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: model.selectedSection)
+            }.animation(ProductMotion.animation(reduceMotion: reduceMotion), value: model.selectedSection)
         }.frame(minWidth: 760, minHeight: 540)
+            .background(Color.white).foregroundStyle(Color.black.opacity(0.9))
+            .font(.system(size: 13))
             .tint(.green)
             .accentColor(.green)
+            .environment(\.colorScheme, .light)
             .environment(\.locale, L10n.locale)
             .id(model.language)
             .sheet(isPresented: Binding(get: { model.exportPreview != nil }, set: { if !$0 { model.exportPreview = nil } })) {
@@ -133,21 +129,43 @@ struct BatteryInfoView: View {
                 }.padding(24).frame(width: 620, height: 470)
             }
     }
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 7) {
+                Text(AppIdentity.displayName).font(.system(size: 18, weight: .semibold))
+                TilveroEnergyMark().stroke(Color.green, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    .frame(width: 27, height: 15).accessibilityHidden(true)
+            }.padding(.horizontal, 14).padding(.top, 27).padding(.bottom, 22)
+            ForEach(InfoSection.allCases) { item in
+                if item == .history {
+                    Text(L10n.text("Analytics")).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
+                        .padding(.horizontal, 14).padding(.top, 20).padding(.bottom, 7)
+                }
+                if item == .diagnostics { Color.clear.frame(height: 15) }
+                sidebarItem(item)
+            }
+            Spacer(minLength: 16)
+            if model.isDemo {
+                Label(L10n.text("Simulation"), systemImage: "testtube.2")
+                    .font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary).padding(14)
+            }
+        }.frame(maxHeight: .infinity).background(Color(red: 0.95, green: 0.95, blue: 0.95))
+    }
     private func sidebarItem(_ item: InfoSection) -> some View {
         let selected = model.selectedSection == item
         return Button { model.selectedSection = item } label: {
-            Label { Text(item.title).lineLimit(2).fixedSize(horizontal: false, vertical: true) } icon: { Image(systemName: item.symbol).frame(width: 18) }
-                .foregroundStyle(.primary)
+            HStack(spacing: 9) {
+                Image(systemName: item.symbol).font(.system(size: 14)).frame(width: 18).accessibilityHidden(true)
+                Text(item.title).font(.system(size: 12)).lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }.padding(.horizontal, 10).padding(.vertical, 9)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 8).padding(.vertical, 7)
-                .background {
-                    RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(selected ? 0.06 : 0))
-                        .shadow(color: .black.opacity(selected ? 0.1 : 0), radius: 4, x: 0, y: 1)
-                }
-                .contentShape(RoundedRectangle(cornerRadius: 8))
-        }.buttonStyle(.plain)
-            .accessibilityAddTraits(selected ? .isSelected : [])
-            .listRowBackground(Color.clear)
+                .background(Color.black.opacity(selected ? 0.065 : 0), in: RoundedRectangle(cornerRadius: 7))
+                .contentShape(RoundedRectangle(cornerRadius: 7))
+        }.buttonStyle(.plain).accessibilityLabel(item.title)
+            .accessibilityAddTraits(selected ? [.isSelected] : [])
+            .accessibilityRemoveTraits(selected ? [] : [.isSelected])
+            .padding(.horizontal, 7).padding(.vertical, 1)
     }
     private var measurementSearch: some View {
         HStack(spacing: 7) {
@@ -177,20 +195,27 @@ struct BatteryInfoView: View {
         case .activity:
             ProcessActivityPanel(model: model)
         case .battery:
-            BatteryDataPanel(model: model, showUnavailable: showUnavailable, reveal: reveal)
+            BatteryDataPanel(model: model, showUnavailable: showUnavailable, reveal: reveal, options: AnyView(measurementOptions))
         case .charging:
-            PowerDataPanel(model: model, showUnavailable: showUnavailable, reveal: reveal)
+            PowerDataPanel(model: model, showUnavailable: showUnavailable, reveal: reveal, options: AnyView(measurementOptions))
         case .cooling:
             CoolingPanel(model: model, showUnavailable: showUnavailable)
             if !model.fanless {
                 if model.isDemo || !model.fanDescriptors.isEmpty { FanControlPanel(model: model) }
-                DataReadingSection(title: "Fan observations", readings: CatalogDataGroup.filtered(readings(["087", "088", "089", "090", "091", "092", "093"]), search: query, showUnavailable: showUnavailable), fahrenheit: model.fahrenheit)
+                DataReadingSection(title: "Fan observations", readings: CatalogDataGroup.filtered(readings(["087", "088", "089", "090", "091", "092", "093"]), search: "", showUnavailable: showUnavailable), fahrenheit: model.fahrenheit)
             }
         case .history: HistoryPanel(model: model)
         case .sleep: SleepReportPanel(model: model)
         case .diagnostics:
-            Label(L10n.text("Monitoring works without a privileged helper. Control ownership and restoration are shown separately."), systemImage: "checkmark.shield")
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .top, spacing: 14) {
+                Image(systemName: "shield.lefthalf.filled").font(.system(size: 29)).foregroundStyle(.green).accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(L10n.text("Local diagnostics")).font(.system(size: 16, weight: .semibold))
+                    Text(L10n.text("Monitoring works without a privileged helper. Control ownership and restoration are shown separately."))
+                        .font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
             if !model.isDemo {
                 ProductSurface(title: "Native charging", symbol: "battery.100percent") {
                     Label(L10n.text(model.nativeCharge.hasOwnedSettings || model.nativeCharge.recoveryRequired ? "App-owned settings require restoration" : "No active native session"), systemImage: model.nativeCharge.hasOwnedSettings || model.nativeCharge.recoveryRequired ? "exclamationmark.circle" : "checkmark.circle")
@@ -217,15 +242,21 @@ struct BatteryInfoView: View {
                 }
                 Text(L10n.text("Serials and private identifiers are excluded.")).font(.caption).foregroundStyle(.secondary)
             }
-            ProductSurface {
-                DisclosureGroup(L10n.text("Measurements & sources")) {
-                    VStack(alignment: .leading, spacing: 18) {
+            DisclosureGroup(isExpanded: $measurementsExpanded) {
+                VStack(alignment: .leading, spacing: 18) {
+                    measurementSearch
+                    measurementOptions
+                    if !query.isEmpty { catalogRows(model.snapshot.catalog) }
+                    else {
                         ForEach(CatalogDataGroup.allData(model.snapshot.catalog)) { group in
-                            DataReadingSection(title: group.title, readings: CatalogDataGroup.filtered(group.readings, search: query, showUnavailable: showUnavailable), reveal: reveal, fahrenheit: model.fahrenheit)
+                            DataReadingSection(title: group.title, readings: CatalogDataGroup.filtered(group.readings, search: "", showUnavailable: showUnavailable), reveal: reveal, fahrenheit: model.fahrenheit)
                         }
-                    }.padding(.top, 12)
-                }
-            }
+                    }
+                }.padding(.top, 12)
+            } label: {
+                Text(L10n.text("Measurements & sources")).font(.system(size: 13, weight: .semibold))
+            }.padding(.vertical, 5)
+                .animation(ProductMotion.animation(reduceMotion: reduceMotion), value: measurementsExpanded)
         case .settings: SettingsPanel(model: model)
         }
     }
@@ -245,6 +276,7 @@ struct BatteryInfoView: View {
 @MainActor
 private struct HistoryPanel: View {
     @ObservedObject var model: TilveroModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var days = 1
     @State private var metric = "Charge"
     private var points: [HistorySample] { model.history.filter { $0.collectedAt >= Date().addingTimeInterval(-Double(days) * 86400) } }
@@ -256,7 +288,7 @@ private struct HistoryPanel: View {
             if model.isDemo {
                 ProductIntro(title: "Recorded history", subtitle: "Simulation data is never stored in live history.", symbol: "chart.xyaxis.line")
             } else {
-                ProductSurface(title: "Recorded measurements", symbol: "chart.xyaxis.line") {
+                VStack(alignment: .leading, spacing: 20) {
                     ViewThatFits(in: .horizontal) {
                         HStack { period; Spacer(); metricPicker }
                         VStack(alignment: .leading, spacing: 12) { period; metricPicker }
@@ -280,7 +312,8 @@ private struct HistoryPanel: View {
                     if !model.historyEnabled { Label(L10n.text("Recording is off"), systemImage: "pause.circle").font(.callout).foregroundStyle(.secondary) }
                 }
                 if let summary = model.historySummary {
-                    ProductSurface(title: "All recorded history", symbol: "clock.arrow.circlepath") {
+                    VStack(alignment: .leading, spacing: 18) {
+                        ProductSectionHeading(title: "All recorded history")
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), alignment: .leading)], alignment: .leading, spacing: 18) {
                             ProductMetric(title: "Charging sessions", value: String(summary.chargingSessionCount))
                             ProductMetric(title: "Recorded gaps", value: String(summary.gaps.count))
@@ -297,7 +330,9 @@ private struct HistoryPanel: View {
                                     Text(session.observedFrom.formatted(.dateTime.locale(L10n.locale)))
                                     Spacer()
                                     Text(session.endedAt.map { $0.formatted(.dateTime.locale(L10n.locale)) } ?? L10n.text("Current")).foregroundStyle(.secondary)
-                                }.font(.caption).monospacedDigit().textSelection(.enabled)
+                                }.font(.system(size: 12)).monospacedDigit().textSelection(.enabled)
+                                .padding(.vertical, 8)
+                                Divider()
                             }
                         }
                     }
@@ -308,16 +343,18 @@ private struct HistoryPanel: View {
                 }
             }
         }
+        .animation(ProductMotion.animation(reduceMotion: reduceMotion), value: days)
+        .animation(ProductMotion.animation(reduceMotion: reduceMotion), value: metric)
     }
     private var period: some View {
         Picker(L10n.text("Period"), selection: $days) {
             Text(L10n.text("24 hours")).tag(1); Text(L10n.text("7 days view")).tag(7)
-        }.pickerStyle(.segmented).labelsHidden().frame(width: 220)
+        }.pickerStyle(.segmented).labelsHidden().frame(width: 208)
     }
     private var metricPicker: some View {
         Picker(L10n.text("Measurement"), selection: $metric) {
             ForEach(["Charge", "Temperature", "Power"], id: \.self) { Text(L10n.text($0)).tag($0) }
-        }.frame(width: 180)
+        }.frame(maxWidth: 230)
     }
 
 }
@@ -339,7 +376,7 @@ private struct SettingsPanel: View {
                 case .history: historySettings
                 }
             }.id(model.selectedSettingsPage).transition(.opacity)
-                .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: model.selectedSettingsPage)
+                .animation(ProductMotion.animation(reduceMotion: reduceMotion), value: model.selectedSettingsPage)
         }.alert(L10n.text("Erase history"), isPresented: $confirmErase) {
             Button(L10n.text("Cancel"), role: .cancel) {}
             Button(L10n.text("Erase history"), role: .destructive) { model.eraseHistory() }
@@ -347,7 +384,7 @@ private struct SettingsPanel: View {
     }
     private var general: some View {
         VStack(alignment: .leading, spacing: 20) {
-            ProductSurface(title: "Menu bar", symbol: "menubar.rectangle") {
+            ProductSurface(title: "Menu bar") {
                 HStack(alignment: .firstTextBaseline) {
                     Text(L10n.text("Menu bar"))
                     Spacer()
@@ -370,7 +407,7 @@ private struct SettingsPanel: View {
                 }
                 Button(L10n.text("Reset size")) { model.resetMenuBarSizing() }
             }
-            ProductSurface(title: "App preferences", symbol: "slider.horizontal.3") {
+            ProductSurface(title: "App preferences") {
                 HStack(alignment: .firstTextBaseline) {
                     Text(L10n.text("Language"))
                     Spacer()
@@ -402,7 +439,7 @@ private struct SettingsPanel: View {
     }
     private var historySettings: some View {
         VStack(alignment: .leading, spacing: 20) {
-            ProductSurface(title: "History", symbol: "externaldrive") {
+            ProductSurface(title: "History") {
                 VStack(alignment: .leading, spacing: 14) {
                     Toggle(L10n.text("Save history"), isOn: $model.historyEnabled).disabled(model.isDemo)
                     Picker(L10n.text("Detailed samples"), selection: $model.retentionDays) { ForEach([7,14,30], id: \.self) { Text(L10n.text("\($0) days")).tag($0) } }.frame(maxWidth: 350).disabled(model.isDemo)

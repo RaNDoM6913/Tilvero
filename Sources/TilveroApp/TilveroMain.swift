@@ -263,6 +263,12 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         let settings = NSMenuItem(title: L10n.text("Settings"), action: #selector(openSettings), keyEquivalent: ",")
         settings.target = self; app.addItem(settings); app.addItem(.separator())
         app.addItem(withTitle: L10n.text("Quit Tilvero"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let edit = NSMenuItem(); let editMenu = NSMenu(title: L10n.text("Edit"))
+        for (title, selector, key) in [("Cut", "cut:", "x"), ("Copy", "copy:", "c"),
+                                       ("Paste", "paste:", "v"), ("Select All", "selectAll:", "a")] {
+            editMenu.addItem(withTitle: L10n.text(title), action: Selector(selector), keyEquivalent: key)
+        }
+        edit.submenu = editMenu; main.addItem(edit)
         NSApplication.shared.mainMenu = main
     }
 

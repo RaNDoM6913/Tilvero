@@ -19,83 +19,6 @@ import PowerCore
     static let rest = load("RestIllustration")
 }
 
-/// Opaque, adaptive surfaces shared by the main application. Menu-bar content
-/// keeps its own native blue/material styling and does not use this wrapper.
-struct ProductSurface<Content: View>: View {
-    var title: String? = nil
-    var symbol: String? = nil
-    @ViewBuilder var content: () -> Content
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            if let title {
-                HStack(spacing: 8) {
-                    if let symbol { Image(systemName: symbol).foregroundStyle(Color.accentColor) }
-                    Text(L10n.text(title)).font(.headline)
-                }
-            }
-            content()
-        }
-        .frame(maxWidth: .infinity, alignment: .leading).padding(20)
-        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.primary.opacity(0.06)))
-    }
-}
-
-struct ProductSectionHeading: View {
-    let title: String
-    var subtitle: String? = nil
-    var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text(L10n.text(title)).font(.headline)
-            if let subtitle { Text(L10n.text(subtitle)).font(.callout).foregroundStyle(.secondary) }
-        }.fixedSize(horizontal: false, vertical: true)
-    }
-}
-
-@MainActor struct ProductIntro: View {
-    let title: String
-    let subtitle: String
-    let symbol: String
-    var artwork: NSImage? = nil
-    var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 24) { picture; information.frame(width: 320, alignment: .leading) }
-            VStack(alignment: .leading, spacing: 16) { picture; information }
-        }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 6)
-    }
-    private var picture: some View {
-        Group {
-            if let artwork {
-                Image(nsImage: artwork).resizable().interpolation(.high).scaledToFit().frame(width: 160, height: 120)
-            } else {
-                Image(systemName: symbol).font(.system(size: 34, weight: .light))
-                    .foregroundStyle(Color.accentColor).frame(width: 72, height: 72)
-                    .background(Color.accentColor.opacity(0.07), in: RoundedRectangle(cornerRadius: 20))
-            }
-        }.accessibilityHidden(true)
-    }
-    private var information: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(L10n.text(title)).font(.title2.weight(.medium))
-            Text(L10n.text(subtitle)).font(.callout).foregroundStyle(.secondary)
-        }.frame(maxWidth: .infinity, alignment: .leading).fixedSize(horizontal: false, vertical: true)
-    }
-}
-
-struct ProductMetric: View {
-    let title: String
-    let value: String
-    var detail: String? = nil
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(L10n.text(title)).font(.caption).foregroundStyle(.secondary)
-            Text(value).font(.system(size: 24, weight: .medium, design: .rounded)).monospacedDigit()
-                .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
-            if let detail { Text(detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
-        }.frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
 /// Original energy-line mark. It is branding, not an activity trace or measurement.
 struct TilveroEnergyMark: Shape {
     func path(in rect: CGRect) -> Path {
@@ -140,83 +63,37 @@ struct EnergyVisualSnapshot: Equatable {
     }
 }
 
+/// Cached original artwork is schematic; its geometry never represents reported cells.
+@MainActor struct EnergyArtworkView: View {
+    let image: NSImage?
+    let symbol: String
+    let height: CGFloat
+    var body: some View {
+        Group {
+            if let image {
+                Image(nsImage: image).resizable().interpolation(.high).scaledToFit()
+            } else {
+                Image(systemName: symbol).font(.system(size: 70, weight: .ultraLight)).foregroundStyle(.secondary)
+            }
+        }.frame(height: height).accessibilityHidden(true)
+    }
+}
+
+struct EnergySchematicCaption: View {
+    var body: some View {
+        Text(L10n.text("Schematic illustration")).font(.caption2).foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity)
+            .help(L10n.text("The illustration does not identify the device model, physical cell layout or count, component manufacturer or authenticity."))
+    }
+}
+
 /// An original pack illustration, not a reconstruction of the Mac's cell layout.
-/// All motion is a finite response to changed observations; there is no render timer.
+/// Its static shape does not imply current direction, cell count or a live sample.
 @MainActor struct EnergyStateIllustration: View {
     let state: EnergyVisualSnapshot
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    @Environment(\.colorScheme) private var colorScheme
-    @State private var visible = false
-    private var accent: Color { state.levelIsStale || state.level == nil ? .secondary : .accentColor }
-    private var surface: Color { Color(nsColor: .controlBackgroundColor) }
-
     var body: some View {
-        ZStack {
-            if let artwork = EnergyArtwork.image {
-                Image(nsImage: artwork).resizable().interpolation(.high).scaledToFit()
-                    .frame(width: 320, height: 215)
-                    .opacity(state.level == nil ? 0.3 : state.levelIsStale ? 0.48 : 1)
-            } else {
-                Ellipse().fill(.primary.opacity(colorScheme == .dark ? 0.09 : 0.05))
-                    .frame(width: 190, height: 17).offset(y: 58).blur(radius: 9)
-                pack
-            }
-            if state.direction == .intoBattery || state.direction == .fromBattery {
-                Image(systemName: state.direction == .intoBattery ? "arrow.down.left" : "arrow.up.right")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(accent)
-                    .padding(8).background(surface, in: Circle())
-                    .overlay(Circle().strokeBorder(.primary.opacity(0.07)))
-                    .offset(x: 137, y: -76)
-                    .contentTransition(.symbolEffect(.replace))
-                    .transaction { if reduceMotion || !visible || !state.canAnimateLevel { $0.animation = nil } }
-            }
-        }
-        .frame(width: 330, height: 225)
-        .accessibilityHidden(true)
-        .onAppear { visible = true }
-        .onDisappear { visible = false }
-    }
-
-    private var pack: some View {
-        ZStack(alignment: .leading) {
-            RoundedRectangle(cornerRadius: 19)
-                .fill(LinearGradient(colors: [surface, Color(nsColor: .separatorColor).opacity(0.45)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                .overlay(RoundedRectangle(cornerRadius: 19).strokeBorder(.primary.opacity(0.16), lineWidth: 1))
-            RoundedRectangle(cornerRadius: 14).fill(Color(nsColor: .underPageBackgroundColor))
-                .padding(7)
-            GeometryReader { geometry in
-                let width = max(0, geometry.size.width - 22)
-                RoundedRectangle(cornerRadius: 9)
-                    .fill(LinearGradient(colors: [accent.opacity(0.6), accent.opacity(0.28)], startPoint: .leading, endPoint: .trailing))
-                    .frame(width: width * CGFloat(state.level ?? 0) / 100, height: geometry.size.height - 22)
-                    .padding(11)
-                    .animation(visible && !reduceMotion && state.canAnimateLevel ? .easeInOut(duration: 0.45) : nil, value: state.level)
-            }
-            if !reduceTransparency {
-                RoundedRectangle(cornerRadius: 10).fill(.white.opacity(colorScheme == .dark ? 0.05 : 0.28))
-                    .frame(height: 34).padding(.horizontal, 12).offset(y: -22)
-            }
-            HStack {
-                VStack(spacing: 47) {
-                    Circle().fill(.primary.opacity(0.14)).frame(width: 3, height: 3)
-                    Circle().fill(.primary.opacity(0.14)).frame(width: 3, height: 3)
-                }
-                Spacer()
-                if state.level == nil || state.direction == .intoBattery {
-                    Image(systemName: state.level == nil ? "questionmark" : "bolt.fill")
-                        .font(.system(size: 21, weight: .light)).foregroundStyle(accent.opacity(0.55))
-                }
-            }.padding(.horizontal, 17)
-        }
-        .frame(width: 198, height: 112)
-        .background(alignment: .trailing) {
-            RoundedRectangle(cornerRadius: 4).fill(.primary.opacity(0.24))
-                .frame(width: 9, height: 34).offset(x: 6)
-        }
-        .opacity(state.levelIsStale ? 0.48 : 1)
-        .shadow(color: .black.opacity(colorScheme == .dark ? 0.15 : 0.08), radius: 11, x: 3, y: 9)
+        EnergyArtworkView(image: EnergyArtwork.image, symbol: "battery.100percent", height: 175)
+            .opacity(state.level == nil ? 0.3 : state.levelIsStale ? 0.48 : 1)
     }
 }
 
@@ -224,65 +101,63 @@ struct EnergyVisualSnapshot: Equatable {
     @ObservedObject var model: TilveroModel
     private var state: EnergyVisualSnapshot { .init(model.snapshot) }
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 18) {
             charge
             ViewThatFits(in: .horizontal) {
-                HStack(alignment: .center, spacing: 18) {
-                    leftRail.frame(width: 136)
-                    illustration.frame(width: 280)
-                    rightRail.frame(width: 136)
+                HStack(alignment: .center, spacing: 22) {
+                    leftRail.frame(width: 145)
+                    EnergyStateIllustration(state: state).frame(width: 250)
+                    rightRail.frame(width: 150)
                 }.frame(maxWidth: .infinity)
-                VStack(spacing: 22) {
-                    illustration.frame(maxWidth: .infinity)
-                    HStack(alignment: .top, spacing: 24) { leftRail; rightRail }
+                VStack(spacing: 18) {
+                    EnergyArtworkView(image: EnergyArtwork.image, symbol: "battery.100percent", height: 165)
+                        .opacity(state.level == nil ? 0.3 : state.levelIsStale ? 0.48 : 1)
+                    HStack(alignment: .top, spacing: 28) { leftRail; rightRail }
                 }
             }
-            if let level = state.level {
-                ProgressView(value: Double(level), total: 100)
-                    .tint(state.levelIsStale ? Color.secondary : Color.green)
-                    .frame(maxWidth: 340).frame(maxWidth: .infinity)
-                    .accessibilityLabel(L10n.text("Charge level")).accessibilityValue(model.chargeText)
+            VStack(spacing: 6) {
+                ProductChargeTrack(level: state.level, stale: state.levelIsStale, animate: state.canAnimateLevel)
+                    .frame(maxWidth: 220)
+                Text(state.level == nil ? L10n.text("Unavailable") : model.chargeText + " " + L10n.text("charge"))
+                    .font(.caption).foregroundStyle(.secondary)
             }
-            Text(L10n.text("Schematic battery illustration")).font(.caption2).foregroundStyle(.secondary)
-                .help(L10n.text("The illustration does not identify this Mac's physical cell layout."))
+            EnergySchematicCaption()
             KeepAwakeEnergyBadge(service: model.keepAwake)
             if model.isDemo {
                 Text(L10n.text("Simulation only — your Mac settings are unchanged."))
                     .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
             }
-        }.padding(.vertical, 8)
+        }
     }
     private var leftRail: some View {
-        VStack(alignment: .leading, spacing: 28) {
-            CatalogSummaryMetric(model: model, id: "039", title: "Temperature")
+        VStack(alignment: .leading, spacing: 26) {
+            CatalogSummaryMetric(model: model, id: "039", title: "Battery temperature")
             CatalogSummaryMetric(model: model, id: "035", title: "Battery voltage")
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
     private var rightRail: some View {
-        VStack(alignment: .leading, spacing: 28) {
+        VStack(alignment: .leading, spacing: 26) {
             CatalogSummaryMetric(model: model, id: "026", title: "Capacity retention")
-            CatalogSummaryMetric(model: model, id: "027", title: "Cycle count")
+            CatalogSummaryMetric(model: model, id: "027", title: "Charge cycles")
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
-    private var illustration: some View {
-        EnergyStateIllustration(state: state).scaleEffect(0.85).frame(width: 280, height: 192)
-    }
     private var charge: some View {
-        VStack(spacing: 7) {
-            HStack(alignment: .firstTextBaseline, spacing: 7) {
-                Text(model.chargeText).font(.system(size: 46, weight: .semibold, design: .rounded)).monospacedDigit()
-                    .foregroundStyle(state.levelIsStale || state.level == nil ? Color.secondary : Color.green)
-                    .contentTransition(.numericText())
+        VStack(spacing: 5) {
+            Text(model.chargeText).font(.system(size: 44, weight: .semibold)).monospacedDigit()
+                .foregroundStyle(state.levelIsStale || state.level == nil ? Color.secondary : Color.green)
+            HStack(spacing: 5) {
+                Text(model.chargingStateText).font(.callout).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
                 if let reading = model.snapshot.catalog.first(where: { $0.id == "011" }) {
                     ReadingInfoButton(reading: reading, fahrenheit: model.fahrenheit)
                 }
             }
-            Text(model.chargingStateText).font(.callout).foregroundStyle(.secondary)
-                .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
-            if state.levelIsStale {
-                Text(L10n.text("Stale")).font(.callout).foregroundStyle(.orange)
-            } else if state.level != nil, model.snapshot.chargePercent.freshness == .unknown {
-                Text(L10n.text("Freshness unknown")).font(.callout).foregroundStyle(.secondary)
+            if let reading = model.snapshot.catalog.first(where: { $0.id == "011" }) {
+                let quality = CatalogDataPresentation.qualifications(reading)
+                if !quality.isEmpty {
+                    Text(quality.joined(separator: " · ")).font(.caption)
+                        .foregroundStyle(state.levelIsStale ? Color.orange : Color.secondary)
+                }
             }
         }.frame(maxWidth: .infinity)
     }
@@ -329,34 +204,68 @@ struct PowerHeadlineReading {
     @ObservedObject var model: TilveroModel
     private var state: EnergyVisualSnapshot { .init(model.snapshot) }
     var body: some View {
-        VStack(spacing: 22) {
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .center, spacing: 12) {
-                    adapter.frame(width: 180)
-                    connection.frame(minWidth: 24, maxWidth: 90)
-                    mac.frame(width: 220)
-                }.frame(maxWidth: .infinity)
-                VStack(spacing: 18) {
-                    adapter
-                    connection.frame(width: 70)
-                    mac
-                }.frame(maxWidth: .infinity)
+        VStack(spacing: 20) {
+            HStack(alignment: .top, spacing: 28) {
+                CatalogSummaryMetric(model: model, id: "054", title: "Input power")
+                source
             }
+            GeometryReader { geometry in
+                HStack(alignment: .center, spacing: 0) {
+                    EnergyArtworkView(image: EnergyArtwork.adapter, symbol: "powerplug", height: 185)
+                        .frame(width: geometry.size.width * 0.30)
+                        .opacity(state.sourceConnected == false ? 0.38 : 1)
+                    Path { path in
+                        path.move(to: CGPoint(x: 0, y: 0))
+                        path.addCurve(to: CGPoint(x: geometry.size.width * 0.10, y: 32),
+                                      control1: CGPoint(x: geometry.size.width * 0.04, y: 0),
+                                      control2: CGPoint(x: geometry.size.width * 0.04, y: 32))
+                    }
+                    .stroke(Color.secondary.opacity(state.sourceConnected == true ? 0.35 : 0.15), lineWidth: 1.5)
+                    .frame(width: geometry.size.width * 0.10, height: 32).offset(y: 42)
+                    EnergyArtworkView(image: EnergyArtwork.overviewMac ?? EnergyArtwork.mac, symbol: "laptopcomputer", height: 205)
+                        .frame(width: geometry.size.width * 0.60)
+                }
+            }.frame(height: 205).accessibilityHidden(true)
+                .help(L10n.text("The line shows a schematic connection, not power direction or magnitude. Exact device model is not identified by the illustration or power capability."))
+            CatalogSummaryMetric(model: model, id: "038", title: "Battery power")
+                .frame(maxWidth: 260)
             Divider()
-            VStack(alignment: .leading, spacing: 5) {
-                CatalogSummaryMetric(model: model, id: "038", title: "Battery power")
-                Text(L10n.text("Separate battery measurement")).font(.caption).foregroundStyle(.secondary)
-            }.frame(maxWidth: 280)
-            Text(L10n.text("Device illustrations are schematic.")).font(.caption2).foregroundStyle(.secondary)
-            if let limitText {
-                HStack(spacing: 7) {
-                    Image(systemName: "battery.100percent").foregroundStyle(.green).accessibilityHidden(true)
-                    Text(L10n.text("macOS charge limit"))
-                    Text(limitText).monospacedDigit()
-                }.font(.callout).frame(maxWidth: .infinity, alignment: .leading)
-                    .help(L10n.text("macOS manages this setting independently of Tilvero."))
+            nativeLimit
+        }
+    }
+    private var source: some View {
+        let reading = model.snapshot.catalog.first { $0.id == "016" }
+        return VStack(alignment: .leading, spacing: 7) {
+            Text(reading.map { CatalogDataPresentation.value($0, reveal: false, fahrenheit: model.fahrenheit) } ?? "—")
+                .font(.system(size: 23, weight: .medium)).fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 5) {
+                Text(L10n.text("Reported power source")).font(.callout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let reading { ReadingInfoButton(reading: reading, fahrenheit: model.fahrenheit) }
             }
-        }.padding(.vertical, 12)
+            if let reading {
+                let quality = CatalogDataPresentation.qualifications(reading)
+                if !quality.isEmpty {
+                    Text(quality.joined(separator: " · ")).font(.system(size: 11))
+                        .foregroundStyle(reading.freshness == .stale ? Color.orange : Color.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }.frame(maxWidth: .infinity, alignment: .leading)
+    }
+    private var nativeLimit: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 5) {
+                Text(L10n.text("macOS charge limit")).font(.headline)
+                Text(limitText ?? L10n.text("Unavailable")).font(.headline)
+                    .foregroundStyle(limitText == nil ? Color.secondary : Color.green)
+            }
+            if let setting = model.nativeCharge.nativeSetting, setting.isFresh {
+                Text(L10n.text(setting.configuration.optimizedCharging ? "Optimized charging enabled" : "Optimized charging disabled"))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }.frame(maxWidth: .infinity, alignment: .leading)
+            .help(L10n.text("macOS manages this setting independently of Tilvero."))
     }
     private var limitText: String? {
         if let setting = model.nativeCharge.nativeSetting, setting.isFresh {
@@ -365,55 +274,5 @@ struct PowerHeadlineReading {
         if let observation = model.systemChargeLimit, observation.isFresh(), let limits = observation.limits,
            !limits.manualLimitIsConflicting, let limit = limits.manualLimit { return "\(limit)%" }
         return nil
-    }
-    private var adapter: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            CatalogSummaryMetric(model: model, id: "054", title: "Adapter input")
-            artwork(EnergyArtwork.adapter, symbol: "powerplug", width: 170, dimmed: state.sourceConnected != true)
-        }.frame(maxWidth: .infinity, alignment: .leading)
-    }
-    private var mac: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(L10n.text(state.sourceConnected == true ? "Power adapter" : state.sourceConnected == false ? "On battery" : "Power source unavailable"))
-                    .font(.title3.weight(.medium)).fixedSize(horizontal: false, vertical: true)
-                HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Text(L10n.text("Reported power source")).font(.callout).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if let reading = model.snapshot.catalog.first(where: { $0.id == "015" }) {
-                        ReadingInfoButton(reading: reading, fahrenheit: model.fahrenheit)
-                    }
-                }
-                if let reading = model.snapshot.catalog.first(where: { $0.id == "015" }) {
-                    ForEach(CatalogDataPresentation.qualifications(reading), id: \.self) { qualification in
-                        Text(qualification).font(.callout)
-                            .foregroundStyle(reading.freshness == .stale ? Color.orange : Color.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                } else if model.snapshot.isExternalPower.freshness != .fresh {
-                    Text(L10n.text(model.snapshot.isExternalPower.freshness == .stale ? "Stale" : "Freshness unknown"))
-                        .font(.callout).foregroundStyle(.secondary)
-                }
-            }
-            artwork(EnergyArtwork.overviewMac ?? EnergyArtwork.mac, symbol: "laptopcomputer", width: 220)
-        }.frame(maxWidth: .infinity, alignment: .leading)
-    }
-    private var connection: some View {
-        HStack(spacing: 6) {
-            Rectangle().fill(.secondary.opacity(state.sourceConnected == true ? 0.5 : 0.2)).frame(height: 1)
-            Image(systemName: state.sourceConnected == true ? "link" : state.sourceConnected == nil ? "questionmark" : "minus")
-                .font(.caption).foregroundStyle(.secondary)
-            Rectangle().fill(.secondary.opacity(state.sourceConnected == true ? 0.5 : 0.2)).frame(height: 1)
-        }.accessibilityHidden(true)
-    }
-    private func artwork(_ image: NSImage?, symbol: String, width: CGFloat, dimmed: Bool = false) -> some View {
-        Group {
-            if let image {
-                Image(nsImage: image).resizable().interpolation(.high).scaledToFit().frame(width: width, height: 140)
-            } else {
-                Image(systemName: symbol).font(.system(size: 54, weight: .ultraLight)).foregroundStyle(.secondary)
-                    .frame(width: width, height: 140)
-            }
-        }.opacity(dimmed ? 0.38 : 1).accessibilityHidden(true)
     }
 }
