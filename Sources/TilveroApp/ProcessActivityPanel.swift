@@ -69,9 +69,8 @@ struct SustainedCPUActivity {
     }
     private var detailedContent: some View {
         VStack(alignment: .leading, spacing: 18) {
-            ProductIntro(title: "Application activity",
-                         subtitle: "CPU power is an interval estimate from macOS CPU energy counters, not total app or battery consumption.",
-                         symbol: "app.badge")
+            Label(L10n.text("CPU power is an interval estimate from macOS CPU energy counters, not total app or battery consumption."), systemImage: "app.badge")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             if model.isDemo {
                 ProductSurface {
                     Label(L10n.text("Process activity is unavailable in simulation."), systemImage: "testtube.2")
@@ -104,7 +103,7 @@ struct SustainedCPUActivity {
 
     private func collectionCoverage(_ snapshot: ProcessActivitySnapshot) -> some View {
         ProductSurface(title: "Collection coverage", symbol: "waveform.path") {
-            HStack(alignment: .top, spacing: 20) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 125), alignment: .topLeading)], alignment: .leading, spacing: 16) {
                 ProductMetric(title: "Accessible processes", value: "\(snapshot.accessibleCount)/\(snapshot.listedCount)")
                 ProductMetric(title: "Denied", value: "\(snapshot.deniedCount)")
                 ProductMetric(title: "Unavailable", value: "\(snapshot.unavailableCount)")

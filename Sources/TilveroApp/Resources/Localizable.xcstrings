@@ -9888,6 +9888,54 @@
           }
         }
       }
+    },
+    "Measurements & sources": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Measurements & sources"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Измерения и источники"
+          }
+        }
+      }
+    },
+    "System thermal state": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System thermal state"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тепловое состояние системы"
+          }
+        }
+      }
+    },
+    "The interval connects observations, not measured time asleep.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The interval connects observations, not measured time asleep."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Интервал связывает наблюдения и не равен измеренному времени сна."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

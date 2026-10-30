@@ -224,36 +224,67 @@ struct EnergyVisualSnapshot: Equatable {
     @ObservedObject var model: TilveroModel
     private var state: EnergyVisualSnapshot { .init(model.snapshot) }
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 24) { illustration; information.frame(width: 230, alignment: .leading) }
-            VStack(alignment: .leading, spacing: 10) { illustration.frame(maxWidth: .infinity); information }
-        }.padding(.vertical, 8)
-    }
-    private var illustration: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            EnergyStateIllustration(state: state).scaleEffect(0.85).frame(width: 280, height: 200)
-            Text(L10n.text("Schematic battery illustration")).font(.caption2).foregroundStyle(.secondary)
-                .help(L10n.text("The illustration does not identify this Mac's physical cell layout."))
-        }
-    }
-    private var information: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(model.chargeText).font(.system(size: 44, weight: .medium, design: .rounded)).monospacedDigit()
-                .contentTransition(.numericText())
+        VStack(spacing: 16) {
+            charge
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .center, spacing: 18) {
+                    leftRail.frame(width: 136)
+                    illustration.frame(width: 280)
+                    rightRail.frame(width: 136)
+                }.frame(maxWidth: .infinity)
+                VStack(spacing: 22) {
+                    illustration.frame(maxWidth: .infinity)
+                    HStack(alignment: .top, spacing: 24) { leftRail; rightRail }
+                }
+            }
             if let level = state.level {
                 ProgressView(value: Double(level), total: 100)
-                    .tint(state.levelIsStale ? Color.secondary : Color.accentColor)
-                    .frame(maxWidth: 240)
-                    .accessibilityLabel(L10n.text("Charge level"))
-                    .accessibilityValue(model.chargeText)
+                    .tint(state.levelIsStale ? Color.secondary : Color.green)
+                    .frame(maxWidth: 340).frame(maxWidth: .infinity)
+                    .accessibilityLabel(L10n.text("Charge level")).accessibilityValue(model.chargeText)
             }
-            Text(model.chargingStateText).font(.subheadline).foregroundStyle(.secondary)
-            if state.levelIsStale { Label(L10n.text("Stale"), systemImage: "clock").font(.caption).foregroundStyle(.orange) }
-            Text(L10n.text("Source") + ": " + model.snapshot.chargePercent.source)
-                .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+            Text(L10n.text("Schematic battery illustration")).font(.caption2).foregroundStyle(.secondary)
+                .help(L10n.text("The illustration does not identify this Mac's physical cell layout."))
             KeepAwakeEnergyBadge(service: model.keepAwake)
-            if model.isDemo { Text(L10n.text("Simulation only — your Mac settings are unchanged.")).font(.caption).foregroundStyle(.secondary) }
-        }.fixedSize(horizontal: false, vertical: true)
+            if model.isDemo {
+                Text(L10n.text("Simulation only — your Mac settings are unchanged."))
+                    .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            }
+        }.padding(.vertical, 8)
+    }
+    private var leftRail: some View {
+        VStack(alignment: .leading, spacing: 28) {
+            CatalogSummaryMetric(model: model, id: "039", title: "Temperature")
+            CatalogSummaryMetric(model: model, id: "035", title: "Battery voltage")
+        }.frame(maxWidth: .infinity, alignment: .leading)
+    }
+    private var rightRail: some View {
+        VStack(alignment: .leading, spacing: 28) {
+            CatalogSummaryMetric(model: model, id: "026", title: "Capacity retention")
+            CatalogSummaryMetric(model: model, id: "027", title: "Cycle count")
+        }.frame(maxWidth: .infinity, alignment: .leading)
+    }
+    private var illustration: some View {
+        EnergyStateIllustration(state: state).scaleEffect(0.85).frame(width: 280, height: 192)
+    }
+    private var charge: some View {
+        VStack(spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 7) {
+                Text(model.chargeText).font(.system(size: 46, weight: .semibold, design: .rounded)).monospacedDigit()
+                    .foregroundStyle(state.levelIsStale || state.level == nil ? Color.secondary : Color.green)
+                    .contentTransition(.numericText())
+                if let reading = model.snapshot.catalog.first(where: { $0.id == "011" }) {
+                    ReadingInfoButton(reading: reading, fahrenheit: model.fahrenheit)
+                }
+            }
+            Text(model.chargingStateText).font(.callout).foregroundStyle(.secondary)
+                .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+            if state.levelIsStale {
+                Text(L10n.text("Stale")).font(.callout).foregroundStyle(.orange)
+            } else if state.level != nil, model.snapshot.chargePercent.freshness == .unknown {
+                Text(L10n.text("Freshness unknown")).font(.callout).foregroundStyle(.secondary)
+            }
+        }.frame(maxWidth: .infinity)
     }
 }
 
@@ -297,68 +328,92 @@ struct PowerHeadlineReading {
 @MainActor struct PowerConnectionHeading: View {
     @ObservedObject var model: TilveroModel
     private var state: EnergyVisualSnapshot { .init(model.snapshot) }
-    private func reading(_ id: String) -> PowerHeadlineReading {
-        .init(model.snapshot.catalog.first(where: { $0.id == id }))
-    }
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(alignment: .center, spacing: 18) {
-                VStack(spacing: 8) {
-                    node(symbol: state.sourceConnected == nil ? "powerplug.portrait" : "powerplug", artwork: EnergyArtwork.adapter,
-                         dimmed: state.sourceConnected != true, title: "Adapter input", value: state.sourceConnected == false ? "—" : reading("054").value)
-                    qualification(reading("054"))
+        VStack(spacing: 22) {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .center, spacing: 12) {
+                    adapter.frame(width: 180)
+                    connection.frame(minWidth: 24, maxWidth: 90)
+                    mac.frame(width: 220)
                 }.frame(maxWidth: .infinity)
-                connection.frame(minWidth: 40, maxWidth: 140)
-                VStack(spacing: 8) {
-                    node(symbol: "laptopcomputer", artwork: EnergyArtwork.mac, title: "Mac", value: L10n.text(state.sourceConnected == true ? "Power adapter" : state.sourceConnected == false ? "On battery" : "Power source unavailable"))
-                    Text(L10n.text("Reported power source")).font(.caption).foregroundStyle(.secondary)
-                    if model.snapshot.isExternalPower.freshness == .unknown {
-                        Text(L10n.text("Freshness unknown")).font(.caption).foregroundStyle(.secondary)
-                    }
+                VStack(spacing: 18) {
+                    adapter
+                    connection.frame(width: 70)
+                    mac
                 }.frame(maxWidth: .infinity)
-            }.frame(maxWidth: .infinity).padding(.vertical, 12)
-            HStack(alignment: .firstTextBaseline, spacing: 14) {
-                Label {
-                    Text(L10n.text("Battery power"))
-                } icon: {
-                    Image(systemName: "battery.100percent").foregroundStyle(.green)
-                }
-                Spacer()
-                Text(reading("038").value).monospacedDigit()
-            }.font(.subheadline)
-            qualification(reading("038"))
-            Text(L10n.text("Separate battery measurement")).font(.caption).foregroundStyle(.secondary)
-            Text(L10n.text("Device illustrations are schematic.")).font(.caption2).foregroundStyle(.secondary)
-        }.padding(.vertical, 8)
-    }
-    private func qualification(_ reading: PowerHeadlineReading) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            if let key = reading.qualificationKey {
-                Text(L10n.text(key)).foregroundStyle(key == "Stale" ? Color.orange : Color.secondary)
             }
-            if let source = reading.source { Text(L10n.text("Source") + ": " + source).foregroundStyle(.secondary) }
-        }.font(.caption).fixedSize(horizontal: false, vertical: true)
+            Divider()
+            VStack(alignment: .leading, spacing: 5) {
+                CatalogSummaryMetric(model: model, id: "038", title: "Battery power")
+                Text(L10n.text("Separate battery measurement")).font(.caption).foregroundStyle(.secondary)
+            }.frame(maxWidth: 280)
+            Text(L10n.text("Device illustrations are schematic.")).font(.caption2).foregroundStyle(.secondary)
+            if let limitText {
+                HStack(spacing: 7) {
+                    Image(systemName: "battery.100percent").foregroundStyle(.green).accessibilityHidden(true)
+                    Text(L10n.text("macOS charge limit"))
+                    Text(limitText).monospacedDigit()
+                }.font(.callout).frame(maxWidth: .infinity, alignment: .leading)
+                    .help(L10n.text("macOS manages this setting independently of Tilvero."))
+            }
+        }.padding(.vertical, 12)
+    }
+    private var limitText: String? {
+        if let setting = model.nativeCharge.nativeSetting, setting.isFresh {
+            return setting.configuration.enabled ? "\(setting.configuration.target)%" : L10n.text("System managed")
+        }
+        if let observation = model.systemChargeLimit, observation.isFresh(), let limits = observation.limits,
+           !limits.manualLimitIsConflicting, let limit = limits.manualLimit { return "\(limit)%" }
+        return nil
+    }
+    private var adapter: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            CatalogSummaryMetric(model: model, id: "054", title: "Adapter input")
+            artwork(EnergyArtwork.adapter, symbol: "powerplug", width: 170, dimmed: state.sourceConnected != true)
+        }.frame(maxWidth: .infinity, alignment: .leading)
+    }
+    private var mac: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(L10n.text(state.sourceConnected == true ? "Power adapter" : state.sourceConnected == false ? "On battery" : "Power source unavailable"))
+                    .font(.title3.weight(.medium)).fixedSize(horizontal: false, vertical: true)
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Text(L10n.text("Reported power source")).font(.callout).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let reading = model.snapshot.catalog.first(where: { $0.id == "015" }) {
+                        ReadingInfoButton(reading: reading, fahrenheit: model.fahrenheit)
+                    }
+                }
+                if let reading = model.snapshot.catalog.first(where: { $0.id == "015" }) {
+                    ForEach(CatalogDataPresentation.qualifications(reading), id: \.self) { qualification in
+                        Text(qualification).font(.callout)
+                            .foregroundStyle(reading.freshness == .stale ? Color.orange : Color.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                } else if model.snapshot.isExternalPower.freshness != .fresh {
+                    Text(L10n.text(model.snapshot.isExternalPower.freshness == .stale ? "Stale" : "Freshness unknown"))
+                        .font(.callout).foregroundStyle(.secondary)
+                }
+            }
+            artwork(EnergyArtwork.overviewMac ?? EnergyArtwork.mac, symbol: "laptopcomputer", width: 220)
+        }.frame(maxWidth: .infinity, alignment: .leading)
     }
     private var connection: some View {
         HStack(spacing: 6) {
             Rectangle().fill(.secondary.opacity(state.sourceConnected == true ? 0.5 : 0.2)).frame(height: 1)
             Image(systemName: state.sourceConnected == true ? "link" : state.sourceConnected == nil ? "questionmark" : "minus")
-                .font(.caption).foregroundStyle(.secondary).accessibilityHidden(true)
+                .font(.caption).foregroundStyle(.secondary)
             Rectangle().fill(.secondary.opacity(state.sourceConnected == true ? 0.5 : 0.2)).frame(height: 1)
         }.accessibilityHidden(true)
     }
-    private func node(symbol: String, artwork: NSImage? = nil, dimmed: Bool = false, title: String, value: String) -> some View {
-        VStack(spacing: 9) {
-            Group {
-                if let artwork {
-                    Image(nsImage: artwork).resizable().interpolation(.high).scaledToFit().frame(width: 160, height: 110)
-                        .opacity(dimmed ? 0.38 : 1)
-                } else {
-                    Image(systemName: symbol).font(.system(size: 34, weight: .ultraLight)).foregroundStyle(.secondary).frame(height: 110)
-                }
-            }.accessibilityHidden(true)
-            Text(L10n.text(title)).font(.caption).foregroundStyle(.secondary)
-            Text(value).font(.title3.weight(.medium)).monospacedDigit().multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
-        }.frame(maxWidth: .infinity)
+    private func artwork(_ image: NSImage?, symbol: String, width: CGFloat, dimmed: Bool = false) -> some View {
+        Group {
+            if let image {
+                Image(nsImage: image).resizable().interpolation(.high).scaledToFit().frame(width: width, height: 140)
+            } else {
+                Image(systemName: symbol).font(.system(size: 54, weight: .ultraLight)).foregroundStyle(.secondary)
+                    .frame(width: width, height: 140)
+            }
+        }.opacity(dimmed ? 0.38 : 1).accessibilityHidden(true)
     }
 }

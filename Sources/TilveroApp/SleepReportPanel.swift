@@ -7,14 +7,14 @@ import PowerTelemetry
 struct SleepReportPanel: View {
     @ObservedObject var model: TilveroModel
     @State private var selectedID: UUID?
+    @State private var observationDetailsExpanded = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var records: [SleepSessionRecord] { model.sleepSessions.sorted { ($0.observedAt ?? .distantPast) > ($1.observedAt ?? .distantPast) } }
     private var selected: SleepSessionRecord? { records.first { $0.id == selectedID } ?? records.first }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            ProductIntro(title: "Sleep & drain",
-                         subtitle: "Sleep reports start with the next sleep observed while Tilvero is running. Previous nights are not reconstructed.",
-                         symbol: "moon.zzz", artwork: EnergyArtwork.rest)
+        VStack(alignment: .leading, spacing: 24) {
+            introduction
             if model.isDemo {
                 ProductSurface {
                     Label(L10n.text("Sleep reports are not collected in Simulation."), systemImage: "testtube.2")
@@ -29,12 +29,16 @@ struct SleepReportPanel: View {
                         .foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
                 }
                 if let record = selected {
-                    ProductSurface {
-                        ProductSectionHeading(title: "Observed interval")
-                        Picker(L10n.text("Observed interval"), selection: Binding(get: { record.id }, set: { selectedID = $0 })) {
+                    VStack(alignment: .leading, spacing: 18) {
+                        Picker(L10n.text("Observed interval"), selection: Binding(get: { record.id }, set: { value in
+                            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
+                                selectedID = value
+                            }
+                        })) {
                             ForEach(records) { row in Text(date(row.observedAt)).tag(row.id) }
-                        }.labelsHidden().frame(maxWidth: 420, alignment: .leading)
+                        }.frame(maxWidth: .infinity, alignment: .leading)
                         interval(record)
+                            .id(record.id).transition(.opacity)
                     }
                 } else if model.sleepReportError == nil {
                     ProductSurface(title: "No observed sleep intervals yet", symbol: "moon.zzz") {
@@ -47,27 +51,58 @@ struct SleepReportPanel: View {
             Text(L10n.text("Elapsed observation time is not measured time asleep. Internal wakes, wake reasons and per-app energy are not available from these observations."))
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }.task { await model.refreshSleepActivity() }
+            .transaction { if reduceMotion { $0.animation = nil } }
+    }
+
+    private var introduction: some View {
+        VStack(spacing: 8) {
+            if let artwork = EnergyArtwork.rest {
+                Image(nsImage: artwork).resizable().interpolation(.high).scaledToFit()
+                    .frame(height: 85).accessibilityHidden(true)
+                    .help(L10n.text("Device illustrations are schematic."))
+            } else {
+                Image(systemName: "moon.zzz").font(.system(size: 35, weight: .light))
+                    .foregroundStyle(.green).frame(height: 75).accessibilityHidden(true)
+            }
+            if records.isEmpty && !model.isDemo {
+                Text(L10n.text("Sleep reports start with the next sleep observed while Tilvero is running. Previous nights are not reconstructed."))
+                    .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }.frame(maxWidth: .infinity)
     }
 
     private func interval(_ record: SleepSessionRecord) -> some View {
         VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top, spacing: 24) {
+                    endpoint("Before sleep", record.before)
+                    endpoint("After wake", record.after)
+                }
+                HStack(spacing: 0) {
+                    Circle().fill(.secondary).frame(width: 6, height: 6)
+                    Rectangle().fill(.primary.opacity(0.16)).frame(height: 1)
+                    Circle().fill(.secondary).frame(width: 6, height: 6)
+                }.accessibilityHidden(true)
+            }
             HStack(alignment: .top, spacing: 20) {
                 ProductMetric(title: "Charge change", value: record.chargeChangePercentagePoints.map(change) ?? "—")
+                Rectangle().fill(.primary.opacity(0.09)).frame(width: 1)
                 ProductMetric(title: "Observed interval", value: record.notificationIntervalSeconds.map(duration) ?? "—")
-            }
+            }.fixedSize(horizontal: false, vertical: true)
             Label(L10n.text(phase(record.phase)), systemImage: record.phase == .closed ? "checkmark.circle" : "clock")
                 .font(.callout).foregroundStyle(.secondary)
-            Divider()
-            ProductSectionHeading(title: "Battery observations")
-            HStack(alignment: .top, spacing: 24) {
-                endpoint("Before sleep", record.before)
-                endpoint("After wake", record.after)
-            }
+            Text(L10n.text("The interval connects observations, not measured time asleep."))
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Text(L10n.text(power(record.powerEvidence)))
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Text(L10n.text("Power changes between observations are unknown. A zero percentage change does not mean zero energy use."))
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            DisclosureGroup(L10n.text("Observation details")) {
+            DisclosureGroup(L10n.text("Observation details"), isExpanded: Binding(get: { observationDetailsExpanded }, set: { value in
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
+                    observationDetailsExpanded = value
+                }
+            })) {
                 VStack(alignment: .leading, spacing: 16) {
                     endpointDetails("Before sleep", record.before, boundary: record.sleepBoundary, before: true)
                     Divider()

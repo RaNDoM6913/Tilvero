@@ -340,7 +340,7 @@ struct ReadingInfoPresentation {
 }
 
 /// Summary readings share the value, privacy and quality rules of their detail rows.
-@MainActor private struct CatalogSummaryMetric: View {
+@MainActor struct CatalogSummaryMetric: View {
     @ObservedObject var model: TilveroModel
     let id: String
     let title: String
@@ -348,12 +348,13 @@ struct ReadingInfoPresentation {
     private var reading: CatalogReading? { model.snapshot.catalog.first { $0.id == id } }
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .top, spacing: 8) {
-                ProductMetric(title: title,
-                              value: reading.map { CatalogDataPresentation.conciseValue($0, reveal: reveal, fahrenheit: model.fahrenheit) } ?? "—")
-                if let reading {
-                    ReadingInfoButton(reading: reading, reveal: reveal, fahrenheit: model.fahrenheit)
-                }
+            Text(reading.map { CatalogDataPresentation.value($0, reveal: reveal, fahrenheit: model.fahrenheit) } ?? "—")
+                .font(.system(size: 26, weight: .medium, design: .rounded)).monospacedDigit()
+                .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .firstTextBaseline, spacing: 5) {
+                Text(L10n.text(title)).font(.callout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let reading { ReadingInfoButton(reading: reading, reveal: reveal, fahrenheit: model.fahrenheit) }
             }
             if let reading {
                 let quality = CatalogDataPresentation.qualifications(reading)
@@ -364,7 +365,7 @@ struct ReadingInfoPresentation {
                 }
             }
         }.fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 }
 
@@ -374,14 +375,21 @@ struct ReadingInfoPresentation {
     var showUnavailable = true
     var reveal = false
     @State var tab: BatteryDataTab = .overview
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             Picker(L10n.text("Battery section"), selection: $tab) {
                 ForEach(BatteryDataTab.allCases) { Text(L10n.text($0.title)).tag($0) }
             }.pickerStyle(.segmented).labelsHidden()
+            batteryContent.id(tab).transition(.opacity)
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: tab)
+        }
+    }
+    @ViewBuilder private var batteryContent: some View {
+        VStack(alignment: .leading, spacing: 22) {
             switch tab {
             case .overview:
-                ProductSurface { BatteryEnergyHeading(model: model) }
+                BatteryEnergyHeading(model: model)
                 section("Battery state", ["011", "013", "014", "015", "016", "023", "024"])
                 section("Current readings", ["038", "039", "067", "068", "069", "070", "071"])
             case .capacity:
@@ -390,13 +398,11 @@ struct ReadingInfoPresentation {
                              symbol: "battery.100percent", artwork: EnergyArtwork.image)
                 Text(L10n.text("Schematic battery illustration")).font(.caption2).foregroundStyle(.secondary)
                     .help(L10n.text("The illustration does not identify this Mac's physical cell layout."))
-                ProductSurface {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), alignment: .topLeading)], alignment: .leading, spacing: 18) {
-                        metric("026", "Capacity retention")
-                        metric("025", "System maximum capacity")
-                        metric("027", "Cycle count")
-                    }
-                }
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), alignment: .topLeading)], alignment: .leading, spacing: 24) {
+                    metric("026", "Capacity retention")
+                    metric("025", "System maximum capacity")
+                    metric("027", "Cycle count")
+                }.padding(.vertical, 8)
                 section("Charge capacity", ["029", "030", "031", "112", "113", "115"])
                 section("Health & design reference", ["025", "026", "027", "028", "032", "033", "034"])
                 section("Battery identity", (57...66).map { String(format: "%03d", $0) })
@@ -405,13 +411,11 @@ struct ReadingInfoPresentation {
                 ProductIntro(title: "Pack & cells",
                              subtitle: "Only reported cell readings are shown. Missing sensors are not reconstructed.",
                              symbol: "square.stack.3d.up")
-                ProductSurface {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), alignment: .topLeading)], alignment: .leading, spacing: 18) {
-                        metric("035", "Battery voltage")
-                        metric("039", "Battery temperature")
-                        metric("042", "Cell voltage spread")
-                    }
-                }
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), alignment: .topLeading)], alignment: .leading, spacing: 24) {
+                    metric("035", "Battery voltage")
+                    metric("039", "Battery temperature")
+                    metric("042", "Cell voltage spread")
+                }.padding(.vertical, 8)
                 section("Pack & cells", ["035", "036", "037", "039", "040", "041", "042"])
                 section("Reported lifetime observations", (103...111).map { String(format: "%03d", $0) })
             case .allData:
@@ -460,15 +464,22 @@ struct ReadingInfoPresentation {
     var reveal = false
     @State var tab: PowerDataTab = .flow
     @State private var showControls = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             Picker(L10n.text("Power section"), selection: $tab) {
                 ForEach(PowerDataTab.allCases) { Text(L10n.text($0.title)).tag($0) }
             }.pickerStyle(.segmented).labelsHidden()
-            chargingControls
+            powerContent.id(tab).transition(.opacity)
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: tab)
+        }
+    }
+    @ViewBuilder private var powerContent: some View {
+        VStack(alignment: .leading, spacing: 22) {
             switch tab {
             case .flow:
-                ProductSurface { PowerConnectionHeading(model: model) }
+                PowerConnectionHeading(model: model)
+                chargingControls
                 section("Electrical boundaries", ["054", "043", "038", "017", "035", "036", "037"])
                 Text(L10n.text("Adapter input and battery power measure different electrical boundaries. Rated capability is not current consumption."))
                     .font(.callout).foregroundStyle(.secondary)
@@ -487,12 +498,14 @@ struct ReadingInfoPresentation {
                 section("Adapter identity", (45...49).map { String(format: "%03d", $0) })
                 section("Connection capability", ["050", "051", "052", "053"])
                 section("Measured input", ["054", "055", "056"])
+                chargingControls
             case .statistics:
                 ProductIntro(title: "Power observations",
                              subtitle: "History starts with observations made by Tilvero. Sleep and missing readings remain gaps.",
                              symbol: "chart.xyaxis.line")
                 PowerObservationsPanel(model: model)
                 section("Recorded sessions", (72...86).map { String(format: "%03d", $0) })
+                chargingControls
             }
         }
     }

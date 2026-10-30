@@ -52,6 +52,7 @@ enum InfoSection: String, CaseIterable, Identifiable {
 @MainActor
 struct BatteryInfoView: View {
     @ObservedObject var model: TilveroModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var search = ""
     @State private var showUnavailable = true
     @State private var reveal = false
@@ -81,6 +82,7 @@ struct BatteryInfoView: View {
             }
             .navigationSplitViewColumnWidth(min: 200, ideal: 215, max: 250)
         } detail: {
+            ZStack(alignment: .topLeading) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     HStack(alignment: .top) {
@@ -114,7 +116,9 @@ struct BatteryInfoView: View {
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }.padding(24).frame(maxWidth: 1080, alignment: .leading).frame(maxWidth: .infinity, alignment: .topLeading)
-            }.background(Color(nsColor: .windowBackgroundColor)).id(model.selectedSection)
+            }.background(Color(nsColor: .windowBackgroundColor))
+                .id(model.selectedSection).transition(.opacity)
+            }.animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: model.selectedSection)
         }.frame(minWidth: 760, minHeight: 540)
             .tint(.green)
             .accentColor(.green)
@@ -177,20 +181,16 @@ struct BatteryInfoView: View {
         case .charging:
             PowerDataPanel(model: model, showUnavailable: showUnavailable, reveal: reveal)
         case .cooling:
-            ProductIntro(title: model.fanless ? "Fanless cooling" : "System cooling", subtitle: model.fanless ? "This MacBook Air has no fans. macOS manages cooling automatically." : "Fan control is not verified on this hardware.", symbol: model.fanless ? "leaf" : "fan", artwork: EnergyArtwork.mac)
-            DataReadingSection(title: "Thermal observations", readings: CatalogDataGroup.filtered(readings(["039", "040", "044", "094"]), search: query, showUnavailable: showUnavailable), fahrenheit: model.fahrenheit)
+            CoolingPanel(model: model, showUnavailable: showUnavailable)
             if !model.fanless {
                 if model.isDemo || !model.fanDescriptors.isEmpty { FanControlPanel(model: model) }
                 DataReadingSection(title: "Fan observations", readings: CatalogDataGroup.filtered(readings(["087", "088", "089", "090", "091", "092", "093"]), search: query, showUnavailable: showUnavailable), fahrenheit: model.fahrenheit)
             }
-            ProductSurface(title: "Cooling", symbol: "leaf") {
-                Text(L10n.text("Missing thermal and fan readings remain unavailable. Sensors are not reconstructed."))
-                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            }
         case .history: HistoryPanel(model: model)
         case .sleep: SleepReportPanel(model: model)
         case .diagnostics:
-            ProductIntro(title: "Local diagnostics", subtitle: "Monitoring works without a privileged helper. Control ownership and restoration are shown separately.", symbol: "checkmark.shield")
+            Label(L10n.text("Monitoring works without a privileged helper. Control ownership and restoration are shown separately."), systemImage: "checkmark.shield")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             if !model.isDemo {
                 ProductSurface(title: "Native charging", symbol: "battery.100percent") {
                     Label(L10n.text(model.nativeCharge.hasOwnedSettings || model.nativeCharge.recoveryRequired ? "App-owned settings require restoration" : "No active native session"), systemImage: model.nativeCharge.hasOwnedSettings || model.nativeCharge.recoveryRequired ? "exclamationmark.circle" : "checkmark.circle")
@@ -217,8 +217,14 @@ struct BatteryInfoView: View {
                 }
                 Text(L10n.text("Serials and private identifiers are excluded.")).font(.caption).foregroundStyle(.secondary)
             }
-            ForEach(CatalogDataGroup.allData(model.snapshot.catalog)) { group in
-                DataReadingSection(title: group.title, readings: CatalogDataGroup.filtered(group.readings, search: query, showUnavailable: showUnavailable), reveal: reveal, fahrenheit: model.fahrenheit)
+            ProductSurface {
+                DisclosureGroup(L10n.text("Measurements & sources")) {
+                    VStack(alignment: .leading, spacing: 18) {
+                        ForEach(CatalogDataGroup.allData(model.snapshot.catalog)) { group in
+                            DataReadingSection(title: group.title, readings: CatalogDataGroup.filtered(group.readings, search: query, showUnavailable: showUnavailable), reveal: reveal, fahrenheit: model.fahrenheit)
+                        }
+                    }.padding(.top, 12)
+                }
             }
         case .settings: SettingsPanel(model: model)
         }
@@ -260,7 +266,7 @@ private struct HistoryPanel: View {
                             LineMark(x: .value("Time", point.date), y: .value(metric, point.value), series: .value("Segment", point.series))
                                 .foregroundStyle(Color.accentColor).interpolationMethod(.linear)
                             PointMark(x: .value("Time", point.date), y: .value(metric, point.value)).symbolSize(8).foregroundStyle(Color.accentColor)
-                        }.frame(height: 240).chartYAxisLabel(metric == "Charge" ? "%" : metric == "Temperature" ? "°C" : "W")
+                        }.frame(height: 190).chartYAxisLabel(metric == "Charge" ? "%" : metric == "Temperature" ? "°C" : "W")
                         HStack(alignment: .firstTextBaseline) {
                             Text("\(L10n.text("Recorded samples")): \(points.count)")
                             Spacer()
@@ -319,17 +325,21 @@ private struct HistoryPanel: View {
 @MainActor
 private struct SettingsPanel: View {
     @ObservedObject var model: TilveroModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var confirmErase = false
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             Picker(L10n.text("Settings section"), selection: $model.selectedSettingsPage) {
                 ForEach(SettingsPage.allCases) { Text(L10n.text($0.title)).tag($0) }
             }.pickerStyle(.segmented).labelsHidden().id(L10n.language)
-            switch model.selectedSettingsPage {
-            case .general: general
-            case .quickPanel: QuickPanelBuilder(model: model)
-            case .history: historySettings
-            }
+            Group {
+                switch model.selectedSettingsPage {
+                case .general: general
+                case .quickPanel: QuickPanelBuilder(model: model)
+                case .history: historySettings
+                }
+            }.id(model.selectedSettingsPage).transition(.opacity)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: model.selectedSettingsPage)
         }.alert(L10n.text("Erase history"), isPresented: $confirmErase) {
             Button(L10n.text("Cancel"), role: .cancel) {}
             Button(L10n.text("Erase history"), role: .destructive) { model.eraseHistory() }
