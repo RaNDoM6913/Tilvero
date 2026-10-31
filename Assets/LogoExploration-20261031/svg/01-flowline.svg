@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+<title id="title">Tilvero — Flowline</title><desc id="desc">A disciplined refinement of the current energy-line signature; two unequal crests and a calm exit. An original exploration, not an adopted application icon.</desc>
+<defs><linearGradient id="tile" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#FCFDFB"/><stop offset="1" stop-color="#E6EDE3"/></linearGradient></defs>
+<rect width="1024" height="1024" fill="#F0F4ED"/>
+<rect x="64" y="64" width="896" height="896" rx="200" fill="url(#tile)" stroke="#DBE4D7" stroke-width="2"/>
+<path d="M242 610 C302 610 297 354 392 354 C487 354 459 670 554 670 C649 670 621 386 716 386 C756 386 772 468 802 468" fill="none" stroke="#24994F" stroke-width="78" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

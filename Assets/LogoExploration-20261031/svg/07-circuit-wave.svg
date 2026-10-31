@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+<title id="title">Tilvero — Circuit Wave</title><desc id="desc">A wide graphite circuit closes beneath a green wave; a horizontal counterpart to the old square loop. An original exploration, not an adopted application icon.</desc>
+<defs><linearGradient id="tile" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#FCFDFB"/><stop offset="1" stop-color="#E6EDE3"/></linearGradient></defs>
+<rect width="1024" height="1024" fill="#F0F4ED"/>
+<rect x="64" y="64" width="896" height="896" rx="200" fill="url(#tile)" stroke="#DBE4D7" stroke-width="2"/>
+<path d="M333 339 C266 339 220 395 220 475 V555 C220 638 279 695 357 695 H667 C746 695 804 638 804 555 V478 C804 433 785 399 754 378" fill="none" stroke="#293F34" stroke-width="66" stroke-linecap="round" stroke-linejoin="round"/><path d="M333 339 C393 339 404 518 464 518 C522 518 527 339 586 339 H706" fill="none" stroke="#24994F" stroke-width="68" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+<title id="title">Tilvero — TV Keystone</title><desc id="desc">A compact energy keystone with connected negative-space T and V; built as geometry rather than type. An original exploration, not an adopted application icon.</desc>
+<defs><linearGradient id="tile" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#FCFDFB"/><stop offset="1" stop-color="#E6EDE3"/></linearGradient></defs>
+<rect width="1024" height="1024" fill="#F0F4ED"/>
+<rect x="64" y="64" width="896" height="896" rx="200" fill="url(#tile)" stroke="#DBE4D7" stroke-width="2"/>
+<defs><mask id="tv-cutout"><rect width="1024" height="1024" fill="white"/><path d="M368 344 H656 V422 H551 V542 H473 V422 H368 Z M359 470 H443 L512 612 L581 470 H665 L512 728 Z" fill="black"/></mask></defs><path d="M314 254 H710 Q742 254 742 286 V496 C742 626 631 739 512 790 C393 739 282 626 282 496 V286 Q282 254 314 254 Z" fill="#293F34" mask="url(#tv-cutout)"/><path d="M710 254 Q742 254 742 286 V401 H687 V309 H600 V254 Z" fill="#24994F"/>
+</svg>

@@ -47,6 +47,10 @@ The catalog defines **115 fields**. Availability depends on the Mac and macOS; i
 
 Sleep reports begin with a sleep/wake interval observed while Tilvero is running and history is enabled. They are not backfilled from old sample gaps. The measured charge change spans the recorded observations; it does not prove battery-only operation or exact time asleep. Current process assertions explain what may prevent sleep **now**, not which application consumed energy during an earlier night. Internal wake counts, wake reasons and per-app energy are unavailable from this collection. Sleep records follow the selected detailed-history period, are erased with history, and are not included in the ordinary CSV/JSON export. Process names and assertion descriptions are not persisted.
 
+## Logo explorations
+
+[Ten original logo concepts](Assets/LogoExploration-20261031/README.md) compare energy-line/power-loop hybrids and T/V lettermarks, with individual PNG/SVG files, small-size checks and a bounded visual-similarity review.
+
 ## Build and run
 
 These are developer source-build commands. A future Monitoring Preview DMG is helper-free; installed-app users will not need Xcode or helper discovery commands.

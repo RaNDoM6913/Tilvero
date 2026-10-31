@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+<title id="title">Tilvero — Current T</title><desc id="desc">A substantial T crossbar with a flowing downstroke; the letter ends in an open energy hook. An original exploration, not an adopted application icon.</desc>
+<defs><linearGradient id="tile" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#FCFDFB"/><stop offset="1" stop-color="#E6EDE3"/></linearGradient></defs>
+<rect width="1024" height="1024" fill="#F0F4ED"/>
+<rect x="64" y="64" width="896" height="896" rx="200" fill="url(#tile)" stroke="#DBE4D7" stroke-width="2"/>
+<path d="M273 309 H751" fill="none" stroke="#293F34" stroke-width="94" stroke-linecap="round" stroke-linejoin="round"/><path d="M512 309 V487 C512 543 455 596 455 650 C455 714 513 738 570 704 C612 679 622 627 679 627" fill="none" stroke="#24994F" stroke-width="86" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+<title id="title">Tilvero — Thermal Flux</title><desc id="desc">Three broad curved vanes give cooling equal visual weight; separated tips keep the center open. An original exploration, not an adopted application icon.</desc>
+<defs><linearGradient id="tile" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#FCFDFB"/><stop offset="1" stop-color="#E6EDE3"/></linearGradient></defs>
+<rect width="1024" height="1024" fill="#F0F4ED"/>
+<rect x="64" y="64" width="896" height="896" rx="200" fill="url(#tile)" stroke="#DBE4D7" stroke-width="2"/>
+<path d="M479 253 C649 231 780 352 783 506 C706 483 643 435 594 370 C557 321 522 280 479 253 Z" fill="#24994F"/><path d="M780 541 C778 698 647 795 497 777 C531 702 582 637 647 591 C692 559 738 546 780 541 Z" fill="#293F34"/><path d="M463 776 C305 774 220 637 245 487 C317 520 382 572 425 637 C453 681 464 730 463 776 Z" fill="#9BC87B"/>
+</svg>

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+<title id="title">Tilvero — Flowcoil</title><desc id="desc">A square coil bridges the former enclosure and the new line in one inward-moving energy path. An original exploration, not an adopted application icon.</desc>
+<defs><linearGradient id="tile" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#FCFDFB"/><stop offset="1" stop-color="#E6EDE3"/></linearGradient></defs>
+<rect width="1024" height="1024" fill="#F0F4ED"/>
+<rect x="64" y="64" width="896" height="896" rx="200" fill="url(#tile)" stroke="#DBE4D7" stroke-width="2"/>
+<path d="M603 267 H374 C306 267 259 321 259 391 V640 C259 712 315 765 388 765 H642 C713 765 766 709 766 638 V426 C766 370 723 327 666 327 H557" fill="none" stroke="#293F34" stroke-width="70" stroke-linecap="round" stroke-linejoin="round"/><path d="M557 327 C499 327 455 371 455 428 V529 C455 576 489 612 535 612 C581 612 617 576 617 529 V461" fill="none" stroke="#24994F" stroke-width="70" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
