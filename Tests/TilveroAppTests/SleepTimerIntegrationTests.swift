@@ -4,6 +4,37 @@ import Carbon
 @testable import TilveroApp
 
 @MainActor final class SleepTimerIntegrationTests: XCTestCase {
+    func testDirectSelectionStartsAndReplacesButEditingCustomDraftDoesNotApply() throws {
+        let suite = "SleepDirect-\(UUID())", prefs = UserDefaults(suiteName: suite)!
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        let driver = IntegrationSleepDriver(), clock = IntegrationSleepClock()
+        let service = SleepTimerService(driver: driver, monotonic: { clock.value }, suspending: { clock.value }, sleeper: { _ in try await Task.sleep(for: .seconds(3600)) })
+        let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"), sleepTimerService: service)
+        try model.selectSleepTimer(minutes: 15)
+        let id = service.sessionID
+        XCTAssertEqual(service.remainingSeconds, 900)
+        XCTAssertEqual(driver.holdSeconds, 900)
+        clock.value = 10
+        model.sleepTimerMinutes = "120"
+        XCTAssertEqual(service.remainingSeconds, 890, "Typing must not commit a partial custom number")
+        XCTAssertEqual(driver.holdSeconds, 900)
+        try model.selectSleepTimer(minutes: 60)
+        XCTAssertEqual(service.sessionID, id)
+        XCTAssertEqual(service.remainingSeconds, 3600)
+        XCTAssertEqual(driver.holdSeconds, 3600)
+        XCTAssertEqual(driver.requests, 0)
+        model.stop(); XCTAssertFalse(driver.hasIdleHold)
+    }
+    func testSavedNonPresetDurationRemainsSelectedAsCustomWithoutStarting() {
+        let suite = "SleepCustomReload-\(UUID())", prefs = UserDefaults(suiteName: suite)!
+        defer { prefs.removePersistentDomain(forName: suite) }
+        prefs.set(45, forKey: "sleepTimerMinutes")
+        let model = TilveroModel(isDemo: true, preferences: prefs)
+        XCTAssertEqual(model.sleepTimerMinutes, "45")
+        XCTAssertTrue(model.sleepTimerUsesCustom)
+        XCTAssertFalse(model.sleepTimer.isActive)
+    }
     func testFirstNormalQuitCannotPassWhenTimerHoldReleaseFailsAndSystemQuitDoesNotWait() async throws {
         let suite = "SleepHoldQuit-\(UUID())", prefs = UserDefaults(suiteName: suite)!
         defer { prefs.removePersistentDomain(forName: suite) }
@@ -104,12 +135,15 @@ import Carbon
 @MainActor private final class IntegrationSleepDriver: SleepTimerTransport {
     var requests = 0
     var hasIdleHold = false
-    func acquireIdleHold(seconds: Int) { hasIdleHold = true }
+    var holdSeconds: Int?
+    func acquireIdleHold(seconds: Int) { hasIdleHold = true; holdSeconds = seconds }
     func extendIdleHold() {}
+    func replaceIdleHold(seconds: Int) { hasIdleHold = true; holdSeconds = seconds }
     var releaseFails = false
     func releaseIdleHold() throws {
         if releaseFails { throw NSError(domain: "HoldFixture", code: 1) }
         hasIdleHold = false
+        holdSeconds = nil
     }
     func isCurrentConsoleSession() -> Bool { true }
     func requestSleep() { requests += 1 }

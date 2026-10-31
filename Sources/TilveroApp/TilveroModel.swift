@@ -86,14 +86,23 @@ final class TilveroModel: ObservableObject {
         sleepTimer.canStart && SleepTimerInput.minutes(sleepTimerMinutes) != nil
             && !isApplying && !sleeping
     }
+    var canSelectSleepTimerDuration: Bool {
+        !isApplying && !sleeping && !sleepTimerBlocksControls && (sleepTimer.canStart || sleepTimer.isEditable)
+    }
     func startSleepTimer(replacingAwake: Bool = false) throws {
         guard canStartSleepTimer, let minutes = SleepTimerInput.minutes(sleepTimerMinutes) else { throw SleepTimerInputError.invalid }
+        try selectSleepTimer(minutes: minutes, replacingAwake: replacingAwake)
+    }
+    func selectSleepTimer(minutes: Int, replacingAwake: Bool = false) throws {
+        guard (1...1440).contains(minutes), !isApplying, !sleeping, !sleepTimerBlocksControls,
+              sleepTimer.canStart || sleepTimer.isEditable else { throw SleepTimerInputError.invalid }
         if keepAwake.hasOwnedAssertion {
             guard replacingAwake else { throw SleepTimerInputError.conflictingMode }
             try keepAwake.stop()
             guard !keepAwake.hasOwnedAssertion else { throw SleepTimerInputError.conflictingMode }
         }
-        try sleepTimer.start(minutes: minutes)
+        try sleepTimer.selectDuration(minutes: minutes)
+        sleepTimerMinutes = String(minutes)
     }
     private var awakeSubscription: AnyCancellable?
     private var awakeMessageSubscription: AnyCancellable?
@@ -215,7 +224,9 @@ final class TilveroModel: ObservableObject {
         self.processActivityProvider = processActivityProvider ?? { await ProcessActivityProvider().read() }
         self.preferences = preferences
         let savedSleepMinutes = preferences.integer(forKey: "sleepTimerMinutes")
-        sleepTimerMinutes = String((1...1440).contains(savedSleepMinutes) ? savedSleepMinutes : 30)
+        let initialSleepMinutes = (1...1440).contains(savedSleepMinutes) ? savedSleepMinutes : 30
+        sleepTimerMinutes = String(initialSleepMinutes)
+        sleepTimerUsesCustom = ![15, 30, 60].contains(initialSleepMinutes)
         let savedAwakeDuration = KeepAwakeDuration.load(preferences.object(forKey: "keepAwakeMinutes"))
         keepAwakeDraft = .duration(savedAwakeDuration)
         keepAwakeCustomMinutes = String(savedAwakeDuration.rawValue)

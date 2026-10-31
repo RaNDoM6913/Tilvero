@@ -65,6 +65,7 @@ import XCTest
     var hasIdleHold = false
     func acquireIdleHold(seconds: Int) { hasIdleHold = true }
     func extendIdleHold() {}
+    func replaceIdleHold(seconds: Int) { hasIdleHold = true }
     func releaseIdleHold() { hasIdleHold = false }
     func isCurrentConsoleSession() -> Bool { true }
     func requestSleep() { requests += 1; XCTFail("Fixture rendering must not request sleep") }

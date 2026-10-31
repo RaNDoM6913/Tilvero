@@ -3,6 +3,168 @@ import PowerCore
 @testable import TilveroApp
 
 @MainActor final class SleepTimerServiceTests: XCTestCase {
+    func testSelectionStartsIdleAndReplacesRunningDeadlineFromNowWithoutReacquisition() throws {
+        let fixture = SleepTimerFixture(), service = fixture.service()
+        try service.selectDuration(minutes: 15)
+        let id = service.sessionID
+        XCTAssertEqual(service.remainingSeconds, 900)
+        fixture.now = 30
+        try service.selectDuration(minutes: 60)
+        XCTAssertEqual(service.sessionID, id)
+        XCTAssertEqual(service.remainingSeconds, 3600)
+        fixture.now = 40
+        try service.selectDuration(minutes: 30)
+        XCTAssertEqual(service.sessionID, id)
+        XCTAssertEqual(service.endDate, fixture.wall.addingTimeInterval(1800))
+        XCTAssertEqual(fixture.holdEvents, ["acquire:900", "replace:3600", "replace:1800"])
+        XCTAssertTrue(service.isHoldingAwake)
+        service.stop()
+    }
+
+    func testReplacementFailureConsumesIntentAndRetainsFailedCleanupForExplicitRetry() async throws {
+        for failRelease in [false, true] {
+            let fixture = SleepTimerFixture(), service = fixture.service()
+            try service.selectDuration(minutes: 15)
+            fixture.replaceFailure = SleepHoldFixtureError.unconfirmed
+            if failRelease { fixture.releaseFailure = SleepHoldFixtureError.releaseFailed }
+            XCTAssertThrowsError(try service.selectDuration(minutes: 60))
+            XCTAssertEqual(service.phase, .cancelled)
+            XCTAssertNil(service.endDate)
+            XCTAssertEqual(service.needsHoldRelease, failRelease)
+            XCTAssertEqual(service.isHoldingAwake, failRelease)
+            fixture.now = 900
+            await service.reconcile()
+            XCTAssertEqual(fixture.requests, 0)
+            if failRelease {
+                XCTAssertThrowsError(try service.selectDuration(minutes: 30))
+                XCTAssertEqual(fixture.holdEvents, ["acquire:900", "replace:3600", "release"])
+                fixture.releaseFailure = nil
+                service.cancel()
+                XCTAssertFalse(service.isActive)
+            }
+        }
+    }
+
+    func testSelectionRejectsInvalidDurationWithoutChangingHoldOrDeadline() throws {
+        let fixture = SleepTimerFixture(), service = fixture.service()
+        XCTAssertThrowsError(try service.selectDuration(minutes: 0))
+        try service.selectDuration(minutes: 15)
+        for minutes in [0, -1, 1441, Int.max] {
+            XCTAssertThrowsError(try service.selectDuration(minutes: minutes))
+        }
+        XCTAssertEqual(service.remainingSeconds, 900)
+        XCTAssertEqual(fixture.holdEvents, ["acquire:900"])
+        service.stop()
+    }
+
+    func testReplacementWithoutVerifiedHoldNeverCommitsTheCandidateDeadline() async throws {
+        let fixture = SleepTimerFixture(), service = fixture.service()
+        try service.selectDuration(minutes: 15)
+        fixture.onReplace = { fixture.hasIdleHold = false }
+        XCTAssertThrowsError(try service.selectDuration(minutes: 60))
+        XCTAssertEqual(service.phase, .cancelled)
+        XCTAssertFalse(service.isActive)
+        XCTAssertNil(service.endDate)
+        fixture.now = 3600
+        await service.reconcile()
+        XCTAssertEqual(fixture.requests, 0)
+    }
+
+    func testReplacementRetainsOriginalPairedClockBaselineToDetectWake() throws {
+        let fixture = SleepTimerFixture()
+        let service = SleepTimerService(driver: fixture, monotonic: { fixture.now },
+            suspending: { fixture.awake }, sleeper: { _ in try await Task.sleep(for: .seconds(3600)) })
+        try service.selectDuration(minutes: 15)
+        fixture.now = 30; fixture.awake = 30
+        try service.selectDuration(minutes: 60)
+        fixture.now = 60; fixture.awake = 40
+        XCTAssertThrowsError(try service.selectDuration(minutes: 30))
+        XCTAssertEqual(service.phase, .cancelled)
+        XCTAssertFalse(service.isHoldingAwake)
+        XCTAssertEqual(fixture.holdEvents, ["acquire:900", "replace:3600", "release"])
+    }
+
+    func testSelectionChecksConsoleAndSuspensionBeforeAndAfterHoldReplacement() throws {
+        for afterUpdate in [false, true] {
+            for woke in [false, true] {
+                let fixture = SleepTimerFixture()
+                let service = SleepTimerService(driver: fixture, monotonic: { fixture.now },
+                    suspending: { fixture.awake }, sleeper: { _ in try await Task.sleep(for: .seconds(3600)) })
+                try service.selectDuration(minutes: 15)
+                let invalidate: @MainActor () -> Void = {
+                    if woke { fixture.now = 100; fixture.awake = 10 } else { fixture.console = false }
+                }
+                if afterUpdate { fixture.onReplace = invalidate } else { invalidate() }
+                XCTAssertThrowsError(try service.selectDuration(minutes: 60))
+                XCTAssertEqual(service.phase, .cancelled)
+                XCTAssertFalse(service.isHoldingAwake)
+                XCTAssertEqual(fixture.holdEvents, afterUpdate ? ["acquire:900", "replace:3600", "release"] : ["acquire:900", "release"])
+                XCTAssertEqual(fixture.requests, 0)
+            }
+        }
+    }
+
+    func testLifecycleDuringReplacementCannotCommitOrCancelNewSession() throws {
+        let fixture = SleepTimerFixture(), service = fixture.service()
+        try service.selectDuration(minutes: 15)
+        let original = service.sessionID
+        fixture.onReplace = { [weak service] in
+            fixture.onReplace = nil
+            service?.systemDidWake()
+            try? service?.start(minutes: 20)
+        }
+        XCTAssertThrowsError(try service.selectDuration(minutes: 60))
+        XCTAssertNotEqual(service.sessionID, original)
+        XCTAssertEqual(service.remainingSeconds, 1200)
+        XCTAssertTrue(service.isHoldingAwake)
+        service.stop()
+    }
+
+    func testSelectionHasNoEffectsDuringPreparationRequestingOrAcceptance() async throws {
+        let fixture = SleepTimerFixture(), gate = SleepPreparationGate()
+        let service = fixture.service(prepare: { await gate.wait() })
+        try service.selectDuration(minutes: 1)
+        fixture.now = 60
+        let pending = Task { await service.reconcile() }
+        while gate.waiter == nil { await Task.yield() }
+        XCTAssertThrowsError(try service.selectDuration(minutes: 60))
+        XCTAssertEqual(fixture.holdEvents, ["acquire:60"])
+        var rejectedWhileRequesting = false
+        service.onPhaseChange = { [weak service] phase in
+            if phase == .requesting {
+                do { try service?.selectDuration(minutes: 30) }
+                catch { rejectedWhileRequesting = true }
+            }
+        }
+        gate.resume(true)
+        await pending.value
+        XCTAssertEqual(service.phase, .accepted)
+        XCTAssertTrue(rejectedWhileRequesting)
+        XCTAssertThrowsError(try service.selectDuration(minutes: 15))
+        XCTAssertEqual(fixture.requests, 1)
+        XCTAssertEqual(fixture.holdEvents, ["acquire:60", "release", "request"])
+        service.stop()
+    }
+
+    func testOldScheduledCallbackCannotSubmitAfterDurationReplacement() async throws {
+        let fixture = SleepTimerFixture(), schedule = SleepTimerScheduleGate()
+        let service = SleepTimerService(driver: fixture, monotonic: { fixture.now }, suspending: { fixture.now },
+            sleeper: { await schedule.wait($0) })
+        try service.selectDuration(minutes: 1)
+        while schedule.waiters.count < 1 { await Task.yield() }
+        fixture.now = 30
+        try service.selectDuration(minutes: 60)
+        while schedule.waiters.count < 2 { await Task.yield() }
+        fixture.now = 60
+        schedule.resumeFirst()
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertEqual(service.phase, .armed)
+        XCTAssertEqual(service.remainingSeconds, 3570)
+        XCTAssertEqual(fixture.requests, 0)
+        service.stop()
+        schedule.resumeAll()
+    }
+
     func testStartExtendAndCancelOwnIdleHoldWithoutTouchingForeignHold() throws {
         let fixture = SleepTimerFixture(), service: SleepTimerService
         service = fixture.service()
@@ -293,11 +455,10 @@ import PowerCore
 
     func testWakeBeforeNotificationCannotSubmitAnOverdueTimerInsideGrace() async throws {
         let fixture = SleepTimerFixture()
-        var awake = 0.0
         let service = SleepTimerService(driver: fixture, monotonic: { fixture.now },
-            suspending: { awake }, sleeper: { _ in try await Task.sleep(for: .seconds(3600)) })
+            suspending: { fixture.awake }, sleeper: { _ in try await Task.sleep(for: .seconds(3600)) })
         try service.start(minutes: 1)
-        fixture.now = 62; awake = 10
+        fixture.now = 62; fixture.awake = 10
         await service.reconcile()
         XCTAssertEqual(fixture.requests, 0)
         XCTAssertFalse(service.isActive)
@@ -557,6 +718,7 @@ import PowerCore
 
 @MainActor private final class SleepTimerFixture: SleepTimerTransport {
     var now = 0.0
+    var awake = 0.0
     var wall = Date(timeIntervalSince1970: 0)
     var console = true
     var requests = 0
@@ -566,6 +728,8 @@ import PowerCore
     var holdEvents: [String] = []
     var acquireFailure: Error?
     var extendFailure: Error?
+    var replaceFailure: Error?
+    var onReplace: (@MainActor () -> Void)?
     var releaseFailure: Error?
     var retainOnAcquireFailure = false
     var confirmAcquisition = true
@@ -582,6 +746,11 @@ import PowerCore
     func extendIdleHold() throws {
         holdEvents.append("extend:900")
         if let extendFailure { throw extendFailure }
+    }
+    func replaceIdleHold(seconds: Int) throws {
+        holdEvents.append("replace:\(seconds)")
+        onReplace?()
+        if let replaceFailure { throw replaceFailure }
     }
     func releaseIdleHold() throws {
         holdEvents.append("release")

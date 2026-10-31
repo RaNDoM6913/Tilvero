@@ -2,6 +2,44 @@ import XCTest
 @testable import PowerCore
 
 final class SleepTimerTests: XCTestCase {
+    func testReplacementCountsFromNowPreservesSessionAndInvalidatesGeneration() throws {
+        var timer = SleepTimer()
+        try timer.start(minutes: 15, now: 100)
+        let id = timer.sessionID, generation = timer.generation
+        try timer.replaceDuration(minutes: 60, now: 130)
+        XCTAssertEqual(timer.sessionID, id)
+        XCTAssertEqual(timer.generation, generation + 1)
+        XCTAssertEqual(timer.deadline, 3730)
+        try timer.replaceDuration(minutes: 30, now: 140)
+        XCTAssertEqual(timer.deadline, 1940)
+        XCTAssertEqual(timer.phase, .armed)
+        try timer.replaceDuration(minutes: 1, now: 150)
+        XCTAssertEqual(timer.deadline, 210)
+        XCTAssertEqual(timer.phase, .warning)
+    }
+
+    func testReplacementRejectsInvalidValuesAndEveryNoneditablePhase() throws {
+        var timer = SleepTimer()
+        XCTAssertThrowsError(try timer.replaceDuration(minutes: 15, now: 0))
+        try timer.start(minutes: 1, now: 0)
+        let original = timer
+        for minutes in [0, -1, 1441, Int.max] {
+            XCTAssertThrowsError(try timer.replaceDuration(minutes: minutes, now: 10))
+            XCTAssertEqual(timer, original)
+        }
+        XCTAssertThrowsError(try timer.replaceDuration(minutes: 15, now: .nan))
+        XCTAssertEqual(timer, original)
+        XCTAssertTrue(timer.beginPreparation(now: 60))
+        XCTAssertThrowsError(try timer.replaceDuration(minutes: 15, now: 60))
+        XCTAssertTrue(timer.beginRequest(now: 60))
+        XCTAssertThrowsError(try timer.replaceDuration(minutes: 15, now: 60))
+        XCTAssertTrue(timer.markSubmitted())
+        timer.acceptRequest(now: 60)
+        XCTAssertThrowsError(try timer.replaceDuration(minutes: 15, now: 60))
+        timer.invalidate()
+        XCTAssertThrowsError(try timer.replaceDuration(minutes: 15, now: 60))
+    }
+
     func testValidationAndDuplicateStartPreserveOriginalSession() throws {
         var timer = SleepTimer()
         for minutes in [0, -1, 1441, Int.max] {

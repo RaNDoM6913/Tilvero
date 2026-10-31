@@ -12672,6 +12672,70 @@
           }
         }
       }
+    },
+    "Custom timer time": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Custom"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Своё"
+          }
+        }
+      }
+    },
+    "Press Return to apply the custom time.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Press Return to apply the custom time."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нажмите Enter, чтобы применить своё время."
+          }
+        }
+      }
+    },
+    "Choose a time to start immediately.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a time to start immediately."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выберите время — таймер запустится сразу."
+          }
+        }
+      }
+    },
+    "Sleep timer cancelled because its awake hold could not be updated.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep timer cancelled because its awake hold could not be updated."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Таймер отменён: изменить удержание бодрствования не удалось."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

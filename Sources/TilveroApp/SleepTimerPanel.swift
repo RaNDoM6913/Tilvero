@@ -78,6 +78,8 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
     var compact = false
     @State private var error: String?
     @State private var confirmsSwitch = false
+    @State private var pendingSelection: (minutes: Int, custom: Bool)?
+    @FocusState private var customFocused: Bool
     private var service: SleepTimerService { model.sleepTimer }
     var body: some View {
         VStack(alignment: .leading, spacing: compact ? 14 : 16) {
@@ -85,10 +87,8 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
                 Label(L10n.text("The timer’s awake hold still needs to be released."), systemImage: "exclamationmark.triangle")
                     .font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
                 Button(L10n.text("Release timer hold")) { service.cancel() }.accessibilityIdentifier("sleep-timer-release-hold")
-            } else if service.isActive {
-                TimelineView(.periodic(from: .now, by: 1)) { _ in active }
             } else {
-                heading
+                if !service.isActive { heading }
                 choices
                 if model.sleepTimerUsesCustom {
                     HStack {
@@ -97,19 +97,24 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
                         TextField("1–1440", text: $model.sleepTimerMinutes).textFieldStyle(.roundedBorder)
                             .multilineTextAlignment(.trailing).frame(width: 72)
                             .accessibilityLabel(L10n.text("Sleep timer duration in minutes"))
+                            .focused($customFocused).onSubmit { submitCustom() }
+                            .onAppear { customFocused = true }
+                            .disabled(!model.canSelectSleepTimerDuration)
                         Text(L10n.text("min")).foregroundStyle(.secondary)
                     }.font(.system(size: 12))
+                    Text(L10n.text("Press Return to apply the custom time.")).font(.caption).foregroundStyle(.secondary)
                 }
-                if compact {
-                    schedule
+                if service.isActive {
+                    TimelineView(.periodic(from: .now, by: 1)) { _ in active }
+                } else if compact {
+                    Text(L10n.text("Choose a time to start immediately.")).font(.caption).foregroundStyle(.secondary)
                     Text(L10n.text("Keeps Mac awake until the timer ends, then requests sleep."))
                         .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                    startButton.frame(maxWidth: .infinity)
                     Text(L10n.text("Quitting Tilvero cancels the timer."))
                         .font(.caption2).foregroundStyle(.secondary)
                 } else {
                     Divider()
-                    HStack(spacing: 12) { schedule; Spacer(minLength: 8); startButton }
+                    Text(L10n.text("Choose a time to start immediately.")).font(.caption).foregroundStyle(.secondary)
                 }
             }
             if let message = (error ?? service.message).map(L10n.text) {
@@ -125,7 +130,7 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
             }
         }
         .confirmationDialog(L10n.text("End Keep Awake and start the sleep timer?"), isPresented: $confirmsSwitch, titleVisibility: .visible) {
-            Button(L10n.text("End Keep Awake and start")) { start(replacing: true) }
+            Button(L10n.text("End Keep Awake and start")) { applySelection(replacing: true) }
             Button(L10n.text("Cancel"), role: .cancel) {}
         }
     }
@@ -141,19 +146,16 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
         }
     }
     private var choices: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
-                ForEach([15, 30, 45, 60], id: \.self) { minutes in
-                    choice("\(minutes) " + L10n.text("min"), selected: !model.sleepTimerUsesCustom && SleepTimerInput.minutes(model.sleepTimerMinutes) == minutes) {
-                        model.sleepTimerMinutes = String(minutes); model.sleepTimerUsesCustom = false; error = nil
-                    }
+        HStack(spacing: 6) {
+            ForEach([15, 30, 60], id: \.self) { minutes in
+                choice("\(minutes) " + L10n.text("min"), selected: service.isActive && !model.sleepTimerUsesCustom && SleepTimerInput.minutes(model.sleepTimerMinutes) == minutes) {
+                    select(minutes: minutes, custom: false)
                 }
-                if !compact { choice(L10n.text("Custom…"), selected: model.sleepTimerUsesCustom) { model.sleepTimerUsesCustom = true; error = nil } }
             }
-            if compact && !model.sleepTimerUsesCustom {
-                Button(L10n.text("Custom duration…")) { model.sleepTimerUsesCustom = true; error = nil }.buttonStyle(.borderless)
+            choice(L10n.text("Custom timer time"), selected: model.sleepTimerUsesCustom) {
+                model.sleepTimerUsesCustom = true; error = nil; customFocused = true
             }
-        }
+        }.disabled(!model.canSelectSleepTimerDuration)
     }
     private func choice(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
@@ -162,22 +164,21 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
                 .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(selected ? Color.accentColor.opacity(0.5) : Color.primary.opacity(0.09)))
         }.buttonStyle(.plain).accessibilityAddTraits(selected ? [.isSelected] : [])
     }
-    private var schedule: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            if let minutes = SleepTimerInput.minutes(model.sleepTimerMinutes) {
-                Label(SleepTimerInput.endTime(Date().addingTimeInterval(Double(minutes * 60))), systemImage: "clock")
-                    .font(.system(size: 12, weight: .medium))
-            } else { Text(L10n.text("Enter 1–1440 minutes.")).font(.caption).foregroundStyle(.orange) }
-            Text(L10n.text("We’ll warn you one minute before.")).font(.system(size: 11)).foregroundStyle(.secondary)
-        }.fixedSize(horizontal: false, vertical: true)
+    private func select(minutes: Int, custom: Bool) {
+        pendingSelection = (minutes, custom)
+        if model.keepAwake.hasOwnedAssertion { confirmsSwitch = true }
+        else { applySelection(replacing: false) }
     }
-    private var startButton: some View {
-        Button { if model.keepAwake.hasOwnedAssertion { confirmsSwitch = true } else { start(replacing: false) } } label: {
-            Text(L10n.text("Start timer")).frame(maxWidth: compact ? .infinity : nil)
-        }.buttonStyle(SleepTimerPrimaryStyle()).disabled(!model.canStartSleepTimer).accessibilityIdentifier("sleep-timer-start")
+    private func submitCustom() {
+        guard let minutes = SleepTimerInput.minutes(model.sleepTimerMinutes) else { error = L10n.text("Enter 1–1440 minutes."); return }
+        select(minutes: minutes, custom: true)
     }
-    private func start(replacing: Bool) {
-        do { try model.startSleepTimer(replacingAwake: replacing); error = nil }
+    private func applySelection(replacing: Bool) {
+        guard let selection = pendingSelection else { return }
+        do {
+            try model.selectSleepTimer(minutes: selection.minutes, replacingAwake: replacing)
+            model.sleepTimerUsesCustom = selection.custom; error = nil; customFocused = false; pendingSelection = nil
+        }
         catch { self.error = error.localizedDescription }
     }
     private var active: some View {

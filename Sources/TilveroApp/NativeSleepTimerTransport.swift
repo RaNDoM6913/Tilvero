@@ -28,6 +28,7 @@ enum NativeSleepTimerError: LocalizedError {
     var hasIdleHold: Bool { idleHold.hasOwnedAssertion }
     func acquireIdleHold(seconds: Int) throws { try idleHold.start(seconds: seconds) }
     func extendIdleHold() throws { try idleHold.extend(by: 900) }
+    func replaceIdleHold(seconds: Int) throws { try idleHold.replaceDuration(seconds: seconds) }
     func releaseIdleHold() throws { try idleHold.stop() }
     func isCurrentConsoleSession() -> Bool { consoleCheck() }
     func requestSleep() throws {

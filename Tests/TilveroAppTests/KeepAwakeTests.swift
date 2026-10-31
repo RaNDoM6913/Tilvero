@@ -2,6 +2,106 @@ import XCTest
 @testable import TilveroApp
 
 @MainActor final class KeepAwakeTests: XCTestCase {
+    func testReplacementReusesVerifiedAssertionAndCountsFromNow() throws {
+        let driver = AwakeFixture()
+        var now = ContinuousClock.now
+        let service = KeepAwakeService(driver: driver, continuousNow: { now })
+        try service.start(seconds: 900)
+        let id = try XCTUnwrap(service.ownedAssertionID)
+        now = now.advanced(by: .seconds(30))
+        try service.replaceDuration(seconds: 3600)
+        XCTAssertEqual(service.ownedAssertionID, id)
+        XCTAssertEqual(service.remainingSeconds, 3600)
+        now = now.advanced(by: .seconds(10))
+        try service.replaceDuration(seconds: 1800)
+        XCTAssertEqual(service.ownedAssertionID, id)
+        XCTAssertEqual(service.remainingSeconds, 1800)
+        XCTAssertEqual(driver.assertions[id]?.seconds, 1800)
+        XCTAssertEqual(driver.createCount, 1)
+        XCTAssertEqual(driver.releaseCount, 0)
+        try service.stop()
+    }
+
+    func testReplacementRejectsBoundsAndIndefiniteSessionWithoutChangingAssertion() throws {
+        let driver = AwakeFixture(), service = KeepAwakeService(driver: driver)
+        XCTAssertThrowsError(try service.replaceDuration(seconds: 900))
+        try service.startUntilStopped()
+        XCTAssertThrowsError(try service.replaceDuration(seconds: 900))
+        try service.stop()
+        try service.start(seconds: 900)
+        for seconds in [0, -1, 86401, Int.max] {
+            XCTAssertThrowsError(try service.replaceDuration(seconds: seconds))
+        }
+        XCTAssertEqual(service.remainingSeconds, 900)
+        XCTAssertEqual(driver.updateCount, 0)
+        try service.replaceDuration(seconds: 1)
+        try service.replaceDuration(seconds: 86400)
+        try service.stop()
+    }
+
+    func testReplacementUpdateFailureKeepsOnlyConclusiveUnchangedTimeoutForRetry() throws {
+        let driver = AwakeFixture(), service = KeepAwakeService(driver: driver)
+        try service.start(seconds: 900)
+        let id = service.ownedAssertionID
+        driver.failUpdate = true
+        XCTAssertThrowsError(try service.replaceDuration(seconds: 1800))
+        XCTAssertEqual(service.ownedAssertionID, id)
+        XCTAssertTrue(service.isActive)
+        XCTAssertEqual(service.remainingSeconds, 900)
+        XCTAssertEqual(driver.releaseCount, 0)
+        driver.failUpdate = false
+        try service.replaceDuration(seconds: 1800)
+        XCTAssertEqual(service.ownedAssertionID, id)
+        try service.stop()
+    }
+
+    func testReplacementWrongReadbackCleansOwnHoldOrRetainsReleaseRetry() throws {
+        for failRelease in [false, true] {
+            let driver = AwakeFixture(), service = KeepAwakeService(driver: driver)
+            try service.start(seconds: 900)
+            driver.wrongUpdatedTimeout = true
+            driver.failRelease = failRelease
+            XCTAssertThrowsError(try service.replaceDuration(seconds: 1800))
+            XCTAssertFalse(service.isActive)
+            XCTAssertEqual(service.hasOwnedAssertion, failRelease)
+            if failRelease {
+                XCTAssertThrowsError(try service.replaceDuration(seconds: 3600))
+                driver.failRelease = false
+                try service.stop()
+            }
+            XCTAssertTrue(driver.assertions.isEmpty)
+        }
+    }
+
+    func testReplacementNeverChangesOrReleasesReusedForeignID() throws {
+        let driver = AwakeFixture(), service = KeepAwakeService(driver: driver)
+        try service.start(seconds: 900)
+        let id = try XCTUnwrap(service.ownedAssertionID)
+        driver.assertions[id] = .init(name: "Foreign app", kind: "PreventUserIdleSystemSleep", active: true, seconds: 900, releasesOnTimeout: true)
+        XCTAssertThrowsError(try service.replaceDuration(seconds: 1800))
+        XCTAssertEqual(driver.assertions[id]?.name, "Foreign app")
+        XCTAssertEqual(driver.assertions[id]?.seconds, 900)
+        XCTAssertEqual(driver.updateCount, 0)
+        XCTAssertEqual(driver.releaseCount, 0)
+    }
+
+    func testOldAssertionExpiryCannotReleaseTheSameIDAfterReplacement() async throws {
+        let driver = AwakeFixture(), gate = AwakeExpiryGate()
+        let service = KeepAwakeService(driver: driver, sleeper: { _ in await gate.wait() })
+        try service.start(seconds: 900)
+        while await gate.count < 1 { await Task.yield() }
+        let id = service.ownedAssertionID
+        try service.replaceDuration(seconds: 3600)
+        while await gate.count < 2 { await Task.yield() }
+        await gate.resumeFirst()
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertEqual(service.ownedAssertionID, id)
+        XCTAssertTrue(service.isActive)
+        XCTAssertEqual(driver.releaseCount, 0)
+        try service.stop()
+        await gate.resumeFirst()
+    }
+
     func testExplicitStartVerifiesOwnAssertionAndDuplicateStartCannotAcquireAnother() throws {
         let driver = AwakeFixture(), service = KeepAwakeService(driver: driver)
         XCTAssertFalse(service.isActive)

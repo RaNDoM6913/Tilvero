@@ -229,6 +229,16 @@ struct KeepAwakeAssertion: Sendable, Equatable {
         else { requested = .duration }
         try update(id, name: name, seconds: remaining + seconds, expiry: requested)
     }
+    /// Reset a confirmed finite assertion in place; no release/acquire gap.
+    func replaceDuration(seconds: Int) throws {
+        guard allowed else { throw KeepAwakeError.unavailable }
+        guard (1...86_400).contains(seconds) else { throw KeepAwakeError.invalidDuration }
+        guard isActive, let expiry, expiry != .untilStopped,
+              let id = ownedAssertionID, let name else { throw KeepAwakeError.noFiniteSession }
+        try preflight(id, name: name)
+        guard remainingSeconds > 0 else { try stop(); throw KeepAwakeError.noFiniteSession }
+        try update(id, name: name, seconds: seconds, expiry: .duration)
+    }
     private func matches(_ actual: KeepAwakeAssertion, name: String, seconds: Int?) -> Bool {
         actual.name == name && actual.kind == "PreventUserIdleSystemSleep" && actual.active &&
         actual.seconds == seconds && (seconds == nil || actual.releasesOnTimeout)

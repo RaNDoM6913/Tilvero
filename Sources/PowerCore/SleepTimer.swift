@@ -66,6 +66,15 @@ public struct SleepTimer: Equatable, Sendable {
         return remaining > 0 && remaining + 900 <= Self.maximumSeconds
     }
 
+    /// A new explicit duration replaces the remaining time, keeping session identity.
+    public mutating func replaceDuration(minutes: Int, now: Double) throws {
+        guard phase.isEditable else { throw SleepTimerError.notEditable }
+        guard (1...1440).contains(minutes), now.isFinite else { throw SleepTimerError.invalidDuration }
+        generation &+= 1
+        deadline = now + Double(minutes * 60)
+        phase = minutes == 1 ? .warning : .armed
+    }
+
     public mutating func extend(now: Double) throws {
         guard phase.isEditable, let deadline, now.isFinite, deadline > now else { throw SleepTimerError.notEditable }
         guard canExtend(at: now) else { throw SleepTimerError.extensionLimit }

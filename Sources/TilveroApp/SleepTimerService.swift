@@ -6,6 +6,7 @@ import PowerCore
     var hasIdleHold: Bool { get }
     func acquireIdleHold(seconds: Int) throws
     func extendIdleHold() throws
+    func replaceIdleHold(seconds: Int) throws
     func releaseIdleHold() throws
     func isCurrentConsoleSession() -> Bool
     func requestSleep() throws
@@ -88,6 +89,43 @@ import PowerCore
         }
         engine = candidate
         startClockPair = clockPair
+        message = nil
+        diagnostic = nil
+        publish()
+        schedule()
+    }
+
+    /// Selection is fresh user intent: start an inactive timer or replace its
+    /// remaining duration only after the existing finite OS hold is verified.
+    func selectDuration(minutes: Int) throws {
+        guard allowed else { throw SleepTimerError.unavailable }
+        guard !needsHoldRelease else { throw SleepTimerError.notEditable }
+        guard engine.phase.isActive else { try start(minutes: minutes); return }
+        guard engine.phase.isEditable else { throw SleepTimerError.notEditable }
+        guard !suspensionDetected else { systemDidWake(); throw SleepTimerError.notEditable }
+        guard driver.isCurrentConsoleSession() else { sessionResigned(); throw SleepTimerError.notEditable }
+        var candidate = engine
+        try candidate.replaceDuration(minutes: minutes, now: monotonic())
+        let id = engine.sessionID, generation = engine.generation
+        do {
+            try driver.replaceIdleHold(seconds: minutes * 60)
+            guard driver.hasIdleHold else { throw KeepAwakeError.unconfirmed }
+        } catch {
+            guard engine.sessionID == id, engine.generation == generation else { throw error }
+            engine.invalidate()
+            invalidateSchedule()
+            diagnostic = error.localizedDescription
+            message = "Sleep timer cancelled because its awake hold could not be updated."
+            releaseOwnHold()
+            publish()
+            throw error
+        }
+        // Native callbacks and published assertion state can synchronously
+        // invalidate or replace intent. Never commit a stale candidate.
+        guard engine.sessionID == id, engine.generation == generation else { throw SleepTimerError.notEditable }
+        guard !suspensionDetected else { systemDidWake(); throw SleepTimerError.notEditable }
+        guard driver.isCurrentConsoleSession() else { sessionResigned(); throw SleepTimerError.notEditable }
+        engine = candidate
         message = nil
         diagnostic = nil
         publish()
