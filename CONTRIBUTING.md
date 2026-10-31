@@ -34,6 +34,10 @@ changes onto the feature branch for normal verification and review; a demo is
 not release acceptance. Commit coherent changes regularly and push the focused
 branch when authorized and useful for backup or review.
 
+Keep only one discoverable lab app; use `.staging.noindex` for candidates and
+verified archives for retired bundles. See [project layout](docs/PROJECT_LAYOUT.md)
+for directory ownership and cleanup boundaries.
+
 The normal delivery path is **focused branch → pull request → checks and review →
 accepted integration into `main` → branch cleanup**:
 
