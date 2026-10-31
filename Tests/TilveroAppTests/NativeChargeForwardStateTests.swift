@@ -4,6 +4,30 @@ import ChargeBackends
 
 /// Every transport here is an isolated actor fixture; these tests never call PowerUI.
 @MainActor final class NativeChargeForwardStateTests: XCTestCase {
+    func testReopenedPendingIntentStaysProminentWithoutReapplyingIt() async throws {
+        let f = ForwardFixture(); defer { f.cleanup() }
+        await f.service.refresh()
+        try await f.service.apply(90, batteryPercent: 60, batteryFresh: true)
+        try await f.service.apply(80, batteryPercent: 85, batteryFresh: true)
+        var saved = try JSONDecoder().decode(NativeChargeJournal.self, from: Data(contentsOf: f.url))
+        for phase in [NativeChargeJournal.Phase.pendingTarget, .preparing, .restoring, .restorationPending] {
+            saved.phase = phase
+            try JSONEncoder().encode(saved).write(to: f.url)
+            let before = try Data(contentsOf: f.url)
+            let reopened = NativeChargeService(client: f.client, journalURL: f.url, admitted: true,
+                verificationAttempts: 1, environment: "fixture", operationTimeout: .milliseconds(30))
+            await reopened.refresh()
+            XCTAssertEqual(reopened.presentation().attention, .sessionReview)
+            XCTAssertTrue(reopened.presentation().showsAttentionBanner,
+                          "A saved incomplete action must remain prominent after reopening")
+            XCTAssertNil(reopened.pendingTarget, "Presentation must not reactivate saved intent")
+            await reopened.observeBattery(percent: 79, fresh: true)
+            XCTAssertEqual(try Data(contentsOf: f.url), before)
+        }
+        let writes = await f.client.writes
+        XCTAssertEqual(writes, [90])
+    }
+
     func testConfirmedReplacementCannotResumeSupersededPendingTarget() async throws {
         let f = ForwardFixture(); defer { f.cleanup() }
         await f.service.refresh()
@@ -112,6 +136,11 @@ import ChargeBackends
             let saved = try JSONDecoder().decode(NativeChargeJournal.self, from: Data(contentsOf: f.url))
             XCTAssertEqual(saved.phase, .indeterminate)
             XCTAssertEqual(saved.expectedMutation?.target, 90)
+            let reopened = NativeChargeService(client: f.client, journalURL: f.url, admitted: true,
+                verificationAttempts: 1, environment: "fixture", operationTimeout: .milliseconds(30))
+            XCTAssertTrue(reopened.presentation().hasRecordedMutation)
+            XCTAssertTrue(reopened.presentation().showsAttentionBanner,
+                          "A reopened journal with a recorded unknown mutation must remain prominent")
             await f.client.release()
             for _ in 0..<100 { await Task.yield() }
             await f.service.refresh()
@@ -261,6 +290,8 @@ import ChargeBackends
             let reopened = NativeChargeService(client: f.client, journalURL: f.url, admitted: true, verificationAttempts: 1, environment: "fixture", operationTimeout: .milliseconds(30))
             await reopened.refresh()
             XCTAssertEqual(reopened.presentation().attention, .sessionReview)
+            XCTAssertTrue(reopened.presentation().requiresGlobalAttention)
+            XCTAssertFalse(reopened.presentation().showsAttentionBanner)
             XCTAssertNil(reopened.presentation().activePolicy)
             await f.client.configure(read: .suspend, after: 0)
             await reopened.refresh()

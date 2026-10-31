@@ -140,23 +140,30 @@ struct BatteryInfoView: View {
     }
     private func sidebarItem(_ item: InfoSection) -> some View {
         let selected = model.selectedSection == item
+        let needsAttention = item == .diagnostics && !model.isDemo
+            && model.nativeCharge.presentation().requiresGlobalAttention
         return Button { model.selectedSection = item } label: {
             HStack(spacing: 9) {
                 Image(systemName: item.symbol).font(.system(size: 14)).frame(width: 18).accessibilityHidden(true)
                 Text(item.title).font(.system(size: 12)).lineLimit(2).fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
+                if needsAttention {
+                    Image(systemName: "circle.fill").font(.system(size: 6)).foregroundStyle(.orange)
+                        .accessibilityHidden(true)
+                }
             }.padding(.horizontal, 10).padding(.vertical, 9)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color.black.opacity(selected ? 0.065 : 0), in: RoundedRectangle(cornerRadius: 7))
                 .contentShape(RoundedRectangle(cornerRadius: 7))
         }.buttonStyle(.plain).accessibilityLabel(item.title)
+            .accessibilityValue(needsAttention ? L10n.text("Charging session needs review") : "")
             .accessibilityAddTraits(selected ? [.isSelected] : [])
             .accessibilityRemoveTraits(selected ? [] : [.isSelected])
             .padding(.horizontal, 7).padding(.vertical, 1)
     }
     @ViewBuilder private var nativeChargingAttention: some View {
         let state = model.nativeCharge.presentation()
-        if state.requiresGlobalAttention {
+        if state.showsAttentionBanner && model.selectedSection != .diagnostics {
             HStack(alignment: .center, spacing: 10) {
                 Image(systemName: "info.circle").foregroundStyle(nativeAttentionColor(state.attention)).accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 3) {
@@ -242,11 +249,9 @@ struct BatteryInfoView: View {
             }
             if !model.isDemo {
                 ProductSurface(title: "Native charging", symbol: "battery.100percent") {
-                    Label(L10n.text(model.nativeCharge.recoveryRequired || model.nativeCharge.restorationPending ? "Charging session needs review" : model.nativeCharge.hasOwnedSettings ? "App-managed charging" : "No active native session"), systemImage: model.nativeCharge.recoveryRequired || model.nativeCharge.restorationPending ? "info.circle" : "checkmark.circle")
                     NativeChargeStatusPanel(model: model)
                     Divider()
                     SystemChargeLimitPanel(model: model)
-                    Button(L10n.text("Refresh")) { Task { await model.refreshNativeCharge(); await model.refreshSystemChargeLimit() } }
                 }
             }
             ProductSurface(title: "Privileged controls", symbol: "shield") {

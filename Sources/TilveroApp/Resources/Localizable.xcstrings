@@ -11552,6 +11552,22 @@
           }
         }
       }
+    },
+    "Saved charging session needs review.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved charging session needs review."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохранённый сеанс зарядки требует проверки."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

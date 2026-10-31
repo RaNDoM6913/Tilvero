@@ -181,7 +181,7 @@ struct ChargeLimitControl: View {
                         .buttonStyle(.borderedProminent).disabled(!model.canApply)
                 }
                 if !isQuickPanel { Text(L10n.text("Draft") + ": " + model.draftText + "%").font(.caption).foregroundStyle(.secondary) }
-                if !isQuickPanel || !model.usesNativeCharge { Text(model.effectiveLimitText).font(.subheadline).foregroundStyle(.secondary) }
+                if !model.usesNativeCharge { Text(model.effectiveLimitText).font(.subheadline).foregroundStyle(.secondary) }
                 if model.usesNativeCharge { NativeChargeStatusPanel(model: model, compact: isQuickPanel) }
                 if model.pendingTarget != nil {
                     Button(L10n.text("Cancel pending target")) { model.cancelPendingDemo() }
@@ -193,7 +193,6 @@ struct ChargeLimitControl: View {
                 }
             } else if model.usesNativeCharge {
                 NativeChargeStatusPanel(model: model, compact: isQuickPanel)
-                Button(L10n.text("Refresh")) { Task { await model.refreshNativeCharge() } }
             } else {
                 SystemChargeLimitPanel(model: model)
                 Text(L10n.text("Direct Tilvero control requires a trusted signed helper and verified hardware restoration."))

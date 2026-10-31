@@ -37,6 +37,16 @@ struct NativeChargePresentation {
     let pendingTarget: Int?
     let restorationTarget: Int?
     let attention: Attention
+    let hasRecordedMutation: Bool
+    let hasSavedAction: Bool
+    var showsAttentionBanner: Bool {
+        guard requiresGlobalAttention else { return false }
+        guard attention == .sessionReview else { return true }
+        // A saved session stays discoverable in Diagnostics. A recorded
+        // unacknowledged mutation or retained action still needs a banner.
+        return !hasOwnership || hasRecordedMutation || hasSavedAction || pendingPurpose?.isMutation == true
+            || pendingTarget != nil || restorationTarget != nil
+    }
     var requiresGlobalAttention: Bool {
         switch attention {
         case .sessionReview, .mutationUnresolved, .journalIntegrity, .restorationPending, .lowerTargetPending: true
@@ -144,7 +154,9 @@ enum NativeChargeServiceError: Error, LocalizedError {
         else { attention = .none }
         return .init(currentPreference: preference, activePolicy: policy, pendingPurpose: operationGate.pendingPurpose,
                      hasOwnership: hasOwnedSettings, pendingTarget: pendingTarget,
-                     restorationTarget: restorationPending ? journal?.baseline.target : nil, attention: attention)
+                     restorationTarget: restorationPending ? journal?.baseline.target : nil, attention: attention,
+                     hasRecordedMutation: journal?.expectedMutation != nil,
+                     hasSavedAction: journal.map { [.pendingTarget, .preparing, .restoring, .restorationPending].contains($0.phase) } ?? false)
     }
 
     var isMonitoringOnly: Bool { monitoringOnly }
