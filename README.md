@@ -1,152 +1,136 @@
 <p align="center">
-  <img src=".github/assets/hero.svg" alt="Tilvero — Monitor and control your Mac." width="960">
+  <img src="Assets/AppIcon-1024.png" alt="Tilvero app icon" width="96">
 </p>
 
+<h1 align="center">Tilvero</h1>
+<p align="center"><strong>Your Mac’s battery, power and activity. In view.</strong></p>
+<p align="center">Native Swift for macOS · Apple silicon · Works offline</p>
 <p align="center"><strong>English</strong> · <a href="README.ru.md">Русский</a></p>
 
-<p align="center">
-  <img alt="macOS 26 or later" src="https://img.shields.io/badge/macOS-26%2B-18181B?style=flat-square">
-  <img alt="Apple silicon" src="https://img.shields.io/badge/Apple_silicon-native-18181B?style=flat-square">
-  <img alt="Swift 6" src="https://img.shields.io/badge/Swift-6-F05138?style=flat-square">
-  <img alt="Works offline" src="https://img.shields.io/badge/Works-offline-2F7668?style=flat-square">
-  <a href="LICENSE"><img alt="GPL-3.0-only license" src="https://img.shields.io/badge/License-GPL--3.0--only-5A6B60?style=flat-square"></a>
-</p>
+![MacBook Air and a green battery — decorative illustration](.github/assets/cover.png)
 
-# Tilvero
+<sub>Generated product illustration; native interface captures appear below. [Artwork provenance](.github/assets/COVER_PROMPT.md).</sub>
 
-**Monitor and control your Mac.** A native Swift menu bar utility for battery, charging, power and cooling. Local data, a compact panel and an honest view of what your Mac can report.
+Tilvero puts battery and power information in your menu bar, with a clear native
+window when you want the details. Follow charging, inspect battery health and
+understand changes over time, without an account or a cloud service.
 
-**Monitoring Preview** packages remain read-only. Development source includes a normal-user native charge controller gated by a local per-Mac setting/readback/restoration check. Privileged power/fan controls retain separate signing and device-qualification gates.
+**Source preview for developers.**
+[Get the source](https://github.com/RaNDoM6913/Tilvero/releases/download/v0.1.0-beta.1/Tilvero-0.1.0-beta.1-source.zip)
+· [Release notes and checksums](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.1.0-beta.1)
+· [Build and run](#build-and-run) · [Roadmap](ROADMAP.md)
 
-## Get Tilvero
+A signed, notarized Mac download is still in preparation. The planned
+**Monitoring Preview** DMG will be read-only; this repository also contains
+separately gated development controls. [Availability and installation](docs/INSTALL.md).
 
-**No public DMG is available yet.** [Build from source](#build-and-run) on Apple silicon with macOS 26.0+. The [installation guide / инструкция по установке](docs/INSTALL.md) explains the planned three-step installation and manual updates when a trusted release is available.
+## A closer look at your Mac
 
-Local **TEST** packages are internal ad-hoc builds. They are not a signed, notarized public download. This page will gain one Download for Mac link, version, size and matching checksums only after the exact release artifact passes distribution checks and the owner publishes it.
-
-## What works today
-
-| Capability | Current behavior |
+| See | What Tilvero shows |
 | --- | --- |
-| Live battery monitoring | Charge, power-source status and available battery readings, with source, freshness and unavailable reasons |
-| Menu bar and detail window | Content-sized Overview / Charge / Modes panel, direct qualified charge actions, searchable detail readings, Russian/English and adjustable indicator sizing |
-| Quick-panel builder | Drag, show/hide and keyboard-reorder Overview blocks, including System, Adapter, Battery health and Application activity, with passive live preview |
-| Keep Mac Awake | Explicit finite idle-sleep prevention with visible Stop; duration persists but active state never restarts automatically |
-| Configurable modes | Saved Normal / Economy / Maximum autonomy plans with separate Save / Apply and per-action results; unqualified energy/display actions are excluded and background jobs preserved |
-| Power information | Separate battery power, reported system load and adapter input/capability; source-aware sparklines and observed min/mean/max |
-| Application activity | Read-only CPU energy/power estimates, CPU load, wakeups and disk I/O for accessible processes; verified app grouping and explicit partial coverage |
-| Battery details | Separate raw full-charge and nominal capacities, inferred device-scoped lifetime/cell readings and redacted opt-in raw diagnostics |
-| Local history | Minute samples, hourly aggregates, gaps and battery boundaries; CSV/JSON preview and export |
-| Sleep & drain | Separate detail section for future app-observed sleep intervals, qualified before/after charge change and current sleep blockers; incomplete evidence stays visible |
-| Diagnostics | Read-only discovery and a redacted report; no administrator approval needed for monitoring |
-| Explicit demo mode | Clearly marked simulated readings and control policies, kept separate from live history |
+| Battery at a glance | Menu bar charge, power source and a compact panel with configurable blocks and indicator sizing |
+| Battery health | Available capacity, temperature, cycle and cell readings, with measurement sources and freshness |
+| Power and charging | Battery power, reported system load and adapter input/capability kept distinct; system charge-limit readback |
+| Application activity | Searchable process activity, CPU load, CPU energy/power estimates, wakeups and disk I/O, with partial coverage made visible |
+| History and reports | Local charts, minute samples, hourly summaries and previewable CSV/JSON exports; gaps stay visible |
+| Sleep & drain | App-observed sleep/wake intervals and current sleep blockers, with incomplete evidence clearly marked |
+| A panel that fits | Rearrange or hide blocks, choose Russian or English, and adjust menu bar text and icon size |
 
-The normal battery silhouette is calibrated to a system reference; the custom percentage-inside option uses a lower iOS-inspired body with larger adaptive numerals. Unknown values and the adapter cue remain distinct from measured charge.
+The catalog describes **115 fields**. Your Mac determines which are available;
+missing values stay unavailable. Monitoring needs no administrator approval.
 
-The catalog defines **115 fields**. Availability depends on the Mac and macOS; it does not mean every device exposes 100 readings. Missing data stays unavailable.
+## Inside Tilvero
 
-Sleep reports begin with a sleep/wake interval observed while Tilvero is running and history is enabled. They are not backfilled from old sample gaps. The measured charge change spans the recorded observations; it does not prove battery-only operation or exact time asleep. Current process assertions explain what may prevent sleep **now**, not which application consumed energy during an earlier night. Internal wake counts, wake reasons and per-app energy are unavailable from this collection. Sleep records follow the selected detailed-history period, are erased with history, and are not included in the ordinary CSV/JSON export. Process names and assertion descriptions are not persisted.
+Native interface rendered from source with injected demo data. Illustrations
+are schematic; these captures do not establish hardware support or qualify a
+release binary.
 
-## Logo explorations
-
-[Ten original logo concepts](Assets/LogoExploration-20261031/README.md) compare energy-line/power-loop hybrids and T/V lettermarks, with individual PNG/SVG files, small-size checks and a bounded visual-similarity review.
+<table>
+  <tr>
+    <td width="50%"><strong>Overview</strong><br><a href=".github/assets/screenshots/overview.png"><img src=".github/assets/screenshots/overview.png" alt="Overview — DEMO" width="480"></a></td>
+    <td width="50%"><strong>Battery</strong><br><a href=".github/assets/screenshots/battery.png"><img src=".github/assets/screenshots/battery.png" alt="Battery — DEMO" width="480"></a></td>
+  </tr>
+  <tr>
+    <td width="50%"><strong>History</strong><br><a href=".github/assets/screenshots/history.png"><img src=".github/assets/screenshots/history.png" alt="History — DEMO" width="480"></a></td>
+    <td width="50%"><strong>Charging</strong><br><a href=".github/assets/screenshots/charging.png"><img src=".github/assets/screenshots/charging.png" alt="Charging — DEMO" width="480"></a></td>
+  </tr>
+</table>
 
 ## Build and run
 
-These are developer source-build commands. A future Monitoring Preview DMG is helper-free; installed-app users will not need Xcode or helper discovery commands.
-
-Requires **Apple silicon, macOS 26.0+ and a compatible full Xcode installation** with Swift 6 support. The scripts select `/Applications/Xcode.app/Contents/Developer` per process when available, without changing the system's Xcode selection.
-
-From the repository directory:
+You need **Apple silicon, macOS 26.0+ and a full Xcode installation** with a
+compatible macOS SDK and Swift 6. Command Line Tools alone are not the validated route.
 
 ```sh
+git clone https://github.com/RaNDoM6913/Tilvero.git
+cd Tilvero
 bash scripts/test.sh
 bash scripts/build-local-app.sh
 bash scripts/run-local.sh
 ```
 
-To preserve an existing development bundle, build into a fresh location with `bash scripts/build-local-app.sh --output build/dev-candidates/my-build/Tilvero.app`. The explicit output must not exist. `TilveroApp --sleep-status` is a read-only status check that omits process names and does not start migration or the app UI.
+The app opens in the menu bar. Click the battery item for the quick panel;
+**History & reports…** opens the detail window, and the gear opens Settings.
+Inside Tilvero, **⌘⌥B** toggles the panel and **⌘,** opens Settings.
 
-The local builder refuses to overwrite a running app; quit it normally or use a fresh candidate output. The launcher opens the exact canonical bundle. If another copy is running, Tilvero shows both paths and waits for a normal quit before switching. Diagnostics shows the running bundle path.
-
-The app starts in the menu bar. Click the battery item to open the quick panel, then **History & reports…** for the detail window or the gear menu for Settings. Reopen Tilvero to restore the window if its menu item is hidden. In the app, **⌘⌥B** toggles the panel and **⌘,** opens Settings.
-
-Settings include General / Quick panel / History. The Quick panel constructor changes composition immediately, and Modes keeps saved-plan selection in the popover with **Edit modes…** for the full editor. Settings also offer icon only or percentage beside/inside the icon, System/Larger text, independent icon scale from 85–115%, reset, Russian/English and history preferences.
-
-**Keep Mac Awake** starts only after Start, for 15, 30, 60 or 120 minutes (default 30). Stop remains visible even when its Overview block is hidden. The display may turn off; closing the lid, forced sleep and low-battery sleep retain macOS behavior. Stop, OS timeout and normal quit end the process-owned session. Simulation and Monitoring Preview cannot activate it.
-
-Application power is derived from macOS **CPU energy** counters over an observed interval. It is not total application/device power or a battery percentage. System processes may deny access; no privilege bypass or automatic process termination is used. A first sample establishes a baseline, and sleep/PID reuse/reset breaks the calculation. Process identity stays in memory and is excluded from battery history and diagnostics exports.
-
-Additional battery ranges can be explicitly marked **inferred** for the observed device/gauge profile. Unknown formats remain raw or unavailable. Nominal capacity, raw full-charge retention and the macOS health estimate remain separate. Ordinary support reports exclude raw counter objects.
-
-For the separate Xcode app/helper targets:
+The local bundle is ad-hoc signed for development. The builder preserves a
+running copy; use a fresh destination when keeping an existing build:
 
 ```sh
-bash scripts/build-xcode.sh
-open build/Xcode/Build/Products/Debug/Tilvero.app
+bash scripts/build-local-app.sh --output build/dev-candidates.noindex/my-build/Tilvero.app
 ```
 
-Run one build at a time: both bundles share the development app identifier. Local ad-hoc signing verifies bundle integrity; it does not provide trusted helper enrollment or notarization.
+That destination must not exist. Run one development copy at a time.
+[Installation and updates](docs/INSTALL.md) explains data locations and the future DMG route.
 
-## Diagnostics and demo
+## Preview boundaries
 
-The helper discovery command below belongs only to the development bundle, not the helper-free Monitoring Preview package.
+**Application power is a CPU estimate.** It does not measure an app’s total
+electrical consumption across CPU, GPU and other devices. Live macOS Energy
+Impact is not implemented. Values never become zero merely because access is denied.
 
-```sh
-build/Tilvero.app/Contents/MacOS/TilveroApp --doctor
-build/Tilvero.app/Contents/Library/HelperTools/TilveroHelper --discover
-```
+**Sleep reports start with observed events.** Tilvero does not reconstruct past
+nights from sample gaps or attribute their energy use to individual apps.
 
-Discovery is read-only. Review diagnostic content before sharing it. Quit the live app before launching the simulator:
+**Controls have separate admission.** Development source includes Keep Mac Awake,
+saved modes and a native charge controller. Saving a plan does not apply it.
+Native charge changes require a local per-Mac setting/readback/restoration check;
+one-time full charging has an additional gate. Privileged charging, power-mode
+and fan writes remain unqualified. Fans default to System Auto.
 
-```sh
-open -n build/Tilvero.app --args --demo
-```
+The future Monitoring Preview configuration disables Keep Mac Awake and control
+actions and contains no privileged helper. A default source build is a development
+build with its own gates. Simulation is explicitly marked **DEMO** and stays
+separate from live history. See [compatibility](docs/COMPATIBILITY.md) and the
+[control architecture](Helper/README.md) for exact boundaries.
 
-**DEMO** appears in the menu bar. Simulation exercises charging intent, pending lower targets, one-shot full charge, fan policies and schedules. Slider changes remain drafts until Apply. Demo behavior is not evidence of physical hardware support.
+## Your data stays on your Mac
 
-## Private by design
+No account, cloud service or telemetry upload. Battery history is stored locally;
+detailed records default to 30 days and hourly summaries to up to 365 days.
+Settings let you shorten detailed retention or erase history.
 
-Tilvero runs without an account, cloud service or telemetry upload. History stays in `~/Library/Application Support/Tilvero/History.sqlite`. Default retention is 30 days for detailed samples and up to 365 days for hourly aggregates; Settings can shorten detailed retention or erase all history.
+Process identity stays in memory and is excluded from battery history and
+ordinary diagnostics exports. Normal presentation masks serials and identity
+tokens. Preview reports before choosing to share them.
 
-Normal presentation masks serials and identity tokens; ordinary exports exclude them. Diagnostics can be previewed before saving. Local diagnostic files and exports are yours to review and share deliberately.
+## Help shape Tilvero
 
-## System charge limit
+- [Report a bug or suggest an improvement](https://github.com/RaNDoM6913/Tilvero/issues/new/choose)
+- [Contributing](CONTRIBUTING.md) — setup, module boundaries and safe verification
+- [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md) · [Compatibility](docs/COMPATIBILITY.md)
+- [Release preparation](docs/RELEASING.md) · [Testing and validation](docs/TESTING.md)
 
-Development checkpoint: the source includes a normal-user PowerUI adapter and a journaled native controller. Apply remains disabled until a local setting/readback/restoration check passes on that Mac. With an existing 80% limit, the check requires 78% charge or below and never forces a discharge. Native discovery remains visible when macOS has no registered active policy on battery; writes still require independent confirmation. One-time full charging has a separate completion/cancellation gate. This is development source, not a finished release.
+Please include your Mac model, macOS version and source version with a bug report.
+Review diagnostics for personal data before attaching them.
 
-The overview includes a real last-hour chart, a conservative discharge forecast and saved content preferences. Modes have editable parameters and per-action results. Saving or reopening a plan never applies it. The normal indicator uses public native SF Symbol layers. Privileged power/fan control retains its separate signing and qualification gates.
+## License
 
-On Apple silicon with **macOS 26.4+**, Apple provides an independent **80–100% Charge Limit** in **System Settings → Battery → Charging ⓘ**. The Charge tab links there and displays the manual limit registered by macOS, with a read timestamp and Refresh action. Other OS requests, including Optimized Battery Charging, are shown separately. A missing or conflicting readback stays unavailable; it is not converted into a claimed 100% limit. Simulation never reads physical limits.
+Copyright © 2026 [RaNDoM6913](https://github.com/RaNDoM6913).
+Original Tilvero source, documentation and repository artwork use
+[GNU GPL version 3 only](LICENSE) (`GPL-3.0-only`). Preserve copyright and license
+notices when redistributing; distributed derivatives must satisfy the GPL’s
+source and same-license requirements.
 
-The observation uses read-only `pmset -g battlimit`; it does not prove an exact charging cutoff or that Tilvero applied the setting. macOS can occasionally charge to 100% for calibration. See [Apple's charge-limit guidance](https://support.apple.com/en-us/102338). `TilveroApp --charge-status` prints the same read-only observation without starting the app, migration or a helper.
-
-## Hardware controls: current boundary
-
-The source includes typed backends, authenticated XPC, original-state journals and a separate recovery guardian. Charging policies, power profiles and fan control have source and fixture coverage, but the **physical-write qualification list is empty**. No helper enrollment or live control support is claimed for this preview.
-
-Enabling a privileged control requires trusted app/helper signing, normal macOS authorization, demonstrated per-device behavior and verified restoration. Cooling also needs a real MacBook Pro and a qualified sensor mapping. A readable key or model name alone does not establish write support. Do not register the development helper to bypass these gates.
-
-Requested, applied and observed state remain separate. A lower charge target may stay visibly pending until natural discharge; fan policies default to System Auto. See the [control architecture](Helper/README.md) and [compatibility and validation gates](docs/COMPATIBILITY.md).
-
-## Next directions
-
-The first read-only sleep-report stage is implemented. Qualified energy/display actions for Economy/Maximum autonomy, quiet-sleep control and charging for a departure time remain proposed work in the [roadmap](ROADMAP.md), awaiting their own scope and qualification. No fixed battery-life saving or asleep charging deadline is promised.
-
-## Development
-
-Earlier monitoring software validation recorded **123 passing tests** and successful local/Xcode builds. This is historical local evidence, separate from new release preparation, signed-runtime and real-device control acceptance; see [compatibility and evidence boundaries](docs/COMPATIBILITY.md).
-
-- [Contributing](CONTRIBUTING.md) — setup, code boundaries and safe verification
-- [Compatibility](docs/COMPATIBILITY.md) · [Roadmap](ROADMAP.md)
-- [Install and update](docs/INSTALL.md) · [Changelog](CHANGELOG.md)
-- [Release and download preparation](docs/RELEASING.md) — DMG, signing and on-demand download counts
-- [Report a problem](https://github.com/RaNDoM6913/Tilvero/issues/new/choose) — review and redact diagnostics before sharing
-- [Control architecture](Helper/README.md)
-- [Third-party notices](THIRD_PARTY_NOTICES.md)
-
-## License and authorship
-
-Copyright © 2026 [RaNDoM6913](https://github.com/RaNDoM6913). Tilvero's original source, documentation and repository artwork are licensed under [GNU GPL version 3 only](LICENSE) (`GPL-3.0-only`). You may use, modify and redistribute them under those terms, preserving the copyright and license notices. Distributed derivative works must meet the GPL source and same-license requirements.
-
-Third-party material keeps its respective authorship and notices; see [COPYRIGHT](COPYRIGHT) and [third-party notices](THIRD_PARTY_NOTICES.md).
+Third-party materials retain their own notices:
+[COPYRIGHT](COPYRIGHT) · [Third-party notices](THIRD_PARTY_NOTICES.md).

@@ -1,11 +1,15 @@
 # Tilvero publication graphics
 
-Original vector artwork composed for this repository on 2026-10-27.
+The current README uses `cover.png`, generated with the built-in ImageGen tool on 2026-10-31; see [its prompt and provenance](COVER_PROMPT.md). The shipping app icon remains unchanged.
+
+The bilingual gallery in `screenshots/` renders actual SwiftUI views using isolated synthetic fixtures; every frame visibly identifies demo data. It is not owner telemetry or binary/hardware acceptance.
+
+The vector artwork below was composed for this repository on 2026-10-27 and is retained as earlier publication artwork.
 These are publication graphics, not app screenshots, hardware readings, or a replacement application icon.
 
 | Asset | Canvas | Use |
 | --- | --- | --- |
-| `hero.svg` | 1280 × 480 | README banner |
+| `hero.svg` | 1280 × 480 | Earlier README banner |
 | `mark.svg` | 256 × 256 | Standalone publication brand mark |
 | `social-preview.svg` | 1280 × 640 | Editable source for the social preview |
 | `social-preview.png` | 1280 × 640 | GitHub social preview upload |

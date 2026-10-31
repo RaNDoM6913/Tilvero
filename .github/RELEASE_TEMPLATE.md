@@ -1,3 +1,11 @@
+# Release-note routes
+
+For the first **Source Preview**, use [the source release notes](../docs/releases/v0.1.0-beta.1.md). Convert repository-relative links to absolute URLs pinned to the release tag before copying them into a GitHub release body. Upload only the source ZIP, `source-release.json` and `SHA256SUMS`; no app or DMG is included.
+
+The template below is reserved for a future trusted binary release with its own fresh tag and completed distribution checks. Follow [the release guide](../docs/RELEASING.md).
+
+---
+
 # Tilvero {{VERSION}} — Monitoring Preview
 
 <!-- Release-note template for a separately authorized public prerelease. Fill every token and verify every claim before creating a release draft. No draft, tag, upload or publication is authorized by this file. Never use this public template for an internal ad-hoc TEST package. -->

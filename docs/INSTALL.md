@@ -4,52 +4,167 @@
 
 ## English
 
-**Current availability:** no public DMG has been published. [Build from source](../README.md#build-and-run) if you want to use the development build. Local packages marked **TEST** use ad-hoc signing for internal verification; they are not the recommended public installation route. A local package, a checksum or a successful build alone does not establish Gatekeeper or notarization acceptance.
+### Available now: source preview
 
-The first distribution scope is **Monitoring Preview**, for **Apple silicon (arm64), macOS 26.0+**. Monitoring, local history and diagnostics do not require administrator approval. The monitoring package contains no privileged helper and does not register a service. Physical charging, power-mode and fan controls remain disabled.
+Tilvero is available as source for **Apple silicon, macOS 26.0+**. Use the
+[repository source](https://github.com/RaNDoM6913/Tilvero) or an explicitly linked
+source prerelease and follow [Build and run](../README.md#build-and-run).
+A source archive requires a full Xcode installation; it is not an installable app.
 
-### When a trusted release is published
+**No trusted public DMG is available yet.** Developer ID signing, notarization and
+downloaded-install acceptance remain prerequisites. Local **TEST** packages use
+ad-hoc signing for internal checks and are not the recommended installation route.
+See [release preparation](RELEASING.md) for the distribution status.
 
-Use the exact release and DMG linked from the README. A preview/beta uses its explicit prerelease tag; a generic “latest” link can resolve to a different stable release. Check that the release identifies the version, arm64 architecture, minimum macOS, source commit and verified Developer ID/notarization status. Its release notes must include the matching source archive, `SHA256SUMS` and `release.json`.
+A default source build uses the development identity and includes separately
+gated controls and an unregistered helper. The planned **Monitoring Preview**
+DMG will contain no helper/service and will disable control actions and Keep Mac
+Awake. Monitoring, history and diagnostics need no administrator approval.
 
-1. Download the listed DMG and verification files from that same release. In Terminal, change to the folder containing those files and run `shasum -a 256 -c SHA256SUMS`; download every file named in the checksum list before checking it. Open the DMG only after the listed checks pass.
-2. Drag Tilvero to **Applications**, then eject the disk image.
-3. Open **Tilvero from Applications**. Click its battery item in the menu bar for the quick panel and choose **Battery Info** for details.
+### Verify a source prerelease
 
-If macOS rejects the download or the checksum does not match, stop and [report the problem](https://github.com/RaNDoM6913/Tilvero/issues/new/choose) with minimal redacted details. Do not remove quarantine, disable Gatekeeper or install a development helper to bypass a failed check. Opening an app inside a mounted image does not install it.
+A published source prerelease supplies `Tilvero-0.1.0-beta.1-source.zip`,
+`source-release.json` and `SHA256SUMS`. Download all three from the same explicit
+release, then run `shasum -a 256 -c SHA256SUMS` in their folder. Every entry must
+match. The source manifest identifies the tag, exact commit and source ZIP hash;
+it does not describe a signed app. Extract the ZIP, enter its project folder and
+use the build commands below, starting with `bash scripts/test.sh`.
 
-### Manual updates and local data
+### Source-build essentials
 
-Read the new release's migration notes, quit the running version, and replace the app in Applications with the verified new bundle. Never run the prototype and production application together during migration. Keep history/preferences intact; an import failure should be reported rather than repaired by deleting the old store. The release notes must state which migrations were actually verified. No automatic update service is enabled.
+```sh
+git clone https://github.com/RaNDoM6913/Tilvero.git
+cd Tilvero
+bash scripts/test.sh
+bash scripts/build-local-app.sh
+bash scripts/run-local.sh
+```
 
-The production build keeps its history in `~/Library/Application Support/Tilvero/Production/History.sqlite`; the development prototype uses `~/Library/Application Support/Tilvero/History.sqlite`. The separate production store protects the prototype's original data. Ordinary exports exclude identity tokens; preview diagnostics before sharing. Removing the app does not imply that its history was erased.
+The builder refuses to overwrite a running bundle. Preserve an existing copy with
+`bash scripts/build-local-app.sh --output build/dev-candidates.noindex/my-build/Tilvero.app`;
+the destination must not exist. Keep one development copy running at a time and
+quit normally before switching copies, so active sessions can end and recovery
+can complete. Diagnostics identifies the running bundle path.
 
-### Help and source
+The menu bar battery opens the quick panel. **History & reports…** opens the detail
+window; the gear opens Settings. In the app, **⌘⌥B** toggles the panel and **⌘,**
+opens Settings. Reopening Tilvero restores a window when its menu item is hidden.
 
-[Current capabilities](../README.md#what-works-today) · [Compatibility](COMPATIBILITY.md) · [Changelog](../CHANGELOG.md) · [Source and build instructions](../README.md#build-and-run) · [GPL-3.0-only](../LICENSE)
+### When the trusted DMG is published
+
+Use the exact release linked from the README, including its explicit beta tag.
+Its notes must identify the version, arm64 architecture, minimum macOS, source
+commit, verified signing/notarization status and matching verification files.
+
+1. Download the DMG and all files named in that release’s `SHA256SUMS`. In their folder, run `shasum -a 256 -c SHA256SUMS` and require every listed file to match.
+2. Open the verified DMG, drag Tilvero to **Applications**, then eject the image.
+3. Open **Tilvero from Applications** and click its menu bar battery.
+
+If the checksum fails or macOS rejects the app, stop and
+[report the problem](https://github.com/RaNDoM6913/Tilvero/issues/new/choose).
+Do not bypass quarantine/Gatekeeper or install a development helper to work
+around rejection. A checksum confirms integrity, not signing trust or notarization.
+
+### Updates and local data
+
+Updates are manual. Read migration notes, quit the running version normally,
+then replace it with the verified new app. Preserve history and preferences;
+report an import failure instead of deleting the old store. Do not run prototype
+and production copies together during migration.
+
+| Build identity | History location |
+| --- | --- |
+| Development prototype | `~/Library/Application Support/Tilvero/History.sqlite` |
+| Production / Monitoring Preview | `~/Library/Application Support/Tilvero/Production/History.sqlite` |
+
+Production uses a separate store to protect prototype data. Release notes must
+state which migration paths were verified. Removing the app does not erase its
+history. Use Settings to erase history intentionally; preview exports/diagnostics
+before sharing them. No automatic updater is enabled.
+
+[Compatibility](COMPATIBILITY.md) · [Changelog](../CHANGELOG.md) · [License](../LICENSE)
 
 ## Русский
 
-**Что доступно сейчас:** публичный DMG ещё не опубликован. Для версии в разработке доступна [сборка из исходников](../README.ru.md#сборка-и-запуск). Локальные пакеты **TEST** подписаны ad-hoc и предназначены для внутренней проверки, а не для рекомендуемой публичной установки. Само наличие локального пакета, контрольной суммы или успешной сборки не подтверждает проверку Gatekeeper и нотарификацию.
+### Сейчас доступны исходники
 
-Первый выпуск готовится в объёме **Monitoring Preview** для **Apple silicon (arm64), macOS 26.0+**. Мониторинг, локальная история и диагностика не требуют прав администратора. Пакет мониторинга не содержит привилегированного помощника и не регистрирует службу. Физическое управление зарядкой, режимом питания и вентиляторами отключено.
+Tilvero доступен в исходниках для **Apple silicon, macOS 26.0+**. Используйте
+[репозиторий](https://github.com/RaNDoM6913/Tilvero) или явно указанный
+предварительный выпуск исходников и инструкцию [«Сборка и запуск»](../README.ru.md#сборка-и-запуск).
+Архив исходников требует полной установки Xcode; это не готовое приложение.
 
-### Когда появится доверенный выпуск
+**Доверенный публичный DMG пока недоступен.** Нужны подпись Developer ID,
+нотарификация и проверка скачанной установки. Локальные пакеты **TEST** с
+ad-hoc подписью предназначены для внутренних проверок.
+Состояние подготовки описано в [документе о выпуске](RELEASING.md).
 
-Используйте конкретный выпуск и DMG по ссылке из README. Для preview/beta нужна ссылка на явный тег предварительного выпуска: общая ссылка «latest» может открыть другой стабильный релиз. Проверьте указанные версию, архитектуру arm64, минимальную macOS, коммит исходников и подтверждённый статус Developer ID/нотарификации. Рядом должны быть соответствующий архив исходников, `SHA256SUMS` и `release.json`.
+Обычная сборка исходников использует идентификатор для разработки, содержит
+отдельно ограниченное управление и незарегистрированный помощник. Планируемый
+DMG **Monitoring Preview** не будет содержать помощника/службы; управление
+и предотвращение сна будут отключены. Мониторинг, история и диагностика
+не требуют прав администратора.
 
-1. Скачайте указанный DMG и файлы проверки из того же выпуска. В Терминале перейдите в папку с этими файлами и выполните `shasum -a 256 -c SHA256SUMS`; предварительно скачайте все файлы, перечисленные в списке сумм. Открывайте DMG только после успешной проверки.
-2. Перетащите Tilvero в **«Программы» / Applications**, затем извлеките образ диска.
-3. Откройте **Tilvero из «Программ»**. Нажмите на значок батареи в строке меню; пункт **«Информация о батарее» / Battery Info** открывает подробности.
+### Проверка предварительного выпуска исходников
 
-Если macOS отклоняет загрузку или сумма не совпадает, остановитесь и [сообщите о проблеме](https://github.com/RaNDoM6913/Tilvero/issues/new/choose), скрыв личные данные. Не удаляйте карантин, не отключайте Gatekeeper и не устанавливайте помощник для разработки в обход проверки. Открытие приложения внутри подключённого образа не устанавливает его.
+Опубликованный выпуск исходников содержит `Tilvero-0.1.0-beta.1-source.zip`,
+`source-release.json` и `SHA256SUMS`. Скачайте все три файла из одного конкретного
+выпуска и выполните в их папке `shasum -a 256 -c SHA256SUMS`; все записи должны
+совпасть. Манифест исходников указывает тег, точный коммит и сумму ZIP, но не
+описывает подписанное приложение. Распакуйте ZIP, перейдите в каталог проекта
+и выполняйте команды ниже, начиная с `bash scripts/test.sh`.
 
-### Ручное обновление и данные
+### Сборка из исходников
 
-Прочитайте заметки о переносе данных, завершите работающую версию и замените приложение в «Программах» проверенным новым пакетом. Во время переноса не запускайте прототип и production-приложение одновременно. Сохраните историю и настройки; о сбое импорта следует сообщить, а не исправлять его удалением старой базы. Заметки выпуска должны указывать, какие варианты переноса действительно проверены. Автоматическое обновление не включено.
+```sh
+git clone https://github.com/RaNDoM6913/Tilvero.git
+cd Tilvero
+bash scripts/test.sh
+bash scripts/build-local-app.sh
+bash scripts/run-local.sh
+```
 
-Production-сборка хранит историю в `~/Library/Application Support/Tilvero/Production/History.sqlite`, прототип для разработки — в `~/Library/Application Support/Tilvero/History.sqlite`. Отдельная база защищает исходные данные прототипа. Обычный экспорт исключает идентификационные токены; перед передачей диагностики просмотрите её. Удаление приложения само по себе не означает удаления истории.
+Сборщик не перезаписывает работающий пакет. Чтобы сохранить существующую копию,
+выполните `bash scripts/build-local-app.sh --output build/dev-candidates.noindex/my-build/Tilvero.app`;
+указанный путь не должен существовать. Запускайте одну копию для разработки.
+Перед переключением завершайте приложение штатно, чтобы закончились активные
+сеансы и восстановление. Путь работающей копии виден в диагностике.
 
-### Помощь и исходники
+Значок батареи открывает быструю панель. **«История и отчёты…»** открывает
+подробное окно, шестерёнка — настройки. В приложении **⌘⌥B** переключает панель,
+**⌘,** открывает настройки. Повторное открытие Tilvero восстанавливает окно,
+если значок скрыт.
 
-[Текущие возможности](../README.ru.md#что-уже-работает) · [Совместимость](COMPATIBILITY.md) · [История изменений](../CHANGELOG.md) · [Исходники и сборка](../README.ru.md#сборка-и-запуск) · [GPL-3.0-only](../LICENSE)
+### Когда появится доверенный DMG
+
+Используйте конкретный выпуск по ссылке из README, включая явный beta-тег.
+В заметках должны быть версия, архитектура arm64, минимальная macOS, коммит
+исходников, подтверждённые подпись/нотарификация и соответствующие файлы проверки.
+
+1. Скачайте DMG и все файлы, перечисленные в `SHA256SUMS` этого выпуска. В их папке выполните `shasum -a 256 -c SHA256SUMS`; все суммы должны совпасть.
+2. Откройте проверенный DMG, перетащите Tilvero в **«Программы» / Applications**, затем извлеките образ.
+3. Откройте **Tilvero из «Программ»** и нажмите на значок батареи в строке меню.
+
+При несовпадении суммы или отказе macOS остановитесь и
+[сообщите о проблеме](https://github.com/RaNDoM6913/Tilvero/issues/new/choose).
+Не обходите карантин/Gatekeeper и не устанавливайте помощник для разработки
+ради обхода отказа. Контрольная сумма подтверждает целостность, но не доверие
+к подписи или нотарификацию.
+
+### Обновление и данные
+
+Обновление ручное: прочитайте заметки о переносе, штатно завершите приложение
+и замените его проверенной новой версией. Сохраните историю и настройки;
+о сбое импорта сообщите, не удаляя старую базу. Не запускайте прототип
+и production-копию одновременно во время переноса.
+
+| Тип сборки | Путь истории |
+| --- | --- |
+| Прототип для разработки | `~/Library/Application Support/Tilvero/History.sqlite` |
+| Production / Monitoring Preview | `~/Library/Application Support/Tilvero/Production/History.sqlite` |
+
+Отдельная production-база защищает данные прототипа. Заметки выпуска должны
+указывать проверенные варианты переноса. Удаление приложения не удаляет историю.
+Для намеренного удаления используйте настройки; просмотрите экспорт и диагностику
+перед передачей. Автоматическое обновление не включено.
+
+[Совместимость](COMPATIBILITY.md) · [История изменений](../CHANGELOG.md) · [Лицензия](../LICENSE)

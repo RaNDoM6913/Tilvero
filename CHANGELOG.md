@@ -1,69 +1,42 @@
 # Changelog
 
-## Unreleased — power information expansion
+## 0.1.0-beta.1 — Source Preview — 2026-10-31
 
-- Add a dedicated Awake quick-panel tab sharing the existing finite session controls with Settings, and use native popover animation while respecting Reduce Motion.
-- Keep inactive development app copies outside Spotlight and build Xcode products under a `.noindex` directory.
-- Reduce recorded sparkline and last-hour chart heights by about 30% in the quick panel and its Settings preview.
-- Keep temperature and capacity retention as numeric readings without sparklines; retain their recorded data and observation statistics.
-- Keep quick-panel application activity silent until a verified app sustains at least 50% of one CPU for 30 seconds across three or more consecutive intervals; keep full process accounting in details.
-- Add optional System, Adapter, Battery health and Application activity constructor blocks, recorded battery/temperature/power sparklines and latest comparable observation statistics.
-- Keep reported system load, adapter input/capability, battery power and CPU-only process energy separate, with source/freshness and partial coverage.
-- Expand the append-only catalog to115fields with exact raw counters, device-scoped inferred lifetime/cell readings, separate nominal capacity and derived retention; preserve unsupported values as unavailable.
-- Collect bounded public process resource counters without control or persisted process identity; reset baselines on PID reuse, missing coverage, source changes and lifecycle boundaries.
-- Preserve safe channel identity in history, exclude raw objects from ordinary support reports and retain exact large integers. Hardware, helper and trusted-release gates remain unchanged.
+First source prerelease for Apple silicon and macOS 26.0+. This preview contains
+source only; a signed, notarized Monitoring Preview DMG remains a separate release gate.
 
-## Unreleased — configurable quick panel and Keep Awake
+### Monitoring and reports
 
-- Complete the Settings constructor with native drag lifecycle, show/hide, keyboard reorder, responsive passive preview and stable layout migration.
-- Keep saved mode selection and concise action results in the popover; open the full editor from Edit modes. Hide irrelevant AC discharge prose and disable an unchanged confirmed native Apply.
-- Add explicit 15/30/60/120-minute Keep Mac Awake sessions, default 30 minutes, using a finite process-owned public macOS idle-sleep assertion. Keep Stop visible across panel tabs; release on Stop, OS timeout or normal exit, with no restart activation. Display idle and lid/forced sleep retain system behavior.
-- Keep simulation and Monitoring Preview unable to start Keep Awake. Hardware/signing/public-distribution gates remain separate.
+- Native menu bar panel and detail window for battery, charging, power, cooling information, application activity, history and diagnostics.
+- Source-aware 115-field catalog with freshness, explicit unavailable values, exact raw counters, separate nominal/full-charge capacities and device-scoped inferred readings.
+- Separate battery power, reported system load and adapter input/capability, with recorded sparklines and observation statistics.
+- Searchable application activity with CPU-load filters, top-three/all views and ranking before display limits. CPU energy/power estimates are explicitly partial; total application consumption and live Energy Impact are not implemented.
+- Local minute history, hourly summaries and CSV/JSON export with preview and identifier redaction. Collection gaps and battery boundaries remain visible.
+- Read-only Sleep & drain reports for newly observed intervals and current sleep blockers, with incomplete evidence retained and process descriptions excluded from history.
 
-## Unreleased - Settings builder foundation (work in progress)
+### Native interface
 
-- Add General / Quick panel / History settings navigation, stable layout migration, optional native charge-limit block and passive real-data preview.
-- Add local drag payload validation and accessible up/down controls. Toggle and keyboard reorder work in the app; native drag completion is still under investigation.
-- Keep Awake UI/lifecycle integration and final integrated acceptance are not complete in this checkpoint.
+- Refined native page layouts, Russian/English localization, configurable menu bar indicator and a quick-panel constructor with show/hide, drag and keyboard reorder.
+- Overview, Charge, Modes and Awake quick-panel destinations; content-sized presentation, recorded last-hour chart and conservative discharge forecast.
+- Dedicated Settings sections and Activity search/filter/sort controls. Passive historical native-session details live in Diagnostics; unresolved actions remain visible.
+- Exact-bundle launching, running-app overwrite protection and fresh `.noindex` candidate destinations to keep inactive copies out of Spotlight.
 
-## Unreleased - compact quick panel
+### Development controls and safety
 
-- Match the approved A3 navigation without a visible picker heading or collection-time footer.
-- Keep one native charge state, concise pending/charging status and recovery actions. Move repeated technical explanations to Diagnostics/tooltips and omit unqualified full-once from quick actions.
-- Keep mode action statuses in the quick panel; retain detailed reasons in the full editor and tooltips. No charge-policy or hardware-authority change.
+- Explicit Keep Mac Awake sessions with visible Stop and no automatic restart activation; disabled in simulation and Monitoring Preview.
+- Durable Normal / Economy / Maximum autonomy plans with separate Save / Apply, action previews and partial outcomes; unqualified energy/display actions remain excluded.
+- User-space native charge adapter with original-state journals, pending lower targets, external reconciliation and per-Mac admission. One-time full charging and physical cutoff retain separate validation gates.
+- Privileged helper, peer authentication and recovery source/fixture coverage. Privileged charging, energy-mode and fan writes remain unqualified; fans default to System Auto.
+- Clearly labeled DEMO simulation separate from live data/history; no administrator approval needed for monitoring.
 
-## Unreleased — native-control development checkpoint
+### Source release preparation
 
-- Use public native SF Symbol layers with continuous measured fill.
-- Add a typed user-space PowerUI adapter, journaled native sessions, safe pending targets, external reconciliation and deadlines. Real writes remain behind per-Mac validation; full-once has a separate gate.
-- Add a real last-hour chart, conservative discharge forecast and saved overview preferences.
-- Add durable Normal / Economy / Maximum autonomy plans with separate Save / Apply, action preview and partial outcomes; preserve background jobs and exclude unqualified energy/display actions.
-- Complete overview/native/mode RU/EN strings, refresh native picker labels on language changes, and separate native from helper diagnostics.
-- Preserve native discovery when an on-battery policy is unregistered; keep writes gated by independent confirmation.
-- Handle the previous limit recalled by enableMCL after disabled100, with fresh battery checks and verified baseline restoration.
-- Cutoff, full-once, privileged controls and trusted distribution retain separate gates. This is development source, not a release.
+- English/Russian project and installation guides, compatibility matrix and source-build instructions.
+- Monitoring-only release configuration with a separate production identity/store, helper-free packaging and fail-closed signing/notarization checks.
+- On-demand GitHub DMG download reporting with pagination, asset deduplication and explicit unavailable results; no in-app telemetry.
+- GPL-3.0-only source, original artwork and documentation with preserved third-party notices.
 
-## Unreleased — local launch and system charge-limit readback
-
-- Open the exact local bundle and show both paths when another copy is running; wait for a normal quit before switching and refuse to overwrite a running bundle.
-- Read the manual macOS charge limit separately from other registered system requests, with freshness, manual refresh and a link to Apple's Battery settings.
-- Keep Tilvero hardware writes and helper enrollment subject to their existing signing, qualification and restoration gates.
-
-## Unreleased — A3 app refinement
-
-- Separate the quick panel into Overview, Charge and Modes with content-based height and bounded scrolling.
-- Keep qualified charging actions inside the panel; move sleep analysis to a separate Sleep & drain detail section.
-- Record future observed sleep intervals with fresh raw endpoints, explicit incomplete evidence, local retention and shared-history erasure.
-- Show current read-only sleep assertions without storing process details or attributing historical energy to applications.
-- Refine the menu-bar battery silhouette against the measured system reference and add larger, contrast-adaptive iOS-inspired inside numerals without a tall stretched body.
-- Preserve a running development app by accepting a fresh explicit local-build output.
-
-DMG/release work is deferred. No new hardware-write qualification or public binary release is introduced.
-
-## Unreleased — Monitoring Preview preparation
-
-- Prepare the helper-free Monitoring Preview distribution scope: battery monitoring, local history and read-only diagnostics on Apple silicon with macOS 26.0+.
-- Add an on-demand GitHub release-asset download report with beta/stable filtering, complete pagination, asset-ID deduplication and explicit unavailable results.
-- Add English/Russian download availability, installation, verification and manual-update guidance.
-
-No public binary release, release tag or trusted installation is claimed by this entry. Local ad-hoc **TEST** packages are internal verification artifacts. Physical charging, power-mode and fan control qualification remains separate and unavailable.
+See [testing and validation](docs/TESTING.md) for public coverage and evidence
+boundaries, and Git history for earlier changes. Local ad-hoc TEST packages and
+successful software tests do not establish trusted distribution or physical
+hardware-control support.
