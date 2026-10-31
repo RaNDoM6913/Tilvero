@@ -26,6 +26,14 @@ Avoid permanent `develop`, staging or release branches unless maintaining an
 additional supported version requires one. Small documentation and workflow
 housekeeping can use a separate commit on the current work branch.
 
+Use ignored `/local-lab/` for isolated component demos, screenshots, experimental
+pages and preview builds. A component workbench is useful for design decisions;
+an integration worktree is useful when the chosen change needs the complete app.
+Keep demo data and bundle identity isolated from production. Transfer selected
+changes onto the feature branch for normal verification and review; a demo is
+not release acceptance. Commit coherent changes regularly and push the focused
+branch when authorized and useful for backup or review.
+
 The normal delivery path is **focused branch → pull request → checks and review →
 accepted integration into `main` → branch cleanup**:
 
