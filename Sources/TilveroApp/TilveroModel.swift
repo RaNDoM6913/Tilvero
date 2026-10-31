@@ -604,7 +604,11 @@ final class TilveroModel: ObservableObject {
     func restoreAll() { runLive { guard try await $0.restoreAll() else { throw PrivilegeError.recoveryRequired } } }
     func prepareForTermination(systemInitiated: Bool = false) async -> Bool {
         if systemInitiated { sleepTimer.stop() }
-        else { guard !sleepTimerBlocksControls else { return false }; sleepTimer.cancel() }
+        else {
+            if sleepTimer.needsHoldRelease { sleepTimer.cancel(); guard !sleepTimer.needsHoldRelease else { return false } }
+            guard !sleepTimerBlocksControls else { return false }; sleepTimer.cancel()
+            guard !sleepTimer.needsHoldRelease else { return false }
+        }
         do { try keepAwake.stop() } catch { return false }
         if isDemo { return true }
         guard !isApplying else { return false }

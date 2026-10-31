@@ -221,6 +221,14 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         let systemInitiated = SleepTimerQuitReason.currentIsSystem
+        if !systemInitiated && model.sleepTimer.needsHoldRelease {
+            model.sleepTimer.cancel()
+            if model.sleepTimer.needsHoldRelease {
+                let alert = NSAlert(); alert.messageText = L10n.text("The timer’s awake hold still needs to be released.")
+                alert.informativeText = model.sleepTimer.diagnostic ?? L10n.text("Release timer hold")
+                alert.runModal(); return .terminateCancel
+            }
+        }
         if !systemInitiated && model.sleepTimerBlocksControls {
             let alert = NSAlert(); alert.messageText = L10n.text("A sleep request is being prepared or observed.")
             alert.informativeText = L10n.text("Wait for it to finish, or cancel preparation from the timer.")

@@ -12528,6 +12528,150 @@
           }
         }
       }
+    },
+    "Keeps your Mac awake until the timer ends.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keeps your Mac awake until the timer ends."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не даёт Mac уснуть до окончания таймера."
+          }
+        }
+      }
+    },
+    "Keeps Mac awake until the timer ends, then requests sleep.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keeps Mac awake until the timer ends, then requests sleep."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не даёт Mac уснуть до окончания таймера, затем запрашивает сон."
+          }
+        }
+      }
+    },
+    "Your Mac will not sleep from inactivity before the timer ends.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your Mac will not sleep from inactivity before the timer ends."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac не уснёт от бездействия до окончания таймера."
+          }
+        }
+      }
+    },
+    "The timer’s awake hold still needs to be released.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The timer’s awake hold still needs to be released."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нужно снять удержание бодрствования таймера."
+          }
+        }
+      }
+    },
+    "Release timer hold": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Release timer hold"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Снять удержание таймера"
+          }
+        }
+      }
+    },
+    "Tilvero prevents idle system sleep until the timer ends, then releases its hold and requests sleep. The display may turn off. Closing the lid, manual sleep and macOS safety actions still work. A quiet warning appears one minute before. Cancel or quit releases the hold. The timer never restarts after waking or reopening Tilvero.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero prevents idle system sleep until the timer ends, then releases its hold and requests sleep. The display may turn off. Closing the lid, manual sleep and macOS safety actions still work. A quiet warning appears one minute before. Cancel or quit releases the hold. The timer never restarts after waking or reopening Tilvero."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero не даёт Mac уснуть от бездействия до окончания таймера, затем снимает удержание и запрашивает сон. Экран может выключиться. Закрытие крышки, ручной сон и защитные действия macOS работают как обычно. За минуту появится тихое предупреждение. Отмена или выход снимают удержание. После пробуждения или перезапуска таймер не возобновляется."
+          }
+        }
+      }
+    },
+    "Sleep timer could not keep the Mac awake. Timer was not started.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep timer could not keep the Mac awake. Timer was not started."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось удержать Mac от сна. Таймер не запущен."
+          }
+        }
+      }
+    },
+    "Sleep timer cancelled because its awake hold could not be extended.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep timer cancelled because its awake hold could not be extended."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Таймер отменён: удержание бодрствования продлить не удалось."
+          }
+        }
+      }
+    },
+    "Timer ended. Its awake hold could not be released. Try Cancel again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Timer ended. Its awake hold could not be released. Try Cancel again."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Таймер завершён, но снять удержание бодрствования не удалось. Повторите отмену."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

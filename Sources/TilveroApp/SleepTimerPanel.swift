@@ -55,10 +55,10 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
                     ProductSurface { SleepTimerPanel(model: model) }.frame(maxWidth: 560)
                     VStack(alignment: .leading, spacing: 9) {
                         Label(L10n.text("Music and video do not extend the timer."), systemImage: "play.rectangle")
-                        Label(L10n.text("Early sleep or quitting Tilvero cancels the timer."), systemImage: "moon")
+                        Label(L10n.text("Keeps your Mac awake until the timer ends."), systemImage: "moon")
                     }.font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     DisclosureGroup(L10n.text("How the timer works")) {
-                        Text(L10n.text("Tilvero requests system sleep at the deadline. A quiet warning appears one minute before. Closing the window keeps the timer running. It never restarts after waking or reopening Tilvero. Playback position is managed by your player."))
+                        Text(L10n.text("Tilvero prevents idle system sleep until the timer ends, then releases its hold and requests sleep. The display may turn off. Closing the lid, manual sleep and macOS safety actions still work. A quiet warning appears one minute before. Cancel or quit releases the hold. The timer never restarts after waking or reopening Tilvero."))
                             .font(.callout).foregroundStyle(.secondary).padding(.top, 8)
                     }.frame(maxWidth: 560).font(.system(size: 12))
                 }
@@ -81,7 +81,11 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
     private var service: SleepTimerService { model.sleepTimer }
     var body: some View {
         VStack(alignment: .leading, spacing: compact ? 14 : 16) {
-            if service.isActive {
+            if service.needsHoldRelease {
+                Label(L10n.text("The timer’s awake hold still needs to be released."), systemImage: "exclamationmark.triangle")
+                    .font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                Button(L10n.text("Release timer hold")) { service.cancel() }.accessibilityIdentifier("sleep-timer-release-hold")
+            } else if service.isActive {
                 TimelineView(.periodic(from: .now, by: 1)) { _ in active }
             } else {
                 heading
@@ -98,7 +102,7 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
                 }
                 if compact {
                     schedule
-                    Text(L10n.text("Requests system sleep even while music or video is playing."))
+                    Text(L10n.text("Keeps Mac awake until the timer ends, then requests sleep."))
                         .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     startButton.frame(maxWidth: .infinity)
                     Text(L10n.text("Quitting Tilvero cancels the timer."))
@@ -212,6 +216,10 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
                 Text(L10n.text(service.phase == .preparing ? "Preparing for sleep…" : service.phase == .requesting ? "Requesting sleep…" : "Sleep requested; waiting for the system…"))
                     .font(.caption).foregroundStyle(.secondary)
             } else if compact { Text(L10n.text("We’ll warn you one minute before.")).font(.caption).foregroundStyle(.secondary) }
+            if service.isHoldingAwake {
+                Text(L10n.text("Your Mac will not sleep from inactivity before the timer ends."))
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
     private var deadline: some View {
@@ -232,7 +240,7 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
                     HStack(spacing: 9) {
                         Image(systemName: "moon.zzz.fill").foregroundStyle(Color.accentColor)
                         VStack(alignment: .leading, spacing: 3) {
-                            Text(L10n.text("Sleep in") + " " + KeepAwakePresentation.countdown(model.sleepTimer.remainingSeconds))
+                            Text(model.sleepTimer.needsHoldRelease ? L10n.text("Release timer hold") : L10n.text("Sleep in") + " " + KeepAwakePresentation.countdown(model.sleepTimer.remainingSeconds))
                                 .font(.system(size: 13, weight: .medium)).monospacedDigit()
                             if let end = model.sleepTimer.endDate { Text(SleepTimerInput.endTime(end)).font(.caption).foregroundStyle(.secondary) }
                         }
@@ -240,7 +248,7 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
                     }.contentShape(Rectangle())
                 }.buttonStyle(.plain)
                 Button(L10n.text("Cancel")) { model.sleepTimer.cancel() }
-                    .buttonStyle(.borderless).disabled(!model.sleepTimer.isEditable && model.sleepTimer.phase != .preparing)
+                    .buttonStyle(.borderless).disabled(!model.sleepTimer.needsHoldRelease && !model.sleepTimer.isEditable && model.sleepTimer.phase != .preparing)
             }
         }
     }

@@ -3,6 +3,10 @@ import Combine
 import PowerCore
 
 @MainActor protocol SleepTimerTransport: AnyObject {
+    var hasIdleHold: Bool { get }
+    func acquireIdleHold(seconds: Int) throws
+    func extendIdleHold() throws
+    func releaseIdleHold() throws
     func isCurrentConsoleSession() -> Bool
     func requestSleep() throws
 }
@@ -13,6 +17,8 @@ import PowerCore
     @Published private(set) var phase: SleepTimerPhase = .idle
     @Published private(set) var message: String?
     @Published private(set) var diagnostic: String?
+    @Published private(set) var needsHoldRelease = false
+    @Published private(set) var isHoldingAwake = false
     var prepare: @MainActor () async -> Bool
     var onPhaseChange: (@MainActor (SleepTimerPhase) -> Void)?
     private var engine = SleepTimer()
@@ -45,13 +51,14 @@ import PowerCore
         self.driver = driver; self.allowed = allowed; self.monotonic = monotonic
         self.suspending = suspending
         self.wallClock = wallClock; self.sleeper = sleeper; self.prepare = prepare
+        self.isHoldingAwake = driver.hasIdleHold
     }
 
     var sessionID: UUID? { engine.sessionID }
-    var isActive: Bool { phase.isActive }
-    var isEditable: Bool { phase.isEditable }
+    var isActive: Bool { phase.isActive || needsHoldRelease }
+    var isEditable: Bool { phase.isEditable && !needsHoldRelease }
     var isWarning: Bool { phase == .warning }
-    var canExtend: Bool { engine.canExtend(at: monotonic()) }
+    var canExtend: Bool { !needsHoldRelease && engine.canExtend(at: monotonic()) }
     var isAvailable: Bool { allowed }
     var canStart: Bool { allowed && !isActive && driver.isCurrentConsoleSession() }
     var remainingSeconds: Int { engine.remainingSeconds(at: monotonic()) }
@@ -64,8 +71,23 @@ import PowerCore
         guard allowed else { throw SleepTimerError.unavailable }
         guard !isActive else { return }
         guard driver.isCurrentConsoleSession() else { throw SleepTimerError.unavailable }
-        try engine.start(minutes: minutes, now: monotonic())
-        startClockPair = (monotonic(), suspending())
+        // Validate without creating executable intent. Only a verified hold admits
+        // the session; a failed acquisition may still retain cleanup ownership.
+        var candidate = engine
+        let clockPair = (continuous: monotonic(), suspending: suspending())
+        try candidate.start(minutes: minutes, now: clockPair.continuous)
+        do {
+            try driver.acquireIdleHold(seconds: minutes * 60)
+            guard driver.hasIdleHold else { throw KeepAwakeError.unconfirmed }
+        } catch {
+            diagnostic = error.localizedDescription
+            message = "Sleep timer could not keep the Mac awake. Timer was not started."
+            releaseOwnHold()
+            publish()
+            throw error
+        }
+        engine = candidate
+        startClockPair = clockPair
         message = nil
         diagnostic = nil
         publish()
@@ -75,7 +97,26 @@ import PowerCore
     func extend() throws {
         guard allowed else { throw SleepTimerError.unavailable }
         guard !suspensionDetected else { systemDidWake(); throw SleepTimerError.notEditable }
-        try engine.extend(now: monotonic())
+        guard !needsHoldRelease else { throw SleepTimerError.notEditable }
+        var candidate = engine
+        try candidate.extend(now: monotonic())
+        let id = engine.sessionID, generation = engine.generation
+        do {
+            try driver.extendIdleHold()
+            guard driver.hasIdleHold else { throw KeepAwakeError.unconfirmed }
+        } catch {
+            guard engine.sessionID == id, engine.generation == generation else { throw error }
+            // An unconfirmed OS timeout cannot authorize a different sleep deadline.
+            engine.invalidate()
+            invalidateSchedule()
+            diagnostic = error.localizedDescription
+            message = "Sleep timer cancelled because its awake hold could not be extended."
+            releaseOwnHold()
+            publish()
+            throw error
+        }
+        guard engine.sessionID == id, engine.generation == generation else { throw SleepTimerError.notEditable }
+        engine = candidate
         message = nil
         diagnostic = nil
         publish()
@@ -85,18 +126,23 @@ import PowerCore
     func cancel() {
         let before = engine.generation
         engine.cancel()
-        guard engine.generation != before else { return }
+        // Publication can reenter while requesting, before native submission.
+        if engine.phase == .requesting && !engine.requestSubmitted { engine.invalidate() }
+        guard engine.generation != before || needsHoldRelease || driver.hasIdleHold else { return }
+        // Consume executable intent before a release that can fail or reenter.
         invalidateSchedule()
         message = "Timer cancelled."
         diagnostic = nil
+        releaseOwnHold()
         publish()
     }
 
     func systemWillSleep() {
-        guard isActive else { return }
+        guard isActive || driver.hasIdleHold else { return }
         engine.systemWillSleep()
         invalidateSchedule()
         message = engine.phase == .completed ? "System sleep was observed." : "Timer cancelled because the Mac went to sleep."
+        releaseOwnHold()
         publish()
     }
 
@@ -105,16 +151,17 @@ import PowerCore
     func stop() { invalidate(reason: "Timer cancelled.") }
 
     private func invalidate(reason: String) {
-        guard isActive else { return }
+        guard isActive || driver.hasIdleHold else { return }
         engine.invalidate()
         invalidateSchedule()
         message = engine.phase == .unconfirmed ? "Sleep was requested; sleep could not be confirmed." : reason
+        releaseOwnHold()
         publish()
     }
 
     /// Called by significant deadlines and lifecycle reconciliation, never a 1 Hz UI ticker.
     func reconcile() async {
-        guard allowed, isActive else { return }
+        guard allowed, engine.phase.isActive, !needsHoldRelease else { return }
         guard !suspensionDetected else { systemDidWake(); return }
         let id = engine.sessionID, generation = engine.generation
         engine.advance(now: monotonic())
@@ -141,7 +188,9 @@ import PowerCore
         guard !suspensionDetected else { systemDidWake(); return }
         guard ready else {
             engine.cancel()
+            invalidateSchedule()
             message = "Sleep timer cancelled because safe preparation could not be confirmed."
+            releaseOwnHold()
             publish()
             return
         }
@@ -153,6 +202,25 @@ import PowerCore
         guard engine.sessionID == id, engine.generation == generation, engine.phase == .requesting else { return }
         guard !suspensionDetected else { systemDidWake(); return }
         guard driver.isCurrentConsoleSession() else { sessionResigned(); return }
+        guard releaseOwnHold() else {
+            guard engine.sessionID == id, engine.generation == generation else { return }
+            engine.invalidate()
+            invalidateSchedule()
+            publish()
+            return
+        }
+        // Cleanup may synchronously trigger a lifecycle callback. It must never
+        // authorize a stale/replaced request or exceed the dispatch grace period.
+        guard engine.sessionID == id, engine.generation == generation, engine.phase == .requesting else { return }
+        guard !suspensionDetected else { systemDidWake(); return }
+        guard driver.isCurrentConsoleSession() else { sessionResigned(); return }
+        guard let deadline = engine.deadline, monotonic().isFinite,
+              monotonic() <= deadline + SleepTimer.dispatchGraceSeconds else {
+            engine.invalidate()
+            message = "Sleep timer expired without running. Start it again."
+            publish()
+            return
+        }
         guard engine.markSubmitted() else { return }
         do {
             try driver.requestSleep()
@@ -174,6 +242,7 @@ import PowerCore
         invalidateSchedule()
         if engine.phase == .expired { message = "Sleep timer expired without running. Start it again." }
         else if engine.phase == .unconfirmed { message = "Sleep was requested; sleep could not be confirmed." }
+        releaseOwnHold()
         publish()
     }
     /// Continuous time advances in sleep; SuspendingClock measures awake time.
@@ -187,7 +256,42 @@ import PowerCore
             || continuousElapsed < 0 || awakeElapsed < 0 || continuousElapsed - awakeElapsed > 0.25
     }
 
+    /// Ownership remains in the transport after failed cleanup. No sleep intent
+    /// survives that failure; Cancel explicitly retries only this service's hold.
+    @discardableResult private func releaseOwnHold() -> Bool {
+        guard driver.hasIdleHold else {
+            needsHoldRelease = false
+            isHoldingAwake = false
+            return true
+        }
+        let id = engine.sessionID, generation = engine.generation
+        do {
+            try driver.releaseIdleHold()
+            // A synchronous lifecycle observer may already have started a new
+            // authorized timer. Its hold is not evidence that old cleanup failed.
+            guard engine.sessionID == id, engine.generation == generation else {
+                isHoldingAwake = driver.hasIdleHold
+                return false
+            }
+            guard !driver.hasIdleHold else { throw KeepAwakeError.releaseFailed }
+            needsHoldRelease = false
+            isHoldingAwake = false
+            return true
+        } catch {
+            guard engine.sessionID == id, engine.generation == generation else {
+                isHoldingAwake = driver.hasIdleHold
+                return false
+            }
+            needsHoldRelease = driver.hasIdleHold
+            isHoldingAwake = driver.hasIdleHold
+            diagnostic = error.localizedDescription
+            if needsHoldRelease { message = "Timer ended. Its awake hold could not be released. Try Cancel again." }
+            return false
+        }
+    }
+
     private func publish() {
+        isHoldingAwake = driver.hasIdleHold
         guard phase != engine.phase else { return }
         phase = engine.phase
         onPhaseChange?(phase)
@@ -209,5 +313,10 @@ import PowerCore
             await self.reconcile()
         }
     }
-    isolated deinit { timer?.cancel() }
+    // Best effort only. The native hold also has a finite OS release timeout;
+    // deinitialization cannot guarantee recovery after every process failure.
+    isolated deinit {
+        timer?.cancel()
+        if driver.hasIdleHold { try? driver.releaseIdleHold() }
+    }
 }

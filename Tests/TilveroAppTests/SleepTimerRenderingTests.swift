@@ -62,6 +62,10 @@ import XCTest
 @MainActor private final class RenderSleepClock { var value = 0.0 }
 @MainActor private final class RenderSleepDriver: SleepTimerTransport {
     var requests = 0
+    var hasIdleHold = false
+    func acquireIdleHold(seconds: Int) { hasIdleHold = true }
+    func extendIdleHold() {}
+    func releaseIdleHold() { hasIdleHold = false }
     func isCurrentConsoleSession() -> Bool { true }
     func requestSleep() { requests += 1; XCTFail("Fixture rendering must not request sleep") }
 }

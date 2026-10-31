@@ -17,10 +17,18 @@ enum NativeSleepTimerError: LocalizedError {
 @MainActor final class NativeSleepTimerTransport: SleepTimerTransport {
     private let consoleCheck: @MainActor () -> Bool
     private let request: @MainActor () -> Int32
+    private let idleHold: KeepAwakeService
     init(consoleCheck: @escaping @MainActor () -> Bool = NativeSleepTimerTransport.currentConsoleMatches,
-         request: @escaping @MainActor () -> Int32 = NativeSleepTimerTransport.submitRequest) {
+         request: @escaping @MainActor () -> Int32 = NativeSleepTimerTransport.submitRequest,
+         idleHoldTransport: any KeepAwakeTransport = NativeKeepAwakeTransport()) {
         self.consoleCheck = consoleCheck; self.request = request
+        // Separate from the visible Keep Awake mode: ownership never crosses modes.
+        idleHold = KeepAwakeService(driver: idleHoldTransport)
     }
+    var hasIdleHold: Bool { idleHold.hasOwnedAssertion }
+    func acquireIdleHold(seconds: Int) throws { try idleHold.start(seconds: seconds) }
+    func extendIdleHold() throws { try idleHold.extend(by: 900) }
+    func releaseIdleHold() throws { try idleHold.stop() }
     func isCurrentConsoleSession() -> Bool { consoleCheck() }
     func requestSleep() throws {
         guard consoleCheck() else { throw NativeSleepTimerError.inactiveSession }

@@ -4,6 +4,25 @@ import Carbon
 @testable import TilveroApp
 
 @MainActor final class SleepTimerIntegrationTests: XCTestCase {
+    func testFirstNormalQuitCannotPassWhenTimerHoldReleaseFailsAndSystemQuitDoesNotWait() async throws {
+        let suite = "SleepHoldQuit-\(UUID())", prefs = UserDefaults(suiteName: suite)!
+        defer { prefs.removePersistentDomain(forName: suite) }
+        let driver = IntegrationSleepDriver()
+        let service = SleepTimerService(driver: driver, sleeper: { _ in try await Task.sleep(for: .seconds(3600)) })
+        let model = TilveroModel(isDemo: true, preferences: prefs, sleepTimerService: service)
+        try service.start(minutes: 30)
+        driver.releaseFails = true
+        let normalQuit = await model.prepareForTermination()
+        XCTAssertFalse(normalQuit)
+        XCTAssertTrue(service.needsHoldRelease)
+        XCTAssertFalse(service.isEditable)
+        XCTAssertEqual(driver.requests, 0)
+        let systemQuit = await model.prepareForTermination(systemInitiated: true)
+        XCTAssertTrue(systemQuit, "Process-owned idle assertions cannot block OS logout/shutdown")
+        driver.releaseFails = false; service.cancel()
+        XCTAssertFalse(service.needsHoldRelease)
+        XCTAssertFalse(driver.hasIdleHold)
+    }
     func testSystemQuitReasonsDoNotUseTheInteractiveTimerQuitPolicy() {
         for reason in [kAEQuitAll, kAEShutDown, kAERestart, kAEReallyLogOut, kAELogOut] {
             XCTAssertTrue(SleepTimerQuitReason.isSystem(reason))
@@ -84,6 +103,14 @@ import Carbon
 }
 @MainActor private final class IntegrationSleepDriver: SleepTimerTransport {
     var requests = 0
+    var hasIdleHold = false
+    func acquireIdleHold(seconds: Int) { hasIdleHold = true }
+    func extendIdleHold() {}
+    var releaseFails = false
+    func releaseIdleHold() throws {
+        if releaseFails { throw NSError(domain: "HoldFixture", code: 1) }
+        hasIdleHold = false
+    }
     func isCurrentConsoleSession() -> Bool { true }
     func requestSleep() { requests += 1 }
 }

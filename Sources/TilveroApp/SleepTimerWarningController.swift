@@ -9,19 +9,21 @@ import PowerCore
     private var subscription: AnyCancellable?
     private var panel: NSPanel?
     private var displayObserver: NSObjectProtocol?
+    private var announcementKey: String?
     private let openDetails: @MainActor () -> Void
     init(service: SleepTimerService, openDetails: @escaping @MainActor () -> Void) {
         self.service = service; self.openDetails = openDetails
-        subscription = service.$phase.sink { [weak self] _ in Task { @MainActor [weak self] in self?.update() } }
+        subscription = Publishers.Merge(service.$phase.map { _ in () }, service.$needsHoldRelease.map { _ in () })
+            .sink { [weak self] _ in Task { @MainActor [weak self] in self?.update() } }
         displayObserver = NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor [weak self] in self?.refreshPresentation() }
         }
     }
     func refreshPresentation() { if panel?.isVisible == true { update(announce: false) } }
     private func update(announce: Bool = true) {
-        guard service.isWarning || [.failed, .unconfirmed, .expired].contains(service.phase)
+        guard service.isWarning || service.needsHoldRelease || [.failed, .unconfirmed, .expired].contains(service.phase)
                 || service.message == "Sleep timer cancelled because safe preparation could not be confirmed." else {
-            panel?.orderOut(nil); return
+            panel?.orderOut(nil); announcementKey = nil; return
         }
         if panel == nil {
             let panel = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
@@ -40,10 +42,11 @@ import PowerCore
         panel.contentViewController = host
         panel.setContentSize(host.sizeThatFits(in: NSSize(width: width, height: 1000)))
         position(on: screen); panel.orderFrontRegardless()
-        if announce { NSAccessibility.post(element: panel, notification: .announcementRequested, userInfo: [
+        let key = "\(service.sessionID?.uuidString ?? "")/\(service.phase.rawValue)/\(service.needsHoldRelease)"
+        if announce && announcementKey != key { NSAccessibility.post(element: panel, notification: .announcementRequested, userInfo: [
             .announcement: L10n.text(service.isWarning ? "Your Mac will sleep in one minute." : "The sleep timer needs attention."),
             .priority: NSAccessibilityPriorityLevel.high.rawValue
-        ]) }
+        ]); announcementKey = key }
     }
     private func position(on screen: NSScreen?) {
         guard let panel else { return }
@@ -82,6 +85,7 @@ import PowerCore
                 } else {
                     Text(L10n.text("The sleep timer needs attention.")).font(.system(size: 16, weight: .semibold))
                     if let message = service.message { Text(L10n.text(message)).font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+                    if service.needsHoldRelease { Button(L10n.text("Release timer hold")) { service.cancel() } }
                     HStack {
                         Button(L10n.text("Open Tilvero")) { openDetails() }
                         Button(L10n.text("Dismiss")) { dismiss() }
