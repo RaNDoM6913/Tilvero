@@ -328,7 +328,7 @@ final class TilveroModel: ObservableObject {
     var pendingTarget: Int? { chargeState?.pendingTarget }
     var effectiveLimitText: String {
         guard let state = chargeState else { return L10n.text("Control unavailable") }
-        if !isDemo && nativeCharge.recoveryRequired { return L10n.text("Actual native limit is unconfirmed — recovery required") }
+        if !isDemo && nativeCharge.recoveryRequired { return L10n.text("Charging session needs review") }
         let effective = state.appliedTarget.map { "\($0)%" } ?? L10n.text("Unknown")
         if !isDemo && nativeCharge.restorationPending {
             return L10n.text("Restoration waiting for natural discharge") + " · " + L10n.text("Effective") + " " + effective
