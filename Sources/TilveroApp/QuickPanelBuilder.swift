@@ -77,6 +77,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
 @MainActor struct PassiveQuickPanelPreview: View {
     @ObservedObject var model: TilveroModel
     @State var section: QuickPanelSection = .overview
+    @State private var sleepPage: SleepPage = .timer
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
@@ -88,6 +89,12 @@ enum SettingsPage: String, CaseIterable, Identifiable {
             Picker(L10n.text("Battery menu"), selection: $section) {
                 ForEach(QuickPanelSection.allCases) { Text($0.title).tag($0) }
             }.pickerStyle(.segmented).labelsHidden()
+            if section == .awake {
+                Picker(L10n.text("Sleep"), selection: $sleepPage) {
+                    Text(L10n.text("Sleep timer")).tag(SleepPage.timer)
+                    Text(L10n.text("Keep Awake")).tag(SleepPage.awake)
+                }.pickerStyle(.segmented).labelsHidden()
+            }
             VStack(alignment: .leading, spacing: 12) {
                 switch section {
                 case .overview:
@@ -105,11 +112,14 @@ enum SettingsPage: String, CaseIterable, Identifiable {
                     }
                     if model.snapshot.chargePercent.freshness == .stale { Text(L10n.text("Stale")).font(.caption).foregroundStyle(.orange) }
                     Divider()
+                    if model.sleepTimer.isActive { SleepTimerActiveRow(model: model).disabled(true) }
                     if model.keepAwake.hasOwnedAssertion { passiveSession }
                     OverviewMetricsPanel(model: model)
                 case .charge: charge
                 case .modes: modes
-                case .awake: awake
+                case .awake:
+                    if sleepPage == .timer { SleepTimerPanel(model: model, compact: true).disabled(true) }
+                    else { awake }
                 }
             }.allowsHitTesting(false)
             Divider()

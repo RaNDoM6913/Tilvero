@@ -10,7 +10,7 @@ enum QuickPanelSection: String, CaseIterable, Identifiable {
         case .overview: L10n.text("Overview")
         case .charge: L10n.text("Charge")
         case .modes: L10n.text("Modes")
-        case .awake: L10n.text("Awake")
+        case .awake: L10n.text("Sleep")
         }
     }
 }
@@ -50,7 +50,7 @@ struct QuickPanel: View {
                 case .overview: overview
                 case .charge: charge
                 case .modes: modes
-                case .awake: KeepAwakePanel(model: model, compact: true).id(model.language)
+                case .awake: SleepControlsPanel(model: model, compact: true).id(model.language)
                 }
             }
             if let notice = contextualNotice {
@@ -59,11 +59,11 @@ struct QuickPanel: View {
             }
             Divider()
             Button {
-                model.selectedSection = .history
+                model.selectedSection = section == .awake ? .sleep : .history
                 model.openDetails?()
             } label: {
                 HStack {
-                    Label(L10n.text("History & reports…"), systemImage: "chart.bar.xaxis")
+                    Label(L10n.text(section == .awake ? "Open Sleep & drain…" : "History & reports…"), systemImage: section == .awake ? "moon" : "chart.bar.xaxis")
                     Spacer()
                     Image(systemName: "chevron.right").font(.caption)
                 }.frame(maxWidth: .infinity)
@@ -99,6 +99,7 @@ struct QuickPanel: View {
                 Text(L10n.text("Stale")).font(.caption).foregroundStyle(.orange)
             }
             Divider()
+            if model.sleepTimer.isActive { SleepTimerActiveRow(model: model, open: { section = .awake }); Divider() }
             if model.keepAwake.hasOwnedAssertion { KeepAwakeActivePanel(service: model.keepAwake).id(model.language) }
             OverviewMetricsPanel(model: model, allowsAwakeActions: true)
         }
@@ -134,7 +135,7 @@ struct QuickPanel: View {
         Menu {
             Button(L10n.text("Settings")) { model.selectedSection = .settings; model.openDetails?() }
             Button(L10n.text("Customize quick panel…")) { model.selectedSettingsPage = .quickPanel; model.selectedSection = .settings; model.openDetails?() }
-            Button(L10n.text("Keep Mac Awake…")) { model.selectedSettingsPage = .general; model.selectedSection = .settings; model.openDetails?() }
+            Button(L10n.text("Keep Mac Awake…")) { model.selectedSleepPage = .awake; model.selectedSection = .sleep; model.openDetails?() }
             Picker(L10n.text("Menu bar"), selection: $model.displayStyle) {
                 ForEach(MenuBarDisplayStyle.allCases) { style in Text(style.title).tag(style) }
             }

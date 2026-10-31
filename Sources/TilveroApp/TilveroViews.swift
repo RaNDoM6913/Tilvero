@@ -63,18 +63,21 @@ struct BatteryInfoView: View {
             sidebar.frame(width: 190)
             ZStack(alignment: .topLeading) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
+                VStack(alignment: .leading, spacing: model.selectedSection == .sleep ? 18 : 22) {
                     HStack(alignment: .firstTextBaseline) {
                         Text(model.selectedSection.title).font(.system(size: 24, weight: .semibold))
                         Spacer(minLength: 8)
+                        if model.selectedSection != .sleep || model.selectedSleepPage == .reports {
                         Button { Task { await model.refresh(); if model.selectedSection == .sleep { await model.refreshSleepActivity() } } } label: { Image(systemName: "arrow.clockwise") }
                             .accessibilityLabel(L10n.text("Refresh"))
+                        }
                     }
                     if model.isDemo {
                         Label(L10n.text("Simulation only — your Mac settings are unchanged."), systemImage: "testtube.2")
                             .font(.system(size: 11)).foregroundStyle(.secondary)
                     }
                     if model.selectedSection == .overview && model.keepAwake.hasOwnedAssertion { KeepAwakeActivePanel(service: model.keepAwake) }
+                    if model.selectedSection == .overview && model.sleepTimer.isActive { SleepTimerActiveRow(model: model) }
                     if !model.isDemo { nativeChargingAttention }
                     if model.liveControl.hasOwnedSettings || model.liveControl.recoveryRequired || (!model.usesNativeCharge && model.pendingTarget != nil) {
                         ProductSurface(title: "Privileged controls") {
@@ -90,7 +93,7 @@ struct BatteryInfoView: View {
                     sectionContent
                     if let error = model.storeError { Label(L10n.text("Data store error") + ": " + error, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange) }
                     if let notice = model.notice { Text(notice).font(.caption).foregroundStyle(.secondary) }
-                    if model.selectedSection != .overview {
+                    if model.selectedSection != .overview && (model.selectedSection != .sleep || model.selectedSleepPage == .reports) {
                         Text("\(L10n.text("Last collection")): \(model.snapshot.collectedAt.formatted(.dateTime.locale(L10n.locale)))")
                             .font(.caption).foregroundStyle(.secondary)
                     }
@@ -236,7 +239,7 @@ struct BatteryInfoView: View {
                 DataReadingSection(title: "Fan observations", readings: CatalogDataGroup.filtered(readings(["087", "088", "089", "090", "091", "092", "093"]), search: "", showUnavailable: showUnavailable), fahrenheit: model.fahrenheit)
             }
         case .history: HistoryPanel(model: model)
-        case .sleep: SleepReportPanel(model: model)
+        case .sleep: SleepControlsPanel(model: model)
         case .diagnostics:
             HStack(alignment: .top, spacing: 14) {
                 Image(systemName: "shield.lefthalf.filled").font(.system(size: 29)).foregroundStyle(.green).accessibilityHidden(true)
@@ -462,7 +465,7 @@ private struct SettingsPanel: View {
                 }
             }
             KeyboardBacklightPanel(service: model.keyboardBacklight)
-            ProductSurface { KeepAwakePanel(model: model) }
+            Button(L10n.text("Sleep timer & Keep Awake…")) { model.selectedSleepPage = .awake; model.selectedSection = .sleep }
             Button(L10n.text("Customize quick panel…")) { model.selectedSettingsPage = .quickPanel }
         }.frame(maxWidth: 760, alignment: .leading)
     }

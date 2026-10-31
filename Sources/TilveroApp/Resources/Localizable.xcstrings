@@ -11568,6 +11568,966 @@
           }
         }
       }
+    },
+    "Sleep": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон"
+          }
+        }
+      }
+    },
+    "Sleep timer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep timer"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Таймер сна"
+          }
+        }
+      }
+    },
+    "Reports": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reports"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отчёты"
+          }
+        }
+      }
+    },
+    "Keep Awake": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep Awake"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не засыпать"
+          }
+        }
+      }
+    },
+    "Enter 1–1440 minutes.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter 1–1440 minutes."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Введите от 1 до 1440 минут."
+          }
+        }
+      }
+    },
+    "Confirm switching the active sleep mode first.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirm switching the active sleep mode first."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сначала подтвердите переключение режима сна."
+          }
+        }
+      }
+    },
+    "Sleep at": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep at"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон в"
+          }
+        }
+      }
+    },
+    "Sleep in": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep in"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон через"
+          }
+        }
+      }
+    },
+    "tomorrow": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "tomorrow"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "завтра"
+          }
+        }
+      }
+    },
+    "Custom duration": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Custom duration"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Своё время"
+          }
+        }
+      }
+    },
+    "Custom duration…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Custom duration…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Своё время…"
+          }
+        }
+      }
+    },
+    "Sleep timer duration in minutes": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep timer duration in minutes"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Длительность таймера в минутах"
+          }
+        }
+      }
+    },
+    "Sleep after…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep after…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Уснуть через…"
+          }
+        }
+      }
+    },
+    "System sleep on a timer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System sleep on a timer"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Системный сон по таймеру"
+          }
+        }
+      }
+    },
+    "Start timer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start timer"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запустить таймер"
+          }
+        }
+      }
+    },
+    "Until Mac sleeps": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Until Mac sleeps"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "До сна Mac"
+          }
+        }
+      }
+    },
+    "Cancel timer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel timer"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отменить таймер"
+          }
+        }
+      }
+    },
+    "Cancel sleep": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel sleep"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отменить сон"
+          }
+        }
+      }
+    },
+    "Open Tilvero": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Tilvero"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть Tilvero"
+          }
+        }
+      }
+    },
+    "Open Sleep & drain…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Sleep & drain…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть «Сон и расход»…"
+          }
+        }
+      }
+    },
+    "Sleep timer & Keep Awake…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep timer & Keep Awake…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Таймер сна и «Не засыпать»…"
+          }
+        }
+      }
+    },
+    "Music and video do not extend the timer.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Music and video do not extend the timer."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Музыка и видео не продлевают таймер."
+          }
+        }
+      }
+    },
+    "Early sleep or quitting Tilvero cancels the timer.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Early sleep or quitting Tilvero cancels the timer."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ранний сон или выход из Tilvero отменяет таймер."
+          }
+        }
+      }
+    },
+    "How the timer works": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How the timer works"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Как работает таймер"
+          }
+        }
+      }
+    },
+    "Tilvero requests system sleep at the deadline. A quiet warning appears one minute before. Closing the window keeps the timer running. It never restarts after waking or reopening Tilvero. Playback position is managed by your player.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero requests system sleep at the deadline. A quiet warning appears one minute before. Closing the window keeps the timer running. It never restarts after waking or reopening Tilvero. Playback position is managed by your player."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "По окончании Tilvero запрашивает системный сон. За минуту появится тихое предупреждение. Закрытие окна не мешает таймеру. После пробуждения или перезапуска приложения таймер не возобновляется. Позицию воспроизведения сохраняет ваш плеер."
+          }
+        }
+      }
+    },
+    "Requests system sleep even while music or video is playing.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Requests system sleep even while music or video is playing."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запрашивает сон Mac, даже если играет музыка или видео."
+          }
+        }
+      }
+    },
+    "Quitting Tilvero cancels the timer.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitting Tilvero cancels the timer."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выход из Tilvero отменяет таймер."
+          }
+        }
+      }
+    },
+    "We’ll warn you one minute before.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "We’ll warn you one minute before."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Предупредим за 1 минуту."
+          }
+        }
+      }
+    },
+    "Sleep timer is unavailable in this build or simulation.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep timer is unavailable in this build or simulation."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Таймер сна недоступен в этой сборке или симуляции."
+          }
+        }
+      }
+    },
+    "End Keep Awake and start the sleep timer?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "End Keep Awake and start the sleep timer?"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Завершить «Не засыпать» и запустить таймер сна?"
+          }
+        }
+      }
+    },
+    "End Keep Awake and start": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "End Keep Awake and start"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Завершить «Не засыпать» и запустить"
+          }
+        }
+      }
+    },
+    "Cancel the sleep timer and start Keep Awake?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel the sleep timer and start Keep Awake?"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отменить таймер сна и включить «Не засыпать»?"
+          }
+        }
+      }
+    },
+    "Cancel timer and start Keep Awake": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel timer and start Keep Awake"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отменить таймер и включить «Не засыпать»"
+          }
+        }
+      }
+    },
+    "Maximum remaining duration is 24 hours.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maximum remaining duration is 24 hours."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Максимальное оставшееся время — 24 часа."
+          }
+        }
+      }
+    },
+    "A sleep timer cannot have more than 24 hours remaining.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A sleep timer cannot have more than 24 hours remaining."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оставшееся время таймера не может превышать 24 часа."
+          }
+        }
+      }
+    },
+    "This sleep timer can no longer be changed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This sleep timer can no longer be changed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Этот таймер сна больше нельзя изменить."
+          }
+        }
+      }
+    },
+    "Preparing for sleep…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparing for sleep…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подготовка ко сну…"
+          }
+        }
+      }
+    },
+    "Requesting sleep…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Requesting sleep…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запрашиваем сон…"
+          }
+        }
+      }
+    },
+    "Sleep requested; waiting for the system…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep requested; waiting for the system…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон запрошен; ожидаем систему…"
+          }
+        }
+      }
+    },
+    "Your Mac will sleep in one minute.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your Mac will sleep in one minute."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac уснёт через одну минуту."
+          }
+        }
+      }
+    },
+    "The sleep timer needs attention.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The sleep timer needs attention."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверьте таймер сна."
+          }
+        }
+      }
+    },
+    "Tilvero’s sleep timer is ending. Add time if you’re still watching.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero’s sleep timer is ending. Add time if you’re still watching."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сработал таймер Tilvero. Добавьте время, если ещё смотрите."
+          }
+        }
+      }
+    },
+    "Quitting cancels the sleep timer.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitting cancels the sleep timer."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выход отменит таймер сна."
+          }
+        }
+      }
+    },
+    "Keep Tilvero open": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep Tilvero open"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оставить Tilvero открытым"
+          }
+        }
+      }
+    },
+    "Quit and cancel timer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quit and cancel timer"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выйти и отменить таймер"
+          }
+        }
+      }
+    },
+    "The sleep timer requires the current console user.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The sleep timer requires the current console user."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Таймер сна доступен только текущему пользователю Mac."
+          }
+        }
+      }
+    },
+    "macOS rejected the sleep request.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS rejected the sleep request."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS отклонила запрос сна."
+          }
+        }
+      }
+    },
+    "Timer cancelled.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Timer cancelled."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Таймер отменён."
+          }
+        }
+      }
+    },
+    "System sleep was observed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System sleep was observed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Получено уведомление системы о переходе ко сну."
+          }
+        }
+      }
+    },
+    "Timer cancelled because the Mac went to sleep.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Timer cancelled because the Mac went to sleep."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Таймер отменён: Mac перешёл ко сну."
+          }
+        }
+      }
+    },
+    "Timer cancelled because the Mac woke from sleep.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Timer cancelled because the Mac woke from sleep."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Таймер отменён после пробуждения Mac."
+          }
+        }
+      }
+    },
+    "Timer cancelled because this user session is no longer active.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Timer cancelled because this user session is no longer active."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Таймер отменён: сеанс пользователя больше не активен."
+          }
+        }
+      }
+    },
+    "Sleep was requested; sleep could not be confirmed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep was requested; sleep could not be confirmed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон был запрошен, но переход ко сну подтвердить не удалось."
+          }
+        }
+      }
+    },
+    "Sleep timer cancelled because safe preparation could not be confirmed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep timer cancelled because safe preparation could not be confirmed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Таймер отменён: безопасную подготовку ко сну подтвердить не удалось."
+          }
+        }
+      }
+    },
+    "Sleep requested. Waiting for system sleep.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep requested. Waiting for system sleep."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон запрошен. Ожидаем перехода системы ко сну."
+          }
+        }
+      }
+    },
+    "macOS declined the sleep request. Timer ended.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS declined the sleep request. Timer ended."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS отклонила запрос сна. Таймер завершён."
+          }
+        }
+      }
+    },
+    "Sleep timer expired without running. Start it again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep timer expired without running. Start it again."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Таймер истёк без выполнения. Запустите его снова."
+          }
+        }
+      }
+    },
+    "Dismiss": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dismiss"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закрыть"
+          }
+        }
+      }
+    },
+    "A sleep request is being prepared or observed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A sleep request is being prepared or observed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выполняется подготовка или проверка запроса сна."
+          }
+        }
+      }
+    },
+    "Wait for it to finish, or cancel preparation from the timer.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wait for it to finish, or cancel preparation from the timer."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дождитесь завершения или отмените подготовку в таймере."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

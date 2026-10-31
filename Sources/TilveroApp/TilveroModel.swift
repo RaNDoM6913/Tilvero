@@ -74,6 +74,27 @@ final class TilveroModel: ObservableObject {
     private var exportData: Data?
     private var exportType: UTType = .json
     let keepAwake: KeepAwakeService
+    let sleepTimer: SleepTimerService
+    private var sleepTimerSubscription: AnyCancellable?
+    @Published var selectedSleepPage: SleepPage = .timer
+    @Published var sleepTimerMinutes: String { didSet {
+        if let value = SleepTimerInput.minutes(sleepTimerMinutes) { preferences.set(value, forKey: "sleepTimerMinutes") }
+    } }
+    @Published var sleepTimerUsesCustom = false
+    var sleepTimerBlocksControls: Bool { sleepTimer.isActive && !sleepTimer.isEditable }
+    var canStartSleepTimer: Bool {
+        sleepTimer.canStart && SleepTimerInput.minutes(sleepTimerMinutes) != nil
+            && !isApplying && !sleeping
+    }
+    func startSleepTimer(replacingAwake: Bool = false) throws {
+        guard canStartSleepTimer, let minutes = SleepTimerInput.minutes(sleepTimerMinutes) else { throw SleepTimerInputError.invalid }
+        if keepAwake.hasOwnedAssertion {
+            guard replacingAwake else { throw SleepTimerInputError.conflictingMode }
+            try keepAwake.stop()
+            guard !keepAwake.hasOwnedAssertion else { throw SleepTimerInputError.conflictingMode }
+        }
+        try sleepTimer.start(minutes: minutes)
+    }
     private var awakeSubscription: AnyCancellable?
     private var awakeMessageSubscription: AnyCancellable?
     private var lastAwakeFailureNotice: String?
@@ -131,7 +152,9 @@ final class TilveroModel: ObservableObject {
         case .untilStopped: return true
         }
     }
-    func startKeepAwakeDraft() throws {
+    func startKeepAwakeDraft(replacingSleepTimer: Bool = false) throws {
+        guard !sleepTimerBlocksControls else { throw SleepTimerInputError.conflictingMode }
+        if sleepTimer.isActive && !replacingSleepTimer { throw SleepTimerInputError.conflictingMode }
         switch keepAwakeDraft {
         case .duration(let duration):
             if keepAwakeUsesCustomDuration {
@@ -141,6 +164,8 @@ final class TilveroModel: ObservableObject {
         case .until(let date): try keepAwake.start(until: date)
         case .untilStopped: try keepAwake.startUntilStopped()
         }
+        // Acquisition is synchronous and verified. A failed start retains the old timer.
+        if sleepTimer.isActive { sleepTimer.cancel() }
     }
     let nativeCharge: NativeChargeService
     let keyboardBacklight: KeyboardBacklightService
@@ -180,13 +205,17 @@ final class TilveroModel: ObservableObject {
          liveControl: LiveControlService? = nil,
          keepAwakeTransport: (any KeepAwakeTransport)? = nil,
          processActivityProvider: (@Sendable () async -> ProcessResourceCollection)? = nil,
-         keyboardBacklight: KeyboardBacklightService? = nil) {
+         keyboardBacklight: KeyboardBacklightService? = nil,
+         sleepTimerTransport: (any SleepTimerTransport)? = nil,
+         sleepTimerService: SleepTimerService? = nil) {
         self.systemChargeLimitProvider = systemChargeLimitProvider ?? {
             await Task.detached(priority: .utility) { SystemChargeLimitObservation.read() }.value
         }
         self.isDemo = isDemo
         self.processActivityProvider = processActivityProvider ?? { await ProcessActivityProvider().read() }
         self.preferences = preferences
+        let savedSleepMinutes = preferences.integer(forKey: "sleepTimerMinutes")
+        sleepTimerMinutes = String((1...1440).contains(savedSleepMinutes) ? savedSleepMinutes : 30)
         let savedAwakeDuration = KeepAwakeDuration.load(preferences.object(forKey: "keepAwakeMinutes"))
         keepAwakeDraft = .duration(savedAwakeDuration)
         keepAwakeCustomMinutes = String(savedAwakeDuration.rawValue)
@@ -195,6 +224,7 @@ final class TilveroModel: ObservableObject {
         self.keyboardBacklight = keyboardBacklight ?? KeyboardBacklightService(
             storage: UserDefaultsKeyboardBacklightStorage(defaults: preferences), allowed: !isDemo && !monitoring)
         keepAwake = KeepAwakeService(driver: keepAwakeTransport ?? NativeKeepAwakeTransport(), allowed: !isDemo && !monitoring)
+        sleepTimer = sleepTimerService ?? SleepTimerService(driver: sleepTimerTransport ?? NativeSleepTimerTransport(), allowed: !isDemo && !monitoring)
         modeLibrary = ModeLibrary.load(preferences.data(forKey: isDemo ? "demoModePlans.v1" : "modePlans.v1"))
         overviewPreferences = OverviewPreferences.load(preferences.data(forKey: "overviewPreferences.v1"))
         self.sleepActivityProvider = sleepActivityProvider ?? {
@@ -240,6 +270,20 @@ final class TilveroModel: ObservableObject {
         }
         selectedSection = InfoSection(rawValue: preferences.string(forKey: "lastSection") ?? "") ?? .overview
         updateLoginStatus()
+        sleepTimer.prepare = { [weak self] in
+            guard let self else { return false }
+            // An earlier observation may be suspended before a native auto-action.
+            // Let it finish before preparing; new auto-actions are already gated.
+            let readinessDeadline = ContinuousClock.now.advanced(by: .seconds(4))
+            while self.isReading || self.isApplying || self.nativeCharge.isBusy || self.nativeCharge.isQualifying || self.liveControl.isBusy {
+                guard self.sleepTimer.phase == .preparing, !self.sleeping,
+                      ContinuousClock.now < readinessDeadline, !Task.isCancelled else { return false }
+                do { try await Task.sleep(for: .milliseconds(50)) } catch { return false }
+            }
+            guard !self.sleeping, self.sleepTimer.phase == .preparing else { return false }
+            return await self.liveControl.prepareForRequestedSleep()
+        }
+        sleepTimerSubscription = sleepTimer.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
         awakeSubscription = keepAwake.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
         awakeMessageSubscription = keepAwake.$message.sink { [weak self] message in
             guard let self else { return }
@@ -298,12 +342,12 @@ final class TilveroModel: ObservableObject {
     }
     var acceptedTargets: [Int] { isDemo ? control?.acceptedTargets ?? [] : nativeCharge.isMonitoringOnly ? [] : usesNativeCharge ? nativeCharge.acceptedTargets : liveControl.acceptedTargets }
     var canShowChargeControls: Bool { isDemo || !acceptedTargets.isEmpty }
-    var canApplyProfiles: Bool { isDemo || liveControl.capabilities.contains { $0.readiness == .available } }
+    var canApplyProfiles: Bool { !sleepTimerBlocksControls && (isDemo || liveControl.capabilities.contains { $0.readiness == .available }) }
     var fanObservation: FanObservation? { liveControl.fanObservation }
     var fanDescriptors: [FanDescriptor] { isDemo ? control?.fanDescriptors ?? [] : fanObservation?.descriptors ?? [] }
     var fanRPM: [String: Int] { isDemo ? control?.fans.observedRPM ?? [:] : fanObservation?.actualRPM ?? [:] }
     var fanPhase: FanPhase { isDemo ? control?.fans.phase ?? .systemAuto : liveControl.fanState.phase }
-    var canControlFans: Bool { isDemo || liveControl.canFans }
+    var canControlFans: Bool { !sleepTimerBlocksControls && (isDemo || liveControl.canFans) }
     var helperStatusText: String {
         switch liveControl.registrationState {
         case .notRegistered: L10n.text("Not enrolled")
@@ -314,7 +358,7 @@ final class TilveroModel: ObservableObject {
     }
     var draftTarget: Int? { ReadingPresentation.percentInput(draftText, acceptedTargets: acceptedTargets) }
     var isOneShotDemo: Bool { chargeState?.requested == .fullOnce }
-    var canEdit: Bool { (isDemo ? control != nil : usesNativeCharge || liveControl.canCharge) && !isApplying && !nativeCharge.isBusy && !nativeCharge.isQualifying && !liveControl.isBusy && !isOneShotDemo }
+    var canEdit: Bool { !sleepTimerBlocksControls && (isDemo ? control != nil : usesNativeCharge || liveControl.canCharge) && !isApplying && !nativeCharge.isBusy && !nativeCharge.isQualifying && !liveControl.isBusy && !isOneShotDemo }
     var canPerformChargeActions: Bool { isDemo || (usesNativeCharge ? nativeCharge.canApply : liveControl.canCharge) }
     var canChargeToFullOnce: Bool { isDemo || (usesNativeCharge ? nativeCharge.canChargeToFullOnce : liveControl.canCharge) }
     var canReleaseCharge: Bool { isDemo || nativeCharge.hasOwnedSettings || nativeCharge.pendingTarget != nil || nativeCharge.recoveryRequired || liveControl.hasOwnedSettings }
@@ -359,6 +403,7 @@ final class TilveroModel: ObservableObject {
         }
     }
     func stop() {
+        sleepTimer.stop()
         processMonitorStopped = true; processRevision &+= 1; processSampler.reset(); processActivity = nil
         processHighlights.reset(); highCPUApplications = []
         try? keepAwake.stop()
@@ -366,6 +411,7 @@ final class TilveroModel: ObservableObject {
         pollingTask?.cancel(); pollingTask = nil; observer.stop(); try? store?.close()
     }
     func setSleeping(_ value: Bool) {
+        if value { sleepTimer.systemWillSleep() } else { sleepTimer.systemDidWake() }
         if value && sleeping { return }
         if !value && !sleeping && observedWake { return }
         lifecycleEpoch &+= 1
@@ -429,9 +475,11 @@ final class TilveroModel: ObservableObject {
                 saveSleepChanges(sleepTracker.accept(.expire(stamp: sleepStamp())))
             } else { lastRawSleepEndpoint = nil }
             snapshot = raw.retainingPreviousReadings(snapshot)
-            await liveControl.observe(snapshot)
-            await nativeCharge.observeBattery(percent: raw.chargePercent.value,
-                fresh: raw.chargePercent.availability == .available && raw.chargePercent.freshness == .fresh)
+            if !sleepTimerBlocksControls { await liveControl.observe(snapshot) }
+            if !sleepTimerBlocksControls {
+                await nativeCharge.observeBattery(percent: raw.chargePercent.value,
+                    fresh: raw.chargePercent.availability == .available && raw.chargePercent.freshness == .fresh)
+            }
             guard readEpoch == lifecycleEpoch, !sleeping else { return }
             if selectedSection == .sleep && previousPower != raw.isExternalPower.value {
                 Task { await refreshSleepActivity() }
@@ -518,7 +566,7 @@ final class TilveroModel: ObservableObject {
     }
     func qualifyNativeCharge() { runNative { try await $0.qualify() } }
     private func runNative(_ action: @escaping @MainActor (NativeChargeService) async throws -> Void) {
-        guard !isDemo, !isApplying else { return }
+        guard !isDemo, !isApplying, !sleepTimerBlocksControls else { return }
         isApplying = true; arbiter.recordManualAction(at: Date()); persistArbiter()
         Task {
             defer { isApplying = false }
@@ -539,7 +587,7 @@ final class TilveroModel: ObservableObject {
         }
     }
     private func runLive(_ action: @escaping @MainActor (LiveControlService) async throws -> Void) {
-        guard !isDemo, !isApplying else { return }
+        guard !isDemo, !isApplying, !sleepTimerBlocksControls else { return }
         isApplying = true; arbiter.recordManualAction(at: Date()); persistArbiter()
         Task {
             defer { isApplying = false }
@@ -554,7 +602,9 @@ final class TilveroModel: ObservableObject {
     func registerHelper() { runLive { try await $0.registerHelper() } }
     func removeHelper() { runLive { try await $0.unregisterHelper() } }
     func restoreAll() { runLive { guard try await $0.restoreAll() else { throw PrivilegeError.recoveryRequired } } }
-    func prepareForTermination() async -> Bool {
+    func prepareForTermination(systemInitiated: Bool = false) async -> Bool {
+        if systemInitiated { sleepTimer.stop() }
+        else { guard !sleepTimerBlocksControls else { return false }; sleepTimer.cancel() }
         do { try keepAwake.stop() } catch { return false }
         if isDemo { return true }
         guard !isApplying else { return false }
@@ -581,7 +631,7 @@ final class TilveroModel: ObservableObject {
                      restoreAvailable: isDemo || canReleaseCharge || liveControl.hasOwnedSettings || liveControl.recoveryRequired)
     }
     func applyMode(_ mode: WorkMode) async {
-        guard !isApplying, !nativeCharge.isBusy, !nativeCharge.isQualifying, !liveControl.isBusy else { return }
+        guard !sleepTimerBlocksControls, !isApplying, !nativeCharge.isBusy, !nativeCharge.isQualifying, !liveControl.isBusy else { return }
         notice = nil
         let plan = modeLibrary.plan(mode)
         var rows = modePreview(plan)
@@ -676,6 +726,7 @@ final class TilveroModel: ObservableObject {
     }
     func removeSchedule() { schedule = nil; preferences.removeObject(forKey: isDemo ? "demoSchedule" : "schedule") }
     private func evaluateSchedule() async {
+        guard !sleepTimerBlocksControls else { return }
         guard let schedule, let profile = arbiter.evaluate(schedule, now: Date()) else { return }
         persistArbiter()
         if !isDemo {

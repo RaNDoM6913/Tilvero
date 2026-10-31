@@ -263,6 +263,17 @@ enum LiveControlError: Error, LocalizedError, Equatable {
         do { let restored = try await restoreAll(); stopHeartbeat(); return restored }
         catch { stopHeartbeat(); return false }
     }
+    /// A requested sleep can still fail or be cancelled. Do not stop heartbeat
+    /// speculatively. Successful restoration already clears ownership/heartbeat;
+    /// a rejected sleep then leaves the controls safely system managed.
+    func prepareForRequestedSleep() async -> Bool {
+        guard !isBusy, !transportBusy, !terminating else { return false }
+        guard hasOwnedSettings || hasActiveFanPolicy || recoveryRequired || activatedIntent else { return true }
+        do {
+            guard try await restoreAll() else { return false }
+            return !hasOwnedSettings && !hasActiveFanPolicy && !recoveryRequired
+        } catch { return false }
+    }
     func registerHelper() async throws {
         guard canRegister else { throw LiveControlError.notQualified }
         isBusy = true; defer { isBusy = false; registrationState = registration.state }

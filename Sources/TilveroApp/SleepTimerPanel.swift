@@ -1,0 +1,247 @@
+import SwiftUI
+import PowerCore
+
+enum SleepPage: String, CaseIterable, Identifiable {
+    case timer, awake, reports
+    var id: String { rawValue }
+    var title: String {
+        L10n.text(self == .timer ? "Sleep timer" : self == .awake ? "Keep Awake" : "Reports")
+    }
+}
+enum SleepTimerInputError: LocalizedError {
+    case invalid, conflictingMode
+    var errorDescription: String? {
+        L10n.text(self == .invalid ? "Enter 1–1440 minutes." : "Confirm switching the active sleep mode first.")
+    }
+}
+enum SleepTimerInput {
+    static func minutes(_ input: String) -> Int? {
+        let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, text.utf8.allSatisfy({ (48...57).contains($0) }),
+              let value = Int(text), (1...1440).contains(value) else { return nil }
+        return value
+    }
+    static func endTime(_ date: Date) -> String {
+        let formatter = DateFormatter(); formatter.locale = L10n.locale; formatter.timeStyle = .short
+        let suffix = Calendar.current.isDateInTomorrow(date) ? ", " + L10n.text("tomorrow") : ""
+        return L10n.text("Sleep at") + " " + formatter.string(from: date) + suffix
+    }
+}
+
+struct SleepTimerPrimaryStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var enabled
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.font(.system(size: 13, weight: .medium))
+            .foregroundStyle(enabled ? Color.white : Color.secondary)
+            .padding(.horizontal, 14).padding(.vertical, 9)
+            .background(enabled ? Color.accentColor.opacity(configuration.isPressed ? 0.8 : 1) : Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+@MainActor struct SleepControlsPanel: View {
+    @ObservedObject var model: TilveroModel
+    var compact = false
+    @State private var quickPage: SleepPage = .timer
+    var body: some View {
+        VStack(alignment: .leading, spacing: compact ? 14 : 18) {
+            Picker(L10n.text("Sleep"), selection: compact ? $quickPage : $model.selectedSleepPage) {
+                ForEach(compact ? [.timer, .awake] : SleepPage.allCases) { item in Text(item.title).tag(item) }
+            }.pickerStyle(.segmented).labelsHidden().frame(maxWidth: compact ? .infinity : 480, alignment: .leading)
+            let page = compact ? quickPage : model.selectedSleepPage
+            switch page {
+            case .timer:
+                if compact { SleepTimerPanel(model: model, compact: true) }
+                else {
+                    ProductSurface { SleepTimerPanel(model: model) }.frame(maxWidth: 560)
+                    VStack(alignment: .leading, spacing: 9) {
+                        Label(L10n.text("Music and video do not extend the timer."), systemImage: "play.rectangle")
+                        Label(L10n.text("Early sleep or quitting Tilvero cancels the timer."), systemImage: "moon")
+                    }.font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    DisclosureGroup(L10n.text("How the timer works")) {
+                        Text(L10n.text("Tilvero requests system sleep at the deadline. A quiet warning appears one minute before. Closing the window keeps the timer running. It never restarts after waking or reopening Tilvero. Playback position is managed by your player."))
+                            .font(.callout).foregroundStyle(.secondary).padding(.top, 8)
+                    }.frame(maxWidth: 560).font(.system(size: 12))
+                }
+            case .awake:
+                if compact { KeepAwakePanel(model: model, compact: true) }
+                else { ProductSurface { KeepAwakePanel(model: model) }.frame(maxWidth: 560) }
+            case .reports: SleepReportPanel(model: model)
+            }
+        }.onAppear {
+            if compact { quickPage = model.keepAwake.hasOwnedAssertion ? .awake : .timer }
+        }
+    }
+}
+
+@MainActor struct SleepTimerPanel: View {
+    @ObservedObject var model: TilveroModel
+    var compact = false
+    @State private var error: String?
+    @State private var confirmsSwitch = false
+    private var service: SleepTimerService { model.sleepTimer }
+    var body: some View {
+        VStack(alignment: .leading, spacing: compact ? 14 : 16) {
+            if service.isActive {
+                TimelineView(.periodic(from: .now, by: 1)) { _ in active }
+            } else {
+                heading
+                choices
+                if model.sleepTimerUsesCustom {
+                    HStack {
+                        Text(L10n.text("Custom duration"))
+                        Spacer(minLength: 8)
+                        TextField("1–1440", text: $model.sleepTimerMinutes).textFieldStyle(.roundedBorder)
+                            .multilineTextAlignment(.trailing).frame(width: 72)
+                            .accessibilityLabel(L10n.text("Sleep timer duration in minutes"))
+                        Text(L10n.text("min")).foregroundStyle(.secondary)
+                    }.font(.system(size: 12))
+                }
+                if compact {
+                    schedule
+                    Text(L10n.text("Requests system sleep even while music or video is playing."))
+                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    startButton.frame(maxWidth: .infinity)
+                    Text(L10n.text("Quitting Tilvero cancels the timer."))
+                        .font(.caption2).foregroundStyle(.secondary)
+                } else {
+                    Divider()
+                    HStack(spacing: 12) { schedule; Spacer(minLength: 8); startButton }
+                }
+            }
+            if let message = (error ?? service.message).map(L10n.text) {
+                Text(message).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            if let diagnostic = service.diagnostic {
+                DisclosureGroup(L10n.text("Details")) { Text(diagnostic).font(.caption).textSelection(.enabled) }
+                    .font(.caption)
+            }
+            if !service.isAvailable {
+                Text(L10n.text("Sleep timer is unavailable in this build or simulation."))
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .confirmationDialog(L10n.text("End Keep Awake and start the sleep timer?"), isPresented: $confirmsSwitch, titleVisibility: .visible) {
+            Button(L10n.text("End Keep Awake and start")) { start(replacing: true) }
+            Button(L10n.text("Cancel"), role: .cancel) {}
+        }
+    }
+    private var heading: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "moon.zzz.fill").font(.system(size: 22)).foregroundStyle(Color.accentColor)
+                .frame(width: 36, height: 36)
+                .background(Color.accentColor.opacity(0.09), in: RoundedRectangle(cornerRadius: 9))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(L10n.text("Sleep after…")).font(.system(size: 15, weight: .semibold))
+                Text(L10n.text("System sleep on a timer")).font(.system(size: 12)).foregroundStyle(.secondary)
+            }
+        }
+    }
+    private var choices: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                ForEach([15, 30, 45, 60], id: \.self) { minutes in
+                    choice("\(minutes) " + L10n.text("min"), selected: !model.sleepTimerUsesCustom && SleepTimerInput.minutes(model.sleepTimerMinutes) == minutes) {
+                        model.sleepTimerMinutes = String(minutes); model.sleepTimerUsesCustom = false; error = nil
+                    }
+                }
+                if !compact { choice(L10n.text("Custom…"), selected: model.sleepTimerUsesCustom) { model.sleepTimerUsesCustom = true; error = nil } }
+            }
+            if compact && !model.sleepTimerUsesCustom {
+                Button(L10n.text("Custom duration…")) { model.sleepTimerUsesCustom = true; error = nil }.buttonStyle(.borderless)
+            }
+        }
+    }
+    private func choice(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title).font(.system(size: 12, weight: .medium)).frame(maxWidth: .infinity).padding(.vertical, 8)
+                .background(selected ? Color.accentColor.opacity(0.14) : Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 7))
+                .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(selected ? Color.accentColor.opacity(0.5) : Color.primary.opacity(0.09)))
+        }.buttonStyle(.plain).accessibilityAddTraits(selected ? [.isSelected] : [])
+    }
+    private var schedule: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let minutes = SleepTimerInput.minutes(model.sleepTimerMinutes) {
+                Label(SleepTimerInput.endTime(Date().addingTimeInterval(Double(minutes * 60))), systemImage: "clock")
+                    .font(.system(size: 12, weight: .medium))
+            } else { Text(L10n.text("Enter 1–1440 minutes.")).font(.caption).foregroundStyle(.orange) }
+            Text(L10n.text("We’ll warn you one minute before.")).font(.system(size: 11)).foregroundStyle(.secondary)
+        }.fixedSize(horizontal: false, vertical: true)
+    }
+    private var startButton: some View {
+        Button { if model.keepAwake.hasOwnedAssertion { confirmsSwitch = true } else { start(replacing: false) } } label: {
+            Text(L10n.text("Start timer")).frame(maxWidth: compact ? .infinity : nil)
+        }.buttonStyle(SleepTimerPrimaryStyle()).disabled(!model.canStartSleepTimer).accessibilityIdentifier("sleep-timer-start")
+    }
+    private func start(replacing: Bool) {
+        do { try model.startSleepTimer(replacingAwake: replacing); error = nil }
+        catch { self.error = error.localizedDescription }
+    }
+    private var active: some View {
+        VStack(alignment: .leading, spacing: compact ? 14 : 12) {
+            if compact {
+                VStack(spacing: 12) {
+                    Image(systemName: "moon.zzz.fill").font(.system(size: 25)).foregroundStyle(Color.accentColor)
+                    Text(L10n.text("Until Mac sleeps")).font(.subheadline).foregroundStyle(.secondary)
+                    Text(KeepAwakePresentation.countdown(service.remainingSeconds))
+                        .font(.system(size: 44, weight: .medium, design: .rounded)).monospacedDigit()
+                    deadline
+                }.frame(maxWidth: .infinity).padding(.vertical, 4)
+            } else {
+                HStack(spacing: 10) {
+                    Image(systemName: "moon.zzz.fill").font(.system(size: 22)).foregroundStyle(Color.accentColor)
+                        .frame(width: 36, height: 36).background(Color.accentColor.opacity(0.09), in: RoundedRectangle(cornerRadius: 9))
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(L10n.text("Sleep timer")).font(.system(size: 15, weight: .semibold)); deadline
+                    }
+                    Spacer(minLength: 8)
+                    Text(KeepAwakePresentation.countdown(service.remainingSeconds))
+                        .font(.system(size: 30, weight: .medium, design: .rounded)).monospacedDigit()
+                }
+                Divider()
+            }
+            HStack(spacing: 8) {
+                if !compact { Text(L10n.text("We’ll warn you one minute before.")).font(.system(size: 11)).foregroundStyle(.secondary) }
+                Button("+15 " + L10n.text("min")) { do { try service.extend(); error = nil } catch { self.error = error.localizedDescription } }
+                    .disabled(!service.canExtend).help(L10n.text("Maximum remaining duration is 24 hours."))
+                    .accessibilityIdentifier("sleep-timer-extend")
+                Spacer(minLength: 8)
+                Button(L10n.text("Cancel timer")) { service.cancel(); error = nil }
+                    .disabled(!service.isEditable && service.phase != .preparing).accessibilityIdentifier("sleep-timer-cancel")
+            }.controlSize(compact ? .large : .regular)
+            if service.phase == .preparing || service.phase == .requesting || service.phase == .accepted {
+                Text(L10n.text(service.phase == .preparing ? "Preparing for sleep…" : service.phase == .requesting ? "Requesting sleep…" : "Sleep requested; waiting for the system…"))
+                    .font(.caption).foregroundStyle(.secondary)
+            } else if compact { Text(L10n.text("We’ll warn you one minute before.")).font(.caption).foregroundStyle(.secondary) }
+        }
+    }
+    private var deadline: some View {
+        Group { if let end = service.endDate { Text(SleepTimerInput.endTime(end)).font(.system(size: 12)).foregroundStyle(.secondary) } }
+    }
+}
+
+@MainActor struct SleepTimerActiveRow: View {
+    @ObservedObject var model: TilveroModel
+    var open: (@MainActor () -> Void)? = nil
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { _ in
+            HStack(spacing: 10) {
+                Button {
+                    if let open { open() }
+                    else { model.selectedSleepPage = .timer; model.selectedSection = .sleep; model.openDetails?() }
+                } label: {
+                    HStack(spacing: 9) {
+                        Image(systemName: "moon.zzz.fill").foregroundStyle(Color.accentColor)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(L10n.text("Sleep in") + " " + KeepAwakePresentation.countdown(model.sleepTimer.remainingSeconds))
+                                .font(.system(size: 13, weight: .medium)).monospacedDigit()
+                            if let end = model.sleepTimer.endDate { Text(SleepTimerInput.endTime(end)).font(.caption).foregroundStyle(.secondary) }
+                        }
+                        Spacer(minLength: 0)
+                    }.contentShape(Rectangle())
+                }.buttonStyle(.plain)
+                Button(L10n.text("Cancel")) { model.sleepTimer.cancel() }
+                    .buttonStyle(.borderless).disabled(!model.sleepTimer.isEditable && model.sleepTimer.phase != .preparing)
+            }
+        }
+    }
+}

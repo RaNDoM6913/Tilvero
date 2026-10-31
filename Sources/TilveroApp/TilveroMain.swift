@@ -5,6 +5,17 @@ import PowerTelemetry
 import PowerDiagnostics
 import OSLog
 import ChargeBackends
+import Carbon
+
+enum SleepTimerQuitReason {
+    static func isSystem(_ reason: AEEventID?) -> Bool {
+        guard let reason else { return false }
+        return [kAEQuitAll, kAEShutDown, kAERestart, kAEReallyLogOut, kAELogOut].contains(reason)
+    }
+    static var currentIsSystem: Bool {
+        isSystem(NSAppleEventManager.shared().currentAppleEvent?.paramDescriptor(forKeyword: AEKeyword(kAEQuitReason))?.enumCodeValue)
+    }
+}
 
 @main
 @MainActor
@@ -159,6 +170,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     }
     private var statusItem: NSStatusItem?
     private var keepAwakeStatusBinding: NativeKeepAwakeStatusBinding?
+    private var sleepTimerWarning: SleepTimerWarningController?
     private let popover = NSPopover()
     private var detailsWindow: NSWindow?
     private var outsideClickMonitor: Any?
@@ -183,7 +195,11 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         popover.delegate = self
 
         model.openDetails = { [weak self] in self?.showDetails() }
-        model.onPresentationChange = { [weak self] in self?.updateStatusItem() }
+        sleepTimerWarning = SleepTimerWarningController(service: model.sleepTimer) { [weak self] in
+            guard let self else { return }
+            self.model.selectedSleepPage = .timer; self.model.selectedSection = .sleep; self.showDetails()
+        }
+        model.onPresentationChange = { [weak self] in self?.updateStatusItem(); self?.sleepTimerWarning?.refreshPresentation() }
         keepAwakeStatusBinding = NativeKeepAwakeStatusBinding(service: model.keepAwake) { [weak self] _ in
             self?.updateStatusItem()
         }
@@ -192,6 +208,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
             name: NSWorkspace.didWakeNotification, object: nil
         )
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(willSleep), name: NSWorkspace.willSleepNotification, object: nil)
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(sessionResigned), name: NSWorkspace.sessionDidResignActiveNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(powerChanged), name: .NSProcessInfoPowerStateDidChange, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(clockChanged), name: NSNotification.Name.NSSystemClockDidChange, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(clockChanged), name: NSNotification.Name.NSSystemTimeZoneDidChange, object: nil)
@@ -203,8 +220,20 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        let systemInitiated = SleepTimerQuitReason.currentIsSystem
+        if !systemInitiated && model.sleepTimerBlocksControls {
+            let alert = NSAlert(); alert.messageText = L10n.text("A sleep request is being prepared or observed.")
+            alert.informativeText = L10n.text("Wait for it to finish, or cancel preparation from the timer.")
+            alert.runModal(); return .terminateCancel
+        }
+        if !systemInitiated && model.sleepTimer.isEditable {
+            let alert = NSAlert(); alert.messageText = L10n.text("Quitting cancels the sleep timer.")
+            alert.addButton(withTitle: L10n.text("Keep Tilvero open"))
+            alert.addButton(withTitle: L10n.text("Quit and cancel timer"))
+            guard alert.runModal() == .alertSecondButtonReturn else { return .terminateCancel }
+        }
         Task {
-            let restored = await model.prepareForTermination()
+            let restored = await model.prepareForTermination(systemInitiated: systemInitiated)
             if !restored {
                 let alert = NSAlert(); alert.messageText = L10n.text("Recovery required")
                 alert.informativeText = model.terminationRecoveryMessage ?? L10n.text("Operation failed")
@@ -216,6 +245,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         return .terminateLater
     }
     func applicationWillTerminate(_ notification: Notification) {
+        sleepTimerWarning?.close()
         stopPopoverEventMonitors()
         model.stop()
         NSWorkspace.shared.notificationCenter.removeObserver(self)
@@ -245,6 +275,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
 
     @objc private func didWake() { model.setSleeping(false) }
     @objc private func willSleep() { model.setSleeping(true) }
+    @objc private func sessionResigned() { model.sleepTimer.sessionResigned() }
     @objc private func powerChanged() { Task { await model.refresh() } }
     @objc private func clockChanged() {
         try? model.keepAwake.reconcile()

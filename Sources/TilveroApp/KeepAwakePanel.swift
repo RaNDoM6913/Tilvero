@@ -17,6 +17,7 @@ import SwiftUI
     @ObservedObject var model: TilveroModel
     var compact = false
     @State private var error: String?
+    @State private var confirmsTimerSwitch = false
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 4)
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -58,10 +59,11 @@ import SwiftUI
             }
             if !model.keepAwake.hasOwnedAssertion {
                 Button(L10n.text("Start")) {
+                    if model.sleepTimer.isActive { confirmsTimerSwitch = true; return }
                     do { try model.startKeepAwakeDraft(); error = nil }
                     catch { self.error = error.localizedDescription }
                 }.buttonStyle(.borderedProminent).frame(maxWidth: .infinity, alignment: .trailing)
-                    .disabled(!model.canStartKeepAwakeDraft).accessibilityIdentifier("keep-awake-start")
+                    .disabled(!model.canStartKeepAwakeDraft || model.sleepTimerBlocksControls).accessibilityIdentifier("keep-awake-start")
             }
             if let message = error ?? model.keepAwake.message, !model.keepAwake.hasOwnedAssertion,
                model.notice != L10n.text(message) {
@@ -75,6 +77,13 @@ import SwiftUI
             }
         }
         .onChange(of: model.keepAwakeDraft) { _, _ in error = nil }
+        .confirmationDialog(L10n.text("Cancel the sleep timer and start Keep Awake?"), isPresented: $confirmsTimerSwitch, titleVisibility: .visible) {
+            Button(L10n.text("Cancel timer and start Keep Awake")) {
+                do { try model.startKeepAwakeDraft(replacingSleepTimer: true); error = nil }
+                catch { self.error = error.localizedDescription }
+            }
+            Button(L10n.text("Cancel"), role: .cancel) {}
+        }
         .help(L10n.text("The display can turn off. Closing the lid or choosing Sleep still works."))
     }
     private func durationLabel(_ duration: KeepAwakeDuration) -> String {
