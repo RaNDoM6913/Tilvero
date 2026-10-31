@@ -21,6 +21,7 @@ import SwiftUI
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if model.keepAwake.hasOwnedAssertion {
+                KeepAwakeActivePanel(service: model.keepAwake)
                 Text(L10n.text("Next session")).font(.subheadline).foregroundStyle(.secondary)
             } else { KeepAwakeSummary(service: model.keepAwake) }
             LazyVGrid(columns: columns, spacing: 6) {
@@ -94,28 +95,31 @@ import SwiftUI
     }
 }
 
-/// Outside the hideable overview blocks on every quick-panel tab and in Details.
-/// This is the sole session countdown/extension/Stop presentation.
+/// Compact owned-session controls for Overview and the dedicated Awake editor.
+/// Stop and failures stay visible when optional extension controls are collapsed.
 @MainActor struct KeepAwakeActivePanel: View {
     @ObservedObject var service: KeepAwakeService
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var extensionsExpanded = false
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { _ in
             VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .firstTextBaseline) {
-                    Label(L10n.text("Keep Mac Awake"), systemImage: "cup.and.saucer.fill").font(.caption).bold()
-                    Spacer(minLength: 6)
-                    if service.isActive {
-                        if service.expiry == .untilStopped { Text("∞").font(.title3).accessibilityLabel(L10n.text("Until stopped")) }
-                        else {
-                            Text(KeepAwakePresentation.countdown(service.remainingSeconds)).monospacedDigit().font(.headline)
-                                .accessibilityLabel(L10n.text("Time remaining") + ": " + KeepAwakePresentation.countdown(service.remainingSeconds))
-                        }
-                    } else { Text(L10n.text("Check session")).font(.caption).foregroundStyle(.orange) }
+                HStack(alignment: .center, spacing: 8) {
+                    if service.isActive, service.expiry != .untilStopped {
+                        Button {
+                            withAnimation(ProductMotion.animation(reduceMotion: reduceMotion)) { extensionsExpanded.toggle() }
+                        } label: {
+                            sessionSummary(showsDisclosure: true)
+                        }.buttonStyle(.plain)
+                            .accessibilityValue(L10n.text(extensionsExpanded ? "Expanded" : "Collapsed"))
+                            .accessibilityHint(L10n.text("Extend session"))
+                            .accessibilityIdentifier("keep-awake-extensions")
+                    } else {
+                        sessionSummary(showsDisclosure: false)
+                    }
                     Button(L10n.text("Stop")) { try? service.stop() }.accessibilityIdentifier("keep-awake-stop")
                 }
-                if service.isActive, let end = service.endDate {
-                    Text(KeepAwakePresentation.endTime(end)).font(.caption).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                if service.isActive, service.expiry != .untilStopped, extensionsExpanded {
                     HStack(spacing: 6) {
                         ForEach([15, 30, 60], id: \.self) { minutes in
                             Button("+\(minutes) " + L10n.text("min")) { try? service.extend(by: minutes * 60) }
@@ -125,16 +129,39 @@ import SwiftUI
                         }
                     }
                 }
-                if service.expiry == .untilStopped {
-                    Text(L10n.text("Until stopped. Quitting Tilvero ends the session.")).font(.caption2).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
                 if let message = service.message {
                     Text(L10n.text(message)).font(.caption2).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
                 }
-            }.padding(10).background(RoundedRectangle(cornerRadius: 12).fill(Color.accentColor.opacity(0.10)))
+            }
         }
+        .onChange(of: service.ownedAssertionID) { _, _ in extensionsExpanded = false }
     }
+    private func sessionSummary(showsDisclosure: Bool) -> some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 3) {
+                Label(L10n.text("Keep Mac Awake"), systemImage: "cup.and.saucer.fill")
+                    .font(.subheadline.weight(.medium))
+                HStack(spacing: 6) {
+                    Text(L10n.text(service.isActive ? "Active" : "Check session"))
+                        .foregroundStyle(service.isActive ? Color.secondary : Color.orange)
+                    if service.isActive {
+                        Text(service.expiry == .untilStopped ? L10n.text("Until stopped") : KeepAwakePresentation.countdown(service.remainingSeconds))
+                            .monospacedDigit()
+                            .accessibilityLabel(service.expiry == .untilStopped ? L10n.text("Until stopped") : L10n.text("Time remaining") + ": " + KeepAwakePresentation.countdown(service.remainingSeconds))
+                    }
+                }.font(.caption)
+                if service.isActive, let end = service.endDate {
+                    Text(KeepAwakePresentation.endTime(end)).font(.caption2).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }.frame(maxWidth: .infinity, alignment: .leading)
+            if showsDisclosure {
+                Image(systemName: extensionsExpanded ? "chevron.up" : "chevron.down")
+                    .font(.caption.weight(.semibold)).foregroundStyle(.secondary).accessibilityHidden(true)
+            }
+        }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+    }
+
 }
 
 enum KeepAwakePresentation {

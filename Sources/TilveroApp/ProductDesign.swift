@@ -106,3 +106,42 @@ struct ProductChargeTrack: View {
         }
     }
 }
+
+/// The entire section header is one native button. Content controls remain
+/// separate, so using them never accidentally collapses their section.
+struct ProductDisclosureStyle: DisclosureGroupStyle {
+    var headerInset: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(ProductMotion.animation(reduceMotion: reduceMotion)) {
+                    configuration.isExpanded.toggle()
+                }
+            } label: {
+                HStack(alignment: .center, spacing: 10) {
+                    configuration.label
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(configuration.isExpanded ? 90 : 0))
+                        .accessibilityHidden(true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, headerInset == 0 ? 6 : 0)
+                .padding(headerInset)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityValue(L10n.text(configuration.isExpanded ? "Expanded" : "Collapsed"))
+            if configuration.isExpanded {
+                configuration.content
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, headerInset)
+                    .padding(.bottom, headerInset)
+                    .padding(.top, headerInset == 0 ? 8 : 0)
+            }
+        }
+    }
+}

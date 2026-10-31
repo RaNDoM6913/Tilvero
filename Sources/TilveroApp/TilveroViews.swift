@@ -74,22 +74,8 @@ struct BatteryInfoView: View {
                         Label(L10n.text("Simulation only — your Mac settings are unchanged."), systemImage: "testtube.2")
                             .font(.system(size: 11)).foregroundStyle(.secondary)
                     }
-                    if model.keepAwake.hasOwnedAssertion { KeepAwakeActivePanel(service: model.keepAwake) }
-                    if !model.isDemo && (model.nativeCharge.hasOwnedSettings || model.nativeCharge.pendingTarget != nil || model.nativeCharge.recoveryRequired || model.nativeCharge.restorationPending) {
-                        ProductSurface(title: "Charging state") {
-                            Text(model.usesNativeCharge ? model.effectiveLimitText : L10n.text("App-owned settings require restoration"))
-                                .foregroundStyle(model.nativeCharge.recoveryRequired || model.nativeCharge.restorationPending ? Color.orange : Color.primary)
-                            NativeChargeStatusPanel(model: model)
-                            if model.nativeCharge.pendingTarget != nil {
-                                Button(L10n.text("Cancel pending target")) { model.cancelPendingDemo() }
-                                    .disabled(model.isApplying || model.nativeCharge.isBusy)
-                            }
-                            if model.nativeCharge.hasOwnedSettings && !model.nativeCharge.recoveryRequired && !model.nativeCharge.restorationPending {
-                                Button(L10n.text("Return to system control")) { model.releaseControl() }
-                                    .disabled(!model.canReleaseCharge)
-                            }
-                        }
-                    }
+                    if model.selectedSection == .overview && model.keepAwake.hasOwnedAssertion { KeepAwakeActivePanel(service: model.keepAwake) }
+                    if !model.isDemo { nativeChargingAttention }
                     if model.liveControl.hasOwnedSettings || model.liveControl.recoveryRequired || (!model.usesNativeCharge && model.pendingTarget != nil) {
                         ProductSurface(title: "Privileged controls") {
                             if !model.usesNativeCharge { Text(model.effectiveLimitText) }
@@ -117,6 +103,7 @@ struct BatteryInfoView: View {
             .font(.system(size: 13))
             .tint(.green)
             .accentColor(.green)
+            .disclosureGroupStyle(ProductDisclosureStyle())
             .environment(\.colorScheme, .light)
             .environment(\.locale, L10n.locale)
             .id(model.language)
@@ -166,6 +153,43 @@ struct BatteryInfoView: View {
             .accessibilityAddTraits(selected ? [.isSelected] : [])
             .accessibilityRemoveTraits(selected ? [] : [.isSelected])
             .padding(.horizontal, 7).padding(.vertical, 1)
+    }
+    @ViewBuilder private var nativeChargingAttention: some View {
+        let state = model.nativeCharge.presentation()
+        if state.requiresGlobalAttention {
+            HStack(alignment: .center, spacing: 10) {
+                Image(systemName: "info.circle").foregroundStyle(nativeAttentionColor(state.attention)).accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(L10n.text(nativeAttentionTitle(state.attention))).font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(nativeAttentionColor(state.attention))
+                    if let preference = state.currentPreference {
+                        Text(L10n.text("Native macOS setting") + ": " + (preference.enabled ? "\(preference.target)%" : L10n.text("System managed")))
+                            .font(.system(size: 11)).foregroundStyle(.secondary)
+                    }
+                    if let target = state.pendingTarget {
+                        Text(L10n.text("Pending") + " \(target)%").font(.system(size: 11)).foregroundStyle(.secondary)
+                    }
+                }.frame(maxWidth: .infinity, alignment: .leading)
+                Button(L10n.text("Details")) { model.selectedSection = .diagnostics }
+            }.padding(10).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 9))
+        }
+    }
+    private func nativeAttentionColor(_ attention: NativeChargePresentation.Attention) -> Color {
+        switch attention {
+        case .sessionReview, .mutationUnresolved, .journalIntegrity: .orange
+        default: .secondary
+        }
+    }
+    private func nativeAttentionTitle(_ attention: NativeChargePresentation.Attention) -> String {
+        switch attention {
+        case .sessionReview, .mutationUnresolved: "Charging session needs review"
+        case .journalIntegrity: "Native journal needs review"
+        case .operationPending: "Waiting for native operation"
+        case .restorationPending: "Restoration pending"
+        case .lowerTargetPending: "Pending charging target"
+        case .policyUnconfirmed: "Waiting for policy confirmation"
+        case .none: "Native charging"
+        }
     }
     private var measurementSearch: some View {
         HStack(spacing: 7) {
@@ -218,7 +242,7 @@ struct BatteryInfoView: View {
             }
             if !model.isDemo {
                 ProductSurface(title: "Native charging", symbol: "battery.100percent") {
-                    Label(L10n.text(model.nativeCharge.hasOwnedSettings || model.nativeCharge.recoveryRequired ? "App-owned settings require restoration" : "No active native session"), systemImage: model.nativeCharge.hasOwnedSettings || model.nativeCharge.recoveryRequired ? "exclamationmark.circle" : "checkmark.circle")
+                    Label(L10n.text(model.nativeCharge.recoveryRequired || model.nativeCharge.restorationPending ? "Charging session needs review" : model.nativeCharge.hasOwnedSettings ? "App-managed charging" : "No active native session"), systemImage: model.nativeCharge.recoveryRequired || model.nativeCharge.restorationPending ? "info.circle" : "checkmark.circle")
                     NativeChargeStatusPanel(model: model)
                     Divider()
                     SystemChargeLimitPanel(model: model)

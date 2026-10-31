@@ -21,8 +21,11 @@ import PowerCore
                     }.font(.subheadline)
                         .help(L10n.text("Extrapolated from a recent continuous discharge. Changing the workload changes the forecast."))
                 case .keepAwake:
-                    if allowsAwakeActions && !model.keepAwake.hasOwnedAssertion { KeepAwakePanel(model: model, compact: true).id(model.language) }
-                    else if !model.keepAwake.hasOwnedAssertion || !allowsAwakeActions { KeepAwakeSummary(service: model.keepAwake).id(model.language) }
+                    // Owned sessions have a separate Overview row, independent of hidden widgets.
+                    if !model.keepAwake.hasOwnedAssertion {
+                        if allowsAwakeActions { KeepAwakePanel(model: model, compact: true).id(model.language) }
+                        else { KeepAwakeSummary(service: model.keepAwake).id(model.language) }
+                    }
                 case .power: PowerMetricCard(model: model, title: "Battery power", symbol: "bolt", id: "038")
                 case .temperature: PowerMetricCard(model: model, title: "Temperature", symbol: "thermometer.medium", id: "039", color: .red)
                 case .applications: ProcessActivityPanel(model: model, compact: true, allowsNavigation: allowsAwakeActions).id(model.language)

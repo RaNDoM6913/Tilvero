@@ -18,6 +18,35 @@ struct NativeChargeJournal: Codable, Sendable {
     var oneShot = false
 }
 
+extension NativeChargeSnapshot {
+    func isFresh(at date: Date) -> Bool {
+        let age = date.timeIntervalSince(collectedAt)
+        return age >= -5 && age <= 65
+    }
+}
+
+struct NativeChargePresentation {
+    enum Attention: Equatable {
+        case none, sessionReview, mutationUnresolved, journalIntegrity, operationPending
+        case restorationPending, lowerTargetPending, policyUnconfirmed
+    }
+    let currentPreference: NativeChargeConfiguration?
+    let activePolicy: NativeChargeConfiguration?
+    let pendingPurpose: NativeChargeOperationGate.Purpose?
+    let hasOwnership: Bool
+    let pendingTarget: Int?
+    let restorationTarget: Int?
+    let attention: Attention
+    var requiresGlobalAttention: Bool {
+        switch attention {
+        case .sessionReview, .mutationUnresolved, .journalIntegrity, .restorationPending, .lowerTargetPending: true
+        case .policyUnconfirmed: hasOwnership
+        case .operationPending: pendingTarget != nil || restorationTarget != nil
+        case .none: false
+        }
+    }
+}
+
 enum NativeChargeServiceError: Error, LocalizedError {
     case unavailable, busy, unsupportedTarget, staleBattery, recoveryRequired, readbackMismatch, unsafeEnable
     var errorDescription: String? {
@@ -69,6 +98,54 @@ enum NativeChargeServiceError: Error, LocalizedError {
     private var journalInvalid = false
     private var batteryPercent: Int?
     private var batteryFresh = false
+    private var reviewReason: NativeChargePresentation.Attention?
+
+    /// Provenance exists only within the current transaction, never inferred from
+    /// a reopened v1 journal or from expectedMutation having been cleared.
+    private final class Transaction {
+        enum Mutation {
+            case untouched
+            case dispatched(NativeChargeConfiguration)
+            case returnedAwaitingConfiguration(NativeChargeConfiguration)
+            case configurationConfirmed(NativeChargeConfiguration)
+        }
+        let entryJournal: NativeChargeJournal?
+        let entryBytes: Data?
+        let entryRecovery: Bool
+        let entryReview: NativeChargePresentation.Attention?
+        let entryPending: Int?
+        let entryRestoration: Bool
+        var sessionID: UUID?
+        var everDispatched = false
+        var mutation: Mutation = .untouched
+        var allDispatchedConfirmed: Bool {
+            if case .configurationConfirmed = mutation { return everDispatched }
+            return false
+        }
+        init(journal: NativeChargeJournal?, bytes: Data?, recovery: Bool,
+             review: NativeChargePresentation.Attention?, pending: Int?, restoration: Bool) {
+            entryJournal = journal; entryBytes = bytes; entryRecovery = recovery
+            entryReview = review; entryPending = pending; entryRestoration = restoration
+            sessionID = journal?.sessionID
+        }
+    }
+
+    func presentation(at date: Date = Date()) -> NativeChargePresentation {
+        let preference = nativeSetting.flatMap { $0.isFresh(at: date) ? $0.configuration : nil }
+        let policy = observed.flatMap { $0.isFresh(at: date) && $0.policyMatches && !recoveryRequired
+            && !operationGate.pending ? $0.configuration : nil }
+        let attention: NativeChargePresentation.Attention
+        if let reviewReason { attention = reviewReason }
+        else if recoveryRequired || journalInvalid { attention = .sessionReview }
+        else if operationGate.pending || isBusy || isQualifying { attention = .operationPending }
+        else if restorationPending { attention = .restorationPending }
+        else if pendingTarget != nil { attention = .lowerTargetPending }
+        else if policy == nil { attention = .policyUnconfirmed }
+        else { attention = .none }
+        return .init(currentPreference: preference, activePolicy: policy, pendingPurpose: operationGate.pendingPurpose,
+                     hasOwnership: hasOwnedSettings, pendingTarget: pendingTarget,
+                     restorationTarget: restorationPending ? journal?.baseline.target : nil, attention: attention)
+    }
 
     var isMonitoringOnly: Bool { monitoringOnly }
     var hasOwnedSettings: Bool { journal?.hasWritten == true }
@@ -107,25 +184,31 @@ enum NativeChargeServiceError: Error, LocalizedError {
                 guard saved.version == 1, saved.environment == environment,
                       (80...100).contains(saved.baseline.target), (80...100).contains(saved.lastVerified.target),
                       saved.plannedTarget.map({ (80...100).contains($0) }) ?? true else { throw NativeChargeServiceError.recoveryRequired }
-                journal = saved; recoveryRequired = true
+                journal = saved; recoveryRequired = true; reviewReason = .sessionReview
                 restorationPending = saved.phase == .restorationPending
-                message = "A previous native charge session needs explicit recovery. Saved intent was not reapplied."
+                message = "A previous native charge session needs review. Saved intent was not reapplied."
             } catch {
-                journalInvalid = true; recoveryRequired = true
+                journalInvalid = true; recoveryRequired = true; reviewReason = .sessionReview
                 message = "The saved native charge session cannot be read safely. It was preserved."
             }
         }
-        operationGate.onTimeout = { [weak self] in
+        operationGate.onTimeout = { [weak self] purpose in
             guard let self else { return }
-            if self.journal?.hasWritten == true {
-                self.journal?.phase = .indeterminate; self.recoveryRequired = true; try? self.saveJournal()
+            if purpose.isMutation, self.journal != nil {
+                self.journal?.phase = .indeterminate; self.recoveryRequired = true
+                self.reviewReason = .mutationUnresolved
+                do { try self.saveJournal() } catch { self.reviewReason = .journalIntegrity }
             }
             self.observed = nil
-            self.message = "macOS did not respond before the deadline. The call may still complete; further writes are blocked."
+            self.message = purpose.isMutation
+                ? "The native setting operation timed out. Its outcome needs review; further writes are blocked."
+                : "The native policy read timed out. Further actions wait for the read to return."
         }
-        operationGate.onLateCompletion = { [weak self] in
+        operationGate.onLateCompletion = { [weak self] purpose in
             self?.objectWillChange.send()
-            self?.message = "The delayed macOS call has returned. Read and reconcile its result before changing charging."
+            self?.message = purpose.isMutation
+                ? "The delayed setting operation returned. Its outcome still needs explicit review."
+                : "The delayed policy read returned. Refresh to obtain a current policy reading."
         }
     }
 
@@ -231,44 +314,45 @@ enum NativeChargeServiceError: Error, LocalizedError {
             else if journal != nil { journal?.phase = .owned; journal?.plannedTarget = nil; try saveJournal() }
             message = "The selected native limit is already active."; return
         }
-        if journal == nil {
-            journal = .init(sessionID: UUID(), environment: environment, baseline: current.configuration,
-                            lastVerified: current.configuration, plannedTarget: target, phase: .preparing)
-        }
-        journal?.plannedTarget = target
-        // One percentage point guards the rounded UI reading. An already-active
-        // limit is handled above, without reasserting any hardware setting.
-        let safeFloor = current.configuration.enabled ? target : min(target, current.configuration.target)
-        if percent >= safeFloor {
-            journal?.phase = .pendingTarget; try saveJournal()
-            pendingTarget = target
-            message = "Waiting for natural discharge before applying the lower native limit. The current system setting remains active."
-            return
-        }
-        journal?.phase = .preparing; try saveJournal()
+        let transaction = makeTransaction()
         do {
+            if journal == nil {
+                journal = .init(sessionID: UUID(), environment: environment, baseline: current.configuration,
+                                lastVerified: current.configuration, plannedTarget: target, phase: .preparing)
+            }
+            transaction.sessionID = journal?.sessionID
+            journal?.plannedTarget = target
+            // One percentage point guards the rounded UI reading. An already-active
+            // limit is handled above, without reasserting any hardware setting.
+            let safeFloor = current.configuration.enabled ? target : min(target, current.configuration.target)
+            if percent >= safeFloor {
+                journal?.phase = .pendingTarget; try saveJournal()
+                pendingTarget = target
+                message = "Waiting for natural discharge before applying the lower native limit. The current system setting remains active."
+                return
+            }
+            journal?.phase = .preparing; try saveJournal()
             if !current.configuration.enabled {
-                try await mutate(expected: .init(enabled: true, target: current.configuration.target, optimizedCharging: current.configuration.optimizedCharging)) {
-                    try await self.setNativeEnabled(true)
+                try await mutate(transaction: transaction, expected: .init(enabled: true, target: current.configuration.target, optimizedCharging: current.configuration.optimizedCharging)) {
+                    try await self.setNativeEnabled(true, transaction: transaction)
                 }
             }
-            try await mutate(expected: .init(enabled: true, target: target, optimizedCharging: current.configuration.optimizedCharging), permitDisabled100: target == 100) {
-                try await self.setNativeLimit(target)
+            try await mutate(transaction: transaction, expected: .init(enabled: true, target: target, optimizedCharging: current.configuration.optimizedCharging), permitDisabled100: target == 100) {
+                try await self.setNativeLimit(target, transaction: transaction)
             }
             let verified = try await verify(target: target, enabled: nil)
             journal?.lastVerified = verified.configuration; journal?.phase = .owned; journal?.plannedTarget = nil
             try saveJournal(); observed = verified; pendingTarget = nil
             message = "The native macOS charge limit was independently confirmed."
         } catch {
-            guard journal != nil else { throw error }
-            if case NativeChargeServiceError.unsafeEnable = error {
-                journal?.phase = .pendingTarget; pendingTarget = target; try saveJournal()
+            if case NativeChargeServiceError.unsafeEnable = error,
+               !transaction.everDispatched || transaction.allDispatchedConfirmed {
+                journal?.phase = .pendingTarget; pendingTarget = target
+                do { try saveJournal() } catch { markJournalIntegrity(); throw error }
                 message = NativeChargeServiceError.unsafeEnable.localizedDescription
                 return
             }
-            journal?.phase = .indeterminate; recoveryRequired = true
-            try? saveJournal()
-            message = "The outcome needs recovery. No additional setting was written after the unconfirmed operation."
+            handleFailure(transaction, failure: error)
             throw error
         }
     }
@@ -300,7 +384,10 @@ enum NativeChargeServiceError: Error, LocalizedError {
             if journal != nil || journalInvalid { throw NativeChargeServiceError.unavailable }
             return true
         }
-        guard let saved = journal else { pendingTarget = nil; recoveryRequired = false; return true }
+        guard let saved = journal else {
+            guard reviewReason != .journalIntegrity else { throw NativeChargeServiceError.recoveryRequired }
+            pendingTarget = nil; recoveryRequired = false; return true
+        }
         isBusy = true; defer { isBusy = false }
         let current = try await readNative(); observed = current
         guard current.isFresh && current.policyReadbackAvailable else { throw NativeChargeServiceError.readbackMismatch }
@@ -327,30 +414,31 @@ enum NativeChargeServiceError: Error, LocalizedError {
         let needsTargetChange = current.configuration.target != saved.baseline.target
         let restoringFromDisabled100 = !current.configuration.enabled && current.configuration.target == 100 && saved.baseline.enabled
         let canDisableWithoutTargetChange = !saved.baseline.enabled && !needsTargetChange
-        if !canDisableWithoutTargetChange && safeRestoreFloor <= percent {
-            journal?.phase = .restorationPending; restorationPending = true
-            recoveryRequired = false; try saveJournal()
-            message = "Restoring the original limit is waiting for natural discharge. Keep Tilvero open; the current limit remains active."
-            return false
-        }
-        journal?.phase = .restoring; try saveJournal()
+        let transaction = makeTransaction()
         do {
+            if !canDisableWithoutTargetChange && safeRestoreFloor <= percent {
+                journal?.phase = .restorationPending; restorationPending = true
+                recoveryRequired = transaction.entryRecovery; try saveJournal()
+                message = "Restoring the original limit is waiting for natural discharge. Keep Tilvero open; the current limit remains active."
+                return false
+            }
+            journal?.phase = .restoring; try saveJournal()
             journal?.lastVerified = current.configuration; try saveJournal()
             if !current.configuration.enabled {
-                try await mutate(expected: .init(enabled: true, target: current.configuration.target, optimizedCharging: current.configuration.optimizedCharging),
+                try await mutate(transaction: transaction, expected: .init(enabled: true, target: current.configuration.target, optimizedCharging: current.configuration.optimizedCharging),
                                  allowRestoredBaseline: restoringFromDisabled100) {
-                    try await self.setNativeEnabled(true)
+                    try await self.setNativeEnabled(true, transaction: transaction)
                 }
             }
             // enableMCL may recall the previously selected limit itself.
             if observed?.configuration.target != saved.baseline.target {
-                try await mutate(expected: .init(enabled: true, target: saved.baseline.target, optimizedCharging: current.configuration.optimizedCharging)) {
-                    try await self.setNativeLimit(saved.baseline.target)
+                try await mutate(transaction: transaction, expected: .init(enabled: true, target: saved.baseline.target, optimizedCharging: current.configuration.optimizedCharging)) {
+                    try await self.setNativeLimit(saved.baseline.target, transaction: transaction)
                 }
             }
             if !saved.baseline.enabled {
-                try await mutate(expected: .init(enabled: false, target: saved.baseline.target, optimizedCharging: current.configuration.optimizedCharging)) {
-                    try await self.setNativeEnabled(false)
+                try await mutate(transaction: transaction, expected: .init(enabled: false, target: saved.baseline.target, optimizedCharging: current.configuration.optimizedCharging)) {
+                    try await self.setNativeEnabled(false, transaction: transaction)
                 }
             }
             let value = try await verify(target: saved.baseline.target, enabled: saved.baseline.enabled)
@@ -359,14 +447,16 @@ enum NativeChargeServiceError: Error, LocalizedError {
             message = "The original macOS charge setting was verified as restored."
             return true
         } catch {
-            guard journal != nil else { recoveryRequired = false; throw error }
-            if case NativeChargeServiceError.unsafeEnable = error {
-                journal?.phase = .restorationPending; restorationPending = true; recoveryRequired = false; try saveJournal()
+            if case NativeChargeServiceError.unsafeEnable = error,
+               !transaction.everDispatched || transaction.allDispatchedConfirmed {
+                journal?.phase = .restorationPending; restorationPending = true
+                recoveryRequired = transaction.entryRecovery
+                do { try saveJournal() } catch { markJournalIntegrity(); throw error }
                 message = NativeChargeServiceError.unsafeEnable.localizedDescription
                 return false
             }
-            journal?.phase = .indeterminate; journal?.plannedTarget = saved.baseline.target
-            recoveryRequired = true; try? saveJournal(); throw error
+            handleFailure(transaction, failure: error)
+            throw error
         }
     }
 
@@ -393,7 +483,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
         else { journal?.phase = .owned; journal?.plannedTarget = nil; try saveJournal() }
     }
 
-    private func mutate(expected: NativeChargeConfiguration, permitDisabled100: Bool = false,
+    private func mutate(transaction: Transaction, expected: NativeChargeConfiguration, permitDisabled100: Bool = false,
                         allowRestoredBaseline: Bool = false, operation: @MainActor () async throws -> Void) async throws {
         guard let saved = journal else { throw NativeChargeServiceError.recoveryRequired }
         let before = try await readNative(); observed = before
@@ -424,22 +514,92 @@ enum NativeChargeServiceError: Error, LocalizedError {
         // A crash or error cannot make an unacknowledged mutation look untouched.
         journal?.expectedMutation = expected; journal?.hasWritten = true; try saveJournal()
         try await operation()
+        transaction.mutation = .returnedAwaitingConfiguration(expected)
         let after = try await readNative(); observed = after
         let baselineWasRecalled = recalledBaseline.map { after.configuration == $0 && after.policyMatches } ?? false
         guard after.isFresh && (after.configuration.matchesManual(expected) || (permitDisabled100 && after.configuration.target == 100) || baselineWasRecalled) else {
             throw NativeChargeServiceError.readbackMismatch
         }
+        // Setter return and the first fresh matching configuration are separate
+        // proofs. Registration is intentionally verified by the later policy read.
+        transaction.mutation = .configurationConfirmed(after.configuration)
         journal?.lastVerified = after.configuration; journal?.expectedMutation = nil; try saveJournal()
     }
 
     private func readNative() async throws -> NativeChargeSnapshot {
-        try await operationGate.call { [client] in try await client.read() }
+        do { return try await operationGate.call(purpose: .read) { [client] in try await client.read() } }
+        catch { observed = nil; throw error }
     }
-    private func setNativeLimit(_ target: Int) async throws {
-        try await operationGate.call { [client] in try await client.setLimit(target) }
+    private func setNativeLimit(_ target: Int, transaction: Transaction) async throws {
+        try await operationGate.call(purpose: .setLimit(target: target), onDispatch: {
+            transaction.everDispatched = true
+            if let expected = self.journal?.expectedMutation { transaction.mutation = .dispatched(expected) }
+        }) { [client] in try await client.setLimit(target) }
     }
-    private func setNativeEnabled(_ enabled: Bool) async throws {
-        try await operationGate.call { [client] in try await client.setEnabled(enabled) }
+    private func setNativeEnabled(_ enabled: Bool, transaction: Transaction) async throws {
+        try await operationGate.call(purpose: .setEnabled(enabled: enabled), onDispatch: {
+            transaction.everDispatched = true
+            if let expected = self.journal?.expectedMutation { transaction.mutation = .dispatched(expected) }
+        }) { [client] in try await client.setEnabled(enabled) }
+    }
+
+    private func makeTransaction() -> Transaction {
+        .init(journal: journal, bytes: try? Data(contentsOf: journalURL), recovery: recoveryRequired,
+              review: reviewReason, pending: pendingTarget, restoration: restorationPending)
+    }
+
+    private func markJournalIntegrity() {
+        recoveryRequired = true; reviewReason = .journalIntegrity; observed = nil
+        message = "The native session journal could not be saved safely. The session needs review."
+    }
+
+    private func handleFailure(_ transaction: Transaction, failure: any Error) {
+        // A fresh external change may already have relinquished this session.
+        // Never recreate that session during logical rollback.
+        guard journal?.sessionID == transaction.sessionID, journal != nil else { return }
+        observed = nil
+        if !transaction.everDispatched {
+            journal = transaction.entryJournal
+            pendingTarget = transaction.entryPending; restorationPending = transaction.entryRestoration
+            recoveryRequired = transaction.entryRecovery; reviewReason = transaction.entryReview
+            do {
+                if let bytes = transaction.entryBytes {
+                    try bytes.write(to: journalURL, options: .atomic)
+                    try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: journalURL.path)
+                } else if transaction.entryJournal != nil {
+                    // Losing the durable entry journal is itself a review issue.
+                    throw NativeChargeServiceError.recoveryRequired
+                } else if FileManager.default.fileExists(atPath: journalURL.path) {
+                    try FileManager.default.removeItem(at: journalURL)
+                }
+                message = "The native read or preparation failed before any new setting was dispatched."
+                if failure is JournalPersistenceFailure { markJournalIntegrity() }
+            } catch { markJournalIntegrity() }
+        } else if transaction.allDispatchedConfirmed {
+            // Owned means a settings/restoration obligation, not current policy.
+            // Keep the last *actual* confirmed configuration, including a partial
+            // enable, rather than promoting the final requested target.
+            journal?.phase = .owned
+            // A confirmed replacement supersedes any earlier lower-target
+            // request, even while independent policy confirmation is missing.
+            // Restoration intent is separate and remains explicitly retained.
+            pendingTarget = nil; journal?.plannedTarget = nil
+            if case let .configurationConfirmed(configuration) = transaction.mutation {
+                journal?.lastVerified = configuration; journal?.expectedMutation = nil
+            }
+            recoveryRequired = transaction.entryRecovery; reviewReason = transaction.entryReview
+            do {
+                try saveJournal()
+                message = "The native setting was confirmed, but the active policy is currently unconfirmed. Refresh before applying another target."
+                if failure is JournalPersistenceFailure { markJournalIntegrity() }
+            } catch { markJournalIntegrity() }
+        } else {
+            journal?.phase = .indeterminate; recoveryRequired = true; reviewReason = .mutationUnresolved
+            do {
+                try saveJournal()
+                message = "A dispatched native setting lacks a confirmed outcome. The session needs review."
+            } catch { markJournalIntegrity() }
+        }
     }
 
     private func verify(target: Int, enabled: Bool?) async throws -> NativeChargeSnapshot {
@@ -452,15 +612,21 @@ enum NativeChargeServiceError: Error, LocalizedError {
         }
         throw NativeChargeServiceError.readbackMismatch
     }
+    private struct JournalPersistenceFailure: Error, LocalizedError {
+        let underlying: any Error
+        var errorDescription: String? { underlying.localizedDescription }
+    }
     private func saveJournal() throws {
         guard let journal else { return }
-        let manager = FileManager.default
-        try manager.createDirectory(at: journalURL.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-        try JSONEncoder().encode(journal).write(to: journalURL, options: .atomic)
-        try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: journalURL.path)
+        do {
+            let manager = FileManager.default
+            try manager.createDirectory(at: journalURL.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            try JSONEncoder().encode(journal).write(to: journalURL, options: .atomic)
+            try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: journalURL.path)
+        } catch { throw JournalPersistenceFailure(underlying: error) }
     }
     private func relinquish() throws {
         if FileManager.default.fileExists(atPath: journalURL.path) { try FileManager.default.removeItem(at: journalURL) }
-        journal = nil; pendingTarget = nil; restorationPending = false; recoveryRequired = false
+        journal = nil; pendingTarget = nil; restorationPending = false; recoveryRequired = false; reviewReason = nil
     }
 }

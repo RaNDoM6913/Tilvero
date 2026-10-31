@@ -4609,18 +4609,18 @@
         }
       }
     },
-    "A previous native charge session needs explicit recovery. Saved intent was not reapplied.": {
+    "A previous native charge session needs review. Saved intent was not reapplied.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "A previous native charge session needs explicit recovery. Saved intent was not reapplied."
+            "value": "A previous native charge session needs review. Saved intent was not reapplied."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Предыдущему сеансу зарядки нужно восстановление. Сохранённая команда не применялась повторно."
+            "value": "Предыдущий сеанс зарядки требует проверки. Сохранённая команда не применялась повторно."
           }
         }
       }
@@ -11085,6 +11085,470 @@
           "stringUnit": {
             "state": "translated",
             "value": "Топ-3 по доступным замерам загрузки CPU. Неизвестные значения показаны в режиме «Все»."
+          }
+        }
+      }
+    },
+    "Extend session": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Extend session"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Продлить сеанс"
+          }
+        }
+      }
+    },
+    "Expanded": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Expanded"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Развёрнуто"
+          }
+        }
+      }
+    },
+    "Collapsed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collapsed"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Свёрнуто"
+          }
+        }
+      }
+    },
+    "Charging session needs review": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charging session needs review"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нужно проверить сеанс зарядки"
+          }
+        }
+      }
+    },
+    "Native journal needs review": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Native journal needs review"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нужно проверить журнал зарядки"
+          }
+        }
+      }
+    },
+    "Waiting for native operation": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for native operation"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ожидание ответа macOS"
+          }
+        }
+      }
+    },
+    "Restoration pending": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restoration pending"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ожидание восстановления"
+          }
+        }
+      }
+    },
+    "Pending charging target": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pending charging target"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Лимит ожидает применения"
+          }
+        }
+      }
+    },
+    "Waiting for policy confirmation": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for policy confirmation"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ожидание подтверждения политики"
+          }
+        }
+      }
+    },
+    "App-managed charging": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App-managed charging"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Зарядка под управлением Tilvero"
+          }
+        }
+      }
+    },
+    "The native setting operation timed out. Its outcome needs review; further writes are blocked.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The native setting operation timed out. Its outcome needs review; further writes are blocked."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Время ожидания изменения настройки истекло. Результат требует проверки; дальнейшие изменения заблокированы."
+          }
+        }
+      }
+    },
+    "The native policy read timed out. Further actions wait for the read to return.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The native policy read timed out. Further actions wait for the read to return."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Время ожидания чтения политики зарядки истекло. Дальнейшие действия доступны после завершения чтения."
+          }
+        }
+      }
+    },
+    "The delayed setting operation returned. Its outcome still needs explicit review.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The delayed setting operation returned. Its outcome still needs explicit review."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отложенная операция изменения настройки завершилась. Её результат по-прежнему требует отдельной проверки."
+          }
+        }
+      }
+    },
+    "The delayed policy read returned. Refresh to obtain a current policy reading.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The delayed policy read returned. Refresh to obtain a current policy reading."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отложенное чтение политики зарядки завершилось. Обновите данные, чтобы получить актуальное значение."
+          }
+        }
+      }
+    },
+    "The native session journal could not be saved safely. The session needs review.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The native session journal could not be saved safely. The session needs review."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось безопасно сохранить журнал управления зарядкой. Сеанс требует проверки."
+          }
+        }
+      }
+    },
+    "The native read or preparation failed before any new setting was dispatched.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The native read or preparation failed before any new setting was dispatched."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Чтение или подготовка завершились ошибкой до отправки новой настройки."
+          }
+        }
+      }
+    },
+    "The native setting was confirmed, but the active policy is currently unconfirmed. Refresh before applying another target.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The native setting was confirmed, but the active policy is currently unconfirmed. Refresh before applying another target."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Настройка macOS подтверждена, но действующая политика пока не подтверждена. Обновите данные перед выбором другого предела."
+          }
+        }
+      }
+    },
+    "A dispatched native setting lacks a confirmed outcome. The session needs review.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A dispatched native setting lacks a confirmed outcome. The session needs review."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Результат отправленного изменения настройки macOS не подтверждён. Сеанс требует проверки."
+          }
+        }
+      }
+    },
+    "Confirmed active policy": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirmed active policy"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подтверждённая действующая политика"
+          }
+        }
+      }
+    },
+    "Active charge policy is unconfirmed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Active charge policy is unconfirmed"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Действующая политика зарядки не подтверждена"
+          }
+        }
+      }
+    },
+    "The native charge session needs review. A readable setting does not resolve its saved state.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The native charge session needs review. A readable setting does not resolve its saved state."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сеанс управления зарядкой требует проверки. Доступная настройка не устраняет неопределённость сохранённого состояния."
+          }
+        }
+      }
+    },
+    "A dispatched native setting still has an unconfirmed outcome.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A dispatched native setting still has an unconfirmed outcome."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Результат отправленного изменения настройки macOS по-прежнему не подтверждён."
+          }
+        }
+      }
+    },
+    "The native session journal needs review before further changes.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The native session journal needs review before further changes."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перед дальнейшими изменениями требуется проверить журнал управления зарядкой."
+          }
+        }
+      }
+    },
+    "Reading the native charge policy…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading the native charge policy…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Чтение политики зарядки macOS…"
+          }
+        }
+      }
+    },
+    "Waiting for the native charging operation…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for the native charging operation…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ожидание операции управления зарядкой macOS…"
+          }
+        }
+      }
+    },
+    "Restoring the previous setting is waiting for natural discharge.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restoring the previous setting is waiting for natural discharge."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Восстановление предыдущей настройки ожидает естественного разряда."
+          }
+        }
+      }
+    },
+    "The lower target is waiting for natural discharge.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The lower target is waiting for natural discharge."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Более низкий предел ожидает естественного разряда."
+          }
+        }
+      }
+    },
+    "Refresh to check the active policy. The readable native setting is shown separately.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refresh to check the active policy. The readable native setting is shown separately."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновите данные для проверки действующей политики. Доступная настройка macOS показана отдельно."
+          }
+        }
+      }
+    },
+    "Tilvero manages this native setting.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero manages this native setting."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero управляет этой настройкой macOS."
           }
         }
       }

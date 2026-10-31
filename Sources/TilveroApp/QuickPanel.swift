@@ -42,7 +42,6 @@ struct QuickPanel: View {
                 if model.isDemo { Text(L10n.text("Simulation")).font(.caption).foregroundStyle(.secondary) }
                 settingsMenu
             }
-            if model.keepAwake.hasOwnedAssertion { KeepAwakeActivePanel(service: model.keepAwake).id(model.language) }
             Picker(L10n.text("Battery menu"), selection: $section) {
                 ForEach(QuickPanelSection.allCases) { Text($0.title).tag($0) }
             }.pickerStyle(.segmented).labelsHidden().id(L10n.language)
@@ -100,6 +99,7 @@ struct QuickPanel: View {
                 Text(L10n.text("Stale")).font(.caption).foregroundStyle(.orange)
             }
             Divider()
+            if model.keepAwake.hasOwnedAssertion { KeepAwakeActivePanel(service: model.keepAwake).id(model.language) }
             OverviewMetricsPanel(model: model, allowsAwakeActions: true)
         }
     }

@@ -85,7 +85,6 @@ enum SettingsPage: String, CaseIterable, Identifiable {
                 if model.isDemo { Text(L10n.text("Simulation")).font(.caption).foregroundStyle(.secondary) }
                 Image(systemName: "gearshape").foregroundStyle(.secondary)
             }
-            if model.keepAwake.hasOwnedAssertion { passiveSession }
             Picker(L10n.text("Battery menu"), selection: $section) {
                 ForEach(QuickPanelSection.allCases) { Text($0.title).tag($0) }
             }.pickerStyle(.segmented).labelsHidden()
@@ -106,6 +105,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
                     }
                     if model.snapshot.chargePercent.freshness == .stale { Text(L10n.text("Stale")).font(.caption).foregroundStyle(.orange) }
                     Divider()
+                    if model.keepAwake.hasOwnedAssertion { passiveSession }
                     OverviewMetricsPanel(model: model)
                 case .charge: charge
                 case .modes: modes
@@ -124,31 +124,39 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     }
     private var passiveSession: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Label(L10n.text("Keep Mac Awake"), systemImage: "cup.and.saucer.fill").font(.caption).bold()
-                Spacer()
-                if model.keepAwake.isActive {
-                    Text(model.keepAwake.expiry == .untilStopped ? "∞" : KeepAwakePresentation.countdown(model.keepAwake.remainingSeconds))
-                        .font(.headline).monospacedDigit()
-                } else { Text(L10n.text("Check session")).font(.caption).foregroundStyle(.orange) }
-                inactiveButton("Stop")
-            }
-            if model.keepAwake.isActive, let end = model.keepAwake.endDate { Text(KeepAwakePresentation.endTime(end)).font(.caption).foregroundStyle(.secondary) }
-            if model.keepAwake.isActive, model.keepAwake.expiry != .untilStopped {
-                HStack {
-                    ForEach([15, 30, 60], id: \.self) { minutes in
-                        Button("+\(minutes) " + L10n.text("min")) {}.disabled(true).font(.caption).frame(maxWidth: .infinity)
-                    }
+            HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Label(L10n.text("Keep Mac Awake"), systemImage: "cup.and.saucer.fill").font(.subheadline.weight(.medium))
+                    HStack(spacing: 6) {
+                        Text(L10n.text(model.keepAwake.isActive ? "Active" : "Check session"))
+                            .foregroundStyle(model.keepAwake.isActive ? Color.secondary : Color.orange)
+                        if model.keepAwake.isActive {
+                            Text(model.keepAwake.expiry == .untilStopped ? L10n.text("Until stopped") : KeepAwakePresentation.countdown(model.keepAwake.remainingSeconds)).monospacedDigit()
+                        }
+                    }.font(.caption)
                 }
+                Spacer(minLength: 6)
+                inactiveButton("Stop")
+                if model.keepAwake.isActive, model.keepAwake.expiry != .untilStopped {
+                    Image(systemName: "chevron.down").font(.caption.weight(.semibold)).frame(width: 20, height: 24)
+                        .foregroundStyle(.secondary).accessibilityLabel(L10n.text("Extend session"))
+                }
+            }
+            if model.keepAwake.isActive, let end = model.keepAwake.endDate {
+                Text(KeepAwakePresentation.endTime(end)).font(.caption2).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             if let message = model.keepAwake.message {
                 Text(L10n.text(message)).font(.caption2).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
             }
-        }.padding(10).background(RoundedRectangle(cornerRadius: 12).fill(Color.accentColor.opacity(0.10)))
+        }
     }
     private var awake: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if model.keepAwake.hasOwnedAssertion { Text(L10n.text("Next session")).font(.subheadline).foregroundStyle(.secondary) }
+            if model.keepAwake.hasOwnedAssertion {
+                passiveSession
+                Text(L10n.text("Next session")).font(.subheadline).foregroundStyle(.secondary)
+            }
             else { KeepAwakeSummary(service: model.keepAwake) }
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 4), spacing: 6) {
                 ForEach(KeepAwakeDuration.allCases) { duration in

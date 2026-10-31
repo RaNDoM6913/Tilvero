@@ -568,7 +568,8 @@ struct ReadingInfoPresentation {
         } label: {
             Text(L10n.text("Charging controls & modes")).font(.callout.weight(.medium)).foregroundStyle(.primary)
         }
-        .padding(12).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 9))
+        .disclosureGroupStyle(ProductDisclosureStyle(headerInset: 12))
+        .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 9))
         .animation(ProductMotion.animation(reduceMotion: reduceMotion), value: showControls)
     }
     private func section(_ title: String, _ ids: [String], titles: [String: String] = [:], includeUnavailable: Bool = true) -> some View {
