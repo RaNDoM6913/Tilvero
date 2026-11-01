@@ -1,10 +1,20 @@
 # Tilvero publication graphics
 
-The current README uses `cover.png`, generated with the built-in ImageGen tool on 2026-10-31; see [its prompt and provenance](COVER_PROMPT.md). The shipping app icon remains unchanged.
+Both language versions of the README open with `cover.png`: the owner-selected
+dark energy-wave banner, generated with the built-in ImageGen tool on 2026-10-31
+and selected on 2026-11-01. It uses the current wave identity from
+[`Assets/AppIcon.png`](../../Assets/AppIcon.png). The original 1983 × 793 PNG is
+retained without edits; see [its prompt, copy and SHA-256](COVER_PROMPT.md).
+Its three information pills read **Swift 6**, **macOS 26+** and **Apple silicon**;
+availability is **Source preview**. This is brand artwork, not an app screenshot
+or a claim of hardware support or release qualification. The app icon files are
+unchanged by this README refresh.
 
 The bilingual gallery in `screenshots/` renders actual SwiftUI views using isolated synthetic fixtures; every frame visibly identifies demo data. It is not owner telemetry or binary/hardware acceptance.
 
-The vector artwork below was composed for this repository on 2026-10-27 and is retained as earlier publication artwork.
+The power-loop vector artwork below was composed for this repository on
+2026-10-27 and is retained as earlier publication artwork. It is not the current
+wave identity used by the README.
 These are publication graphics, not app screenshots, hardware readings, or a replacement application icon.
 
 | Asset | Canvas | Use |
