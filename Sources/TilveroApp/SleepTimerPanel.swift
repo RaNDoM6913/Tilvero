@@ -42,17 +42,27 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
     @ObservedObject var model: TilveroModel
     var compact = false
     @State private var quickPage: SleepPage = .timer
+    #if TILVERO_LAB_STUDIO
+    @Environment(\.studioCaptureRoute) private var studioCaptureRoute
+    #endif
+    private var pageSelection: Binding<SleepPage> {
+        #if TILVERO_LAB_STUDIO
+        if let route = studioCaptureRoute { return .constant(route.sleepPage) }
+        #endif
+        return compact ? $quickPage : $model.selectedSleepPage
+    }
+    private var presentedPage: SleepPage { pageSelection.wrappedValue }
     var body: some View {
         VStack(alignment: .leading, spacing: compact ? 14 : 18) {
-            Picker(L10n.text("Sleep"), selection: compact ? $quickPage : $model.selectedSleepPage) {
-                ForEach(compact ? [.timer, .awake] : SleepPage.allCases) { item in Text(item.title).tag(item) }
-            }.pickerStyle(.segmented).labelsHidden().frame(maxWidth: compact ? .infinity : 480, alignment: .leading)
-            let page = compact ? quickPage : model.selectedSleepPage
+            Picker(L10n.text("Sleep"), selection: pageSelection) {
+                ForEach(compact ? [.timer, .awake] : SleepPage.allCases) { item in StudioText(item.title, id: "sleep.tab." + item.rawValue).tag(item) }
+            }.pickerStyle(.segmented).labelsHidden().frame(maxWidth: compact ? .infinity : 480, alignment: .leading).studioElement("sleep.tabs", label: "Sleep destinations")
+            let page = presentedPage
             switch page {
             case .timer:
-                if compact { SleepTimerPanel(model: model, compact: true) }
+                if compact { SleepTimerPanel(model: model, compact: true).studioScope("sleep.timer") }
                 else {
-                    ProductSurface { SleepTimerPanel(model: model) }.frame(maxWidth: 560)
+                    ProductSurface(studioID: "sleep.timer") { SleepTimerPanel(model: model).studioScope("sleep.timer") }.frame(maxWidth: 560)
                     VStack(alignment: .leading, spacing: 9) {
                         Label(L10n.text("Music and video do not extend the timer."), systemImage: "play.rectangle")
                         Label(L10n.text("Keeps your Mac awake until the timer ends."), systemImage: "moon")
@@ -63,8 +73,8 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
                     }.frame(maxWidth: 560).font(.system(size: 12))
                 }
             case .awake:
-                if compact { KeepAwakePanel(model: model, compact: true) }
-                else { ProductSurface { KeepAwakePanel(model: model) }.frame(maxWidth: 560) }
+                if compact { KeepAwakePanel(model: model, compact: true).studioScope("sleep.awake") }
+                else { ProductSurface(studioID: "sleep.awake") { KeepAwakePanel(model: model).studioScope("sleep.awake") }.frame(maxWidth: 560) }
             case .reports: SleepReportPanel(model: model)
             }
         }.onAppear {
@@ -86,7 +96,7 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
             if service.needsHoldRelease {
                 Label(L10n.text("The timer’s awake hold still needs to be released."), systemImage: "exclamationmark.triangle")
                     .font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
-                Button(L10n.text("Release timer hold")) { service.cancel() }.accessibilityIdentifier("sleep-timer-release-hold")
+                StudioActionButton(L10n.text("Release timer hold"), id: "action.release-timer-hold") { service.cancel() }.accessibilityIdentifier("sleep-timer-release-hold").studioElement("sleep-timer-release-hold", label: "sleep-timer-release-hold")
             } else {
                 if !service.isActive { heading }
                 choices
@@ -94,7 +104,7 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
                     HStack {
                         Text(L10n.text("Custom duration"))
                         Spacer(minLength: 8)
-                        TextField("1–1440", text: $model.sleepTimerMinutes).textFieldStyle(.roundedBorder)
+                        TextField("1–1440", text: $model.sleepTimerMinutes).textFieldStyle(.roundedBorder).studioElement("timer.customMinutes", label: "Custom timer minutes")
                             .multilineTextAlignment(.trailing).frame(width: 72)
                             .accessibilityLabel(L10n.text("Sleep timer duration in minutes"))
                             .focused($customFocused).onSubmit { submitCustom() }
@@ -129,9 +139,10 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
         }
+        .studioElement("timer.editor", kind: "container", label: "Sleep timer editor")
         .confirmationDialog(L10n.text("End Keep Awake and start the sleep timer?"), isPresented: $confirmsSwitch, titleVisibility: .visible) {
-            Button(L10n.text("End Keep Awake and start")) { applySelection(replacing: true) }
-            Button(L10n.text("Cancel"), role: .cancel) {}
+            StudioActionButton(L10n.text("End Keep Awake and start"), id: "action.end-keep-awake-and-start") { applySelection(replacing: true) }
+            StudioActionButton(L10n.text("Cancel"), id: "action.cancel", role: .cancel) {}
         }
     }
     private var heading: some View {
@@ -140,29 +151,29 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
                 .frame(width: 36, height: 36)
                 .background(Color.accentColor.opacity(0.09), in: RoundedRectangle(cornerRadius: 9))
             VStack(alignment: .leading, spacing: 3) {
-                Text(L10n.text("Sleep after…")).font(.system(size: 15, weight: .semibold))
-                Text(L10n.text("System sleep on a timer")).font(.system(size: 12)).foregroundStyle(.secondary)
+                StudioText(L10n.text("Sleep after…"), id: "timer.heading").font(.system(size: 15, weight: .semibold))
+                StudioText(L10n.text("System sleep on a timer"), id: "timer.subtitle").font(.system(size: 12)).foregroundStyle(.secondary)
             }
         }
     }
     private var choices: some View {
         HStack(spacing: 6) {
             ForEach([15, 30, 60], id: \.self) { minutes in
-                choice("\(minutes) " + L10n.text("min"), selected: service.isActive && !model.sleepTimerUsesCustom && SleepTimerInput.minutes(model.sleepTimerMinutes) == minutes) {
+                choice("\(minutes) " + L10n.text("min"), id: "timer.preset.\(minutes)", selected: service.isActive && !model.sleepTimerUsesCustom && SleepTimerInput.minutes(model.sleepTimerMinutes) == minutes) {
                     select(minutes: minutes, custom: false)
                 }
             }
-            choice(L10n.text("Custom timer time"), selected: model.sleepTimerUsesCustom) {
+            choice(L10n.text("Custom timer time"), id: "timer.custom", selected: model.sleepTimerUsesCustom) {
                 model.sleepTimerUsesCustom = true; error = nil; customFocused = true
             }
         }.disabled(!model.canSelectSleepTimerDuration)
     }
-    private func choice(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
+    private func choice(_ title: String, id: String, selected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text(title).font(.system(size: 12, weight: .medium)).frame(maxWidth: .infinity).padding(.vertical, 8)
+            StudioText(title, id: id + ".caption").font(.system(size: 12, weight: .medium)).frame(maxWidth: .infinity).padding(.vertical, 8)
                 .background(selected ? Color.accentColor.opacity(0.14) : Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 7))
                 .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(selected ? Color.accentColor.opacity(0.5) : Color.primary.opacity(0.09)))
-        }.buttonStyle(.plain).accessibilityAddTraits(selected ? [.isSelected] : [])
+        }.buttonStyle(.plain).accessibilityAddTraits(selected ? [.isSelected] : []).studioElement(id, label: title)
     }
     private func select(minutes: Int, custom: Bool) {
         pendingSelection = (minutes, custom)
@@ -187,7 +198,7 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
                 VStack(spacing: 12) {
                     Image(systemName: "moon.zzz.fill").font(.system(size: 25)).foregroundStyle(Color.accentColor)
                     Text(L10n.text("Until Mac sleeps")).font(.subheadline).foregroundStyle(.secondary)
-                    Text(KeepAwakePresentation.countdown(service.remainingSeconds))
+                    StudioText(KeepAwakePresentation.countdown(service.remainingSeconds), id: "timer.countdown")
                         .font(.system(size: 44, weight: .medium, design: .rounded)).monospacedDigit()
                     deadline
                 }.frame(maxWidth: .infinity).padding(.vertical, 4)
@@ -199,7 +210,7 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
                         Text(L10n.text("Sleep timer")).font(.system(size: 15, weight: .semibold)); deadline
                     }
                     Spacer(minLength: 8)
-                    Text(KeepAwakePresentation.countdown(service.remainingSeconds))
+                    StudioText(KeepAwakePresentation.countdown(service.remainingSeconds), id: "timer.countdown")
                         .font(.system(size: 30, weight: .medium, design: .rounded)).monospacedDigit()
                 }
                 Divider()
@@ -208,10 +219,10 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
                 if !compact { Text(L10n.text("We’ll warn you one minute before.")).font(.system(size: 11)).foregroundStyle(.secondary) }
                 Button("+15 " + L10n.text("min")) { do { try service.extend(); error = nil } catch { self.error = error.localizedDescription } }
                     .disabled(!service.canExtend).help(L10n.text("Maximum remaining duration is 24 hours."))
-                    .accessibilityIdentifier("sleep-timer-extend")
+                    .accessibilityIdentifier("sleep-timer-extend").studioElement("sleep-timer-extend", label: "sleep-timer-extend")
                 Spacer(minLength: 8)
-                Button(L10n.text("Cancel timer")) { service.cancel(); error = nil }
-                    .disabled(!service.isEditable && service.phase != .preparing).accessibilityIdentifier("sleep-timer-cancel")
+                StudioActionButton(L10n.text("Cancel timer"), id: "action.cancel-timer") { service.cancel(); error = nil }
+                    .disabled(!service.isEditable && service.phase != .preparing).accessibilityIdentifier("sleep-timer-cancel").studioElement("sleep-timer-cancel", label: "sleep-timer-cancel")
             }.controlSize(compact ? .large : .regular)
             if service.phase == .preparing || service.phase == .requesting || service.phase == .accepted {
                 Text(L10n.text(service.phase == .preparing ? "Preparing for sleep…" : service.phase == .requesting ? "Requesting sleep…" : "Sleep requested; waiting for the system…"))
@@ -248,7 +259,7 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
                         Spacer(minLength: 0)
                     }.contentShape(Rectangle())
                 }.buttonStyle(.plain)
-                Button(L10n.text("Cancel")) { model.sleepTimer.cancel() }
+                StudioActionButton(L10n.text("Cancel"), id: "action.cancel") { model.sleepTimer.cancel() }
                     .buttonStyle(.borderless).disabled(!model.sleepTimer.needsHoldRelease && !model.sleepTimer.isEditable && model.sleepTimer.phase != .preparing)
             }
         }

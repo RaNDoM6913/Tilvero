@@ -3,6 +3,7 @@ import Charts
 import PowerCore
 
 @MainActor struct OverviewMetricsPanel: View {
+    @Environment(\.studioPresentation) private var studioPresentation
     @ObservedObject var model: TilveroModel
     var allowsAwakeActions = false
     var body: some View {
@@ -14,7 +15,7 @@ import PowerCore
                         Label(L10n.text("Time to 20%"), systemImage: "clock")
                         Spacer()
                         VStack(alignment: .trailing, spacing: 2) {
-                            Text(estimateText).monospacedDigit()
+                            StudioText(estimateText, id: "overview.forecast.value").monospacedDigit()
                             Text(L10n.text(model.dischargeForecast == nil ? "Insufficient discharge observations" : "Estimate"))
                                 .font(.caption2).foregroundStyle(.secondary)
                         }
@@ -45,8 +46,8 @@ import PowerCore
                         if !model.quickHistoryPoints.isEmpty {
                             Chart(model.quickHistoryPoints) { point in
                                 LineMark(x: .value("Time", point.date), y: .value("Charge", point.value), series: .value("Segment", point.series))
-                                    .foregroundStyle(Color.green).interpolationMethod(.linear)
-                                PointMark(x: .value("Time", point.date), y: .value("Charge", point.value)).foregroundStyle(Color.green).symbolSize(8)
+                                    .foregroundStyle(studioPresentation.accent).interpolationMethod(.linear)
+                                PointMark(x: .value("Time", point.date), y: .value("Charge", point.value)).foregroundStyle(studioPresentation.accent).symbolSize(8)
                             }.chartYScale(domain: 0...100)
                                 .chartXScale(domain: model.snapshot.collectedAt.addingTimeInterval(-3600)...model.snapshot.collectedAt)
                                 .chartYAxis { AxisMarks(values: [0,50,100]) }

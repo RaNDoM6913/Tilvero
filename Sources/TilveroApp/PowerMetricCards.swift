@@ -43,7 +43,7 @@ enum PowerMetricHistory {
             HStack(alignment: .firstTextBaseline) {
                 Label(L10n.text(title), systemImage: symbol)
                 Spacer(minLength: 8)
-                Text(reading.map { CatalogDataPresentation.value($0, reveal: false, fahrenheit: model.fahrenheit) } ?? "—").monospacedDigit()
+                StudioText(reading.map { CatalogDataPresentation.value($0, reveal: false, fahrenheit: model.fahrenheit) } ?? "—", id: "powerMetric." + id + ".value").monospacedDigit()
                 if reading?.freshness == .stale { Text(L10n.text("Stale")).font(.caption2).foregroundStyle(.orange) }
             }.font(.subheadline)
             if id != "039" && id != "026" {
@@ -120,7 +120,7 @@ enum PowerMetricHistory {
                 }
             }
             ForEach(availableSummaries, id: \.0.id) { reading, summary in
-                ProductSurface {
+                ProductSurface(studioID: "power.observations." + reading.id) {
                     HStack(alignment: .firstTextBaseline, spacing: 12) {
                         Text(L10n.language == "ru" ? reading.titleRussian : reading.titleEnglish).font(.headline)
                         Spacer(minLength: 8)

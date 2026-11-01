@@ -15,6 +15,13 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class LaboratoryBuildTests(unittest.TestCase):
+    def test_studio_define_requires_explicit_source_snapshot_before_compilation(self):
+        for arguments in (("--studio",), ("--laboratory", "--studio")):
+            result = self.build(*arguments)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("snapshot", result.stderr.lower())
+        self.assertFalse((self.root / "swift-invoked").exists())
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)

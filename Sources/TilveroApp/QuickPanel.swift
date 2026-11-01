@@ -17,6 +17,7 @@ enum QuickPanelSection: String, CaseIterable, Identifiable {
 
 @MainActor
 struct QuickPanel: View {
+    @Environment(\.studioPresentation) private var studioPresentation
     @ObservedObject var model: TilveroModel
     var maximumHeight: CGFloat = 700
     var onSizeChange: ((CGSize) -> Void)?
@@ -31,20 +32,23 @@ struct QuickPanel: View {
         }
         .frame(width: 360)
         .environment(\.locale, L10n.locale)
+        .studioElement("quick.canvas", kind: "container", label: "Quick panel canvas")
+        .studioScope("page." + section.rawValue)
         .onGeometryChange(for: CGSize.self) { $0.size } action: { onSizeChange?($0) }
     }
 
     private var content: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: studioPresentation.spacing(14)) {
             HStack {
-                Text(AppIdentity.displayName).font(.headline)
+                StudioText(AppIdentity.displayName, id: "quick.brand").font(.headline)
                 Spacer()
                 if model.isDemo { Text(L10n.text("Simulation")).font(.caption).foregroundStyle(.secondary) }
                 settingsMenu
             }
             Picker(L10n.text("Battery menu"), selection: $section) {
-                ForEach(QuickPanelSection.allCases) { Text($0.title).tag($0) }
+                ForEach(QuickPanelSection.allCases) { StudioText($0.title, id: "quick.tab." + $0.rawValue).tag($0) }
             }.pickerStyle(.segmented).labelsHidden().id(L10n.language)
+                .studioElement("quick.tabs", label: "Quick menu destinations")
             Group {
                 switch section {
                 case .overview: overview
@@ -67,7 +71,7 @@ struct QuickPanel: View {
                     Spacer()
                     Image(systemName: "chevron.right").font(.caption)
                 }.frame(maxWidth: .infinity)
-            }.buttonStyle(.borderless)
+            }.buttonStyle(.borderless).studioElement("quick.openDetails", label: "Open details")
 
         }.padding(20).frame(width: 360, alignment: .leading)
     }
@@ -83,8 +87,8 @@ struct QuickPanel: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(model.chargeText).font(.system(size: 42, weight: .semibold, design: .rounded)).monospacedDigit()
-                    Text(model.chargingStateText).font(.subheadline).foregroundStyle(.secondary)
+                    StudioText(model.chargeText, id: "quick.charge.value").font(.system(size: 42, weight: .semibold, design: .rounded)).monospacedDigit()
+                    StudioText(model.chargingStateText, id: "quick.charge.status").font(.subheadline).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 12)
@@ -120,10 +124,10 @@ struct QuickPanel: View {
             ChargeLimitControl(model: model, isQuickPanel: true)
             if model.canShowChargeControls {
                 if model.canChargeToFullOnce || model.isOneShotDemo {
-                    Button(L10n.text(model.isOneShotDemo ? "Cancel one-time charge" : "Charge to 100% once")) { model.toggleOneShotDemo() }
+                    StudioActionButton(L10n.text(model.isOneShotDemo ? "Cancel one-time charge" : "Charge to 100% once"), id: "charge.once") { model.toggleOneShotDemo() }
                         .disabled(model.isApplying)
                 }
-                Button(L10n.text("Return to system control")) { model.releaseControl() }
+                StudioActionButton(L10n.text("Return to system control"), id: "action.return-to-system-control") { model.releaseControl() }
                     .disabled(model.isApplying || !model.canReleaseCharge)
             }
         }
@@ -133,16 +137,17 @@ struct QuickPanel: View {
 
     private var settingsMenu: some View {
         Menu {
-            Button(L10n.text("Settings")) { model.selectedSection = .settings; model.openDetails?() }
-            Button(L10n.text("Customize quick panel…")) { model.selectedSettingsPage = .quickPanel; model.selectedSection = .settings; model.openDetails?() }
-            Button(L10n.text("Keep Mac Awake…")) { model.selectedSleepPage = .awake; model.selectedSection = .sleep; model.openDetails?() }
+            StudioActionButton(L10n.text("Settings"), id: "action.settings") { model.selectedSection = .settings; model.openDetails?() }
+            StudioActionButton(L10n.text("Customize quick panel…"), id: "action.customize-quick-panel") { model.selectedSettingsPage = .quickPanel; model.selectedSection = .settings; model.openDetails?() }
+            StudioActionButton(L10n.text("Keep Mac Awake…"), id: "action.keep-mac-awake") { model.selectedSleepPage = .awake; model.selectedSection = .sleep; model.openDetails?() }
             Picker(L10n.text("Menu bar"), selection: $model.displayStyle) {
                 ForEach(MenuBarDisplayStyle.allCases) { style in Text(style.title).tag(style) }
             }
             Divider()
-            Button(L10n.text("Quit Tilvero")) { NSApplication.shared.terminate(nil) }
+            StudioActionButton(L10n.text("Quit Tilvero"), id: "action.quit-tilvero") { NSApplication.shared.terminate(nil) }
         } label: { Image(systemName: "gearshape") }
         .menuStyle(.borderlessButton).fixedSize().accessibilityLabel(L10n.text("Settings"))
+        .studioElement("quick.settings", label: "Quick menu settings")
     }
 }
 
@@ -153,13 +158,14 @@ struct ChargeLimitControl: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
             HStack {
-                Text(L10n.text("Charge limit")).font(.headline)
+                StudioText(L10n.text("Charge limit"), id: "charge.title").font(.headline)
                 Spacer()
                 if model.canShowChargeControls {
                     TextField(L10n.text("Desired percentage"), text: Binding(get: { model.draftText }, set: { model.draftText = $0; model.typedDraftChanged() }))
                         .textFieldStyle(.roundedBorder).multilineTextAlignment(.trailing).frame(width: 55)
                         .disabled(!model.canEdit).onSubmit { _ = model.validateTypedDraft() }
                         .accessibilityLabel(L10n.text("Desired percentage"))
+                        .studioElement("charge.percentage", label: "Desired percentage")
                     Text("%")
                 }
             }
@@ -168,6 +174,7 @@ struct ChargeLimitControl: View {
                        in: 0...Double(max(1, model.acceptedTargets.count - 1)), step: 1)
                     .disabled(!model.canEdit).accessibilityLabel(L10n.text("Charge limit"))
                     .accessibilityValue("\(model.draftText)%, \(L10n.text("Draft"))")
+                    .studioElement("charge.slider", label: "Charge limit slider")
                 HStack {
                     Text(model.acceptedTargets.first.map { "\($0)%" } ?? "—")
                     Spacer()
@@ -175,17 +182,17 @@ struct ChargeLimitControl: View {
                 }.font(.caption).foregroundStyle(.secondary)
                 HStack {
                     ForEach([80, 90, 100], id: \.self) { target in
-                        Button("\(target)%") { model.setDraft(target) }.disabled(!model.canEdit || !model.acceptedTargets.contains(target))
+                        StudioActionButton("\(target)%", id: "charge.preset.\(target)") { model.setDraft(target) }.disabled(!model.canEdit || !model.acceptedTargets.contains(target))
                     }
                     Spacer()
-                    Button(L10n.text(model.isApplying ? "Applying…" : "Apply")) { model.applyDemoTarget() }
+                    StudioActionButton(L10n.text(model.isApplying ? "Applying…" : "Apply"), id: "charge.apply") { model.applyDemoTarget() }
                         .buttonStyle(.borderedProminent).disabled(!model.canApply)
                 }
                 if !isQuickPanel { Text(L10n.text("Draft") + ": " + model.draftText + "%").font(.caption).foregroundStyle(.secondary) }
-                if !model.usesNativeCharge { Text(model.effectiveLimitText).font(.subheadline).foregroundStyle(.secondary) }
+                if !model.usesNativeCharge { StudioText(model.effectiveLimitText, id: "charge.effective").font(.subheadline).foregroundStyle(.secondary) }
                 if model.usesNativeCharge { NativeChargeStatusPanel(model: model, compact: isQuickPanel) }
                 if model.pendingTarget != nil {
-                    Button(L10n.text("Cancel pending target")) { model.cancelPendingDemo() }
+                    StudioActionButton(L10n.text("Cancel pending target"), id: "action.cancel-pending-target") { model.cancelPendingDemo() }
                         .help(L10n.text("Reconnecting early may charge to the effective limit while a lower target is pending."))
                     if !isQuickPanel {
                         Text(L10n.text("Reconnecting early may charge to the effective limit while a lower target is pending."))
@@ -199,13 +206,14 @@ struct ChargeLimitControl: View {
                 Text(L10n.text("Direct Tilvero control requires a trusted signed helper and verified hardware restoration."))
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 if isQuickPanel {
-                    Button(L10n.text("Control availability…")) {
+                    StudioActionButton(L10n.text("Control availability…"), id: "action.control-availability") {
                         model.selectedSection = .diagnostics
                         model.openDetails?()
                     }
                 }
             }
-        }.task { await model.refreshNativeCharge() }
+        }.studioElement("charge.editor", kind: "container", label: "Charge limit editor")
+        .task { await model.refreshNativeCharge() }
     }
 }
 

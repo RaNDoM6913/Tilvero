@@ -36,7 +36,7 @@ import SwiftUI
             if model.keepAwakeSelectedOption == -1 {
                 HStack {
                     Text(L10n.text("Minutes"))
-                    TextField("1–1440", text: $model.keepAwakeCustomMinutes)
+                    TextField("1–1440", text: $model.keepAwakeCustomMinutes).studioElement("awake.customMinutes", label: "Custom Awake minutes")
                         .textFieldStyle(.roundedBorder).multilineTextAlignment(.trailing)
                         .frame(maxWidth: 90).accessibilityLabel(L10n.text("Custom duration in minutes"))
                     Spacer(minLength: 0)
@@ -58,12 +58,12 @@ import SwiftUI
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             if !model.keepAwake.hasOwnedAssertion {
-                Button(L10n.text("Start")) {
+                StudioActionButton(L10n.text("Start"), id: "action.start") {
                     if model.sleepTimer.isActive { confirmsTimerSwitch = true; return }
                     do { try model.startKeepAwakeDraft(); error = nil }
                     catch { self.error = error.localizedDescription }
                 }.buttonStyle(.borderedProminent).frame(maxWidth: .infinity, alignment: .trailing)
-                    .disabled(!model.canStartKeepAwakeDraft || model.sleepTimerBlocksControls).accessibilityIdentifier("keep-awake-start")
+                    .disabled(!model.canStartKeepAwakeDraft || model.sleepTimerBlocksControls).accessibilityIdentifier("keep-awake-start").studioElement("keep-awake-start", label: "keep-awake-start")
             }
             if let message = error ?? model.keepAwake.message, !model.keepAwake.hasOwnedAssertion,
                model.notice != L10n.text(message) {
@@ -76,13 +76,14 @@ import SwiftUI
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
         }
+        .studioElement("awake.editor", kind: "container", label: "Keep Awake editor")
         .onChange(of: model.keepAwakeDraft) { _, _ in error = nil }
         .confirmationDialog(L10n.text("Cancel the sleep timer and start Keep Awake?"), isPresented: $confirmsTimerSwitch, titleVisibility: .visible) {
-            Button(L10n.text("Cancel timer and start Keep Awake")) {
+            StudioActionButton(L10n.text("Cancel timer and start Keep Awake"), id: "action.cancel-timer-and-start-keep-awake") {
                 do { try model.startKeepAwakeDraft(replacingSleepTimer: true); error = nil }
                 catch { self.error = error.localizedDescription }
             }
-            Button(L10n.text("Cancel"), role: .cancel) {}
+            StudioActionButton(L10n.text("Cancel"), id: "action.cancel", role: .cancel) {}
         }
         .help(L10n.text("The display can turn off. Closing the lid or choosing Sleep still works."))
     }
@@ -92,7 +93,7 @@ import SwiftUI
     private func choice(_ label: String, option: Int, accessibility: String? = nil) -> some View {
         let selected = model.keepAwakeSelectedOption == option
         return Button { model.selectKeepAwakeOption(option) } label: {
-            Text(label).font(.subheadline.weight(.medium)).lineLimit(1).minimumScaleFactor(0.85)
+            StudioText(label, id: "awake.option.\(option).caption").font(.subheadline.weight(.medium)).lineLimit(1).minimumScaleFactor(0.85)
                 .frame(maxWidth: .infinity).padding(.vertical, 7)
                 .foregroundStyle(selected ? Color.white : Color.primary)
                 .background(Capsule().fill(selected ? Color.accentColor : Color.primary.opacity(0.07)))
@@ -100,7 +101,7 @@ import SwiftUI
         }.buttonStyle(.plain)
             .accessibilityLabel(accessibility ?? label)
             .accessibilityAddTraits(selected ? .isSelected : [])
-            .accessibilityIdentifier("keep-awake-option-\(option)")
+            .accessibilityIdentifier("keep-awake-option-\(option)").studioElement("keep-awake-option-\(option)", label: "keep-awake-option-\(option)")
     }
 }
 
@@ -122,11 +123,11 @@ import SwiftUI
                         }.buttonStyle(.plain)
                             .accessibilityValue(L10n.text(extensionsExpanded ? "Expanded" : "Collapsed"))
                             .accessibilityHint(L10n.text("Extend session"))
-                            .accessibilityIdentifier("keep-awake-extensions")
+                            .accessibilityIdentifier("keep-awake-extensions").studioElement("keep-awake-extensions", label: "keep-awake-extensions")
                     } else {
                         sessionSummary(showsDisclosure: false)
                     }
-                    Button(L10n.text("Stop")) { try? service.stop() }.accessibilityIdentifier("keep-awake-stop")
+                    StudioActionButton(L10n.text("Stop"), id: "action.stop") { try? service.stop() }.accessibilityIdentifier("keep-awake-stop").studioElement("keep-awake-stop", label: "keep-awake-stop")
                 }
                 if service.isActive, service.expiry != .untilStopped, extensionsExpanded {
                     HStack(spacing: 6) {
@@ -134,7 +135,7 @@ import SwiftUI
                             Button("+\(minutes) " + L10n.text("min")) { try? service.extend(by: minutes * 60) }
                                 .font(.caption).frame(maxWidth: .infinity)
                                 .disabled(service.remainingSeconds == 0 || service.remainingSeconds > 86_400 - minutes * 60)
-                                .accessibilityIdentifier("keep-awake-extend-\(minutes)")
+                                .accessibilityIdentifier("keep-awake-extend-\(minutes)").studioElement("keep-awake-extend-\(minutes)", label: "keep-awake-extend-\(minutes)")
                         }
                     }
                 }
@@ -151,10 +152,10 @@ import SwiftUI
                 Label(L10n.text("Keep Mac Awake"), systemImage: "cup.and.saucer.fill")
                     .font(.subheadline.weight(.medium))
                 HStack(spacing: 6) {
-                    Text(L10n.text(service.isActive ? "Active" : "Check session"))
+                    StudioText(L10n.text(service.isActive ? "Active" : "Check session"), id: "awake.status")
                         .foregroundStyle(service.isActive ? Color.secondary : Color.orange)
                     if service.isActive {
-                        Text(service.expiry == .untilStopped ? L10n.text("Until stopped") : KeepAwakePresentation.countdown(service.remainingSeconds))
+                        StudioText(service.expiry == .untilStopped ? L10n.text("Until stopped") : KeepAwakePresentation.countdown(service.remainingSeconds), id: "awake.countdown")
                             .monospacedDigit()
                             .accessibilityLabel(service.expiry == .untilStopped ? L10n.text("Until stopped") : L10n.text("Time remaining") + ": " + KeepAwakePresentation.countdown(service.remainingSeconds))
                     }

@@ -6,6 +6,7 @@ source "$project_root/scripts/toolchain.sh"
 [[ "$(uname -s)" == Darwin ]] || { echo 'Building Tilvero requires macOS.' >&2; exit 1; }
 app_directory="$project_root/build/Tilvero.app"
 laboratory=false
+studio=false
 explicit_output=false
 while (($#)); do
   case "$1" in
@@ -14,6 +15,7 @@ while (($#)); do
       laboratory=true
       shift
       ;;
+    --studio) studio=true; shift ;;
     --output)
       [[ "$#" -ge 2 && "$explicit_output" == false ]] || { echo 'Usage: build-local-app.sh [--laboratory] [--output <new-app-path>]' >&2; exit 2; }
       app_directory="$2"
@@ -23,6 +25,23 @@ while (($#)); do
     *) echo 'Usage: build-local-app.sh [--laboratory] [--output <new-app-path>]' >&2; exit 2 ;;
   esac
 done
+if [[ "$studio" == true ]]; then
+  [[ "$laboratory" == true && -f Config/StudioBuild.json ]] || { echo 'Studio requires an explicit hidden source snapshot and laboratory packaging.' >&2; exit 2; }
+  python3 - <<'PY_STUDIO'
+import json
+from pathlib import Path
+p=json.loads(Path('Config/StudioBuild.json').read_text())
+assert p['kind']=='tilvero-studio-source-snapshot' and p['compileDefine']=='TILVERO_LAB_STUDIO'
+assert p['studioSources'] and all(Path(name).is_file() for name in p['studioSources'])
+PY_STUDIO
+fi
+swift_build() {
+  if [[ "$studio" == true ]]; then
+    swift build -Xswiftc -DTILVERO_LAB_STUDIO "$@"
+  else
+    swift build "$@"
+  fi
+}
 if [[ "$laboratory" == true ]]; then
   lab_arguments=(prepare --project-root "$project_root")
   [[ "$explicit_output" == false ]] || lab_arguments+=(--app "$app_directory")
@@ -48,9 +67,9 @@ if any(Path(line.strip()).resolve() == executable for line in result.stdout.spli
     raise SystemExit('Output app is running. Quit Tilvero normally or use --output with a fresh candidate path.')
 PY_PREFLIGHT
 fi
-swift build -c release --product TilveroApp
-swift build -c release --product TilveroHelper
-binary_directory="$(swift build -c release --show-bin-path)"
+swift_build -c release --product TilveroApp
+swift_build -c release --product TilveroHelper
+binary_directory="$(swift_build -c release --show-bin-path)"
 mkdir -p "$app_directory/Contents/MacOS" "$app_directory/Contents/Resources" "$app_directory/Contents/Library/HelperTools" "$app_directory/Contents/Library/LaunchDaemons"
 cp "$binary_directory/TilveroApp" "$app_directory/Contents/MacOS/TilveroApp"
 cp "$binary_directory/TilveroHelper" "$app_directory/Contents/Library/HelperTools/TilveroHelper"

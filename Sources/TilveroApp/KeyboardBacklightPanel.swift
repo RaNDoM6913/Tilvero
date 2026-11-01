@@ -5,7 +5,7 @@ import KeyboardBackends
 @MainActor struct KeyboardBacklightPanel: View {
     @ObservedObject var service: KeyboardBacklightService
     var body: some View {
-        ProductSurface {
+        ProductSurface(studioID: "keyboard.editor") {
             VStack(alignment: .leading, spacing: 9) {
                 HStack {
                     Label(L10n.text("Keyboard backlight"), systemImage: "keyboard")
@@ -16,7 +16,7 @@ import KeyboardBackends
                         Toggle(L10n.text("Keyboard backlight"), isOn: Binding(get: { enabled }, set: { value in
                             Task { await service.setEnabled(value) }
                         })).labelsHidden().toggleStyle(.switch)
-                            .disabled(service.isBusy).accessibilityIdentifier("keyboard-backlight-toggle")
+                            .disabled(service.isBusy).accessibilityIdentifier("keyboard-backlight-toggle").studioElement("keyboard-backlight-toggle", label: "keyboard-backlight-toggle")
                     }
                     Button { Task { await service.refresh() } } label: {
                         Image(systemName: "arrow.clockwise")
@@ -31,8 +31,8 @@ import KeyboardBackends
                         Text(L10n.text("macOS has dimmed or suppressed the backlight. The setting does not confirm illuminated keys."))
                             .font(.caption).foregroundStyle(.secondary)
                         HStack {
-                            Button(L10n.text("Turn on")) { Task { await service.setEnabled(true) } }
-                            Button(L10n.text("Turn off")) { Task { await service.setEnabled(false) } }
+                            StudioActionButton(L10n.text("Turn on"), id: "action.turn-on") { Task { await service.setEnabled(true) } }
+                            StudioActionButton(L10n.text("Turn off"), id: "action.turn-off") { Task { await service.setEnabled(false) } }
                         }.disabled(service.isBusy)
                     }
                     Text(L10n.text(observation.automaticBrightness ? "Automatic keyboard brightness remains enabled in macOS." : "Automatic keyboard brightness is disabled in macOS."))

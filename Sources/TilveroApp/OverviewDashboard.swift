@@ -5,13 +5,14 @@ import PowerCore
 /// Daily overview follows the owner-selected centered-device composition.
 /// Technical metadata stays behind explicit info buttons, not in summary rails.
 @MainActor struct OverviewDashboard: View {
+    @Environment(\.studioPresentation) private var studioPresentation
     @ObservedObject var model: TilveroModel
     private var level: Int? { EnergyVisualSnapshot(model.snapshot).level }
     private var chargeReading: CatalogReading? { reading("011") }
     private func reading(_ id: String) -> CatalogReading? { model.snapshot.catalog.first { $0.id == id } }
 
     var body: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: studioPresentation.spacing(18)) {
             chargeHeader
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .center, spacing: 22) {
@@ -32,13 +33,13 @@ import PowerCore
             historyStrip
             HStack(alignment: .firstTextBaseline, spacing: 16) {
                 HStack(spacing: 7) {
-                    Image(systemName: "battery.100percent").foregroundStyle(.green).accessibilityHidden(true)
+                    Image(systemName: "battery.100percent").foregroundStyle(studioPresentation.accent).accessibilityHidden(true)
                     Text(L10n.text("macOS charge limit"))
-                    Text(limitText).monospacedDigit()
+                    StudioText(limitText, id: "overview.nativeLimit.value").monospacedDigit()
                 }.font(.system(size: 12))
                     .help(L10n.text("macOS manages this setting independently of Tilvero."))
                 Spacer(minLength: 8)
-                Button(L10n.text("Details")) { model.selectedSection = .battery }
+                StudioActionButton(L10n.text("Details"), id: "battery-summary.details") { model.selectedSection = .battery }
             }
         }
     }
@@ -57,10 +58,10 @@ import PowerCore
     }
     private var chargeHeader: some View {
         VStack(spacing: 7) {
-            Text(model.chargeText).font(.system(size: 44, weight: .semibold, design: .rounded))
-                .monospacedDigit().foregroundStyle(level == nil || model.snapshot.chargePercent.freshness == .stale ? Color.secondary : Color.green)
+            StudioText(model.chargeText, id: "overview.charge.value").font(.system(size: 44, weight: .semibold, design: .rounded))
+                .monospacedDigit().foregroundStyle(level == nil || model.snapshot.chargePercent.freshness == .stale ? Color.secondary : studioPresentation.accent)
                 .contentTransition(.numericText())
-            Text(model.chargingStateText).font(.system(size: 12)).foregroundStyle(.secondary)
+            StudioText(model.chargingStateText, id: "overview.charge.status").font(.system(size: 12)).foregroundStyle(.secondary)
                 .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
             if model.snapshot.chargePercent.freshness == .stale {
                 Text(L10n.text("Stale")).font(.callout).foregroundStyle(.orange)
@@ -95,7 +96,7 @@ import PowerCore
         })
         return VStack(alignment: .leading, spacing: 9) {
             HStack {
-                Text(L10n.text("Charge over 24 hours")).font(.system(size: 13, weight: .semibold))
+                StudioText(L10n.text("Charge over 24 hours"), id: "overview.history.title").font(.system(size: 13, weight: .semibold))
                 Spacer()
                 Button { model.selectedSection = .history } label: {
                     Label(L10n.text("Open history"), systemImage: "chevron.right")
@@ -107,7 +108,7 @@ import PowerCore
             } else {
                 Chart(points) { point in
                     LineMark(x: .value("Time", point.date), y: .value("Charge", point.value), series: .value("Segment", point.series))
-                        .foregroundStyle(Color.green).interpolationMethod(.linear)
+                        .foregroundStyle(studioPresentation.accent).interpolationMethod(.linear)
                 }
                 .chartYScale(domain: 0...100)
                 .chartYAxis {
@@ -138,10 +139,10 @@ import PowerCore
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            Text(value).font(.system(size: 28, weight: .medium, design: .rounded)).monospacedDigit()
+            StudioText(value, id: "overview.metric." + (reading?.id ?? studioSemanticID(title)) + ".value").font(.system(size: 28, weight: .medium, design: .rounded)).monospacedDigit()
                 .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
             HStack(alignment: .firstTextBaseline, spacing: 3) {
-                Text(L10n.text(title)).font(.system(size: 12)).foregroundStyle(.secondary)
+                StudioText(L10n.text(title), id: "overview.metric." + (reading?.id ?? studioSemanticID(title)) + ".title").font(.system(size: 12)).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 if let reading { ReadingInfoButton(reading: reading, fahrenheit: fahrenheit) }
             }

@@ -2,16 +2,37 @@ import AppKit
 import SwiftUI
 import Combine
 
+#if TILVERO_LAB_STUDIO
+@MainActor struct StudioQuickPanelRoot: View {
+    var model: TilveroModel
+    var maximumHeight: CGFloat
+    var section: QuickPanelSection
+    var onSizeChange: ((CGSize) -> Void)?
+    var studio: LabStudioState?
+    @ViewBuilder var body: some View {
+        if let studio {
+            QuickPanel(model: model, maximumHeight: maximumHeight, onSizeChange: onSizeChange, section: section)
+                .studioRoot(studio, scope: "quick", registry: "popover")
+        } else {
+            QuickPanel(model: model, maximumHeight: maximumHeight, onSizeChange: onSizeChange, section: section)
+        }
+    }
+}
+typealias QuickPanelHostedRoot = StudioQuickPanelRoot
+#else
+typealias QuickPanelHostedRoot = QuickPanel
+#endif
+
 /// Keep one hosting controller and selected tab while resizing. Activation and
 /// dismissal stay with the app delegate; SwiftUI reports bounded geometry.
 @MainActor
-final class QuickPanelHostingController: NSHostingController<QuickPanel> {
+final class QuickPanelHostingController: NSHostingController<QuickPanelHostedRoot> {
     var onSizeChange: ((NSSize) -> Void)?
     private var modelSubscription: AnyCancellable?
     private var lastReportedSize: NSSize?
 
     init(model: TilveroModel, maximumHeight: CGFloat, section: QuickPanelSection = .overview) {
-        super.init(rootView: QuickPanel(model: model, maximumHeight: maximumHeight, section: section))
+        super.init(rootView: QuickPanelHostedRoot(model: model, maximumHeight: maximumHeight, section: section))
         sizingOptions = [.preferredContentSize]
         rootView.onSizeChange = { [weak self] size in self?.contentSizeChanged(size) }
         // Published changes arrive before the new value. Measure on the next
@@ -24,6 +45,13 @@ final class QuickPanelHostingController: NSHostingController<QuickPanel> {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("Use init(model:maximumHeight:)") }
+
+    #if TILVERO_LAB_STUDIO
+    func attachStudio(_ studio: LabStudioState) {
+        rootView.studio = studio
+        resizeToFit()
+    }
+    #endif
 
     func updateMaximumHeight(_ height: CGFloat) {
         rootView.maximumHeight = max(1, height)

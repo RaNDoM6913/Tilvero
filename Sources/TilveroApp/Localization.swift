@@ -2,8 +2,18 @@ import Foundation
 
 /// One shipped String Catalog feeds both the SwiftPM and Xcode bundles.
 enum L10n {
+    #if TILVERO_LAB_STUDIO
+    private static let studioLanguage = StudioLanguagePreference()
+    /// The sandbox owns its preference suite; never write the app/production
+    /// domain merely to preview the actual product's language setting.
+    @discardableResult static func useStudioLanguage(_ value: String?) -> Bool { studioLanguage.set(value) }
+    #endif
     static var language: String {
+        #if TILVERO_LAB_STUDIO
+        let preference = studioLanguage.get() ?? UserDefaults.standard.string(forKey: "language") ?? "system"
+        #else
         let preference = UserDefaults.standard.string(forKey: "language") ?? "system"
+        #endif
         if preference == "en" || preference == "ru" { return preference }
         return Locale.preferredLanguages.first?.hasPrefix("ru") == true ? "ru" : "en"
     }
@@ -31,3 +41,18 @@ enum L10n {
     }()
     static func text(_ key: String) -> String { strings[key]?[language] ?? key }
 }
+
+#if TILVERO_LAB_STUDIO
+private final class StudioLanguagePreference: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: String?
+    func get() -> String? { lock.withLock { value } }
+    func set(_ replacement: String?) -> Bool {
+        lock.withLock {
+            guard value != replacement else { return false }
+            value = replacement
+            return true
+        }
+    }
+}
+#endif

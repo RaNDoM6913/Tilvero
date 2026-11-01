@@ -11,6 +11,35 @@ import PowerSimulator
 import PowerPrivileged
 import ChargeBackends
 
+/// Explicit ports for application actions that are not telemetry or owned control.
+/// Production retains the normal macOS implementation; isolated hosts supply all
+/// four operations together rather than inheriting a native action accidentally.
+@MainActor struct TilveroModelSideEffects {
+    var loginStatus: () -> String
+    var toggleLogin: () throws -> Void
+    var openBatterySettings: () -> Void
+    var rawCatalog: @Sendable () async -> [CatalogReading]
+
+    static var native: Self {
+        .init(loginStatus: {
+            switch SMAppService.mainApp.status {
+            case .enabled: "Enabled"
+            case .requiresApproval: "Requires approval in System Settings"
+            case .notRegistered: "Not enabled"
+            case .notFound: "Not available from this local build"
+            @unknown default: "Unknown"
+            }
+        }, toggleLogin: {
+            if SMAppService.mainApp.status == .enabled { try SMAppService.mainApp.unregister() }
+            else { try SMAppService.mainApp.register() }
+        }, openBatterySettings: {
+            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.battery")!)
+        }, rawCatalog: {
+            await Task.detached(priority: .utility) { MacBatteryProvider().readRawCatalog() }.value
+        })
+    }
+}
+
 @MainActor
 final class TilveroModel: ObservableObject {
     @Published private(set) var snapshot: BatterySnapshot
@@ -205,6 +234,7 @@ final class TilveroModel: ObservableObject {
     private let observer = PowerSourceObserver()
     private var arbiter = ProfileArbiter()
     private let preferences: UserDefaults
+    private let sideEffects: TilveroModelSideEffects
     private var snapshotProvider: @Sendable () async -> BatterySnapshot
 
     init(isDemo: Bool, launchPolicy: AppLaunchPolicy = .current(), preferences: UserDefaults = .standard,
@@ -213,11 +243,14 @@ final class TilveroModel: ObservableObject {
          sleepActivityProvider: (@Sendable () async -> SleepAssertionSnapshot)? = nil,
          systemChargeLimitProvider: (@Sendable () async -> SystemChargeLimitObservation)? = nil,
          liveControl: LiveControlService? = nil,
+         nativeCharge: NativeChargeService? = nil,
          keepAwakeTransport: (any KeepAwakeTransport)? = nil,
+         keepAwakeService: KeepAwakeService? = nil,
          processActivityProvider: (@Sendable () async -> ProcessResourceCollection)? = nil,
          keyboardBacklight: KeyboardBacklightService? = nil,
          sleepTimerTransport: (any SleepTimerTransport)? = nil,
-         sleepTimerService: SleepTimerService? = nil) {
+         sleepTimerService: SleepTimerService? = nil,
+         sideEffects: TilveroModelSideEffects? = nil) {
         self.systemChargeLimitProvider = systemChargeLimitProvider ?? {
             await Task.detached(priority: .utility) { SystemChargeLimitObservation.read() }.value
         }
@@ -225,6 +258,7 @@ final class TilveroModel: ObservableObject {
         self.launchPolicy = launchPolicy
         self.processActivityProvider = processActivityProvider ?? { await ProcessActivityProvider().read() }
         self.preferences = preferences
+        self.sideEffects = sideEffects ?? .native
         let savedSleepMinutes = preferences.integer(forKey: "sleepTimerMinutes")
         let initialSleepMinutes = (1...1440).contains(savedSleepMinutes) ? savedSleepMinutes : 30
         sleepTimerMinutes = String(initialSleepMinutes)
@@ -236,7 +270,7 @@ final class TilveroModel: ObservableObject {
         let monitoring = launchPolicy.monitoringOnly
         self.keyboardBacklight = keyboardBacklight ?? KeyboardBacklightService(
             storage: UserDefaultsKeyboardBacklightStorage(defaults: preferences), allowed: !isDemo && !monitoring)
-        keepAwake = KeepAwakeService(driver: keepAwakeTransport ?? NativeKeepAwakeTransport(), allowed: !isDemo && !monitoring)
+        keepAwake = keepAwakeService ?? KeepAwakeService(driver: keepAwakeTransport ?? NativeKeepAwakeTransport(), allowed: !isDemo && !monitoring)
         sleepTimer = sleepTimerService ?? SleepTimerService(driver: sleepTimerTransport ?? NativeSleepTimerTransport(), allowed: !isDemo && !monitoring)
         modeLibrary = ModeLibrary.load(preferences.data(forKey: isDemo ? "demoModePlans.v1" : "modePlans.v1"))
         overviewPreferences = OverviewPreferences.load(preferences.data(forKey: "overviewPreferences.v1"))
@@ -245,12 +279,13 @@ final class TilveroModel: ObservableObject {
         }
         self.liveControl = liveControl ?? LiveControlService(preferences: preferences,
             launchPolicy: isDemo ? .resolve(metadata: [:], arguments: ["--demo"]) : launchPolicy)
-        if isDemo {
-            nativeCharge = NativeChargeService(client: PowerUIChargeClient(),
+        if let nativeCharge { self.nativeCharge = nativeCharge }
+        else if isDemo {
+            self.nativeCharge = NativeChargeService(client: PowerUIChargeClient(),
                 journalURL: FileManager.default.temporaryDirectory.appendingPathComponent("TilveroDemo-\(UUID().uuidString)/native-session.json"), monitoringOnly: true)
         } else {
             let storage = historyURL ?? (try? ReleaseIdentity.current().historyURL()) ?? FileManager.default.temporaryDirectory.appendingPathComponent("TilveroUnavailable/History.sqlite")
-            nativeCharge = NativeChargeService(historyURL: storage, launchPolicy: launchPolicy)
+            self.nativeCharge = NativeChargeService(historyURL: storage, launchPolicy: launchPolicy)
         }
         let identitySalt = preferences.string(forKey: "identitySalt") ?? UUID().uuidString
         preferences.set(identitySalt, forKey: "identitySalt")
@@ -307,7 +342,7 @@ final class TilveroModel: ObservableObject {
             else if self.notice == self.lastAwakeFailureNotice { self.notice = nil }
             self.lastAwakeFailureNotice = endedFailure
         }
-        nativeSubscription = nativeCharge.objectWillChange.sink { [weak self] in
+        nativeSubscription = self.nativeCharge.objectWillChange.sink { [weak self] in
             self?.objectWillChange.send()
         }
         liveSubscription = self.liveControl.objectWillChange.sink { [weak self] in
@@ -827,7 +862,7 @@ final class TilveroModel: ObservableObject {
     func inspectRawProperties() {
         guard !isDemo else { return }
         Task {
-            inspectedRaw = await Task.detached(priority: .utility) { MacBatteryProvider().readRawCatalog() }.value
+            inspectedRaw = await sideEffects.rawCatalog()
             snapshot = snapshot.replacingCatalog(inspectedRaw)
         }
     }
@@ -849,22 +884,15 @@ final class TilveroModel: ObservableObject {
         catch { notice = String(describing: error) }
     }
     func updateLoginStatus() {
-        switch SMAppService.mainApp.status {
-        case .enabled: loginStatus = "Enabled"
-        case .requiresApproval: loginStatus = "Requires approval in System Settings"
-        case .notRegistered: loginStatus = "Not enabled"
-        case .notFound: loginStatus = "Not available from this local build"
-        @unknown default: loginStatus = "Unknown"
-        }
+        loginStatus = sideEffects.loginStatus()
     }
     func toggleLogin() {
         do {
-            if SMAppService.mainApp.status == .enabled { try SMAppService.mainApp.unregister() }
-            else { try SMAppService.mainApp.register() }
+            try sideEffects.toggleLogin()
             updateLoginStatus()
         } catch { notice = String(describing: error); updateLoginStatus() }
     }
-    func openBatterySettings() { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.battery")!) }
+    func openBatterySettings() { sideEffects.openBatterySettings() }
 }
 
 private extension BatterySnapshot {

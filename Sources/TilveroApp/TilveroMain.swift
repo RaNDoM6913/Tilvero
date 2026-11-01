@@ -95,8 +95,21 @@ struct TilveroMain {
             }.filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier && !$0.isTerminated }
                 .compactMap(\.bundleIdentifier)))
         var controllerLease: ControllerSessionLease?
+        #if TILVERO_LAB_STUDIO
+        // Studio composes memory-only ports and never takes a real control lease.
+        launchPolicy = .resolve(metadata: Bundle.main.infoDictionary ?? [:], arguments: ["--monitor-only"])
+        #endif
         do {
             identity = try ReleaseIdentity.current()
+            #if TILVERO_LAB_STUDIO
+            guard identity.isLaboratory,
+                  Bundle.main.object(forInfoDictionaryKey: "TilveroStudioBuild") as? Bool == true,
+                  Bundle.main.object(forInfoDictionaryKey: "TilveroStudioRoot") as? String != nil else {
+                showStartupBlock(english: "The Studio build requires its isolated laboratory identity and source metadata.",
+                    russian: "Для Studio нужны отдельный идентификатор лаборатории и метаданные исходников.")
+                return nil
+            }
+            #endif
             // Acquire before constructing any domain service. Failure chooses a
             // monitoring session for this entire launch, with no later promotion.
             if !launchPolicy.monitoringOnly {
@@ -174,15 +187,30 @@ private final class TilveroStartupDelegate: NSObject, NSApplicationDelegate {
 
 @MainActor
 final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
-    private let model: TilveroModel
+    private var model: TilveroModel
+    #if TILVERO_LAB_STUDIO
+    private let studio: LabStudioState
+    private let sandbox: LabSandboxSession
+    #endif
     // Keep ownership through failed/successful quit recovery. Application stop
     // does not release it; delegate destruction/process exit does.
     private let controllerLease: ControllerSessionLease?
 
     init(historyURL: URL, launchPolicy: AppLaunchPolicy, controllerLease: ControllerSessionLease?) {
+        #if TILVERO_LAB_STUDIO
+        let root = URL(fileURLWithPath: Bundle.main.object(forInfoDictionaryKey: "TilveroStudioRoot") as! String)
+        sandbox = LabSandboxSession(root: root)
+        studio = LabStudioState(root: root)
+        model = sandbox.model
+        self.controllerLease = nil
+        #else
         self.controllerLease = controllerLease
         model = TilveroModel(isDemo: CommandLine.arguments.contains("--demo"), launchPolicy: launchPolicy, historyURL: historyURL)
+        #endif
         super.init()
+        #if TILVERO_LAB_STUDIO
+        sandbox.onModelReplacement = { [weak self] model in self?.replaceSandboxModel(model) }
+        #endif
     }
     private var statusItem: NSStatusItem?
     private var keepAwakeStatusBinding: NativeKeepAwakeStatusBinding?
@@ -204,21 +232,8 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         item.button?.font = NativeStatusPresentation.font(for: model.menuBarTextSize)
 
         popover.behavior = .transient
-        let panel = QuickPanelHostingController(model: model, maximumHeight: panelMaximumHeight)
-        panel.onSizeChange = { [weak self] size in self?.popover.contentSize = size }
-        popover.contentViewController = panel
-        popover.contentSize = panel.preferredContentSize
-        popover.delegate = self
-
-        model.openDetails = { [weak self] in self?.showDetails() }
-        sleepTimerWarning = SleepTimerWarningController(service: model.sleepTimer) { [weak self] in
-            guard let self else { return }
-            self.model.selectedSleepPage = .timer; self.model.selectedSection = .sleep; self.showDetails()
-        }
-        model.onPresentationChange = { [weak self] in self?.updateStatusItem(); self?.sleepTimerWarning?.refreshPresentation() }
-        keepAwakeStatusBinding = NativeKeepAwakeStatusBinding(service: model.keepAwake) { [weak self] _ in
-            self?.updateStatusItem()
-        }
+        configureQuickPanel()
+        configureModelPresentation()
         NSWorkspace.shared.notificationCenter.addObserver(
             self, selector: #selector(didWake),
             name: NSWorkspace.didWakeNotification, object: nil
@@ -232,8 +247,68 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         buildMenu()
         updateStatusItem()
         model.start()
+        #if TILVERO_LAB_STUDIO
+        showDetails()
+        #else
         if CommandLine.arguments.contains("--show-details") { showDetails() }
+        #endif
     }
+
+    private func configureQuickPanel() {
+        #if TILVERO_LAB_STUDIO
+        studio.setRegistryVisible("popover", false)
+        #endif
+        let panel = QuickPanelHostingController(model: model, maximumHeight: panelMaximumHeight)
+        #if TILVERO_LAB_STUDIO
+        panel.attachStudio(studio)
+        #endif
+        panel.onSizeChange = { [weak self] size in self?.popover.contentSize = size }
+        popover.contentViewController = panel
+        popover.contentSize = panel.preferredContentSize
+        popover.delegate = self
+
+    }
+
+    private func configureModelPresentation() {
+        #if TILVERO_LAB_STUDIO
+        L10n.useStudioLanguage(model.language)
+        #endif
+        model.openDetails = { [weak self] in self?.showDetails() }
+        sleepTimerWarning = SleepTimerWarningController(service: model.sleepTimer) { [weak self] in
+            guard let self else { return }
+            self.model.selectedSleepPage = .timer; self.model.selectedSection = .sleep; self.showDetails()
+        }
+        model.onPresentationChange = { [weak self] in
+            guard let self else { return }
+            #if TILVERO_LAB_STUDIO
+            if L10n.useStudioLanguage(self.model.language) { self.studio.objectWillChange.send() }
+            #endif
+            self.updateStatusItem()
+            self.sleepTimerWarning?.refreshPresentation()
+        }
+        keepAwakeStatusBinding = NativeKeepAwakeStatusBinding(service: model.keepAwake) { [weak self] _ in
+            self?.updateStatusItem()
+        }
+    }
+
+    #if TILVERO_LAB_STUDIO
+    private func replaceSandboxModel(_ replacement: TilveroModel) {
+        closePopover(reason: "Studio scenario changed")
+        replacement.selectedSection = model.selectedSection
+        replacement.selectedSettingsPage = model.selectedSettingsPage
+        replacement.selectedSleepPage = model.selectedSleepPage
+        replacement.isDetailVisible = detailsWindow?.isVisible == true
+        model.onPresentationChange = nil
+        keepAwakeStatusBinding = nil
+        sleepTimerWarning?.close()
+        sleepTimerWarning = nil
+        model = replacement
+        configureQuickPanel()
+        configureModelPresentation()
+        updateStatusItem()
+        model.start()
+    }
+    #endif
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         let systemInitiated = SleepTimerQuitReason.currentIsSystem
@@ -415,13 +490,24 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         try? model.keepAwake.reconcile()
         closePopover(reason: "details opened")
         if detailsWindow == nil {
+            #if TILVERO_LAB_STUDIO
+            let controller = NSHostingController(rootView: LabStudioWorkspace(session: sandbox, studio: studio))
+            #else
             let controller = NSHostingController(rootView: BatteryInfoView(model: model))
+            #endif
             let window = NSWindow(contentViewController: controller)
+            #if TILVERO_LAB_STUDIO
+            window.title = "Tilvero Lab"
+            window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+            window.setContentSize(NSSize(width: 1280, height: 820))
+            window.minSize = NSSize(width: 1040, height: 640)
+            #else
             window.title = AppIdentity.displayName
             window.appearance = NSAppearance(named: .aqua)
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             window.setContentSize(NSSize(width: 940, height: 680))
             window.minSize = NSSize(width: 760, height: 540)
+            #endif
             window.isReleasedWhenClosed = false
             window.delegate = self
             window.center()
@@ -462,10 +548,16 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
 
 extension TilveroAppDelegate: NSPopoverDelegate {
     func popoverDidShow(_ notification: Notification) {
+        #if TILVERO_LAB_STUDIO
+        studio.setRegistryVisible("popover", true)
+        #endif
         activatePopoverWindow()
         popoverLog.info("Quick panel opened; active: \(NSApplication.shared.isActive, privacy: .public); key: \(self.popover.contentViewController?.view.window?.isKeyWindow ?? false, privacy: .public)")
     }
     func popoverDidClose(_ notification: Notification) {
+        #if TILVERO_LAB_STUDIO
+        studio.setRegistryVisible("popover", false)
+        #endif
         popoverGeneration &+= 1
         stopPopoverEventMonitors()
         statusItem?.button?.state = .off

@@ -9,28 +9,28 @@ import ChargeBackends
         let state = model.nativeCharge.presentation()
         VStack(alignment: .leading, spacing: compact ? 7 : 9) {
             if let preference = state.currentPreference {
-                Text(L10n.text("Native macOS setting") + ": " + configurationText(preference))
+                StudioText(L10n.text("Native macOS setting") + ": " + configurationText(preference), id: "native.setting")
                     .font(compact ? .subheadline : .caption).monospacedDigit()
             }
             if let status = statusText(state) {
-                Text(L10n.text(status)).font(.caption)
+                StudioText(L10n.text(status), id: "native.status").font(.caption)
                     .foregroundStyle(state.requiresGlobalAttention ? .orange : .secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             if let target = state.pendingTarget ?? state.restorationTarget {
-                Text(L10n.text(state.pendingTarget == nil ? "Restoration pending" : "Pending charging target")
-                     + " · " + L10n.text("Waiting for discharge below") + " \(target)%")
+                StudioText(L10n.text(state.pendingTarget == nil ? "Restoration pending" : "Pending charging target")
+                     + " · " + L10n.text("Waiting for discharge below") + " \(target)%", id: "native.pending")
                     .font(.caption).foregroundStyle(.secondary)
                     .help(L10n.text("Lower targets wait for natural discharge."))
             }
             if compact {
-                Text(model.chargingStateText).font(.caption).foregroundStyle(.secondary)
+                StudioText(model.chargingStateText, id: "native.chargingState").font(.caption).foregroundStyle(.secondary)
             }
             HStack(spacing: 10) {
-                Button(L10n.text("Refresh")) { Task { await model.refreshNativeCharge() } }
+                StudioActionButton(L10n.text("Refresh"), id: "action.refresh") { Task { await model.refreshNativeCharge() } }
                     .disabled(actionsBlocked)
                 if !model.nativeCharge.admitted && !model.nativeCharge.recoveryRequired {
-                    Button(L10n.text("Validate native control…")) { model.qualifyNativeCharge() }
+                    StudioActionButton(L10n.text("Validate native control…"), id: "action.validate-native-control") { model.qualifyNativeCharge() }
                         .disabled(actionsBlocked)
                         .help(L10n.text("Native control needs one local setting-and-restoration check."))
                 }
@@ -38,7 +38,7 @@ import ChargeBackends
             // Recovery is an explicit existing action, never a consequence of
             // merely displaying a readable preference or this status panel.
             if !compact && (state.hasOwnership || model.nativeCharge.recoveryRequired || model.nativeCharge.restorationPending) {
-                Button(L10n.text("Restore previous macOS limit")) { model.releaseControl() }
+                StudioActionButton(L10n.text("Restore previous macOS limit"), id: "action.restore-previous-macos-limit") { model.releaseControl() }
                     .disabled(actionsBlocked)
             }
             if !compact {
@@ -66,7 +66,7 @@ import ChargeBackends
                 }
                 .font(.caption).foregroundStyle(.secondary)
             }
-        }
+        }.studioElement("native.statusPanel", kind: "container", label: "Native charging status")
     }
     private var actionsBlocked: Bool {
         model.isApplying || model.nativeCharge.isBusy || model.nativeCharge.isQualifying
