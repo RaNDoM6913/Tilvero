@@ -12736,6 +12736,70 @@
           }
         }
       }
+    },
+    "This build runs a monitoring-only session.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This build runs a monitoring-only session."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эта сборка работает только в режиме наблюдения."
+          }
+        }
+      }
+    },
+    "Monitoring-only session was selected at launch.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monitoring-only session was selected at launch."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "При запуске выбран режим наблюдения."
+          }
+        }
+      }
+    },
+    "Another Tilvero is running. This session monitors only; reopen it after the other app quits to use controls.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Another Tilvero is running. This session monitors only; reopen it after the other app quits to use controls."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Уже работает другое приложение Tilvero. Сейчас доступно только наблюдение. Для управления закройте другое приложение и снова откройте это."
+          }
+        }
+      }
+    },
+    "Exclusive control is unavailable. This session monitors only; reopen it when the other controller has finished.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exclusive control is unavailable. This session monitors only; reopen it when the other controller has finished."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Исключительное управление недоступно. Сейчас доступно только наблюдение. Снова откройте приложение после завершения другого контроллера."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

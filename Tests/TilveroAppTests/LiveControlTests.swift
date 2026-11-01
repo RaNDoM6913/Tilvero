@@ -6,6 +6,16 @@ import PowerCore
 import PowerPrivileged
 
 @MainActor final class LiveControlTests: XCTestCase {
+    func testMonitoringReturnToSystemCannotEraseSavedIntent() async throws {
+        let fixture = makeFixture(monitoringOnly: true, savedIntent: .ceiling(80))
+        defer { cleanup(fixture.preferences) }
+        let saved = fixture.preferences.data(forKey: "liveRequestedChargeIntent")
+        await fixture.service.start()
+        do { try await fixture.service.submit(.returnToSystemControl); XCTFail("Monitoring cannot mutate saved control intent") } catch {}
+        XCTAssertEqual(fixture.preferences.data(forKey: "liveRequestedChargeIntent"), saved)
+        let commands = await fixture.transport.commands
+        XCTAssertTrue(commands.isEmpty)
+    }
     func testRequestedSleepPreservesUnactivatedSavedIntentWithoutHelperMutation() async {
         let fixture = makeFixture(savedIntent: .ceiling(80))
         defer { cleanup(fixture.preferences) }

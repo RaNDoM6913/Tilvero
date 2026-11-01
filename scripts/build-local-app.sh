@@ -5,9 +5,29 @@ cd "$project_root"
 source "$project_root/scripts/toolchain.sh"
 [[ "$(uname -s)" == Darwin ]] || { echo 'Building Tilvero requires macOS.' >&2; exit 1; }
 app_directory="$project_root/build/Tilvero.app"
-if (($#)); then
-  [[ "$#" == 2 && "$1" == --output ]] || { echo 'Usage: build-local-app.sh [--output <new-app-path>]' >&2; exit 2; }
-  app_directory="$2"
+laboratory=false
+explicit_output=false
+while (($#)); do
+  case "$1" in
+    --laboratory)
+      [[ "$laboratory" == false ]] || { echo 'Duplicate --laboratory option.' >&2; exit 2; }
+      laboratory=true
+      shift
+      ;;
+    --output)
+      [[ "$#" -ge 2 && "$explicit_output" == false ]] || { echo 'Usage: build-local-app.sh [--laboratory] [--output <new-app-path>]' >&2; exit 2; }
+      app_directory="$2"
+      explicit_output=true
+      shift 2
+      ;;
+    *) echo 'Usage: build-local-app.sh [--laboratory] [--output <new-app-path>]' >&2; exit 2 ;;
+  esac
+done
+if [[ "$laboratory" == true ]]; then
+  lab_arguments=(prepare --project-root "$project_root")
+  [[ "$explicit_output" == false ]] || lab_arguments+=(--app "$app_directory")
+  app_directory="$(python3 "$project_root/scripts/local_app_package.py" "${lab_arguments[@]}")"
+elif [[ "$explicit_output" == true ]]; then
   [[ "$app_directory" == /* ]] || app_directory="$project_root/$app_directory"
   [[ ! -e "$app_directory" && ! -L "$app_directory" ]] || { echo 'Output already exists; preserve it and choose a fresh path.' >&2; exit 2; }
   if [[ "$app_directory" == "$project_root/build/"* && "$app_directory" != "$project_root/build/Tilvero.app" && "$app_directory" != *".noindex/"* ]]; then
@@ -17,7 +37,8 @@ if (($#)); then
 fi
 # Never overwrite executable/resources under a live process. Use a fresh candidate
 # or quit normally first, so restoration and history shutdown can complete.
-if [[ -e "$app_directory" ]]; then
+# Laboratory preparation has already atomically reserved a fresh empty app.
+if [[ "$laboratory" == false && -e "$app_directory" ]]; then
 python3 - "$app_directory" <<'PY_PREFLIGHT'
 from pathlib import Path
 import subprocess, sys
@@ -44,9 +65,19 @@ cp "$project_root/Assets/AppIcon.icns" "$app_directory/Contents/Resources/"
 while IFS= read -r -d '' resource; do
   ditto "$resource" "$app_directory/Contents/Resources/$(basename "$resource")"
 done < <(find "$binary_directory" -maxdepth 1 -type d -name '*TilveroApp*.bundle' -print0)
+if [[ "$laboratory" == true ]]; then
+  python3 "$project_root/scripts/local_app_package.py" capture --project-root "$project_root" --app "$app_directory" --binary-directory "$binary_directory"
+fi
 plutil -lint "$app_directory/Contents/Info.plist"
 codesign --force --sign - "$app_directory/Contents/Library/HelperTools/TilveroHelper"
 codesign --force --sign - "$app_directory"
 codesign --verify --strict "$app_directory"
+if [[ "$laboratory" == true ]]; then
+  python3 "$project_root/scripts/local_app_package.py" finish --project-root "$project_root" --app "$app_directory"
+  echo "Built hidden shared-source laboratory candidate: $app_directory"
+  echo "Local provenance receipt: $(dirname "$app_directory")/build-receipt.json"
+  echo 'Promotion and native acceptance are separate; this builder never launches or replaces an app.'
+  exit 0
+fi
 echo "Built local ad-hoc app: $app_directory"
 echo 'The helper is bundled but not registered; signing and hardware gates remain closed.'

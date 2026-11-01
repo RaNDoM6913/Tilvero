@@ -120,8 +120,8 @@ enum LiveControlError: Error, LocalizedError, Equatable {
     var needsExplicitReapply: Bool { requestedIntent != nil && !activatedIntent }
     private var usable: Bool { trustVerified && connected && registrationState == .enabled && !recoveryRequired && !terminating && !unregistering }
 
-    convenience init(preferences: UserDefaults = .standard) {
-        let monitoringOnly = Bundle.main.object(forInfoDictionaryKey: "TilveroReleaseMode") as? String == "monitoring"
+    convenience init(preferences: UserDefaults = .standard, launchPolicy: AppLaunchPolicy = .current()) {
+        let monitoringOnly = launchPolicy.monitoringOnly
         let trust: HelperTrustConfiguration?
         do {
             guard !monitoringOnly else { throw PrivilegeError.missingTrust }
@@ -160,9 +160,9 @@ enum LiveControlError: Error, LocalizedError, Equatable {
         capabilities = result.capabilities; fanObservation = result.fanObservation; loweringBehavior = result.loweringBehavior
         if monitoringOnly {
             capabilities = capabilities.map { ControlCapability(backend: $0.backend, readiness: .unavailable,
-                reason: "Monitoring Preview does not enroll or use privileged services.") }
+                reason: "Unavailable") }
             registrationState = .unavailable
-            message = "Monitoring Preview: hardware controls and helper enrollment are unavailable."
+            message = nil // The application shows one launch-session reason in Diagnostics.
             return
         }
         registrationState = registration.state
@@ -197,11 +197,13 @@ enum LiveControlError: Error, LocalizedError, Equatable {
     }
 
     func submit(_ request: ChargeControlRequest) async throws {
+        guard !monitoringOnly else { throw LiveControlError.notQualified }
         guard !isBusy else { throw LiveControlError.busy }
         isBusy = true; defer { isBusy = false }
         do { try await submitCharge(request) } catch { report(error); throw error }
     }
     func cancelPending() async throws {
+        guard !monitoringOnly else { throw LiveControlError.notQualified }
         guard !isBusy else { throw LiveControlError.busy }
         guard var engine else { throw LiveControlError.unavailable }
         isBusy = true; defer { isBusy = false }
@@ -267,6 +269,7 @@ enum LiveControlError: Error, LocalizedError, Equatable {
     /// speculatively. Successful restoration already clears ownership/heartbeat;
     /// a rejected sleep then leaves the controls safely system managed.
     func prepareForRequestedSleep() async -> Bool {
+        guard !monitoringOnly else { return false }
         guard !isBusy, !transportBusy, !terminating else { return false }
         guard hasOwnedSettings || hasActiveFanPolicy || recoveryRequired || activatedIntent else { return true }
         do {
@@ -386,7 +389,7 @@ enum LiveControlError: Error, LocalizedError, Equatable {
         }
     }
     private func connect() async throws {
-        guard trustVerified, registration.state == .enabled else { throw LiveControlError.unavailable }
+        guard !monitoringOnly, trustVerified, registration.state == .enabled else { throw LiveControlError.unavailable }
         if transport == nil { transport = try makeTransport() }
         guard let transport, !transportBusy else { throw LiveControlError.busy }
         transportBusy = true
@@ -404,7 +407,7 @@ enum LiveControlError: Error, LocalizedError, Equatable {
         return try await transport.submit(command)
     }
     private func performMutation(_ command: HelperCommand) async throws -> HelperReply {
-        guard command.isMutation else { throw LiveControlError.unavailable }
+        guard !monitoringOnly, command.isMutation else { throw LiveControlError.unavailable }
         do {
             let reply = try await send(command); try ingest(reply, command: command); return reply
         } catch {

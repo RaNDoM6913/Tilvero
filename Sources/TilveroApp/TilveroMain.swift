@@ -89,8 +89,20 @@ struct TilveroMain {
             guard AppInstancePolicy.mayStart(application: application, existing: existing) else { return nil }
         }
         let identity: ReleaseIdentity
+        var launchPolicy = AppLaunchPolicy.resolve(metadata: Bundle.main.infoDictionary ?? [:], arguments: CommandLine.arguments,
+            runningBundleIdentifiers: Set(AppLaunchPolicy.knownBundleIdentifiers.flatMap {
+                NSRunningApplication.runningApplications(withBundleIdentifier: $0)
+            }.filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier && !$0.isTerminated }
+                .compactMap(\.bundleIdentifier)))
+        var controllerLease: ControllerSessionLease?
         do {
             identity = try ReleaseIdentity.current()
+            // Acquire before constructing any domain service. Failure chooses a
+            // monitoring session for this entire launch, with no later promotion.
+            if !launchPolicy.monitoringOnly {
+                do { controllerLease = try ControllerSessionLease.acquire() }
+                catch { launchPolicy = launchPolicy.tighteningForUnavailableController() }
+            }
             if identity.isProduction {
                 let defaults = UserDefaults.standard
                 let source = defaults.persistentDomain(forName: ReleaseIdentity.prototypeBundleIdentifier) ?? [:]
@@ -123,7 +135,7 @@ struct TilveroMain {
                 russian: "Tilvero не смог безопасно подготовить данные. Запуск остановлен. После устранения проблемы перенос можно повторить; существующие данные сохранены.")
             return nil
         }
-        return TilveroAppDelegate(historyURL: identity.historyURL())
+        return TilveroAppDelegate(historyURL: identity.historyURL(), launchPolicy: launchPolicy, controllerLease: controllerLease)
     }
 
     // Do not read app localization/defaults before migration has committed.
@@ -163,9 +175,13 @@ private final class TilveroStartupDelegate: NSObject, NSApplicationDelegate {
 @MainActor
 final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let model: TilveroModel
+    // Keep ownership through failed/successful quit recovery. Application stop
+    // does not release it; delegate destruction/process exit does.
+    private let controllerLease: ControllerSessionLease?
 
-    init(historyURL: URL) {
-        model = TilveroModel(isDemo: CommandLine.arguments.contains("--demo"), historyURL: historyURL)
+    init(historyURL: URL, launchPolicy: AppLaunchPolicy, controllerLease: ControllerSessionLease?) {
+        self.controllerLease = controllerLease
+        model = TilveroModel(isDemo: CommandLine.arguments.contains("--demo"), launchPolicy: launchPolicy, historyURL: historyURL)
         super.init()
     }
     private var statusItem: NSStatusItem?

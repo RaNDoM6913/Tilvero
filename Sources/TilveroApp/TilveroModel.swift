@@ -182,6 +182,7 @@ final class TilveroModel: ObservableObject {
     let liveControl: LiveControlService
     private var liveSubscription: AnyCancellable?
     let isDemo: Bool
+    let launchPolicy: AppLaunchPolicy
     var isPopoverVisible = false
     var isDetailVisible = false
     var openDetails: (@MainActor () -> Void)?
@@ -206,7 +207,7 @@ final class TilveroModel: ObservableObject {
     private let preferences: UserDefaults
     private var snapshotProvider: @Sendable () async -> BatterySnapshot
 
-    init(isDemo: Bool, preferences: UserDefaults = .standard,
+    init(isDemo: Bool, launchPolicy: AppLaunchPolicy = .current(), preferences: UserDefaults = .standard,
          historyURL: URL? = nil,
          snapshotProvider: (@Sendable () async -> BatterySnapshot)? = nil,
          sleepActivityProvider: (@Sendable () async -> SleepAssertionSnapshot)? = nil,
@@ -221,6 +222,7 @@ final class TilveroModel: ObservableObject {
             await Task.detached(priority: .utility) { SystemChargeLimitObservation.read() }.value
         }
         self.isDemo = isDemo
+        self.launchPolicy = launchPolicy
         self.processActivityProvider = processActivityProvider ?? { await ProcessActivityProvider().read() }
         self.preferences = preferences
         let savedSleepMinutes = preferences.integer(forKey: "sleepTimerMinutes")
@@ -231,7 +233,7 @@ final class TilveroModel: ObservableObject {
         keepAwakeDraft = .duration(savedAwakeDuration)
         keepAwakeCustomMinutes = String(savedAwakeDuration.rawValue)
         keepAwakeUsesCustomDuration = !KeepAwakeDuration.allCases.contains(savedAwakeDuration)
-        let monitoring = Bundle.main.object(forInfoDictionaryKey: "TilveroReleaseMode") as? String == "monitoring"
+        let monitoring = launchPolicy.monitoringOnly
         self.keyboardBacklight = keyboardBacklight ?? KeyboardBacklightService(
             storage: UserDefaultsKeyboardBacklightStorage(defaults: preferences), allowed: !isDemo && !monitoring)
         keepAwake = KeepAwakeService(driver: keepAwakeTransport ?? NativeKeepAwakeTransport(), allowed: !isDemo && !monitoring)
@@ -241,13 +243,14 @@ final class TilveroModel: ObservableObject {
         self.sleepActivityProvider = sleepActivityProvider ?? {
             await SleepActivityProvider().readSnapshot()
         }
-        self.liveControl = liveControl ?? LiveControlService(preferences: preferences)
+        self.liveControl = liveControl ?? LiveControlService(preferences: preferences,
+            launchPolicy: isDemo ? .resolve(metadata: [:], arguments: ["--demo"]) : launchPolicy)
         if isDemo {
             nativeCharge = NativeChargeService(client: PowerUIChargeClient(),
                 journalURL: FileManager.default.temporaryDirectory.appendingPathComponent("TilveroDemo-\(UUID().uuidString)/native-session.json"), monitoringOnly: true)
         } else {
             let storage = historyURL ?? (try? ReleaseIdentity.current().historyURL()) ?? FileManager.default.temporaryDirectory.appendingPathComponent("TilveroUnavailable/History.sqlite")
-            nativeCharge = NativeChargeService(historyURL: storage)
+            nativeCharge = NativeChargeService(historyURL: storage, launchPolicy: launchPolicy)
         }
         let identitySalt = preferences.string(forKey: "identitySalt") ?? UUID().uuidString
         preferences.set(identitySalt, forKey: "identitySalt")

@@ -224,14 +224,14 @@ enum NativeChargeServiceError: Error, LocalizedError {
         }
     }
 
-    convenience init(historyURL: URL) {
+    convenience init(historyURL: URL, launchPolicy: AppLaunchPolicy = .current()) {
         let root = historyURL.deletingLastPathComponent()
         let environment = NativeChargeAdmission.currentEnvironment
         let admission = root.appendingPathComponent("native-charge-validation.json")
-        let monitoring = Bundle.main.object(forInfoDictionaryKey: "TilveroReleaseMode") as? String == "monitoring"
+        let monitoring = launchPolicy.monitoringOnly
         let reader = NativeChargeBackend()
         self.init(client: PowerUIChargeClient(), journalURL: root.appendingPathComponent("native-charge-session.json"),
-                  admitted: NativeChargeAdmission.load(from: admission, environment: environment), monitoringOnly: monitoring,
+                  admitted: !monitoring && NativeChargeAdmission.load(from: admission, environment: environment), monitoringOnly: monitoring,
                   verificationAttempts: 30, verificationDelay: .seconds(2), environment: environment,
                   batteryProvider: { await reader.currentObservation() }, admissionURL: admission)
     }
@@ -371,6 +371,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
 
     func observeBattery(percent: Int?, fresh: Bool) async {
         batteryPercent = percent; batteryFresh = fresh
+        guard !monitoringOnly else { return }
         guard !isBusy, !isQualifying, !operationGate.pending, !recoveryRequired else { return }
         let observation = (pendingTarget != nil || restorationPending || isOneShot) ? await batteryProvider?() : nil
         let currentFresh = observation?.fresh ?? fresh

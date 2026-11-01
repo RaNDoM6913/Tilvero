@@ -241,6 +241,10 @@ struct BatteryInfoView: View {
         case .history: HistoryPanel(model: model)
         case .sleep: SleepControlsPanel(model: model)
         case .diagnostics:
+            if let reason = model.launchPolicy.monitoringReasonKey {
+                Text(L10n.text(reason)).font(.callout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             HStack(alignment: .top, spacing: 14) {
                 Image(systemName: "shield.lefthalf.filled").font(.system(size: 29)).foregroundStyle(.green).accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 4) {
@@ -260,7 +264,9 @@ struct BatteryInfoView: View {
             ProductSurface(title: "Privileged controls", symbol: "shield") {
                 Label(L10n.text(model.liveControl.hasOwnedSettings ? "App-owned settings require restoration" : "No active helper session"), systemImage: "shield")
                 Text("\(L10n.text("Helper")): \(model.helperStatusText)")
-                Text(L10n.text(model.liveControl.message ?? "Signing and hardware validation required")).font(.callout).foregroundStyle(.secondary)
+                if !model.launchPolicy.monitoringOnly {
+                    Text(L10n.text(model.liveControl.message ?? "Signing and hardware validation required")).font(.callout).foregroundStyle(.secondary)
+                }
                 if model.liveControl.canRegister { Button(L10n.text("Enable supported controls")) { model.registerHelper() } }
                 if model.liveControl.hasOwnedSettings || model.liveControl.recoveryRequired { Button(L10n.text("Restore original settings")) { model.restoreAll() } }
                 if model.liveControl.registrationState == .enabled { Button(L10n.text("Disable helper after restoration")) { model.removeHelper() } }
