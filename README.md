@@ -1,15 +1,6 @@
-<p align="center">
-  <img src="Assets/AppIcon-1024.png" alt="Tilvero app icon" width="96">
-</p>
+![Tilvero — Battery, power and activity. Swift 6, macOS 26+, Apple silicon. Source preview.](.github/assets/cover.png)
 
-<h1 align="center">Tilvero</h1>
-<p align="center"><strong>Your Mac’s battery, power and activity. In view.</strong></p>
-<p align="center">Native Swift for macOS · Apple silicon · Works offline</p>
 <p align="center"><strong>English</strong> · <a href="README.ru.md">Русский</a></p>
-
-![MacBook Air and a green battery — decorative illustration](.github/assets/cover.png)
-
-<sub>Generated product illustration; native interface captures appear below. [Artwork provenance](.github/assets/COVER_PROMPT.md).</sub>
 
 Tilvero puts battery and power information in your menu bar, with a clear native
 window when you want the details. Follow charging, inspect battery health and
@@ -134,3 +125,5 @@ source and same-license requirements.
 
 Third-party materials retain their own notices:
 [COPYRIGHT](COPYRIGHT) · [Third-party notices](THIRD_PARTY_NOTICES.md).
+
+Artwork: [banner generation record](.github/assets/COVER_PROMPT.md).

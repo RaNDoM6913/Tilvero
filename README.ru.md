@@ -1,15 +1,6 @@
-<p align="center">
-  <img src="Assets/AppIcon-1024.png" alt="Значок приложения Tilvero" width="96">
-</p>
+![Tilvero — батарея, питание и активность. Swift 6, macOS 26+, Apple silicon. Предварительная версия в исходниках.](.github/assets/cover.png)
 
-<h1 align="center">Tilvero</h1>
-<p align="center"><strong>Батарея, питание и активность вашего Mac — на виду.</strong></p>
-<p align="center">Нативное приложение на Swift · Apple silicon · Работает без интернета</p>
 <p align="center"><a href="README.md">English</a> · <strong>Русский</strong></p>
-
-![MacBook Air и зелёная батарея — декоративная иллюстрация](.github/assets/cover.png)
-
-<sub>Сгенерированная иллюстрация; снимки нативного интерфейса — ниже. [Происхождение изображения](.github/assets/COVER_PROMPT.md).</sub>
 
 Tilvero показывает состояние батареи и питания в строке меню, а подробности —
 в удобном нативном окне. Следите за зарядкой, изучайте состояние батареи
@@ -136,3 +127,5 @@ Energy Impact macOS не реализовано. Закрытый доступ �
 
 Сторонние материалы сохраняют собственные уведомления:
 [COPYRIGHT](COPYRIGHT) · [Сторонние материалы](THIRD_PARTY_NOTICES.md).
+
+Оформление: [происхождение баннера](.github/assets/COVER_PROMPT.md).
