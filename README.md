@@ -1,15 +1,13 @@
+![Tilvero — Battery, power and activity. Swift 6, macOS 26+, Apple silicon. Source preview.](.github/assets/cover.png)
+
 <p align="center">
-  <img src="Assets/AppIcon-1024.png" alt="Tilvero app icon" width="96">
+  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.1.0-beta.1"><img src="https://img.shields.io/badge/source-preview-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Source preview" height="28"></a>
+  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.1.0-beta.1"><img src="https://img.shields.io/github/downloads/RaNDoM6913/Tilvero/v0.1.0-beta.1/Tilvero-0.1.0-beta.1-source.zip?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B&amp;label=source+downloads&amp;displayAssetName=false" alt="Downloads of the v0.1.0-beta.1 source ZIP" height="28"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="License: GPL-3.0-only" height="28"></a>
+  <a href="https://github.com/RaNDoM6913/Tilvero/stargazers"><img src="https://img.shields.io/github/stars/RaNDoM6913/Tilvero?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B&amp;label=stars" alt="GitHub stars" height="28"></a>
 </p>
 
-<h1 align="center">Tilvero</h1>
-<p align="center"><strong>Your Mac’s battery, power and activity. In view.</strong></p>
-<p align="center">Native Swift for macOS · Apple silicon · Works offline</p>
 <p align="center"><strong>English</strong> · <a href="README.ru.md">Русский</a></p>
-
-![MacBook Air and a green battery — decorative illustration](.github/assets/cover.png)
-
-<sub>Generated product illustration; native interface captures appear below. [Artwork provenance](.github/assets/COVER_PROMPT.md).</sub>
 
 Tilvero puts battery and power information in your menu bar, with a clear native
 window when you want the details. Follow charging, inspect battery health and
@@ -134,3 +132,5 @@ source and same-license requirements.
 
 Third-party materials retain their own notices:
 [COPYRIGHT](COPYRIGHT) · [Third-party notices](THIRD_PARTY_NOTICES.md).
+
+Artwork: [banner generation record](.github/assets/COVER_PROMPT.md).

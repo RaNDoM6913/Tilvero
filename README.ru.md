@@ -1,15 +1,13 @@
+![Tilvero — батарея, питание и активность. Swift 6, macOS 26+, Apple silicon. Предварительная версия в исходниках.](.github/assets/cover.png)
+
 <p align="center">
-  <img src="Assets/AppIcon-1024.png" alt="Значок приложения Tilvero" width="96">
+  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.1.0-beta.1"><img src="https://img.shields.io/badge/source-preview-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Предварительная версия в исходниках" height="28"></a>
+  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.1.0-beta.1"><img src="https://img.shields.io/github/downloads/RaNDoM6913/Tilvero/v0.1.0-beta.1/Tilvero-0.1.0-beta.1-source.zip?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B&amp;label=source+downloads&amp;displayAssetName=false" alt="Скачивания ZIP исходников v0.1.0-beta.1" height="28"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Лицензия GPL-3.0-only" height="28"></a>
+  <a href="https://github.com/RaNDoM6913/Tilvero/stargazers"><img src="https://img.shields.io/github/stars/RaNDoM6913/Tilvero?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B&amp;label=stars" alt="Звёзды GitHub" height="28"></a>
 </p>
 
-<h1 align="center">Tilvero</h1>
-<p align="center"><strong>Батарея, питание и активность вашего Mac — на виду.</strong></p>
-<p align="center">Нативное приложение на Swift · Apple silicon · Работает без интернета</p>
 <p align="center"><a href="README.md">English</a> · <strong>Русский</strong></p>
-
-![MacBook Air и зелёная батарея — декоративная иллюстрация](.github/assets/cover.png)
-
-<sub>Сгенерированная иллюстрация; снимки нативного интерфейса — ниже. [Происхождение изображения](.github/assets/COVER_PROMPT.md).</sub>
 
 Tilvero показывает состояние батареи и питания в строке меню, а подробности —
 в удобном нативном окне. Следите за зарядкой, изучайте состояние батареи
@@ -136,3 +134,5 @@ Energy Impact macOS не реализовано. Закрытый доступ �
 
 Сторонние материалы сохраняют собственные уведомления:
 [COPYRIGHT](COPYRIGHT) · [Сторонние материалы](THIRD_PARTY_NOTICES.md).
+
+Оформление: [происхождение баннера](.github/assets/COVER_PROMPT.md).
