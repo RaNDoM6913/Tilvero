@@ -60,7 +60,7 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
             let page = presentedPage
             switch page {
             case .timer:
-                if compact { SleepTimerPanel(model: model, compact: true).studioScope("sleep.timer") }
+                if compact { SleepTimerPillsPanel(model: model).studioScope("sleep.timer") }
                 else {
                     ProductSurface(studioID: "sleep.timer") { SleepTimerPanel(model: model).studioScope("sleep.timer") }.frame(maxWidth: 560)
                     VStack(alignment: .leading, spacing: 9) {
@@ -73,7 +73,7 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
                     }.frame(maxWidth: 560).font(.system(size: 12))
                 }
             case .awake:
-                if compact { KeepAwakePanel(model: model, compact: true).studioScope("sleep.awake") }
+                if compact { KeepAwakePillsPanel(model: model).studioScope("sleep.awake") }
                 else { ProductSurface(studioID: "sleep.awake") { KeepAwakePanel(model: model).studioScope("sleep.awake") }.frame(maxWidth: 560) }
             case .reports: SleepReportPanel(model: model)
             }

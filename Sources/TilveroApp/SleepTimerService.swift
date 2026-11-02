@@ -55,6 +55,13 @@ import PowerCore
         self.isHoldingAwake = driver.hasIdleHold
     }
 
+    private var appliedPillRecord: (id: UUID?, generation: UInt64, minutes: Int)?
+    /// Presentation metadata follows only successfully committed executable intent.
+    var activePillMinutes: Int? {
+        guard isEditable, let record = appliedPillRecord, let id = engine.sessionID,
+              record.id == id, record.generation == engine.generation else { return nil }
+        return record.minutes
+    }
     var sessionID: UUID? { engine.sessionID }
     var isActive: Bool { phase.isActive || needsHoldRelease }
     var isEditable: Bool { phase.isEditable && !needsHoldRelease }
@@ -88,6 +95,7 @@ import PowerCore
             throw error
         }
         engine = candidate
+        appliedPillRecord = (engine.sessionID, engine.generation, minutes)
         startClockPair = clockPair
         message = nil
         diagnostic = nil
@@ -126,6 +134,7 @@ import PowerCore
         guard !suspensionDetected else { systemDidWake(); throw SleepTimerError.notEditable }
         guard driver.isCurrentConsoleSession() else { sessionResigned(); throw SleepTimerError.notEditable }
         engine = candidate
+        appliedPillRecord = (engine.sessionID, engine.generation, minutes)
         message = nil
         diagnostic = nil
         publish()
@@ -155,6 +164,9 @@ import PowerCore
         }
         guard engine.sessionID == id, engine.generation == generation else { throw SleepTimerError.notEditable }
         engine = candidate
+        if let record = appliedPillRecord, record.id == engine.sessionID {
+            appliedPillRecord = (engine.sessionID, engine.generation, record.minutes)
+        }
         message = nil
         diagnostic = nil
         publish()

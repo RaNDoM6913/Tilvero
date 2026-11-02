@@ -25,7 +25,7 @@ REQUIRED = {
 PRIVATE_SUFFIXES = ('.sqlite', '.db', '.p12', '.pfx', '.pem', '.key',
                     '.mobileprovision', '.provisionprofile')
 PRIVATE_DIRS = {'build', '.build', '.swiftpm', 'DerivedData', '.git', '__pycache__',
-                'history', 'exports', 'runtime', 'xcuserdata'}
+                'history', 'exports', 'runtime', 'xcuserdata', 'local-lab'}
 FIELDS = {'schemaVersion', 'artifactType', 'commit', 'tag', 'version', 'build', 'channel',
           'license', 'buildRequirements', 'binaryIncluded', 'requiresBuild', 'createdAt', 'sourceZIP'}
 

@@ -4,7 +4,7 @@ Tilvero has two distinct distribution routes: the first **Source Preview** and a
 
 ## Source Preview
 
-The first source prerelease uses `v0.1.0-beta.1`. It targets developers building on Apple silicon with macOS 26 or later and a compatible full Xcode installation. It includes no `.app`, helper executable or DMG. Its source tree contains gated development controls as well as monitoring; a normal development build is distinct from the future monitoring-only package.
+The planned Sleep-controls source prerelease uses `v0.1.0-beta.2` (build 2); the original `v0.1.0-beta.1` remains immutable. It targets developers building on Apple silicon with macOS 26 or later and a compatible full Xcode installation. It includes no `.app`, helper executable or DMG. Its source tree contains gated development controls as well as monitoring; a normal development build is distinct from the future monitoring-only package.
 
 The source profile's exact upload allowlist is:
 
@@ -17,10 +17,10 @@ Prepare only after every public source, document and media asset is committed an
 ```sh
 python3 scripts/source_release.py prepare --commit <full-current-commit>
 python3 scripts/source_release.py verify \
-  --manifest build/source-releases/v0.1.0-beta.1/source-release.json
+  --manifest build/source-releases/v0.1.0-beta.2/source-release.json
 ```
 
-The tool requires an exact 40-character current commit, matching committed configuration, an unused local tag and the admitted public ancestry. The coordinator must also check the remote tag/release state. It exports the full committed tree, rejects private/runtime/signing files and verifies ZIP entries, raw blobs, permissions, CRC, commit identity and final checksums. Untracked and ignored local inputs never become release source. Existing output is never replaced; failed work remains `.incomplete` for inspection.
+The tool requires an exact 40-character current commit, matching committed configuration, an unused local tag and the admitted public ancestry. The coordinator must also check the remote tag/release state. It exports the full committed tree, rejects private/runtime/signing files and verifies ZIP entries, raw blobs, permissions, CRC, commit identity and final checksums. Untracked and ignored local inputs never become release source. Even accidentally tracked `local-lab` paths are rejected; source exports must not contain Studio state, captures, owner data or signing material. Existing output is never replaced; failed work remains `.incomplete` for inspection.
 
 `source-release.json` has a separate source-only schema: `artifactType=source-preview`, `binaryIncluded=false`, `requiresBuild=true`, exact commit/tag/version and source-ZIP size/hash. It has no app-signing, notarization or binary-readiness claim. The existing development bundle is fingerprinted before and after preparation.
 
@@ -77,3 +77,7 @@ See [testing](TESTING.md), [installation](INSTALL.md), [compatibility](COMPATIBI
 - [Apple: notarization prerequisites](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution)
 - [GitHub: releases](https://docs.github.com/en/rest/releases/releases)
 - [GitHub: immutable releases](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases)
+
+## Closed-lid source boundary
+
+The dedicated lid backend/helper is published as gated development source. Its presence does not qualify a default live feature or a downloadable controller binary. The [isolated trial](CLOSED_LID.md) requires exact signed identities, normal macOS approval and separately admitted physical Stop/owner-loss/expiry/crash restoration checks. Missing physical evidence keeps feature integration pending; source-only prerelease integrity can be verified independently. Never add the lid helper to the helper-free Monitoring Preview profile to bypass these gates.

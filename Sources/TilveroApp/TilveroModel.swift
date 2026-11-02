@@ -104,6 +104,7 @@ final class TilveroModel: ObservableObject {
     private var exportType: UTType = .json
     let keepAwake: KeepAwakeService
     let sleepTimer: SleepTimerService
+    let closedLid: ClosedLidService
     private var sleepTimerSubscription: AnyCancellable?
     @Published var selectedSleepPage: SleepPage = .timer
     @Published var sleepTimerMinutes: String { didSet {
@@ -181,6 +182,7 @@ final class TilveroModel: ObservableObject {
             keepAwakeDuration = duration
         }
     }
+    var sleepPillActionsAllowed: Bool { !sleeping && !isApplying && !sleepTimerBlocksControls }
     var canStartKeepAwakeDraft: Bool {
         guard keepAwake.isAvailable, !keepAwake.hasOwnedAssertion else { return false }
         switch keepAwakeDraft {
@@ -250,6 +252,7 @@ final class TilveroModel: ObservableObject {
          keyboardBacklight: KeyboardBacklightService? = nil,
          sleepTimerTransport: (any SleepTimerTransport)? = nil,
          sleepTimerService: SleepTimerService? = nil,
+         closedLidService: ClosedLidService? = nil,
          sideEffects: TilveroModelSideEffects? = nil) {
         self.systemChargeLimitProvider = systemChargeLimitProvider ?? {
             await Task.detached(priority: .utility) { SystemChargeLimitObservation.read() }.value
@@ -268,24 +271,26 @@ final class TilveroModel: ObservableObject {
         keepAwakeCustomMinutes = String(savedAwakeDuration.rawValue)
         keepAwakeUsesCustomDuration = !KeepAwakeDuration.allCases.contains(savedAwakeDuration)
         let monitoring = launchPolicy.monitoringOnly
+        let hardwarePolicy = launchPolicy.ordinaryHardwarePolicy
         self.keyboardBacklight = keyboardBacklight ?? KeyboardBacklightService(
-            storage: UserDefaultsKeyboardBacklightStorage(defaults: preferences), allowed: !isDemo && !monitoring)
+            storage: UserDefaultsKeyboardBacklightStorage(defaults: preferences), allowed: !isDemo && !hardwarePolicy.monitoringOnly)
         keepAwake = keepAwakeService ?? KeepAwakeService(driver: keepAwakeTransport ?? NativeKeepAwakeTransport(), allowed: !isDemo && !monitoring)
         sleepTimer = sleepTimerService ?? SleepTimerService(driver: sleepTimerTransport ?? NativeSleepTimerTransport(), allowed: !isDemo && !monitoring)
+        closedLid = closedLidService ?? ClosedLidService(allowed: !isDemo && !monitoring)
         modeLibrary = ModeLibrary.load(preferences.data(forKey: isDemo ? "demoModePlans.v1" : "modePlans.v1"))
         overviewPreferences = OverviewPreferences.load(preferences.data(forKey: "overviewPreferences.v1"))
         self.sleepActivityProvider = sleepActivityProvider ?? {
             await SleepActivityProvider().readSnapshot()
         }
         self.liveControl = liveControl ?? LiveControlService(preferences: preferences,
-            launchPolicy: isDemo ? .resolve(metadata: [:], arguments: ["--demo"]) : launchPolicy)
+            launchPolicy: isDemo ? .resolve(metadata: [:], arguments: ["--demo"]) : hardwarePolicy)
         if let nativeCharge { self.nativeCharge = nativeCharge }
         else if isDemo {
             self.nativeCharge = NativeChargeService(client: PowerUIChargeClient(),
                 journalURL: FileManager.default.temporaryDirectory.appendingPathComponent("TilveroDemo-\(UUID().uuidString)/native-session.json"), monitoringOnly: true)
         } else {
             let storage = historyURL ?? (try? ReleaseIdentity.current().historyURL()) ?? FileManager.default.temporaryDirectory.appendingPathComponent("TilveroUnavailable/History.sqlite")
-            self.nativeCharge = NativeChargeService(historyURL: storage, launchPolicy: launchPolicy)
+            self.nativeCharge = NativeChargeService(historyURL: storage, launchPolicy: hardwarePolicy)
         }
         let identitySalt = preferences.string(forKey: "identitySalt") ?? UUID().uuidString
         preferences.set(identitySalt, forKey: "identitySalt")
@@ -319,8 +324,10 @@ final class TilveroModel: ObservableObject {
         }
         selectedSection = InfoSection(rawValue: preferences.string(forKey: "lastSection") ?? "") ?? .overview
         updateLoginStatus()
+        closedLid.bind(keepAwake)
         sleepTimer.prepare = { [weak self] in
             guard let self else { return false }
+            guard await self.closedLid.prepareForTermination() else { return false }
             // An earlier observation may be suspended before a native auto-action.
             // Let it finish before preparing; new auto-actions are already gated.
             let readinessDeadline = ContinuousClock.now.advanced(by: .seconds(4))
@@ -652,6 +659,7 @@ final class TilveroModel: ObservableObject {
     func removeHelper() { runLive { try await $0.unregisterHelper() } }
     func restoreAll() { runLive { guard try await $0.restoreAll() else { throw PrivilegeError.recoveryRequired } } }
     func prepareForTermination(systemInitiated: Bool = false) async -> Bool {
+        guard await closedLid.prepareForTermination() else { return false }
         if systemInitiated { sleepTimer.stop() }
         else {
             if sleepTimer.needsHoldRelease { sleepTimer.cancel(); guard !sleepTimer.needsHoldRelease else { return false } }

@@ -8,6 +8,8 @@ Live monitoring, a compact menu bar panel, searchable readings, local history, r
 
 ## Next proposed milestones
 
+The Sleep-controls source milestone adds one-shot timers, compact native Timer/Awake controls and a separately gated lid-only controller with journal/lease/guardian recovery. Signed real-device closed-lid behavior and restoration are still pending; see [the trial boundary](docs/CLOSED_LID.md).
+
 Distribution preparation is described separately in the [release and download proposal](docs/RELEASING.md): a source-bound Monitoring Beta DMG, original app icon, installation/update checks, Developer ID/notarization and honest GitHub download statistics. No binary release exists yet. Preparing distribution does not enable hardware controls or replace their acceptance gates.
 
 | Order | User outcome | What must be demonstrated |

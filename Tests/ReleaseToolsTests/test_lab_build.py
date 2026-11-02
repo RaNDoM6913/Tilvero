@@ -41,6 +41,7 @@ class LaboratoryBuildTests(unittest.TestCase):
         }))
         for name, content in {
             "Package.swift": b"// disposable package fixture\n",
+            "Config/TilveroLidHelper-Info.plist": b"dedicated lid helper metadata",
             "Sources/TilveroApp/Screen.swift": b"// common production screen\n",
             "Sources/TilveroApp/Resources/Localizable.xcstrings": b"localized content",
             "Helper/main.swift": b"// common helper\n",
@@ -62,7 +63,8 @@ binary = root / '.build/fake-release'
 if arguments == ['build', '-c', 'release', '--show-bin-path']:
     print(binary)
 elif arguments in (['build', '-c', 'release', '--product', 'TilveroApp'],
-                    ['build', '-c', 'release', '--product', 'TilveroHelper']):
+                    ['build', '-c', 'release', '--product', 'TilveroHelper'],
+                    ['build', '-c', 'release', '--product', 'TilveroLidHelper']):
     binary.mkdir(parents=True, exist_ok=True)
     product = arguments[-1]
     (binary / product).write_bytes(('common-' + product).encode())
@@ -163,6 +165,9 @@ shutil.copytree(source, destination)
                          hashlib.sha256(b"common-TilveroApp-signed").hexdigest())
         self.assertIn("Sources/TilveroApp/Screen.swift", receipt["sourceInputs"])
         self.assertIn("Contents/Resources/Tilvero_TilveroApp.bundle/BatteryAssembly.png", receipt["copiedInputs"])
+        lid = "Contents/Library/HelperTools/TilveroLidHelper"
+        self.assertEqual(receipt["copiedInputs"][lid]["sha256"], hashlib.sha256(b"common-TilveroLidHelper").hexdigest())
+        self.assertEqual(receipt["packagedFiles"][lid], hashlib.sha256(b"common-TilveroLidHelper-signed").hexdigest())
         self.assertFalse((self.root / "build/Tilvero.app").exists())
 
     def test_changed_source_during_compilation_cannot_get_success_receipt(self):

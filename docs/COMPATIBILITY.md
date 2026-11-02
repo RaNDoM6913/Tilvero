@@ -29,6 +29,8 @@ macOS 26.6.2. MacBook Air is fanless; a Pro simulator cannot qualify Pro hardwar
 | Application activity | Read-only process counters, search, filtering and ranking | CPU energy/power estimates cover CPU activity only; accessible processes may be a partial set |
 | Sleep & drain | Read-only observation and fixture coverage | New app-observed intervals only; completed real sleep/wake validation remains a device gate |
 | Keep Mac Awake | Explicit source-build sessions with visible Stop | Disabled in DEMO and Monitoring Preview; does not override lid, forced or low-battery sleep |
+| Sleep Timer | One-shot development sessions with preparation and cancellation | Disabled in DEMO and Monitoring Preview; actual system sleep/wake remains a device check |
+| Closed-lid mode | Implemented lid-only backend, dedicated signed helper, journal, lease and guardian; fixture-tested | Normal builds gated; separately signed trial is limited to 120 seconds; physical behavior/restoration not qualified |
 | Saved modes | Separate Save / Apply, action previews and per-action outcomes | Saving never applies; unqualified energy/display actions are excluded |
 | Native charge controller | User-space PowerUI adapter with a recovery journal | Requires admission on the exact Mac/OS/ABI; cutoff and one-time-full-charge behavior have separate gates |
 | Privileged helper and recovery | Source and fixture implementation | Trusted signing, OS enrollment, lifecycle and device acceptance remain open |
@@ -49,7 +51,7 @@ are not persisted in battery history.
 ## Development source and Monitoring Preview
 
 A default `build-local-app.sh` build uses the development identity. It includes
-control-related code and a bundled, unregistered helper. Native charge admission
+control-related code and bundled, unregistered helpers. The dedicated lid helper has separate identities and storage; building never enrolls either helper. Native charge admission
 is a separate normal-user route: a bounded setting/readback/restoration check
 never enables helper or fan control. Targets may remain pending until natural
 discharge; a pending target is not active. Fans default to System Auto.
@@ -61,13 +63,11 @@ inferred from the behavior of an ordinary source build.
 
 A readable key, model name, successful test/build or simulator result never
 qualifies a hardware write. There is no UI or environment override for the
-privileged qualification gate. See the [helper architecture](../Helper/README.md).
+privileged qualification gate. See the [helper architecture](../Helper/README.md) and [closed-lid trial boundary](CLOSED_LID.md).
 
 ## Validation and distribution
 
-The latest recorded stable app milestone ran **362 tests with zero failures**,
-built SwiftPM Release and Xcode Debug bundles, and verified local ad-hoc signature
-integrity. These results apply to the recorded source milestone, not automatically
+The earlier integrated Sleep-controls source snapshot passed **554 Swift tests**. The final source candidate built SwiftPM Release and Xcode Debug bundles and passed **61 Python release-tool tests**, but its complete **557-test Swift run failed with 8 existing migration-journal errors**. A standalone Foundation probe reproduces the protected-file reopen failure outside Tilvero. The final software gate remains unresolved; earlier passing evidence is not substituted for it. These results apply to the recorded source milestone, not automatically
 to a later release commit. [Testing and validation](TESTING.md) summarizes public coverage and its limits.
 
 **Implemented** means code exists. **Fixture-tested** means deterministic inputs

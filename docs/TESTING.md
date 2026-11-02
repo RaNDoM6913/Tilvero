@@ -16,11 +16,15 @@ The scripts select the installed full Xcode toolchain for their own process. The
 - Process sampling, missing coverage, PID reuse, search, ranking and display limits.
 - Local history, gaps, retention, identity pairing, sleep records and failed-store recovery.
 - Native presentation and layout contracts, localization and passive previews.
+- Sleep Timer/Awake mode consent, confirmed preset identity, failed holds/releases, stale session actions, civil-time validation and native popover completion.
+- Lid-only controller authority, journal/replay/lease recovery, independent guardian and explicit fixture/live admission boundaries.
 - Release tooling: committed-source admission, private-path rejection, source identity, checksums and tamper rejection.
 
-Default automated tests use fixtures for controls. They do not qualify physical charge cutoff, battery discharge, real fan control, privileged enrollment or recovery under every OS failure.
+Default automated tests use fixtures for controls. They do not qualify physical charge cutoff, battery discharge, real fan control, privileged enrollment, closed-lid operation or recovery under every OS failure. Closed-lid tests inject all writers; a real signed trial requires the separate [device and restoration checks](CLOSED_LID.md).
 
-The development baseline for the first source preview passed 362 Swift tests and both local app build routes. The source-release integration passed 45 Python release-tool tests, including 12 source-preview contract tests. These are local code/fixture results, not Developer ID, notarization, downloaded-install or hardware-support claims.
+The earlier integrated Sleep-controls snapshot passed 554 Swift tests. The final source candidate passed 61 Python release-tool tests and built SwiftPM Release/Xcode Debug app bundles. Its final complete Swift run executed 557 tests and failed with 8 existing migration-journal read/reopen errors (`EPERM`) for `completeFileProtectionUnlessOpen`. A standalone Foundation probe reproduces the failure without Tilvero code; ordinary file permissions are not the cause, and the deeper host protection-availability reason is unverified. The final full-software gate remains incomplete; file protection has not been weakened and the failures have not been skipped.
+
+Verify that fresh Class B protected data can close/reopen/read in the execution context before retrying migration and the full suite. Earlier passing runs remain historical evidence. The prior first-source-preview baseline passed 362 Swift tests and 45 Python release-tool tests. These are local code/fixture results, not Developer ID, notarization, downloaded-install or hardware-support claims.
 
 ## Source preview verification
 

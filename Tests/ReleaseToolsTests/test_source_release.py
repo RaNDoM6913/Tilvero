@@ -40,7 +40,7 @@ class SourceReleaseTests(unittest.TestCase):
         self.commit_all()
         self.commit = self.git('rev-parse', 'HEAD')
         self.output = self.base / 'preview'
-        self.zip_name = 'Tilvero-0.1.0-beta.1-source.zip'
+        self.zip_name = 'Tilvero-' + self.config['tag'].removeprefix('v') + '-source.zip'
 
     def write(self, name, content):
         path = self.root / name
@@ -112,7 +112,7 @@ class SourceReleaseTests(unittest.TestCase):
         self.cli('prepare', '--commit', self.commit, '--output', self.output, success=False)
         self.git('checkout', '--', 'LICENSE')
         alternative = self.base / 'config.json'
-        alternative.write_text(json.dumps(dict(self.config, build='2')))
+        alternative.write_text(json.dumps(dict(self.config, build=str(int(self.config['build']) + 1))))
         self.cli('prepare', '--commit', self.commit, '--config', alternative,
                  '--output', self.output, success=False)
         self.assertFalse(self.output.exists())
@@ -148,7 +148,7 @@ class SourceReleaseTests(unittest.TestCase):
         original = json.loads(path.read_text())
         changes = [('binaryIncluded', True), ('binaryIncluded', 0), ('requiresBuild', False),
                    ('schemaVersion', True), ('publicationReady', True), ('signingMode', 'developer-id'),
-                   ('version', '9.0.0'), ('tag', 'v9.0.0'), ('build', '2'),
+                   ('version', '9.0.0'), ('tag', 'v9.0.0'), ('build', str(int(self.config['build']) + 1)),
                    ('commit', 'a' * 40), ('license', 'MIT'), ('createdAt', 'yesterday'),
                    ('buildRequirements', {'architecture': 'x86_64', 'minimumOS': '26.0'}),
                    ('sourceZIP', {'name': '../escape.zip', 'size': 1, 'sha256': 'a' * 64})]
@@ -224,7 +224,8 @@ class SourceReleaseTests(unittest.TestCase):
 
     def test_private_paths_and_nonregular_tree_entries_rejected(self):
         cases = ('planning/private.md', 'runtime/private.db', 'secret.pfx', 'profile.mobileprovision',
-                 'data.db-wal', 'nested/.env.local', 'nested/private.key', 'build/leak.app/payload')
+                 'data.db-wal', 'nested/.env.local', 'nested/private.key', 'build/leak.app/payload',
+                 'local-lab/studio/private.swift', 'nested/local-lab/capture.json')
         for number, name in enumerate(cases):
             with self.subTest(name=name):
                 self.write(name, 'private')

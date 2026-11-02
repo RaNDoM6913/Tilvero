@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — 0.1.0-beta.2 Sleep Controls source candidate — 2026-11-02
+
+- One-shot Sleep Timer with visible countdown, cancellation, pre-sleep preparation and an owned idle-sleep hold until expiry.
+- Compact Timer/Awake controls with master switches, 36 pt presets, native Custom/Until wheels, explicit mode-replacement consent and exact-session action guards.
+- Confirmed preset identity survives extensions; Timer Custom commits after native popover closure.
+- A dedicated lid-only native backend, signed XPC boundary, durable journal, app lease and independent recovery guardian. Live admission is restricted to a separately signed trial capped at 120 seconds; physical behavior and restoration remain unqualified.
+- Shared-source laboratory flavor with isolated data, injected fixture controls and source-bound local packaging. Experimental Studio artifacts remain private.
+- Reproducible isolated trial preparation and stricter rejection of private laboratory paths in source exports.
+
+This is source only. It includes no app/DMG, helper enrollment or hardware-support certification. The public binary profile remains helper-free monitoring; trusted signing, notarization and device gates are separate.
+
 ## 0.1.0-beta.1 — Source Preview — 2026-10-31
 
 First source prerelease for Apple silicon and macOS 26.0+. This preview contains

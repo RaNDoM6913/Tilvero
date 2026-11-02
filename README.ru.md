@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.1.0-beta.1"><img src="https://img.shields.io/badge/source-preview-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Предварительная версия в исходниках" height="28"></a>
-  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.1.0-beta.1"><img src="https://img.shields.io/github/downloads/RaNDoM6913/Tilvero/v0.1.0-beta.1/Tilvero-0.1.0-beta.1-source.zip?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B&amp;label=source+downloads&amp;displayAssetName=false" alt="Скачивания ZIP исходников v0.1.0-beta.1" height="28"></a>
+  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.1.0-beta.1"><img src="https://img.shields.io/github/downloads/RaNDoM6913/Tilvero/v0.1.0-beta.2/Tilvero-0.1.0-beta.2-source.zip?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B&amp;label=source+downloads&amp;displayAssetName=false" alt="Скачивания ZIP исходников v0.1.0-beta.2" height="28"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Лицензия GPL-3.0-only" height="28"></a>
   <a href="https://github.com/RaNDoM6913/Tilvero/stargazers"><img src="https://img.shields.io/github/stars/RaNDoM6913/Tilvero?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B&amp;label=stars" alt="Звёзды GitHub" height="28"></a>
 </p>
@@ -13,7 +13,8 @@ Tilvero показывает состояние батареи и питания
 в удобном нативном окне. Следите за зарядкой, изучайте состояние батареи
 и изменения со временем. Без аккаунта и облачного сервиса.
 
-**Предварительная версия в исходниках для разработчиков.**
+**Последняя опубликованная версия исходников для разработчиков: beta.1.**
+Кандидат beta.2 с управлением сном проходит проверку; итоговые программные и физические проверки ещё не завершены.
 [Получить исходники](https://github.com/RaNDoM6913/Tilvero/releases/download/v0.1.0-beta.1/Tilvero-0.1.0-beta.1-source.zip)
 · [Описание выпуска и контрольные суммы](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.1.0-beta.1)
 · [Сборка и запуск](#сборка-и-запуск) · [План развития](ROADMAP.md)
@@ -103,6 +104,8 @@ Energy Impact macOS не реализовано. Закрытый доступ �
 версия для разработки со своими проверками допуска. Симуляция явно помечена
 **DEMO** и отделена от реальной истории. Подробности:
 [совместимость](docs/COMPATIBILITY.md) и [архитектура управления](Helper/README.md).
+
+В исходниках также есть отдельный контроллер закрытой крышки с журналом и независимым восстановлением. Он доступен только в отдельно подписанном ограниченном испытании; физическая работа с закрытой крышкой ещё не подтверждена. [Подготовка и оставшиеся проверки](docs/CLOSED_LID.md).
 
 ## Данные остаются на Mac
 

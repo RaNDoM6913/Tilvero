@@ -69,10 +69,12 @@ PY_PREFLIGHT
 fi
 swift_build -c release --product TilveroApp
 swift_build -c release --product TilveroHelper
+swift_build -c release --product TilveroLidHelper
 binary_directory="$(swift_build -c release --show-bin-path)"
 mkdir -p "$app_directory/Contents/MacOS" "$app_directory/Contents/Resources" "$app_directory/Contents/Library/HelperTools" "$app_directory/Contents/Library/LaunchDaemons"
 cp "$binary_directory/TilveroApp" "$app_directory/Contents/MacOS/TilveroApp"
 cp "$binary_directory/TilveroHelper" "$app_directory/Contents/Library/HelperTools/TilveroHelper"
+cp "$binary_directory/TilveroLidHelper" "$app_directory/Contents/Library/HelperTools/TilveroLidHelper"
 cp "$project_root/Config/Info.plist" "$app_directory/Contents/Info.plist"
 cp "$project_root/Config/LaunchDaemons/"*.plist "$app_directory/Contents/Library/LaunchDaemons/"
 cp "$project_root/Sources/TilveroApp/Resources/Localizable.xcstrings" "$app_directory/Contents/Resources/"
@@ -89,6 +91,7 @@ if [[ "$laboratory" == true ]]; then
 fi
 plutil -lint "$app_directory/Contents/Info.plist"
 codesign --force --sign - "$app_directory/Contents/Library/HelperTools/TilveroHelper"
+codesign --force --sign - "$app_directory/Contents/Library/HelperTools/TilveroLidHelper"
 codesign --force --sign - "$app_directory"
 codesign --verify --strict "$app_directory"
 if [[ "$laboratory" == true ]]; then

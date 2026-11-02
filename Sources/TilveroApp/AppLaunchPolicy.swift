@@ -4,11 +4,17 @@ import Foundation
 /// monitoring session into a controller session.
 struct AppLaunchPolicy: Equatable {
     static let knownBundleIdentifiers: Set<String> = [
-        "local.tilvero.prototype", "io.github.random6913.tilvero", "local.tilvero.lab"
+        "local.tilvero.prototype", "io.github.random6913.tilvero", "local.tilvero.lab", "local.tilvero.lidtrial"
     ]
     private enum Reason: Equatable { case release, requested, sibling, leaseUnavailable, simulation }
     private let reason: Reason?
+    private let lidTrialOnly: Bool
     var monitoringOnly: Bool { reason != nil }
+    /// The lid trial never admits charging, fans or the ordinary privileged helper.
+    /// Awake and the dedicated lid service still honor the original launch policy.
+    var ordinaryHardwarePolicy: Self {
+        lidTrialOnly && !monitoringOnly ? Self(reason: .release, lidTrialOnly: true) : self
+    }
     var monitoringReasonKey: String? {
         switch reason {
         case .release: "This build runs a monitoring-only session."
@@ -21,11 +27,13 @@ struct AppLaunchPolicy: Equatable {
     }
 
     static func resolve(metadata: [String: Any], arguments: [String] = [], runningBundleIdentifiers: Set<String> = []) -> Self {
-        if metadata["TilveroReleaseMode"] as? String == "monitoring" { return Self(reason: .release) }
-        if arguments.contains("--monitor-only") { return Self(reason: .requested) }
-        if arguments.contains("--demo") { return Self(reason: .simulation) }
-        if !knownBundleIdentifiers.isDisjoint(with: runningBundleIdentifiers) { return Self(reason: .sibling) }
-        return Self(reason: nil)
+        let trial = metadata["CFBundleIdentifier"] as? String == ReleaseIdentity.lidTrialBundleIdentifier
+        func policy(_ reason: Reason?) -> Self { Self(reason: reason, lidTrialOnly: trial) }
+        if metadata["TilveroReleaseMode"] as? String == "monitoring" { return policy(.release) }
+        if arguments.contains("--monitor-only") { return policy(.requested) }
+        if arguments.contains("--demo") { return policy(.simulation) }
+        if !knownBundleIdentifiers.isDisjoint(with: runningBundleIdentifiers) { return policy(.sibling) }
+        return policy(nil)
     }
 
     static func current(bundle: Bundle = .main, arguments: [String] = CommandLine.arguments) -> Self {
@@ -33,6 +41,6 @@ struct AppLaunchPolicy: Equatable {
     }
 
     func tighteningForUnavailableController() -> Self {
-        monitoringOnly ? self : Self(reason: .leaseUnavailable)
+        monitoringOnly ? self : Self(reason: .leaseUnavailable, lidTrialOnly: lidTrialOnly)
     }
 }

@@ -46,10 +46,36 @@ final class LaboratoryRuntimeTests: XCTestCase {
         XCTAssertThrowsError(try ReleaseIdentity(metadata: ["CFBundleIdentifier": "local.tilvero.prototype", "TilveroDataScope": "laboratory"]))
     }
 
+    func testLidTrialCannotSharePrototypeProductionOrCanonicalLabHistory() throws {
+        let metadata: [String: Any] = ["CFBundleIdentifier": "local.tilvero.lidtrial",
+            "TilveroDataScope": "lid-trial", "TilveroLidTrialHost": true]
+        let trial = try ReleaseIdentity(metadata: metadata)
+        let root = URL(fileURLWithPath: "/isolated/Application Support")
+        let policy = AppLaunchPolicy.resolve(metadata: metadata)
+        XCTAssertFalse(policy.monitoringOnly, "The dedicated lid trial retains its own qualified control route")
+        XCTAssertTrue(policy.ordinaryHardwarePolicy.monitoringOnly, "Native charging/fans/general helper remain monitoring-only")
+        XCTAssertTrue(policy.tighteningForUnavailableController().ordinaryHardwarePolicy.monitoringOnly)
+        XCTAssertFalse(AppLaunchPolicy.resolve(metadata: [:]).ordinaryHardwarePolicy.monitoringOnly)
+        XCTAssertTrue(trial.isLaboratory)
+        XCTAssertTrue(trial.isLidTrial)
+        XCTAssertFalse(trial.isProduction, "Trial must never enter prototype migration")
+        XCTAssertEqual(trial.historyURL(applicationSupport: root).path, "/isolated/Application Support/Tilvero/LidTrial/History.sqlite")
+        XCTAssertEqual(trial.reopenNotificationName.rawValue, "local.tilvero.lidtrial.showDetails")
+        for scope in ["prototype", "production", "laboratory"] {
+            var invalid = metadata; invalid["TilveroDataScope"] = scope
+            XCTAssertThrowsError(try ReleaseIdentity(metadata: invalid))
+        }
+        var noMarker = metadata; noMarker.removeValue(forKey: "TilveroLidTrialHost")
+        XCTAssertThrowsError(try ReleaseIdentity(metadata: noMarker))
+        XCTAssertTrue(AppLaunchPolicy.resolve(metadata: metadata, arguments: ["--monitor-only"]).monitoringOnly)
+        XCTAssertTrue(AppLaunchPolicy.resolve(metadata: metadata, runningBundleIdentifiers: ["local.tilvero.lab"]).monitoringOnly)
+        XCTAssertTrue(AppLaunchPolicy.resolve(metadata: [:], runningBundleIdentifiers: ["local.tilvero.lidtrial"]).monitoringOnly)
+    }
+
     func testLaunchPolicyOnlyTightensAcrossArgumentsAndKnownRunningVariants() {
         let lab: [String: Any] = ["CFBundleIdentifier": "local.tilvero.lab", "TilveroDataScope": "laboratory"]
         XCTAssertFalse(AppLaunchPolicy.resolve(metadata: lab).monitoringOnly)
-        for identifier in ["local.tilvero.prototype", "io.github.random6913.tilvero", "local.tilvero.lab"] {
+        for identifier in ["local.tilvero.prototype", "io.github.random6913.tilvero", "local.tilvero.lab", "local.tilvero.lidtrial"] {
             let policy = AppLaunchPolicy.resolve(metadata: lab, runningBundleIdentifiers: [identifier])
             XCTAssertTrue(policy.monitoringOnly, identifier)
             XCTAssertNotNil(policy.monitoringReasonKey)

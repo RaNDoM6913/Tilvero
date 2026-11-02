@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.1.0-beta.1"><img src="https://img.shields.io/badge/source-preview-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Source preview" height="28"></a>
-  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.1.0-beta.1"><img src="https://img.shields.io/github/downloads/RaNDoM6913/Tilvero/v0.1.0-beta.1/Tilvero-0.1.0-beta.1-source.zip?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B&amp;label=source+downloads&amp;displayAssetName=false" alt="Downloads of the v0.1.0-beta.1 source ZIP" height="28"></a>
+  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.1.0-beta.1"><img src="https://img.shields.io/github/downloads/RaNDoM6913/Tilvero/v0.1.0-beta.2/Tilvero-0.1.0-beta.2-source.zip?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B&amp;label=source+downloads&amp;displayAssetName=false" alt="Downloads of the v0.1.0-beta.2 source ZIP" height="28"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="License: GPL-3.0-only" height="28"></a>
   <a href="https://github.com/RaNDoM6913/Tilvero/stargazers"><img src="https://img.shields.io/github/stars/RaNDoM6913/Tilvero?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B&amp;label=stars" alt="GitHub stars" height="28"></a>
 </p>
@@ -13,7 +13,8 @@ Tilvero puts battery and power information in your menu bar, with a clear native
 window when you want the details. Follow charging, inspect battery health and
 understand changes over time, without an account or a cloud service.
 
-**Source preview for developers.**
+**Latest published source preview for developers: beta.1.**
+The beta.2 Sleep-controls source candidate is under review; its final software and device gates remain open.
 [Get the source](https://github.com/RaNDoM6913/Tilvero/releases/download/v0.1.0-beta.1/Tilvero-0.1.0-beta.1-source.zip)
 · [Release notes and checksums](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.1.0-beta.1)
 · [Build and run](#build-and-run) · [Roadmap](ROADMAP.md)
@@ -31,6 +32,7 @@ separately gated development controls. [Availability and installation](docs/INST
 | Power and charging | Battery power, reported system load and adapter input/capability kept distinct; system charge-limit readback |
 | Application activity | Searchable process activity, CPU load, CPU energy/power estimates, wakeups and disk I/O, with partial coverage made visible |
 | History and reports | Local charts, minute samples, hourly summaries and previewable CSV/JSON exports; gaps stay visible |
+| Sleep Timer and Awake | One-shot sleep timers, compact preset controls and native Custom/Until editors in development builds |
 | Sleep & drain | App-observed sleep/wake intervals and current sleep blockers, with incomplete evidence clearly marked |
 | A panel that fits | Rearrange or hide blocks, choose Russian or English, and adjust menu bar text and icon size |
 
@@ -95,6 +97,8 @@ saved modes and a native charge controller. Saving a plan does not apply it.
 Native charge changes require a local per-Mac setting/readback/restoration check;
 one-time full charging has an additional gate. Privileged charging, power-mode
 and fan writes remain unqualified. Fans default to System Auto.
+
+The source also includes a separate lid-only controller and recovery guardian. It is gated behind a separately signed, bounded trial; physical closed-lid operation is not yet qualified. [Closed-lid development and recovery](docs/CLOSED_LID.md) describes the source, preparation route and remaining device checks.
 
 The future Monitoring Preview configuration disables Keep Mac Awake and control
 actions and contains no privileged helper. A default source build is a development

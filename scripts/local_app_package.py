@@ -66,7 +66,7 @@ def staging_path(root, output=None):
 def source_inputs(root):
     paths = {
         root / name for name in (
-            "Package.swift", "Config/Info.plist", "Assets/AppIcon.icns", "LICENSE", "COPYRIGHT",
+            "Package.swift", "Config/Info.plist", "Config/TilveroLidHelper-Info.plist", "Assets/AppIcon.icns", "LICENSE", "COPYRIGHT",
             "THIRD_PARTY_NOTICES.md", "scripts/build-local-app.sh", "scripts/build-lab-app.sh",
             "scripts/local_app_package.py", "scripts/toolchain.sh",
         )
@@ -133,6 +133,7 @@ def capture(root, app, binary_directory):
 
     bind(binary_directory / "TilveroApp", "Contents/MacOS/TilveroApp")
     bind(binary_directory / "TilveroHelper", "Contents/Library/HelperTools/TilveroHelper")
+    bind(binary_directory / "TilveroLidHelper", "Contents/Library/HelperTools/TilveroLidHelper")
     for source in sorted((root / "Config/LaunchDaemons").glob("*.plist")):
         bind(source, "Contents/Library/LaunchDaemons/" + source.name)
     bind(root / "Sources/TilveroApp/Resources/Localizable.xcstrings", "Contents/Resources/Localizable.xcstrings")
@@ -151,7 +152,7 @@ def capture(root, app, binary_directory):
             raise PackageError("Packaged SwiftPM resource bundle differs from its build input: " + resource.name)
         for name in source_files:
             bind(resource / name, "Contents/Resources/" + resource.name + "/" + name)
-    # Signing can change the two Mach-O executables, but never copied resources
+    # Signing can change the three bound Mach-O executables, but never copied resources
     # or the configured bundle identity.
     before_signing = bundle_files(app)
     write_json(app.parent / "copied-inputs.json", {"copiedInputs": copies, "beforeSigning": before_signing})
@@ -161,7 +162,8 @@ def finish(root, app):
     inputs = verify_sources(root, app)
     copied = json.loads((app.parent / "copied-inputs.json").read_text())
     packaged = bundle_files(app)
-    executables = {"Contents/MacOS/TilveroApp", "Contents/Library/HelperTools/TilveroHelper"}
+    executables = {"Contents/MacOS/TilveroApp", "Contents/Library/HelperTools/TilveroHelper",
+                   "Contents/Library/HelperTools/TilveroLidHelper"}
     for name, digest in copied["beforeSigning"].items():
         if name not in executables and packaged.get(name) != digest:
             raise PackageError("Packaged resource changed after copy: " + name)

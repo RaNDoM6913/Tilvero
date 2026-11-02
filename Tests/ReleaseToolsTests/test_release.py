@@ -16,13 +16,14 @@ class ReleaseTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.config = json.loads((ROOT/'Config/Release.json').read_text())
+        self.release_name = self.config['tag'].removeprefix('v')
 
     def manifest(self,assets):
         import zipfile
         if not any(x['name'].endswith('.dmg') for x in assets):
-            p=self.root/'Tilvero-0.1.0-beta.1-arm64-TEST.dmg';p.write_bytes(b'image');assets.append(release.asset_record(p))
+            p=self.root/f'Tilvero-{self.release_name}-arm64-TEST.dmg';p.write_bytes(b'image');assets.append(release.asset_record(p))
         if not any(x['name'].endswith('-source.zip') for x in assets):
-            p=self.root/'Tilvero-0.1.0-beta.1-source.zip'
+            p=self.root/f'Tilvero-{self.release_name}-source.zip'
             with zipfile.ZipFile(p,'w') as z:
                 z.comment=b'a'*40;z.writestr('Tilvero/LICENSE','fixture')
             assets.append(release.asset_record(p))
@@ -32,7 +33,7 @@ class ReleaseTests(unittest.TestCase):
     def app(self):
         app = self.root/'Tilvero.app'; (app/'Contents/MacOS').mkdir(parents=True)
         exe = app/'Contents/MacOS/TilveroApp'; exe.write_bytes(b'fixture'); exe.chmod(0o755)
-        info = dict(CFBundleIdentifier=self.config['bundleID'], CFBundleExecutable='TilveroApp', CFBundleShortVersionString='0.1.0',CFBundleVersion='1',LSMinimumSystemVersion='26.0',CFBundleIconFile='AppIcon',TilveroDataScope='production',TilveroReleaseMode='monitoring')
+        info = dict(CFBundleIdentifier=self.config['bundleID'], CFBundleExecutable='TilveroApp', CFBundleShortVersionString=self.config['version'],CFBundleVersion=self.config['build'],LSMinimumSystemVersion='26.0',CFBundleIconFile='AppIcon',TilveroDataScope='production',TilveroReleaseMode='monitoring')
         (app/'Contents/Info.plist').write_bytes(plistlib.dumps(info))
         for p in release.REQUIRED_RESOURCES:
             dest = app/'Contents/Resources'/p; dest.parent.mkdir(parents=True,exist_ok=True); dest.write_bytes(b'fixture')
@@ -118,7 +119,7 @@ class ReleaseTests(unittest.TestCase):
 
     def test_wrong_source_zip_commit_rejected(self):
         import zipfile
-        payload=self.root/'Tilvero-0.1.0-beta.1-source.zip'
+        payload=self.root/f'Tilvero-{self.release_name}-source.zip'
         with zipfile.ZipFile(payload,'w') as z:
             z.comment=b'b'*40;z.writestr('Tilvero/LICENSE','fixture')
         manifest=self.manifest([release.asset_record(payload)])
@@ -135,12 +136,12 @@ class ReleaseTests(unittest.TestCase):
 
     def test_reused_build_and_nonempty_output_are_rejected(self):
         p=self.root/'build/releases/old';p.mkdir(parents=True)
-        (p/'release.json').write_text(json.dumps(dict(build='1',tag='v0.1.0-beta.1')))
+        (p/'release.json').write_text(json.dumps(dict(build=self.config['build'],tag=self.config['tag'])))
         with self.assertRaisesRegex(release.ReleaseError,'build'):
             release.check_prior_builds(self.root,self.config)
 
     def test_manifest_detects_changed_asset_and_untrusted_public_claim(self):
-        payload=self.root/'Tilvero-0.1.0-beta.1-arm64-TEST.dmg';payload.write_bytes(b'image')
+        payload=self.root/f'Tilvero-{self.release_name}-arm64-TEST.dmg';payload.write_bytes(b'image')
         manifest=self.manifest([release.asset_record(payload)])
         path=self.root/'release.json';path.write_text(json.dumps(manifest));release.verify_records(path)
         payload.write_bytes(b'tampered')
