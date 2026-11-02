@@ -40,4 +40,18 @@ The shared clamshell bit has no exact mask reader. Same-value/context ABA, queue
 
 The owner must separately admit a bounded trial with baseline/restoration records, normal macOS service approval and physical lid participation. Before claiming support, verify exact signed positive/negative peers, fresh native baseline, actual closed-lid behavior, Stop, exact Awake-owner loss, expiry, app/helper crash and independent guardian restoration, then ordinary Sleep after clearing the override. Confirm final original state and preserve any unresolved result.
 
+## Owner participation
+
+The trial needs separate admission to use the exact existing signing identity, place the isolated trial bundle under `/Applications`, register its two dedicated jobs and execute the bounded physical checks. Passwords or Touch ID approval stay in normal macOS UI; they are never supplied to the agent.
+
+Save current work and use a hard, ventilated surface. For the first trial, keep the power source stable (AC is convenient but not a code requirement), disconnect external displays and avoid another utility owning a lid override. Other Tilvero instances must be stopped normally before the trial takes its controller lease.
+
+The actual control lives in the **menu bar compact panel**, not the full detail Awake page: **Sleep → Keep Awake → Settings → Enable helper / macOS Settings**. Approve the dedicated services in macOS Login Items when requested. Signed positive/negative peer checks and both guardian/controller jobs must be verified before applying the lid override.
+
+For the first baseline, close and reopen the lid while the override is off; the Mac may sleep/wake. A fresh native baseline is valid for only five seconds. After readiness is established, start Awake and enable **With lid closed** promptly; a refused baseline must be refreshed normally. On instruction, close the lid briefly, reopen before the 120-second deadline and switch the lid mode off once. The recorder must establish actual continuity, clear acceptance and a new native restoration witness.
+
+Use separate bounded trials for ending the exact Awake owner, expiry with the lid closed, trial-app loss, controller loss with a live guardian and guardian restart. Confirm restoration between trials, then ordinary Sleep after clear and final original state. The owner physically closes/opens the lid and confirms observed sleep/wake; the agent handles only the explicitly admitted trial processes.
+
+If restoration stays unknown, open the lid, stop the series and preserve the services/journal for diagnosis. Use Stop/Check restoration once rather than repeating ambiguous writes. If normal recovery cannot be confirmed, save work and use a normal Apple-menu restart, then read-only verification; reboot is not a successful restoration test. Do not clear global sleep settings or delete the recovery journal.
+
 Default tests, local ad-hoc integrity and a source ZIP satisfy none of those physical/signing gates. The helper-free Monitoring Preview distribution remains separate; see [compatibility](COMPATIBILITY.md), [testing](TESTING.md) and [releasing](RELEASING.md).

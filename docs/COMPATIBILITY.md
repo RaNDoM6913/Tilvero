@@ -67,7 +67,7 @@ privileged qualification gate. See the [helper architecture](../Helper/README.md
 
 ## Validation and distribution
 
-The earlier integrated Sleep-controls source snapshot passed **554 Swift tests**. The final source candidate built SwiftPM Release and Xcode Debug bundles and passed **61 Python release-tool tests**, but its complete **557-test Swift run failed with 8 existing migration-journal errors**. A standalone Foundation probe reproduces the protected-file reopen failure outside Tilvero. The final software gate remains unresolved; earlier passing evidence is not substituted for it. These results apply to the recorded source milestone, not automatically
+The Sleep-controls source milestone passed the complete **557 Swift tests and 61 Python release-tool tests**, built SwiftPM Release and Xcode Debug bundles, and verified local ad-hoc integrity. An earlier complete run failed eight protected migration-journal operations; a standalone Foundation probe reproduced unavailable Class B reopen/read operations. A later unchanged-source run passed after those protected operations became available, with the same protection class and `0600` permissions. The precise external authentication/system transition remains unknown. These results apply to the recorded source milestone, not automatically
 to a later release commit. [Testing and validation](TESTING.md) summarizes public coverage and its limits.
 
 **Implemented** means code exists. **Fixture-tested** means deterministic inputs

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — 0.1.0-beta.2 Sleep Controls source candidate — 2026-11-02
+## 0.1.0-beta.2 — Sleep Controls Source Preview — 2026-11-02
 
 - One-shot Sleep Timer with visible countdown, cancellation, pre-sleep preparation and an owned idle-sleep hold until expiry.
 - Compact Timer/Awake controls with master switches, 36 pt presets, native Custom/Until wheels, explicit mode-replacement consent and exact-session action guards.

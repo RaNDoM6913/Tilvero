@@ -4,11 +4,11 @@ Tilvero has two distinct distribution routes: the first **Source Preview** and a
 
 ## Source Preview
 
-The planned Sleep-controls source prerelease uses `v0.1.0-beta.2` (build 2); the original `v0.1.0-beta.1` remains immutable. It targets developers building on Apple silicon with macOS 26 or later and a compatible full Xcode installation. It includes no `.app`, helper executable or DMG. Its source tree contains gated development controls as well as monitoring; a normal development build is distinct from the future monitoring-only package.
+The Sleep-controls source prerelease uses `v0.1.0-beta.2` (build 2); the original `v0.1.0-beta.1` remains immutable. It targets developers building on Apple silicon with macOS 26 or later and a compatible full Xcode installation. It includes no `.app`, helper executable or DMG. Its source tree contains gated development controls as well as monitoring; a normal development build is distinct from the future monitoring-only package.
 
 The source profile's exact upload allowlist is:
 
-- `Tilvero-0.1.0-beta.1-source.zip`
+- `Tilvero-0.1.0-beta.2-source.zip`
 - `source-release.json`
 - `SHA256SUMS`
 
