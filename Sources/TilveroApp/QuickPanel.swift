@@ -45,9 +45,8 @@ struct QuickPanel: View {
                 if model.isDemo { Text(L10n.text("Simulation")).font(.caption).foregroundStyle(.secondary) }
                 settingsMenu
             }
-            Picker(L10n.text("Battery menu"), selection: $section) {
-                ForEach(QuickPanelSection.allCases) { StudioText($0.title, id: "quick.tab." + $0.rawValue).tag($0) }
-            }.pickerStyle(.segmented).labelsHidden().id(L10n.language)
+            QuickPanelTabs(selection: $section)
+                .frame(maxWidth: .infinity).id(L10n.language)
                 .studioElement("quick.tabs", label: "Quick menu destinations")
             Group {
                 switch section {

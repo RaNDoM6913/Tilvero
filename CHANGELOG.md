@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — local build 3
+
+- Use the same native full-width segmented control in production and Lab for both quick-menu destinations and Timer/Awake tabs; keep equal segments, aligned edges, accessibility and typed navigation.
+
 ## 0.1.0-beta.2 — Sleep Controls Source Preview — 2026-11-02
 
 - One-shot Sleep Timer with visible countdown, cancellation, pre-sleep preparation and an owned idle-sleep hold until expiry.

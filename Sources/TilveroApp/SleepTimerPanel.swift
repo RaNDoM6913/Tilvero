@@ -54,9 +54,14 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
     private var presentedPage: SleepPage { pageSelection.wrappedValue }
     var body: some View {
         VStack(alignment: .leading, spacing: compact ? 14 : 18) {
-            Picker(L10n.text("Sleep"), selection: pageSelection) {
-                ForEach(compact ? [.timer, .awake] : SleepPage.allCases) { item in StudioText(item.title, id: "sleep.tab." + item.rawValue).tag(item) }
-            }.pickerStyle(.segmented).labelsHidden().frame(maxWidth: compact ? .infinity : 480, alignment: .leading).studioElement("sleep.tabs", label: "Sleep destinations")
+            Group {
+                if compact { CompactSleepTabs(selection: pageSelection).id(L10n.language) }
+                else {
+                    Picker(L10n.text("Sleep"), selection: pageSelection) {
+                        ForEach(SleepPage.allCases) { item in StudioText(item.title, id: "sleep.tab." + item.rawValue).tag(item) }
+                    }.pickerStyle(.segmented).labelsHidden()
+                }
+            }.frame(maxWidth: compact ? .infinity : 480, alignment: .leading).studioElement("sleep.tabs", label: "Sleep destinations")
             let page = presentedPage
             switch page {
             case .timer:
