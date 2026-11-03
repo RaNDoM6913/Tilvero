@@ -111,7 +111,7 @@ final class NativeBatteryStatusImageTests: XCTestCase {
         XCTAssertEqual(NativeStatusPresentation.percentageTitle(level: 100, locale: Locale(identifier: "ru_RU")), "100\u{00A0}%")
         XCTAssertEqual(NativeStatusPresentation.percentageTitle(level: 100, locale: Locale(identifier: "en_US")), "100%")
         XCTAssertEqual(NativeStatusPresentation.percentageTitle(level: 0, locale: Locale(identifier: "ru_RU")), "0\u{00A0}%")
-        for level in [nil, -1, 101] {
+        for level in [nil, -1, 101, 1000] {
             XCTAssertEqual(NativeStatusPresentation.percentageTitle(level: level), "—")
         }
     }
@@ -142,7 +142,7 @@ final class NativeBatteryStatusImageTests: XCTestCase {
                 let unknown = pixels(NativeBatteryStatusImage.make(level: nil, style: style, externalPower: externalPower))
                 let zero = pixels(NativeBatteryStatusImage.make(level: 0, style: style, externalPower: externalPower))
                 XCTAssertNotEqual(unknown, zero, "An unavailable value must not appear as an empty measured battery.")
-                for invalid in [-1, 101] {
+                for invalid in [-1, 101, 1000] {
                     XCTAssertEqual(pixels(NativeBatteryStatusImage.make(level: invalid, style: style, externalPower: externalPower)), unknown)
                 }
             }
@@ -448,7 +448,7 @@ final class NativeBatteryStatusImageTests: XCTestCase {
             for ac in [false, true] {
                 let baseline = NativeBatteryStatusImage.make(level: 90, style: .inside, externalPower: ac,
                     textSize: size, appearance: .macOS27)
-                for level: Int? in (0...99).map(Optional.some) + [nil, -1, 101] {
+                for level: Int? in (0...99).map(Optional.some) + [nil, -1, 101, 1000] {
                     let image = NativeBatteryStatusImage.make(level: level, style: .inside, externalPower: ac,
                         textSize: size, appearance: .macOS27)
                     XCTAssertEqual(image.size, baseline.size,
@@ -458,34 +458,121 @@ final class NativeBatteryStatusImageTests: XCTestCase {
         }
     }
 
-    func testModernThreeDigitsKeepTheSameLegibleTypeSize() throws {
-        for textSize in MenuBarTextSize.allCases {
+    func testModernFullChargeKeepsTheNativeBodyAndUsesCompactLegibleNumerals() throws {
+        for size in MenuBarTextSize.allCases {
             for ac in [false, true] {
-                let two = NativeBatteryStatusImage.make(level: 90, style: .inside, externalPower: ac, textSize: textSize, appearance: .macOS27)
-                let three = NativeBatteryStatusImage.make(level: 100, style: .inside, externalPower: ac, textSize: textSize, appearance: .macOS27)
-                XCTAssertGreaterThan(three.size.width, two.size.width,
-                                     "Reserve space for the extra digit instead of shrinking 100.")
-                for scale in [1, 2] {
-                    func cutoutHeight(_ image: NSImage, right: CGFloat) -> Int {
-                        let rep = render(image, scale: scale)
-                        let ys = (4 * scale..<14 * scale).filter { y in
-                            // Include visible antialias coverage: regular 1× curves
-                            // need not contain a near-transparent core on each row.
-                            (4 * scale..<Int(right * CGFloat(scale))).contains { x in rep.colorAt(x: x, y: y)!.alphaComponent < 0.6 }
-                        }
-                        return (ys.max() ?? 0) - (ys.min() ?? 0) + 1
-                    }
-                    // The interior ranges exclude reservoir corners, contact and
-                    // the independent AC cue. Compare actual painted cap height.
-                    let twoRight: CGFloat = ac ? 16 : 20
-                    let threeRight = twoRight + three.size.width - two.size.width
-                    let twoHeight = cutoutHeight(two, right: twoRight)
-                    XCTAssertGreaterThanOrEqual(twoHeight, 6 * scale - 1)
-                    XCTAssertEqual(cutoutHeight(three, right: threeRight), twoHeight, accuracy: 1,
-                                   "\(textSize), AC \(ac), backing scale \(scale)")
+                let two = NativeBatteryStatusImage.make(level: 90, style: .inside, externalPower: ac,
+                    textSize: size, appearance: .macOS27)
+                let full = NativeBatteryStatusImage.make(level: 100, style: .inside, externalPower: ac,
+                    textSize: size, appearance: .macOS27)
+                // The rejected build widened 100 by 5 pt to preserve an assumed
+                // font size. The owner's same-value native reference supersedes
+                // that assumption: its body remains 46×24 physical pixels.
+                XCTAssertEqual(full.size, two.size, "A full reading must not elongate the native battery body.")
+                if size == .system {
+                    XCTAssertEqual(full.size.width, 29)
+                    let rep = render(full, scale: 2, appearance: .darkAqua)
+                    let body = occupied(rep, threshold: 0.7).filter { $0.x < 48 }
+                    XCTAssertEqual(body.map(\.x).max()! - body.map(\.x).min()! + 1, 46)
+                    XCTAssertEqual(body.map(\.y).max()! - body.map(\.y).min()! + 1, 24)
                 }
             }
         }
+    }
+
+    func testModern100MatchesTheSameReadingNativeReferenceComponents() throws {
+        guard ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27 else { return }
+        // Owner's RIGHT native 100 + AC, aligned to a 58×36 px canvas at 2×.
+        // Relative coverage uses its own full-fill foreground and sampled
+        // backdrop in linear sRGB. This bounds the measured typography/cue and
+        // contact; screenshot appearance metadata and exact compositor are unknown.
+        let text = """
+            ffffffffffffffffffffffffffffffff
+            ffffffffffffffffffffffffffffffff
+            fffffffffffffd99cffffffffb8aefff
+            ffff6118ffff711113effffd211119ff
+            ffd31117fffa1111115ffff3111111df
+            fd111117fff212df511bff8118fc113f
+            fc12b217ffb11affe215ff313fff711e
+            fe7ef217ff812ffff513ff218fffe11b
+            fffff217ff613ffff712ff11affff118
+            fffff217ff414ffff911fd11cffff217
+            fffff217ff613ffff712ff11affff118
+            fffff217ff812ffff513ff218fffe11b
+            fffff217ffb11afff215ff313fff711e
+            fffff217fff212ef511bff8118fc113f
+            fffff217fffa1111115ffff3111111df
+            fffff318ffff711113effffd211119ff
+            fffffffffffffeabcffffffffbaaefff
+            ffffffffffffffffffffffffffffffff
+            """
+        let cue = """
+            ffffffffff
+            ffffffffff
+            ffffffffff
+            fffffff66f
+            ffffff81af
+            fffffb12ff
+            efffd116ff
+            bffe211bdd
+            8ff4111111
+            7f81111114
+            8ffddb112e
+            bffff611df
+            effff21bff
+            ffffa18fff
+            ffff66ffff
+            ffffffffff
+            ffffffffff
+            ffffffffff
+            """
+        let contact = """
+            000000
+            051000
+            066100
+            066300
+            066500
+            066500
+            066300
+            066100
+            051000
+            000000
+            """
+        let actual = render(NativeBatteryStatusImage.make(level: 100, style: .inside, externalPower: true,
+            textSize: .system, appearance: .macOS27), scale: 2, appearance: .darkAqua)
+        let referenceCoverage = text.filter { !$0.isWhitespace }.map { CGFloat(Int(String($0), radix: 16)!) / 15 }
+        let referenceStrokeMass = referenceCoverage.reduce(CGFloat.zero) { $0 + 1 - $1 }
+        let actualStrokeMass = (9..<27).reduce(CGFloat.zero) { total, y in
+            total + (4..<36).reduce(CGFloat.zero) { $0 + 1 - actual.colorAt(x: $1, y: y)!.alphaComponent }
+        }
+        XCTAssertGreaterThan(actualStrokeMass / referenceStrokeMass, 0.9,
+                             "Compact numerals must retain the native stroke density, not merely their outer bounds.")
+        XCTAssertLessThan(actualStrokeMass / referenceStrokeMass, 1.1)
+        func error(_ reference: String, x: Range<Int>, y: Range<Int>) -> CGFloat {
+            let coverage = reference.filter { !$0.isWhitespace }.map { CGFloat(Int(String($0), radix: 16)!) / 15 }
+            let pixels = y.flatMap { yy in x.map { xx in actual.colorAt(x: xx, y: yy)!.alphaComponent } }
+            XCTAssertEqual(coverage.count, pixels.count)
+            return zip(coverage, pixels).reduce(0) { $0 + abs($1.0 - $1.1) } / CGFloat(pixels.count)
+        }
+        XCTAssertLessThan(error(text, x: 4..<36, y: 9..<27), 0.105,
+                          "100 must fit the measured compact native numeral region without stretching its glyphs.")
+        XCTAssertLessThan(error(cue, x: 35..<45, y: 9..<27), 0.075,
+                          "At full charge the native AC cue is smaller and farther right, separate from the last zero.")
+        XCTAssertLessThan(error(contact, x: 49..<55, y: 13..<23), 0.075,
+                          "Light ink needs the native secondary contact coverage, not the rejected bright contact.")
+    }
+
+    func testModernSameImageAdaptsContactCoverageToItsDrawingAppearance() throws {
+        let image = NativeBatteryStatusImage.make(level: 100, style: .inside, externalPower: true,
+            textSize: .system, appearance: .macOS27)
+        func peak(_ name: NSAppearance.Name) -> CGFloat {
+            let rep = render(image, scale: 2, appearance: name)
+            return (13..<23).flatMap { y in (49..<55).map { x in rep.colorAt(x: x, y: y)!.alphaComponent } }.max()!
+        }
+        let aqua = peak(.aqua), dark = peak(.darkAqua)
+        XCTAssertGreaterThan(aqua, 0.7, "Preserve the measured dark-ink 98 contact coverage.")
+        XCTAssertLessThan(dark, 0.55, "Light ink requires a secondary contact on the same cached image.")
+        XCTAssertEqual(peak(.aqua), aqua, "A drawing-context change must not poison the cached native mask.")
     }
 
     func testModernAppearanceFitsEveryMeasuredAndUnavailableStateAtSupportedScales() throws {
@@ -495,7 +582,7 @@ final class NativeBatteryStatusImageTests: XCTestCase {
                     let zero = NativeBatteryStatusImage.make(level: 0, style: style, externalPower: ac, scale: scale, appearance: .macOS27)
                     let unknown = NativeBatteryStatusImage.make(level: nil, style: style, externalPower: ac, scale: scale, appearance: .macOS27)
                     XCTAssertNotEqual(pixels(zero), pixels(unknown), "Unavailable data must never become a measured zero.")
-                    for invalid in [-1, 101] {
+                    for invalid in [-1, 101, 1000] {
                         XCTAssertEqual(pixels(NativeBatteryStatusImage.make(level: invalid, style: style, externalPower: ac, scale: scale, appearance: .macOS27)), pixels(unknown))
                     }
                     for level in [0, 10, 90, 100, nil] {

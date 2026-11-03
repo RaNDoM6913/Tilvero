@@ -69,7 +69,7 @@ enum NativeBatteryStatusImage {
                      awake: KeepAwakeStatusIndicator = .off, highlighted: Bool = false, appearance: MenuBarBatteryAppearance = .macOS26) -> NSImage {
         let inside = style == .inside
         let validLevel = ReadingPresentation.validLevel(level)
-        let modernExtension = appearance == .macOS27 && inside ? modernBodyExtension(level: validLevel, textSize: textSize) : 0
+        let modernExtension = appearance == .macOS27 && inside ? modernBodyExtension(textSize: textSize) : 0
         let batteryWidth: CGFloat = appearance == .macOS27 ? 29 + CGFloat(modernExtension) : inside ? 35 : 27
         let canvas = NSSize(width: batteryWidth + (awake == .off ? 0 : 10), height: 18)
         let factor = CGFloat(MenuBarSizing.validatedIconScale(Double(scale)))
@@ -134,8 +134,11 @@ enum NativeBatteryStatusImage {
         drawFallbackNormal(level: level, externalPower: externalPower)
     }
 
-    private static func modernFont(_ size: MenuBarTextSize) -> NSFont {
-        NSFont.systemFont(ofSize: size == .system ? 10 : 11, weight: .regular)
+    private static func modernFont(_ size: MenuBarTextSize, compactFullCharge: Bool = false) -> NSFont {
+        // The native 100 reference fits smaller public system numerals into the
+        // same body. Preserve the measured 0...99 typography independently.
+        let pointSize: CGFloat = compactFullCharge ? (size == .system ? 9.25 : 10.25) : (size == .system ? 10 : 11)
+        return NSFont.systemFont(ofSize: pointSize, weight: compactFullCharge ? .medium : .regular)
     }
 
     private static let modernTwoDigitCapacity: [MenuBarTextSize: CGFloat] =
@@ -147,14 +150,16 @@ enum NativeBatteryStatusImage {
             return (size, capacity)
         })
 
-    private static func modernBodyExtension(level: Int?, textSize: MenuBarTextSize) -> Int {
-        let value = (level.map(String.init) ?? "—") as NSString
-        let width = value.size(withAttributes: [.font: modernFont(textSize)]).width
-        // Reserve a stable two-digit capacity: proportional advances such as
-        // 98 versus 90 must not add a point or move adjacent status items.
-        // Keep the same type size for 100 and reserve its additional advance.
-        let capacity = max(width, modernTwoDigitCapacity[textSize]!)
-        return max(0, Int(ceil(capacity - modernTwoDigitCapacity[.system]!)))
+    private static func modernBodyExtension(textSize: MenuBarTextSize) -> Int {
+        // Only the explicit larger-text option reserves additional space. Full
+        // charge keeps the same native body as every other measured reading.
+        max(0, Int(ceil(modernTwoDigitCapacity[textSize]! - modernTwoDigitCapacity[.system]!)))
+    }
+
+    private static var modernContactOpacity: CGFloat {
+        // The owner's dark- and light-ink references have different secondary
+        // contact coverage. Resolve it at draw time, like the numeral cutouts.
+        NSAppearance.currentDrawing().bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? 0.45 : 0.8
     }
 
     private static var modernCutoutOpacity: CGFloat {
@@ -166,8 +171,9 @@ enum NativeBatteryStatusImage {
 
     private static func drawModern(level: Int?, style: MenuBarDisplayStyle, externalPower: Bool, textSize: MenuBarTextSize, bodyExtension: Int) {
         let extra = CGFloat(bodyExtension)
+        let compactFullCharge = style == .inside && level == 100
         let density = max(1, min(8, Int((NSGraphicsContext.current?.cgContext.ctm.a ?? 2).magnitude.rounded())))
-        if let native = SystemBatterySymbol.makeFilled(level: level, density: density, contactOpacity: 0.8, bodyExtension: bodyExtension, contactInset: 0.5) {
+        if let native = SystemBatterySymbol.makeFilled(level: level, density: density, contactOpacity: modernContactOpacity, bodyExtension: bodyExtension, contactInset: 0.5) {
             let offset = floor(1.5 * CGFloat(density)) / CGFloat(density)
             native.draw(at: NSPoint(x: -offset, y: -3), from: .zero, operation: .sourceOver, fraction: 1)
         } else {
@@ -175,27 +181,36 @@ enum NativeBatteryStatusImage {
             NSColor.black.withAlphaComponent(0.2).setFill()
             NSBezierPath(roundedRect: body, xRadius: 3.5, yRadius: 3.5).fill()
             drawFill(level: level, in: body, radius: 3.5)
-            NSColor.black.withAlphaComponent(0.8).setFill()
+            NSColor.black.withAlphaComponent(modernContactOpacity).setFill()
             NSBezierPath(roundedRect: NSRect(x: 25 + extra, y: 7, width: 1.5, height: 4), xRadius: 0.75, yRadius: 0.75).fill()
         }
         if style == .inside {
-            drawModernText(level.map(String.init) ?? "—", centeredAt: NSPoint(x: (externalPower ? 10 : 12.5) + extra / 2, y: 9), font: modernFont(textSize))
+            drawModernText(level.map(String.init) ?? "—", centeredAt: NSPoint(x: (externalPower ? (compactFullCharge ? 10.5 : 10) : 12.5) + extra / 2, y: 9),
+                           font: modernFont(textSize, compactFullCharge: compactFullCharge))
         } else if level == nil {
             drawModernText("—", centeredAt: NSPoint(x: externalPower ? 10 : 12.5, y: 9), font: modernFont(textSize))
         }
         if externalPower {
             guard let marker = NSImage(systemSymbolName: "bolt.fill", accessibilityDescription: nil)?
-                .withSymbolConfiguration(.init(pointSize: 7.5, weight: .regular)) else { return }
-            let centreX: CGFloat = style == .inside || level == nil ? 19.5 + extra : 12.5
-            marker.draw(at: NSPoint(x: centreX - marker.size.width / 2, y: 9.25 - marker.size.height / 2),
+                .withSymbolConfiguration(.init(pointSize: compactFullCharge ? 6 : 7.5, weight: .regular)) else { return }
+            let centreX: CGFloat = style == .inside || level == nil ? (compactFullCharge ? 21 : 19.5) + extra : 12.5
+            let centreY: CGFloat = compactFullCharge ? 9 : 9.25
+            marker.draw(at: NSPoint(x: centreX - marker.size.width / 2, y: centreY - marker.size.height / 2),
                         from: .zero, operation: .xor, fraction: modernCutoutOpacity)
         }
     }
 
     private static func drawModernText(_ value: String, centeredAt point: NSPoint, font: NSFont) {
         let string = value as NSString
-        let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.black]
-        let dimensions = string.size(withAttributes: attributes)
+        var attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.black]
+        var dimensions = string.size(withAttributes: attributes)
+        if value == "100" {
+            // Match the native compact numeral spacing without distorting glyphs.
+            // Center by the two inter-digit gaps, excluding NSString's trailing kern.
+            let tracking = -0.5 * font.pointSize / 9.25
+            attributes[.kern] = tracking
+            dimensions.width += 2 * tracking
+        }
         let image = NSImage(size: dimensions, flipped: false) { _ in
             string.draw(at: .zero, withAttributes: attributes)
             return true

@@ -43,7 +43,7 @@ import AppKit
             filledCache[scale] = layers
         }
         // Extend only the solid centre column: native endcaps and the separate
-        // contact keep their geometry when three uncondensed digits need room.
+        // contact keep their geometry for the explicit larger-text option.
         let extra = max(0, min(16, bodyExtension)) * scale
         // Keep public 1× pixel hinting: its body/contact AA fringes touch.
         // At Retina densities the inset translates the separate contact mask.
