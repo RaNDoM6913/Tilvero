@@ -21,6 +21,7 @@ let package = Package(
         .executable(name: "TilveroApp", targets: ["TilveroApp"]),
         .executable(name: "TilveroHelper", targets: ["TilveroHelper"])
     ],
+    dependencies: [.package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.10.1")],
     targets: [
         .target(name: "PowerCore"),
         .target(
@@ -45,13 +46,14 @@ let package = Package(
         .executableTarget(name: "TilveroHelper", dependencies: ["PowerPrivileged"], path: "Helper", exclude: ["THIRD_PARTY_NOTICES.md", "README.md"]),
         .executableTarget(
             name: "TilveroApp",
-            dependencies: ["PowerCore", "PowerTelemetry", "PowerPersistence", "PowerDiagnostics", "PowerSimulator", "PowerPrivileged", "ChargeBackends", "FanBackends", "KeyboardBackends", "ClosedLidControl"],
+            dependencies: ["PowerCore", "PowerTelemetry", "PowerPersistence", "PowerDiagnostics", "PowerSimulator", "PowerPrivileged", "ChargeBackends", "FanBackends", "KeyboardBackends", "ClosedLidControl", .product(name: "Sparkle", package: "Sparkle")],
             resources: [.copy("Resources/Localizable.xcstrings"), .copy("Resources/BatteryAssembly.png"),
                         .copy("Resources/AdapterIllustration.png"), .copy("Resources/MacIllustration.png"),
                         .copy("Resources/RestIllustration.png"), .copy("Resources/OverviewMacIllustration.png")],
             linkerSettings: [
                 .linkedFramework("AppKit", .when(platforms: [.macOS])),
-                .linkedFramework("SwiftUI", .when(platforms: [.macOS]))
+                .linkedFramework("SwiftUI", .when(platforms: [.macOS])),
+                .unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])
             ]
         ),
         .testTarget(name: "PowerCoreTests", dependencies: ["PowerCore"]),

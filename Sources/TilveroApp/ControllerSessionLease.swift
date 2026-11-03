@@ -4,6 +4,25 @@ import Darwin
 /// All updated variants hold the same process lease through restoration. Legacy
 /// binaries do not honor it; launch-time sibling observation is not a race proof.
 final class ControllerSessionLease {
+    enum Availability: Equatable { case available, occupied, unknown }
+    static func inspect(directory: URL? = nil) -> Availability {
+        guard let directory = try? directory ?? sharedDirectory() else { return .unknown }
+        var info = stat()
+        guard lstat(directory.path, &info) == 0 else { return errno == ENOENT ? .available : .unknown }
+        guard info.st_uid == geteuid(), info.st_mode & S_IFMT == S_IFDIR,
+              info.st_mode & 0o077 == 0 else { return .unknown }
+        let parent = open(directory.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard parent >= 0 else { return .unknown }
+        defer { close(parent) }
+        let probe = openat(parent, "controller.lock", O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK)
+        guard probe >= 0 else { return errno == ENOENT ? .available : .unknown }
+        defer { close(probe) }
+        guard fstat(probe, &info) == 0, info.st_uid == geteuid(), info.st_mode & S_IFMT == S_IFREG,
+              info.st_mode & 0o077 == 0, info.st_nlink == 1 else { return .unknown }
+        guard flock(probe, LOCK_EX | LOCK_NB) == 0 else { return errno == EWOULDBLOCK ? .occupied : .unknown }
+        flock(probe, LOCK_UN)
+        return .available
+    }
     enum Failure: Error { case unavailable, unsafePath, occupied }
     private let descriptor: Int32
     private init(descriptor: Int32) { self.descriptor = descriptor }

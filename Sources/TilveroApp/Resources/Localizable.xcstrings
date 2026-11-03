@@ -12806,6 +12806,902 @@
           }
         }
       }
+    },
+    "Updates": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновления"
+          }
+        }
+      }
+    },
+    "Installed version": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installed version"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Установлена версия"
+          }
+        }
+      }
+    },
+    "Build": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Build"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "сборка"
+          }
+        }
+      }
+    },
+    "Development build": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Development build"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сборка для разработки"
+          }
+        }
+      }
+    },
+    "Laboratory build": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Laboratory build"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Лабораторная сборка"
+          }
+        }
+      }
+    },
+    "Closed-lid trial build": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Closed-lid trial build"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тестовая сборка для закрытой крышки"
+          }
+        }
+      }
+    },
+    "Monitoring build": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monitoring build"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сборка для мониторинга"
+          }
+        }
+      }
+    },
+    "Manual update build": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manual update build"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сборка с ручным обновлением"
+          }
+        }
+      }
+    },
+    "Check for Updates…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check for Updates…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверить обновления…"
+          }
+        }
+      }
+    },
+    "Checking for updates…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking for updates…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверяем обновления…"
+          }
+        }
+      }
+    },
+    "Last successful check": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last successful check"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Последняя успешная проверка"
+          }
+        }
+      }
+    },
+    "Update preferences": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update preferences"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Настройки обновлений"
+          }
+        }
+      }
+    },
+    "Update channel": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update channel"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Канал обновлений"
+          }
+        }
+      }
+    },
+    "Stable releases": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stable releases"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Стабильные выпуски"
+          }
+        }
+      }
+    },
+    "Beta and stable releases": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beta and stable releases"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бета и стабильные выпуски"
+          }
+        }
+      }
+    },
+    "Check automatically": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check automatically"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверять автоматически"
+          }
+        }
+      }
+    },
+    "Checks run while Tilvero is open. Each installation needs your confirmation.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checks run while Tilvero is open. Each installation needs your confirmation."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверки выполняются, пока Tilvero открыт. Каждая установка требует вашего подтверждения."
+          }
+        }
+      }
+    },
+    "Checking contacts GitHub or the signed update feed. Battery readings and history are not sent.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking contacts GitHub or the signed update feed. Battery readings and history are not sent."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для проверки Tilvero обращается к GitHub или ленте подписанных обновлений. Показания батареи и история не передаются."
+          }
+        }
+      }
+    },
+    "Signed app updates have not been configured for this build.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signed app updates have not been configured for this build."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для этой сборки ещё не настроены подписанные обновления приложения."
+          }
+        }
+      }
+    },
+    "This build is updated manually from its matching source or trial package.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This build is updated manually from its matching source or trial package."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эта сборка обновляется вручную из соответствующих исходников или тестового пакета."
+          }
+        }
+      }
+    },
+    "Installation postponed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installation postponed"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Установка отложена"
+          }
+        }
+      }
+    },
+    "Open Diagnostics": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Diagnostics"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть диагностику"
+          }
+        }
+      }
+    },
+    "View Releases": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View Releases"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Все выпуски"
+          }
+        }
+      }
+    },
+    "Check published releases when you are ready.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check published releases when you are ready."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверьте опубликованные выпуски, когда будете готовы."
+          }
+        }
+      }
+    },
+    "Reading published release information…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading published release information…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Читаем сведения об опубликованных выпусках…"
+          }
+        }
+      }
+    },
+    "Update check cancelled.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update check cancelled."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверка обновлений отменена."
+          }
+        }
+      }
+    },
+    "Could not check for updates.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not check for updates."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось проверить обновления."
+          }
+        }
+      }
+    },
+    "Try Again": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try Again"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Повторить"
+          }
+        }
+      }
+    },
+    "Only source code has been published": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only source code has been published"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пока опубликованы только исходники"
+          }
+        }
+      }
+    },
+    "This release contains source code and requires Xcode. There is no app to install in this release.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This release contains source code and requires Xcode. There is no app to install in this release."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Этот выпуск содержит исходники для сборки в Xcode. Приложения для установки в нём нет."
+          }
+        }
+      }
+    },
+    "View Source Release": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View Source Release"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Посмотреть исходники"
+          }
+        }
+      }
+    },
+    "View Release": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View Release"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Посмотреть выпуск"
+          }
+        }
+      }
+    },
+    "Release Notes": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Release Notes"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Что нового"
+          }
+        }
+      }
+    },
+    "Install and Restart…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install and Restart…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Установить и перезапустить…"
+          }
+        }
+      }
+    },
+    "The signed updater confirms compatibility before offering an installation.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The signed updater confirms compatibility before offering an installation."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перед установкой подписанный модуль обновлений проверит совместимость."
+          }
+        }
+      }
+    },
+    "A Mac app release is available": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A Mac app release is available"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Доступен выпуск приложения для Mac"
+          }
+        }
+      }
+    },
+    "You have the latest app for this channel": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You have the latest app for this channel"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "У вас последняя версия приложения для этого канала"
+          }
+        }
+      }
+    },
+    "This build is updated manually": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This build is updated manually"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эта сборка обновляется вручную"
+          }
+        }
+      }
+    },
+    "No compatible app release was found": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No compatible app release was found"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Совместимый выпуск приложения не найден"
+          }
+        }
+      }
+    },
+    "The network is unavailable. Try again when you are connected.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The network is unavailable. Try again when you are connected."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нет подключения к сети. Повторите проверку после подключения."
+          }
+        }
+      }
+    },
+    "The update server did not respond in time.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The update server did not respond in time."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сервер обновлений не ответил вовремя."
+          }
+        }
+      }
+    },
+    "The update server is limiting requests. Please try again later.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The update server is limiting requests. Please try again later."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сервер ограничил число запросов. Повторите проверку позже."
+          }
+        }
+      }
+    },
+    "Release information could not be verified.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Release information could not be verified."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось проверить сведения о выпуске."
+          }
+        }
+      }
+    },
+    "Release information exceeded the allowed size.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Release information exceeded the allowed size."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сведения о выпуске превышают допустимый размер."
+          }
+        }
+      }
+    },
+    "The update server is unavailable. Please try again later.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The update server is unavailable. Please try again later."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сервер обновлений недоступен. Повторите проверку позже."
+          }
+        }
+      }
+    },
+    "Update recovery status is unavailable.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update recovery status is unavailable."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось определить состояние восстановления."
+          }
+        }
+      }
+    },
+    "Finish the current operation before installing.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finish the current operation before installing."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дождитесь завершения текущей операции перед установкой."
+          }
+        }
+      }
+    },
+    "Wait until sleep preparation or wake recovery has finished.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wait until sleep preparation or wake recovery has finished."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дождитесь завершения подготовки ко сну или восстановления после пробуждения."
+          }
+        }
+      }
+    },
+    "Review app-owned charging settings in Diagnostics.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review app-owned charging settings in Diagnostics."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверьте принадлежащие приложению настройки зарядки в диагностике."
+          }
+        }
+      }
+    },
+    "Review app-owned helper settings in Diagnostics.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review app-owned helper settings in Diagnostics."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверьте настройки служебного процесса в диагностике."
+          }
+        }
+      }
+    },
+    "Review the closed-lid session in Diagnostics.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review the closed-lid session in Diagnostics."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверьте сеанс с закрытой крышкой в диагностике."
+          }
+        }
+      }
+    },
+    "Saved control evidence needs manual review in Diagnostics.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved control evidence needs manual review in Diagnostics."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохранённые сведения об управлении требуют проверки в диагностике."
+          }
+        }
+      }
+    },
+    "Another controller is active. Keep this app open and try later.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Another controller is active. Keep this app open and try later."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Активно другое приложение управления. Оставьте Tilvero открытым и повторите позже."
+          }
+        }
+      }
+    },
+    "Control recovery status could not be verified.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Control recovery status could not be verified."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось подтвердить состояние восстановления управления."
+          }
+        }
+      }
+    },
+    "End Keep Awake.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "End Keep Awake."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Завершить «Не засыпать»."
+          }
+        }
+      }
+    },
+    "Cancel the sleep timer.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel the sleep timer."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отменить таймер сна."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

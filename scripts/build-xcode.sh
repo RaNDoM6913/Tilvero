@@ -29,7 +29,15 @@ Path('Config/ReleaseInfo.plist').write_bytes(plistlib.dumps(p))
 PY
   python3 scripts/generate-xcode-project.py --release-config "$release_config"
 fi
-xcodebuild -project Tilvero.xcodeproj -scheme Tilvero -configuration "$configuration" -derivedDataPath "$derived_data" build CODE_SIGN_IDENTITY=-
+updater_info="$derived_data/UpdaterInfo.plist"
+mkdir -p "$derived_data"
+if [[ -n "$release_config" ]]; then
+  cp Config/ReleaseInfo.plist "$updater_info"
+else
+  cp Config/Info.plist "$updater_info"
+fi
+python3 scripts/updater_package.py configure --info "$updater_info" --config Config/Updater.json
+xcodebuild -project Tilvero.xcodeproj -scheme Tilvero -configuration "$configuration" -derivedDataPath "$derived_data" build CODE_SIGN_IDENTITY=- "TILVERO_APP_INFO_PLIST=$updater_info"
 if [[ -n "$output" ]]; then
   [[ ! -e "$output" ]] || exit 2
   mkdir -p "$(dirname "$output")"
