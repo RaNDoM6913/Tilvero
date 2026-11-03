@@ -64,6 +64,40 @@ import XCTest
         }
     }
 
+    func testContactInsetPreservesNativeBodyAndKeepsTheSeparateContactAtBothScales() throws {
+        guard ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27 else { return }
+        for scale in [1, 2] {
+            let original = render(try XCTUnwrap(SystemBatterySymbol.makeFilled(level: 100, density: scale)), scale: scale)
+            let inset = render(try XCTUnwrap(SystemBatterySymbol.makeFilled(level: 100, density: scale, contactInset: 0.5)), scale: scale)
+            for y in 0..<original.pixelsHigh { for x in 0..<26 * scale {
+                XCTAssertEqual(original.colorAt(x: x, y: y)!.alphaComponent,
+                               inset.colorAt(x: x, y: y)!.alphaComponent,
+                               "Moving the separate contact must not alter native reservoir geometry or measured fill.")
+            } }
+            func contact(_ rep: NSBitmapImageRep) -> (coverage: CGFloat, centre: CGFloat) {
+                var total: CGFloat = 0, moment: CGFloat = 0
+                for y in 0..<rep.pixelsHigh { for x in 26 * scale..<rep.pixelsWide {
+                    let alpha = rep.colorAt(x: x, y: y)!.alphaComponent
+                    total += alpha; moment += CGFloat(x) * alpha
+                } }
+                return (total, moment / total / CGFloat(scale))
+            }
+            let before = contact(original), after = contact(inset)
+            if scale == 2 {
+                XCTAssertEqual(after.coverage, before.coverage, accuracy: 0.08,
+                               "Retina's integral-pixel inset must preserve contact antialias coverage.")
+                XCTAssertEqual(before.centre - after.centre, 0.5, accuracy: 0.03)
+            } else {
+                // Preserve public 1× hinting instead of clipping touching AA
+                // fringes to force a Retina-only half-point placement.
+                for y in 0..<original.pixelsHigh { for x in 0..<original.pixelsWide {
+                    XCTAssertEqual(inset.colorAt(x: x, y: y)!.alphaComponent,
+                                   original.colorAt(x: x, y: y)!.alphaComponent)
+                } }
+            }
+        }
+    }
+
     private func render(_ image: NSImage, scale: Int) -> NSBitmapImageRep {
         let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(image.size.width) * scale, pixelsHigh: Int(image.size.height) * scale,
             bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!

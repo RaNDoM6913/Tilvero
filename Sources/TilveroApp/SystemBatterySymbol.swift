@@ -20,7 +20,7 @@ import AppKit
     /// contact. Keep its exact native silhouette, including antialiasing, while
     /// clipping continuous measured fill. Numerals and the small adapter cue are
     /// composed by the caller because SF Symbols does not supply percentage text.
-    static func makeFilled(level: Int?, density: Int, contactOpacity: CGFloat = 0.45, bodyExtension: Int = 0) -> NSImage? {
+    static func makeFilled(level: Int?, density: Int, contactOpacity: CGFloat = 0.45, bodyExtension: Int = 0, contactInset: CGFloat = 0) -> NSImage? {
         let scale = min(8, max(1, density))
         let layers: FilledLayers
         if let cached = filledCache[scale] { layers = cached }
@@ -45,6 +45,9 @@ import AppKit
         // Extend only the solid centre column: native endcaps and the separate
         // contact keep their geometry when three uncondensed digits need room.
         let extra = max(0, min(16, bodyExtension)) * scale
+        // Keep public 1× pixel hinting: its body/contact AA fringes touch.
+        // At Retina densities the inset translates the separate contact mask.
+        let inset = scale >= 2 && contactInset.isFinite ? min(1, max(0, contactInset)) * CGFloat(scale) : 0
         let outputWidth = layers.width + extra
         guard let rep = bitmap(density: scale, extraWidth: extra / scale), let data = rep.bitmapData else { return nil }
         let fraction = CGFloat(min(100, max(0, level ?? 0))) / 100
@@ -58,7 +61,18 @@ import AppKit
             let opacity: CGFloat = body ? 0.2 + 0.8 * coverage : contactOpacity
             let offset = y * rep.bytesPerRow + x * 4
             data[offset] = 0; data[offset + 1] = 0; data[offset + 2] = 0
-            data[offset + 3] = UInt8((CGFloat(layers.alpha[i]) * opacity).rounded())
+            let alpha: CGFloat
+            if body { alpha = CGFloat(layers.alpha[i]) }
+            else {
+                let sampleX = CGFloat(sourceX) + inset
+                let left = Int(floor(sampleX)), fraction = sampleX - CGFloat(left)
+                if left >= 0 && left + 1 < layers.width {
+                    let row = y * layers.width
+                    alpha = CGFloat(layers.alpha[row + left]) * (1 - fraction)
+                        + CGFloat(layers.alpha[row + left + 1]) * fraction
+                } else { alpha = 0 }
+            }
+            data[offset + 3] = UInt8((alpha * opacity).rounded())
         } }
         let image = NSImage(size: rep.size); image.addRepresentation(rep)
         return image

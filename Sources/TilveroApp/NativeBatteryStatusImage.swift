@@ -135,22 +135,39 @@ enum NativeBatteryStatusImage {
     }
 
     private static func modernFont(_ size: MenuBarTextSize) -> NSFont {
-        NSFont.systemFont(ofSize: size == .system ? 10 : 11, weight: .medium)
+        NSFont.systemFont(ofSize: size == .system ? 10 : 11, weight: .regular)
     }
+
+    private static let modernTwoDigitCapacity: [MenuBarTextSize: CGFloat] =
+        Dictionary(uniqueKeysWithValues: MenuBarTextSize.allCases.map { size in
+            let font = modernFont(size)
+            let capacity = (0...99).reduce(CGFloat.zero) { width, value in
+                max(width, (String(value) as NSString).size(withAttributes: [.font: font]).width)
+            }
+            return (size, capacity)
+        })
 
     private static func modernBodyExtension(level: Int?, textSize: MenuBarTextSize) -> Int {
         let value = (level.map(String.init) ?? "—") as NSString
         let width = value.size(withAttributes: [.font: modernFont(textSize)]).width
-        let referenceWidth = ("90" as NSString).size(withAttributes: [.font: modernFont(.system)]).width
-        // This public font is the measured fit to the supplied 90 reference.
-        // Keep its size for 100 and reserve space rather than shrinking digits.
-        return max(0, Int(ceil(width - referenceWidth)))
+        // Reserve a stable two-digit capacity: proportional advances such as
+        // 98 versus 90 must not add a point or move adjacent status items.
+        // Keep the same type size for 100 and reserve its additional advance.
+        let capacity = max(width, modernTwoDigitCapacity[textSize]!)
+        return max(0, Int(ceil(capacity - modernTwoDigitCapacity[.system]!)))
+    }
+
+    private static var modernCutoutOpacity: CGFloat {
+        // The supplied dark-ink reference uses secondary numeral/cue coverage;
+        // white ink retains clear cutouts. Read the active drawing context so
+        // the same cached status image can adapt without a global theme change.
+        NSAppearance.currentDrawing().bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? 1 : 0.75
     }
 
     private static func drawModern(level: Int?, style: MenuBarDisplayStyle, externalPower: Bool, textSize: MenuBarTextSize, bodyExtension: Int) {
         let extra = CGFloat(bodyExtension)
         let density = max(1, min(8, Int((NSGraphicsContext.current?.cgContext.ctm.a ?? 2).magnitude.rounded())))
-        if let native = SystemBatterySymbol.makeFilled(level: level, density: density, contactOpacity: 0.3, bodyExtension: bodyExtension) {
+        if let native = SystemBatterySymbol.makeFilled(level: level, density: density, contactOpacity: 0.8, bodyExtension: bodyExtension, contactInset: 0.5) {
             let offset = floor(1.5 * CGFloat(density)) / CGFloat(density)
             native.draw(at: NSPoint(x: -offset, y: -3), from: .zero, operation: .sourceOver, fraction: 1)
         } else {
@@ -158,8 +175,8 @@ enum NativeBatteryStatusImage {
             NSColor.black.withAlphaComponent(0.2).setFill()
             NSBezierPath(roundedRect: body, xRadius: 3.5, yRadius: 3.5).fill()
             drawFill(level: level, in: body, radius: 3.5)
-            NSColor.black.withAlphaComponent(0.3).setFill()
-            NSBezierPath(roundedRect: NSRect(x: 25.5 + extra, y: 7, width: 1.5, height: 4), xRadius: 0.75, yRadius: 0.75).fill()
+            NSColor.black.withAlphaComponent(0.8).setFill()
+            NSBezierPath(roundedRect: NSRect(x: 25 + extra, y: 7, width: 1.5, height: 4), xRadius: 0.75, yRadius: 0.75).fill()
         }
         if style == .inside {
             drawModernText(level.map(String.init) ?? "—", centeredAt: NSPoint(x: (externalPower ? 10 : 12.5) + extra / 2, y: 9), font: modernFont(textSize))
@@ -171,7 +188,7 @@ enum NativeBatteryStatusImage {
                 .withSymbolConfiguration(.init(pointSize: 7.5, weight: .regular)) else { return }
             let centreX: CGFloat = style == .inside || level == nil ? 19.5 + extra : 12.5
             marker.draw(at: NSPoint(x: centreX - marker.size.width / 2, y: 9.25 - marker.size.height / 2),
-                        from: .zero, operation: .xor, fraction: 1)
+                        from: .zero, operation: .xor, fraction: modernCutoutOpacity)
         }
     }
 
@@ -184,7 +201,7 @@ enum NativeBatteryStatusImage {
             return true
         }
         image.draw(at: NSPoint(x: point.x - dimensions.width / 2, y: point.y - dimensions.height / 2),
-                   from: .zero, operation: .xor, fraction: 1)
+                   from: .zero, operation: .xor, fraction: modernCutoutOpacity)
     }
 
     private static func drawFallbackNormal(level: Int?, externalPower: Bool) {
