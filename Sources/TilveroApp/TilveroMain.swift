@@ -213,6 +213,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         #endif
     }
     private var statusItem: NSStatusItem?
+    private var menuLanguage: String?
     private var keepAwakeStatusBinding: NativeKeepAwakeStatusBinding?
     private var sleepTimerWarning: SleepTimerWarningController?
     private let popover = NSPopover()
@@ -284,6 +285,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
             if L10n.useStudioLanguage(self.model.language) { self.studio.objectWillChange.send() }
             #endif
             self.updateStatusItem()
+            if self.menuLanguage != L10n.language { self.buildMenu() }
             self.sleepTimerWarning?.refreshPresentation()
         }
         keepAwakeStatusBinding = NativeKeepAwakeStatusBinding(service: model.keepAwake) { [weak self] _ in
@@ -311,6 +313,15 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     #endif
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // Sparkle can replace an extracted update when the host exits. Keep all
+        // ordinary quit paths closed until explicit consent and verified handoff.
+        if model.updateInstaller.installationBlocksQuit {
+            guard model.updateInstaller.validatedHandoffAllowsTermination,
+                  model.updateReadiness.blockers.isEmpty else {
+                return .terminateCancel
+            }
+            return .terminateNow
+        }
         let systemInitiated = SleepTimerQuitReason.currentIsSystem
         if !systemInitiated && model.sleepTimer.needsHoldRelease {
             model.sleepTimer.cancel()
@@ -382,7 +393,13 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     }
     @objc private func reopenDetails() { showDetails() }
     @objc private func openSettings() { model.selectedSection = .settings; showDetails() }
+    @objc private func checkForUpdates() {
+        model.selectedSection = .settings; model.selectedSettingsPage = .updates; showDetails()
+        if model.updateInstaller.isQualified { model.updateInstaller.checkForUpdates(channel: model.updates.channel) }
+        Task { await model.updates.check() }
+    }
     private func buildMenu() {
+        menuLanguage = L10n.language
         let main = NSMenu()
         let root = NSMenuItem(); main.addItem(root)
         let app = NSMenu(); root.submenu = app
@@ -391,7 +408,9 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         quickPanel.target = self
         app.addItem(quickPanel)
         let settings = NSMenuItem(title: L10n.text("Settings"), action: #selector(openSettings), keyEquivalent: ",")
-        settings.target = self; app.addItem(settings); app.addItem(.separator())
+        settings.target = self; app.addItem(settings)
+        let updates = NSMenuItem(title: L10n.text("Check for Updates…"), action: #selector(checkForUpdates), keyEquivalent: "")
+        updates.target = self; app.addItem(updates); app.addItem(.separator())
         app.addItem(withTitle: L10n.text("Quit Tilvero"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         let edit = NSMenuItem(); let editMenu = NSMenu(title: L10n.text("Edit"))
         for (title, selector, key) in [("Cut", "cut:", "x"), ("Copy", "copy:", "c"),

@@ -460,6 +460,8 @@ private struct SettingsPanel: View {
                 case .general: general
                 case .quickPanel: QuickPanelBuilder(model: model)
                 case .history: historySettings
+                case .updates: UpdatesPanel(service: model.updates, installer: model.updateInstaller,
+                                           diagnostics: model.openUpdateDiagnostics)
                 }
             }.id(presentedSettingsPage).transition(.opacity).studioScope("tab." + presentedSettingsPage.rawValue)
                 .animation(ProductMotion.animation(reduceMotion: reduceMotion), value: presentedSettingsPage)

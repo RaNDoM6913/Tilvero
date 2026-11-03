@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the committed Xcode graph from local sources; no external packages/tools."""
+"""Generate the Xcode graph, including the exact pinned Sparkle framework."""
 from pathlib import Path
 import hashlib, json, argparse
 parser=argparse.ArgumentParser()
@@ -26,6 +26,7 @@ lidHelperProduct=ref('TilveroLidHelper','compiled.mach-o.executable','BUILT_PROD
 productGroup=add('products',isa='PBXGroup',children=[appProduct,helperProduct,lidHelperProduct],name='Products',sourceTree='<group>')
 mainGroup=add('mainGroup',isa='PBXGroup',children=appFiles+helperFiles+lidHelperFiles+[resource,assets,productGroup]+artworkFiles,sourceTree='<group>')
 package=add('package',isa='XCLocalSwiftPackageReference',relativePath='.')
+sparklePackage=add('sparklePackage',isa='XCRemoteSwiftPackageReference',repositoryURL='https://github.com/sparkle-project/Sparkle',requirement={'kind':'exactVersion','version':'2.10.1'})
 def configs(name,extra):
     rows=[]
     for mode in ['Debug','Release']:
@@ -33,7 +34,7 @@ def configs(name,extra):
         rows.append(add(name+mode,isa='XCBuildConfiguration',name=mode,buildSettings=settings))
     return add(name+'configs',isa='XCConfigurationList',buildConfigurations=rows,defaultConfigurationIsVisible=0,defaultConfigurationName='Release')
 def target(name,files,product,productType,libs,extra,phases=None):
-    deps=[add(name+':'+lib,isa='XCSwiftPackageProductDependency',productName=lib) for lib in libs]
+    deps=[add(name+':'+lib,isa='XCSwiftPackageProductDependency',productName=lib,**({'package':sparklePackage} if lib=='Sparkle' else {})) for lib in libs]
     framework=add(name+'frameworks',isa='PBXFrameworksBuildPhase',buildActionMask=2147483647,files=[add(name+'link'+lib,isa='PBXBuildFile',productRef=dep) for lib,dep in zip(libs,deps)],runOnlyForDeploymentPostprocessing=0)
     sources=add(name+'sources',isa='PBXSourcesBuildPhase',buildActionMask=2147483647,files=[build(name+file,file) for file in files],runOnlyForDeploymentPostprocessing=0)
     return add(name,isa='PBXNativeTarget',name=name,productName=name,productReference=product,productType=productType,buildConfigurationList=configs(name,extra),buildPhases=[sources,framework]+(phases or []),buildRules=[],dependencies=[],packageProductDependencies=deps)
@@ -46,11 +47,14 @@ for path in sorted((root/'Config/LaunchDaemons').glob('*.plist')):
     file=ref(str(path.relative_to(root)),'text.plist.xml'); objects[mainGroup]['children'].append(file); launchFiles.append(build('daemon'+path.name,file))
 embedJobs=add('embedJobs',isa='PBXCopyFilesBuildPhase',buildActionMask=2147483647,dstPath='Contents/Library/LaunchDaemons',dstSubfolderSpec=1,files=launchFiles,name='Embed launch jobs',runOnlyForDeploymentPostprocessing=0)
 legal=add('legal',isa='PBXShellScriptBuildPhase',buildActionMask=2147483647,files=[],inputPaths=[],outputPaths=[],name='Bundle legal resources',shellPath='/bin/bash',shellScript='set -euo pipefail\ndestination="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/Legal"\nmkdir -p "$destination/Helper"\ncp "$SRCROOT/LICENSE" "$SRCROOT/COPYRIGHT" "$SRCROOT/THIRD_PARTY_NOTICES.md" "$destination/"\ncp "$SRCROOT/Helper/THIRD_PARTY_NOTICES.md" "$destination/Helper/"\nif [[ -f "$SRCROOT/Config/ReleaseMetadata.json" ]]; then cp "$SRCROOT/Config/ReleaseMetadata.json" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/"; fi\n',runOnlyForDeploymentPostprocessing=0)
-app=target('Tilvero',appFiles,appProduct,'com.apple.product-type.application',['PowerCore','PowerTelemetry','PowerPersistence','PowerDiagnostics','PowerSimulator','PowerPrivileged','ChargeBackends','FanBackends','KeyboardBackends','ClosedLidControl'],{'PRODUCT_BUNDLE_IDENTIFIER':release['bundleID'] if release else 'local.tilvero.prototype','ASSETCATALOG_COMPILER_APPICON_NAME':'AppIcon','ENABLE_USER_SCRIPT_SANDBOXING':'NO','PRODUCT_NAME':'Tilvero','EXECUTABLE_NAME':'TilveroApp','INFOPLIST_FILE':'Config/ReleaseInfo.plist' if release else 'Config/Info.plist','GENERATE_INFOPLIST_FILE':'NO','LD_RUNPATH_SEARCH_PATHS':'$(inherited) @executable_path/../Frameworks'},[resources,legal]+([] if release else [embedHelper,embedJobs]))
+app=target('Tilvero',appFiles,appProduct,'com.apple.product-type.application',['PowerCore','PowerTelemetry','PowerPersistence','PowerDiagnostics','PowerSimulator','PowerPrivileged','ChargeBackends','FanBackends','KeyboardBackends','ClosedLidControl','Sparkle'],{'PRODUCT_BUNDLE_IDENTIFIER':release['bundleID'] if release else 'local.tilvero.prototype','ASSETCATALOG_COMPILER_APPICON_NAME':'AppIcon','COPY_PHASE_STRIP':'NO','ENABLE_USER_SCRIPT_SANDBOXING':'NO','PRODUCT_NAME':'Tilvero','EXECUTABLE_NAME':'TilveroApp','INFOPLIST_FILE':'$(TILVERO_APP_INFO_PLIST)','TILVERO_APP_INFO_PLIST':'Config/ReleaseInfo.plist' if release else 'Config/Info.plist','GENERATE_INFOPLIST_FILE':'NO','LD_RUNPATH_SEARCH_PATHS':'$(inherited) @executable_path/../Frameworks'},[resources,legal]+([] if release else [embedHelper,embedJobs]))
+# Xcode automatically embeds/signs the dynamic binary package framework. An
+# additional package-product copy phase resolves to a nonexistent *-product
+# aggregate instead of Sparkle.framework and duplicates the automatic copy.
 proxy=add('helperProxy',isa='PBXContainerItemProxy',containerPortal=ident('project'),proxyType=1,remoteGlobalIDString=helper,remoteInfo='TilveroHelper')
 lidProxy=add('lidHelperProxy',isa='PBXContainerItemProxy',containerPortal=ident('project'),proxyType=1,remoteGlobalIDString=lidHelper,remoteInfo='TilveroLidHelper')
 objects[app]['dependencies']=[] if release else [add('helperDependency',isa='PBXTargetDependency',target=helper,targetProxy=proxy),add('lidHelperDependency',isa='PBXTargetDependency',target=lidHelper,targetProxy=lidProxy)]
-project=add('project',isa='PBXProject',attributes={'LastUpgradeCheck':'2700'},buildConfigurationList=configs('project',{}),compatibilityVersion='Xcode 14.0',developmentRegion='en',hasScannedForEncodings=0,knownRegions=['en','ru','Base'],mainGroup=mainGroup,productRefGroup=productGroup,projectDirPath='',projectRoot='',targets=[app,helper,lidHelper],packageReferences=[package])
+project=add('project',isa='PBXProject',attributes={'LastUpgradeCheck':'2700'},buildConfigurationList=configs('project',{}),compatibilityVersion='Xcode 14.0',developmentRegion='en',hasScannedForEncodings=0,knownRegions=['en','ru','Base'],mainGroup=mainGroup,productRefGroup=productGroup,projectDirPath='',projectRoot='',targets=[app,helper,lidHelper],packageReferences=[package,sparklePackage])
 def emit(value, depth=0):
     if isinstance(value,dict): return '{\n'+''.join('\t'*(depth+1)+str(k)+' = '+emit(v,depth+1)+';\n' for k,v in value.items())+'\t'*depth+'}'
     if isinstance(value,list): return '('+', '.join(emit(v,depth) for v in value)+')'

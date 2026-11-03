@@ -63,7 +63,7 @@ Submit the outer DMG with `notarytool`; require Accepted, inspect the log, stapl
 
 Prototype and production stores have separate identities and must not be mutated concurrently. Production startup deliberately pairs allowlisted preferences, identity salt and history; failed migration cannot masquerade as successful empty history. Preserve the original data and verify the resulting records/settings.
 
-The first update route is manual. A version owning hardware settings requires verified restoration and compatible controller/helper/journal state before replacement. Never infer that replacing an app updates a running helper. Sparkle, Homebrew and automatic updates are outside this release.
+Development, source-preview, Lab and trial builds remain manual. Settings → Updates can read published release information; source archives never become app updates. The integrated Sparkle route admits only a separately qualified, signed helper-free production Monitoring app, with explicit installation choices and read-only recovery gates. Its distribution configuration is disabled until actual owner-controlled signing/feed and downloaded-install acceptance exist; see [Updates distribution](UPDATES_DISTRIBUTION.md). A version owning hardware settings still requires verified restoration and compatible controller/helper/journal state before replacement. Replacing an app never proves that a running helper was updated. Homebrew distribution remains outside this release.
 
 ## Repository presentation
 

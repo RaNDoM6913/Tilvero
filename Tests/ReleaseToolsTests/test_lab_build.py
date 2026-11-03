@@ -28,7 +28,7 @@ class LaboratoryBuildTests(unittest.TestCase):
         self.root = Path(self.temporary.name) / "project"
         self.root.mkdir()
         for name in ("scripts/build-local-app.sh", "scripts/build-lab-app.sh",
-                     "scripts/local_app_package.py", "scripts/toolchain.sh"):
+                     "scripts/local_app_package.py", "scripts/toolchain.sh", "scripts/updater_package.py"):
             source = ROOT / name
             if source.exists():
                 destination = self.root / name
@@ -52,6 +52,22 @@ class LaboratoryBuildTests(unittest.TestCase):
             "THIRD_PARTY_NOTICES.md": b"notices", "Helper/THIRD_PARTY_NOTICES.md": b"helper notices",
         }.items():
             self.write(name, content)
+        self.write("Config/Updater.json", (ROOT/"Config/Updater.json").read_bytes())
+        # Disposable framework fixture exercises embedding/provenance, never a
+        # distributable app. The test project's inventory binds its exact bytes.
+        framework = self.root/".build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"
+        (framework/"Versions/B/Resources").mkdir(parents=True)
+        (framework/"Versions/B/Sparkle").write_bytes(b"disposable fake framework")
+        (framework/"Versions/B/Resources/Info.plist").write_bytes(plistlib.dumps({"CFBundleShortVersionString":"2.10.1"}))
+        (framework/"Versions/Current").symlink_to("B", target_is_directory=True)
+        (framework/"Resources").symlink_to("Versions/Current/Resources", target_is_directory=True)
+        (framework/"Sparkle").symlink_to("Versions/Current/Sparkle")
+        inventory = {"version":"2.10.1", "files":{}, "symlinks":{}}
+        for path in framework.rglob("*"):
+            name = str(path.relative_to(framework))
+            if path.is_symlink(): inventory["symlinks"][name] = os.readlink(path)
+            elif path.is_file(): inventory["files"][name] = {"kind":"resource", "sha256":hashlib.sha256(path.read_bytes()).hexdigest()}
+        self.write("Config/Sparkle-2.10.1.inventory.json", json.dumps(inventory).encode())
         self.tools = Path(self.temporary.name) / "tools"
         self.tools.mkdir()
         self.tool("swift", '''import os, pathlib, sys
@@ -88,7 +104,7 @@ if '--sign' in arguments:
         self.tool("plutil", "")
         self.tool("ditto", '''import pathlib, shutil, sys
 source, destination = map(pathlib.Path, sys.argv[1:])
-shutil.copytree(source, destination)
+shutil.copytree(source, destination, symlinks=True)
 ''')
 
     def write(self, name, content):
@@ -187,7 +203,10 @@ shutil.copytree(source, destination)
         result = self.build()
         self.assertEqual(result.returncode, 0, result.stderr)
         app = self.root / "build/Tilvero.app"
-        self.assertEqual((app / "Contents/Info.plist").read_bytes(), original_info)
+        packaged_info = plistlib.loads((app / "Contents/Info.plist").read_bytes())
+        self.assertTrue(all(packaged_info[key] == value for key, value in plistlib.loads(original_info).items()))
+        self.assertFalse(packaged_info["TilveroUpdaterConfiguration"]["enabled"])
+        self.assertFalse(packaged_info["SUAutomaticallyUpdate"])
         self.assertEqual((app / "Contents/Resources/AppIcon.icns").read_bytes(), b"production icon")
         self.assertFalse((app / "Contents/Resources/LabIcon.icns").exists())
 

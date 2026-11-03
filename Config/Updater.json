@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "enabled": false,
+  "profile": "monitoring",
+  "bundleID": "io.github.random6913.tilvero",
+  "teamID": null,
+  "feedURL": null,
+  "publicKey": null
+}

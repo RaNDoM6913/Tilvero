@@ -14,6 +14,8 @@ import sys
 import tarfile
 import tempfile
 import zipfile
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import updater_package
 
 ROOT = Path(__file__).resolve().parents[1]
 REQUIRED_RESOURCES = ('AppIcon.icns', 'Legal/LICENSE', 'Legal/COPYRIGHT', 'Legal/THIRD_PARTY_NOTICES.md', 'Legal/Helper/THIRD_PARTY_NOTICES.md')
@@ -87,7 +89,12 @@ def validate_inventory(app,c):
         if not resource.is_file() or resource.stat().st_size==0: raise ReleaseError('Missing resource: '+p)
     if (app/'Contents/Library').exists(): raise ReleaseError('Monitoring package contains helper/service contents')
     if any(k.startswith('TilveroHelper') or k=='SMPrivilegedExecutables' for k in info): raise ReleaseError('Monitoring package contains helper trust metadata')
+    framework=app/'Contents/Frameworks/Sparkle.framework'
+    if framework.exists():
+        try: updater_package.validate_framework(framework)
+        except updater_package.UpdaterError as error: raise ReleaseError(str(error)) from error
     for p in app.rglob('*'):
+        if framework.exists() and p.is_relative_to(framework): continue
         if p.is_symlink(): raise ReleaseError('Unexpected app symlink')
         if p.is_file() and p!=executable:
             with p.open('rb') as f: magic=f.read(4)
@@ -115,6 +122,9 @@ def validate_app(app,c,metadata=None,public=False):
         p=subprocess.run(['codesign','-dv','--verbose=4',str(app)],capture_output=True,text=True,check=True)
         out=p.stderr
         if 'Authority=Developer ID Application:' not in out or 'TeamIdentifier='+c['teamID'] not in out or 'runtime' not in out or 'Timestamp=' not in out: raise ReleaseError('Developer ID/runtime/timestamp verification failed')
+    # Every new actual app build must include the exact verified runtime.
+    try: updater_package.validate_framework(app/'Contents/Frameworks/Sparkle.framework')
+    except updater_package.UpdaterError as error: raise ReleaseError(str(error)) from error
 
 def verify_records(path):
     manifest=json.loads(path.read_text())
@@ -250,7 +260,9 @@ def prepare(args):
     with log.open('w') as f:
         result=subprocess.run(['bash',str(source/'scripts/build-xcode.sh'),'--configuration','Release','--derived-data',str(work/'DerivedData'),'--output',str(app),'--release-config',str(source/'Config/Release.json')],stdout=f,stderr=subprocess.STDOUT,env=env)
     if result.returncode:raise ReleaseError('Release build failed; inspect '+str(log))
-    if args.signing_mode=='developer-id':run(['codesign','--force','--options','runtime','--timestamp','--sign',args.identity,app])
+    if args.signing_mode=='developer-id':
+        run(['python3',source/'scripts/updater_package.py','sign-nested','--app',app,'--identity',args.identity])
+        run(['codesign','--force','--options','runtime','--timestamp','--sign',args.identity,app])
     else:run(['codesign','--force','--sign','-',app])
     validate_app(app,c,metadata,args.signing_mode=='developer-id')
     stem='Tilvero-'+tag[1:]+'-arm64'+('-TEST' if args.signing_mode=='adhoc' else '')

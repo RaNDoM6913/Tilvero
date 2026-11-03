@@ -10,6 +10,7 @@ import plistlib
 import shutil
 import sys
 import tempfile
+import updater_package
 
 
 class PackageError(Exception):
@@ -68,7 +69,8 @@ def source_inputs(root):
         root / name for name in (
             "Package.swift", "Config/Info.plist", "Config/TilveroLidHelper-Info.plist", "Assets/AppIcon.icns", "LICENSE", "COPYRIGHT",
             "THIRD_PARTY_NOTICES.md", "scripts/build-local-app.sh", "scripts/build-lab-app.sh",
-            "scripts/local_app_package.py", "scripts/toolchain.sh",
+            "scripts/local_app_package.py", "scripts/toolchain.sh", "scripts/updater_package.py",
+            "Config/Updater.json", "Config/Sparkle-2.10.1.inventory.json",
         )
     }
     for directory in ("Sources", "Helper", "Config/LaunchDaemons"):
@@ -108,8 +110,19 @@ def verify_sources(root, app):
 
 
 def bundle_files(path):
-    return {str(item.relative_to(path)): sha256(item)
-            for item in sorted(path.rglob("*")) if not item.is_dir()}
+    framework = path / "Contents/Frameworks/Sparkle.framework"
+    if framework.exists():
+        try: updater_package.validate_framework(framework)
+        except updater_package.UpdaterError as error: raise PackageError(str(error)) from error
+    result = {}
+    for item in sorted(path.rglob("*")):
+        if item.is_symlink():
+            if not framework.exists() or not item.is_relative_to(framework):
+                raise PackageError("Unexpected packaged symlink: " + str(item))
+            result[str(item.relative_to(path))] = hashlib.sha256(("symlink:" + os.readlink(item)).encode()).hexdigest()
+        elif item.is_file():
+            result[str(item.relative_to(path))] = sha256(item)
+    return result
 
 
 def capture(root, app, binary_directory):
