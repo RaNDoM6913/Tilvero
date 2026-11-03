@@ -3,6 +3,36 @@ import XCTest
 
 @MainActor
 final class UpdateInstallGateTests: XCTestCase {
+    func testRestartRetryRetainsFreshConsentAndReadinessAfterLaterAndFailure() async {
+        var consent = false, blocked = false, attempts = 0, preparations = 0
+        let gate = UpdateInstallGate(readOnlyReadiness: { blocked ? ["recovery"] : [] },
+            prepareAfterExplicitConsent: { preparations += 1; return true }, releaseInstallationExclusion: {})
+        XCTAssertTrue(gate.beginStaging(explicitConsent: true))
+        let action = UpdateInstallProgressAction()
+        action.setRetry {
+            attempts += 1; gate.invalidateHandoff()
+            Task { _ = await gate.authorizeHandoff(explicitConsent: consent) }
+        }
+        action.perform(); await Task.yield()
+        XCTAssertEqual(attempts, 1); XCTAssertEqual(preparations, 0)
+        consent = true; blocked = true
+        action.perform(); await Task.yield()
+        XCTAssertEqual(attempts, 2); XCTAssertEqual(preparations, 0)
+        blocked = false
+        action.perform()
+        for _ in 0..<20 where !gate.validatedHandoffAllowsTermination { await Task.yield() }
+        XCTAssertEqual(attempts, 3); XCTAssertEqual(preparations, 1)
+        XCTAssertTrue(gate.validatedHandoffAllowsTermination)
+        action.clear(); action.perform(); XCTAssertEqual(attempts, 3)
+    }
+
+    func testDownloadCancellationRemainsOneShot() {
+        var cancelled = 0
+        let action = UpdateInstallProgressAction()
+        action.setCancellation { cancelled += 1 }
+        action.perform(); action.perform()
+        XCTAssertEqual(cancelled, 1)
+    }
     func testCheckingAndStagingNeverPrepareWithoutExplicitConsent() async {
         var reads = 0, preparations = 0, releases = 0
         let gate = UpdateInstallGate(readOnlyReadiness: { reads += 1; return [] },
