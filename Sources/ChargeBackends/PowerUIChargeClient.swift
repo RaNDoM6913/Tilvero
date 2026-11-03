@@ -33,14 +33,35 @@ public protocol NativeChargeTransport: Sendable {
     func setEnabled(_ enabled: Bool) async throws
 }
 
-/// A failed state read may still report independently validated capabilities.
+/// Read-only observations from a failed complete-state read. These values never
+/// describe a writable configuration or a restorable charging baseline.
 public struct NativeChargeReadFailure: Error, LocalizedError, Sendable {
     public let supportedTargets: [Int]
-    public init?(supportedTargets: [Int]) {
+    public let currentTarget: Int?
+    public let rawManualState: UInt64?
+    public let diagnosticStoredTarget: Int?
+    /// Reader time only; the diagnostic source's own freshness is unknown.
+    public let collectedAt: Date
+    public static let currentTargetSource = "PowerUI.getMCLLimitWithError"
+    public static let diagnosticStoredTargetSource = "PowerUI.powerLogStatus.chargeLimitTargetSoC"
+    public static let diagnosticStoredTargetFreshness = "unknown"
+
+    public init?(supportedTargets: [Int], currentTarget: Int? = nil, rawManualState: UInt64? = nil,
+                 diagnosticStoredTarget: Int? = nil, collectedAt: Date = Date()) {
         guard (1...21).contains(supportedTargets.count),
               supportedTargets.allSatisfy({ (80...100).contains($0) }),
-              zip(supportedTargets, supportedTargets.dropFirst()).allSatisfy({ $0 < $1 }) else { return nil }
+              zip(supportedTargets, supportedTargets.dropFirst()).allSatisfy({ $0 < $1 }),
+              currentTarget.map({ supportedTargets.contains($0) }) ?? true,
+              diagnosticStoredTarget.map({ supportedTargets.contains($0) }) ?? true else { return nil }
         self.supportedTargets = supportedTargets
+        self.currentTarget = currentTarget; self.rawManualState = rawManualState
+        self.diagnosticStoredTarget = diagnosticStoredTarget; self.collectedAt = collectedAt
+    }
+    /// Freshness applies only to an independently validated current reading.
+    /// It never establishes freshness of the optional diagnostic source.
+    public func isFresh(at now: Date = Date()) -> Bool {
+        let age = now.timeIntervalSince(collectedAt)
+        return currentTarget != nil && age >= -5 && age <= 65
     }
     public var errorDescription: String? {
         "macOS returned an unrecognized charging state. Apply remains unavailable until the native state is confirmed."
@@ -62,7 +83,27 @@ public actor PowerUIChargeClient: NativeChargeTransport {
                   (80...100).contains(number), number.rounded(.towardZero) == number else { return error }
             targets.append(Int(number))
         }
-        return NativeChargeReadFailure(supportedTargets: targets) ?? error
+        return NativeChargeReadFailure(supportedTargets: targets,
+            currentTarget: optionalTarget(error.userInfo["currentTarget"], supportedTargets: targets),
+            rawManualState: optionalUnsignedInteger(error.userInfo["rawManualState"]),
+            diagnosticStoredTarget: optionalTarget(error.userInfo["diagnosticStoredTarget"], supportedTargets: targets)) ?? error
+    }
+    private nonisolated static func optionalTarget(_ metadata: Any?, supportedTargets: [Int]) -> Int? {
+        guard let value = metadata as? NSNumber, CFGetTypeID(value) != CFBooleanGetTypeID() else { return nil }
+        let number = value.doubleValue
+        guard number.isFinite, let target = Int(exactly: number), supportedTargets.contains(target),
+              value.decimalValue == Decimal(target) else { return nil }
+        return target
+    }
+    private nonisolated static func optionalUnsignedInteger(_ metadata: Any?) -> UInt64? {
+        guard let value = metadata as? NSNumber, CFGetTypeID(value) != CFBooleanGetTypeID() else { return nil }
+        // Preserve the complete UInt64 domain before considering floating point.
+        // A Double representation of UInt64.max rounds up beyond that domain.
+        if let exact = UInt64(value.stringValue), value.decimalValue == NSNumber(value: exact).decimalValue { return exact }
+        let number = value.doubleValue
+        guard number.isFinite, let exact = UInt64(exactly: number),
+              value.decimalValue == NSNumber(value: exact).decimalValue else { return nil }
+        return exact
     }
     public func read() async throws -> NativeChargeSnapshot {
         let value = try autoreleasepool {

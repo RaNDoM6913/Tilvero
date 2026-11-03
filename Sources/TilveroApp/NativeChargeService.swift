@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 import Combine
 import ChargeBackends
 import PowerCore
@@ -16,6 +17,25 @@ struct NativeChargeJournal: Codable, Sendable {
     var expectedMutation: NativeChargeConfiguration?
     var oneShotPreviousManagedTarget: Int?
     var oneShot = false
+    var semanticContract: String?
+    var persistentTargets: [Int]?
+    var baselineSnapshot: NativeChargeSnapshot?
+
+    func hasPersistentScope(environment: String) -> Bool {
+        guard version == 2, self.environment == environment,
+              semanticContract == NativeChargeAdmission.semanticContract,
+              persistentTargets == NativeChargeAdmission.persistentPair,
+              let baselineSnapshot, baselineSnapshot.configuration == baseline,
+              NativeChargeAdmission.persistentPair.contains(baseline.target),
+              NativeChargeAdmission.isPersistent(baselineSnapshot, target: baseline.target, optimizedCharging: baseline.optimizedCharging),
+              lastVerified.enabled, NativeChargeAdmission.persistentPair.contains(lastVerified.target),
+              lastVerified.optimizedCharging == baseline.optimizedCharging,
+              plannedTarget.map(NativeChargeAdmission.persistentPair.contains) ?? true,
+              expectedMutation.map({ $0.enabled && NativeChargeAdmission.persistentPair.contains($0.target)
+                  && $0.optimizedCharging == baseline.optimizedCharging }) ?? true,
+              !oneShot, oneShotPreviousManagedTarget == nil else { return false }
+        return true
+    }
 }
 
 extension NativeChargeSnapshot {
@@ -58,12 +78,13 @@ struct NativeChargePresentation {
 }
 
 enum NativeChargeServiceError: Error, LocalizedError {
-    case unavailable, busy, unsupportedTarget, staleBattery, recoveryRequired, readbackMismatch, unsafeEnable
+    case unavailable, busy, unsupportedTarget, unqualifiedTarget, staleBattery, recoveryRequired, readbackMismatch, unsafeEnable
     var errorDescription: String? {
         switch self {
         case .unavailable: "Native charging control has not completed its local validation."
         case .busy: "A native charging operation is still in progress."
         case .unsupportedTarget: "Choose a charge target offered by this Mac."
+        case .unqualifiedTarget: "This charge target has not completed local validation. Only the verified persistent 90% and 95% targets are authorized."
         case .staleBattery: "A fresh battery reading is required before changing charging."
         case .recoveryRequired: "Reconcile the previous native charging session before applying another target."
         case .readbackMismatch: "macOS has not independently confirmed the requested charge setting."
@@ -81,6 +102,17 @@ enum NativeChargeServiceError: Error, LocalizedError {
     /// The native preference can exist while macOS registers no active charging
     /// policy on battery. Keep discovery separate from independent confirmation.
     @Published private(set) var nativeSetting: NativeChargeSnapshot?
+    @Published private(set) var incompleteObservation: NativeChargeReadFailure?
+    var currentReportedTarget: Int? {
+        if let setting = nativeSetting, setting.isFresh { return setting.configuration.target }
+        guard let incompleteObservation, incompleteObservation.isFresh(at: Date()) else { return nil }
+        return incompleteObservation.currentTarget
+    }
+    /// Reader age can be checked; the diagnostic source's own freshness is unknown.
+    var diagnosticStoredTarget: Int? {
+        guard let incompleteObservation, incompleteObservation.isFresh(at: Date()) else { return nil }
+        return incompleteObservation.diagnosticStoredTarget
+    }
     private func rememberNativeSetting(_ value: NativeChargeSnapshot) {
         guard value.isFresh else { return }
         nativeSetting = value
@@ -101,6 +133,11 @@ enum NativeChargeServiceError: Error, LocalizedError {
     private let batteryProvider: (@Sendable () async -> ChargeObservation)?
     private let admissionURL: URL?
     private let monitoringOnly: Bool
+    /// Explicit injection is reserved for trusted fixture/Studio compositions.
+    /// The production convenience initializer never supplies this blanket grant.
+    private let trustedFixtureAuthority: Bool
+    private var admissionScope: NativeChargeAdmission.Scope?
+    private var qualificationBaseline: NativeChargeSnapshot?
     private let verificationAttempts: Int
     private let verificationDelay: Duration
     private let environment: String
@@ -161,15 +198,38 @@ enum NativeChargeServiceError: Error, LocalizedError {
 
     var isMonitoringOnly: Bool { monitoringOnly }
     var hasOwnedSettings: Bool { journal?.hasWritten == true }
-    var isAvailable: Bool { !operationGate.pending && admitted && !monitoringOnly && !journalInvalid && observed?.isFresh == true && observed?.policyMatches == true }
+    var authorizedPersistentTargets: [Int] {
+        guard !monitoringOnly else { return [] }
+        return trustedFixtureAuthority ? acceptedTargets : admissionScope?.authorizedPersistentTargets ?? []
+    }
+    private func isAuthorizedPersistentState(_ value: NativeChargeSnapshot) -> Bool {
+        guard let scope = admissionScope, scope.environment == environment,
+              scope.authorizedPersistentTargets.contains(value.configuration.target) else { return false }
+        return NativeChargeAdmission.isPersistent(value, target: value.configuration.target, optimizedCharging: scope.optimizedCharging)
+    }
+    var isAvailable: Bool {
+        guard !operationGate.pending, admitted, !monitoringOnly, !journalInvalid,
+              let observed, observed.isFresh, observed.policyMatches else { return false }
+        return trustedFixtureAuthority || isAuthorizedPersistentState(observed)
+    }
     var canApply: Bool { isAvailable && !isBusy && !isQualifying && !recoveryRequired && !restorationPending }
+    func canApplyTarget(_ target: Int) -> Bool { canApply && acceptedTargets.contains(target) && authorizedPersistentTargets.contains(target) }
+    /// Cached state readiness only. qualify() obtains its own fresh battery and
+    /// native preflight before granting the two finite transitions.
+    var canRequestQualification: Bool {
+        guard !monitoringOnly, !isBusy, !operationGate.pending, !isQualifying,
+              journal == nil, !journalInvalid, !recoveryRequired, !restorationPending, pendingTarget == nil,
+              admissionURL != nil, environment != "unavailable", batteryProvider != nil,
+              let value = observed, value.isFresh else { return false }
+        return NativeChargeAdmission.isPersistent(value, target: 90, optimizedCharging: value.configuration.optimizedCharging)
+    }
     func needsApply(target: Int) -> Bool {
-        guard canApply, acceptedTargets.contains(target) else { return false }
+        guard canApplyTarget(target) else { return false }
         // An explicit lower pending intent still has a distinct cancellation path.
         if pendingTarget != nil { return requestedIntent != .ceiling(target) }
         return observed?.configuration.enabled != true || observed?.configuration.target != target
     }
-    var canChargeToFullOnce: Bool { canApply && fullOnceQualified }
+    var canChargeToFullOnce: Bool { canApplyTarget(100) && fullOnceQualified && trustedFixtureAuthority }
     var isOneShot: Bool { journal?.oneShot == true }
     var requestedIntent: ChargeIntent? {
         if isOneShot { return .fullOnce }
@@ -181,21 +241,25 @@ enum NativeChargeServiceError: Error, LocalizedError {
     var interfaceWasDiscovered: Bool { !knownTargets.isEmpty || admitted || journal != nil || journalInvalid }
     var baselineTarget: Int? { journal?.baseline.target }
 
-    init(client: any NativeChargeTransport, journalURL: URL, admitted: Bool = false, monitoringOnly: Bool = false,
+    init(client: any NativeChargeTransport, journalURL: URL, admitted: Bool = false, admissionScope: NativeChargeAdmission.Scope? = nil, monitoringOnly: Bool = false,
          verificationAttempts: Int = 30, verificationDelay: Duration = .zero,
          environment: String = ProcessInfo.processInfo.operatingSystemVersionString,
          batteryProvider: (@Sendable () async -> ChargeObservation)? = nil, admissionURL: URL? = nil,
          operationTimeout: Duration = .seconds(15), fullOnceQualified: Bool = false) {
         operationGate = NativeChargeOperationGate(timeout: operationTimeout); self.fullOnceQualified = fullOnceQualified
-        self.client = client; self.journalURL = journalURL; self.admitted = admitted && !monitoringOnly; self.monitoringOnly = monitoringOnly
+        self.client = client; self.journalURL = journalURL; self.monitoringOnly = monitoringOnly
+        trustedFixtureAuthority = admitted && !monitoringOnly
+        self.admissionScope = !monitoringOnly && admissionScope?.environment == environment ? admissionScope : nil
+        self.admitted = !monitoringOnly && (admitted || self.admissionScope != nil)
         self.batteryProvider = batteryProvider; self.admissionURL = admissionURL
         self.verificationAttempts = max(1, verificationAttempts); self.verificationDelay = verificationDelay; self.environment = environment
         if !monitoringOnly && FileManager.default.fileExists(atPath: journalURL.path) {
             do {
                 let saved = try JSONDecoder().decode(NativeChargeJournal.self, from: Data(contentsOf: journalURL))
-                guard saved.version == 1, saved.environment == environment,
-                      (80...100).contains(saved.baseline.target), (80...100).contains(saved.lastVerified.target),
-                      saved.plannedTarget.map({ (80...100).contains($0) }) ?? true else { throw NativeChargeServiceError.recoveryRequired }
+                let trustedLegacy = trustedFixtureAuthority && saved.version == 1 && saved.environment == environment
+                    && (80...100).contains(saved.baseline.target) && (80...100).contains(saved.lastVerified.target)
+                    && (saved.plannedTarget.map({ (80...100).contains($0) }) ?? true)
+                guard trustedLegacy || saved.hasPersistentScope(environment: environment) else { throw NativeChargeServiceError.recoveryRequired }
                 journal = saved; recoveryRequired = true; reviewReason = .sessionReview
                 restorationPending = saved.phase == .restorationPending
                 message = "A previous native charge session needs review. Saved intent was not reapplied."
@@ -231,50 +295,164 @@ enum NativeChargeServiceError: Error, LocalizedError {
         let monitoring = launchPolicy.monitoringOnly
         let reader = NativeChargeBackend()
         self.init(client: PowerUIChargeClient(), journalURL: root.appendingPathComponent("native-charge-session.json"),
-                  admitted: !monitoring && NativeChargeAdmission.load(from: admission, environment: environment), monitoringOnly: monitoring,
+                  admissionScope: monitoring ? nil : NativeChargeAdmission.loadScope(from: admission, environment: environment), monitoringOnly: monitoring,
                   verificationAttempts: 30, verificationDelay: .seconds(2), environment: environment,
                   batteryProvider: { await reader.currentObservation() }, admissionURL: admission)
     }
 
     func qualify() async throws {
         guard !monitoringOnly, !isBusy, !operationGate.pending, !isQualifying, journal == nil, !journalInvalid,
+              !recoveryRequired, !restorationPending, pendingTarget == nil,
               let admissionURL, environment != "unavailable", let batteryProvider else { throw NativeChargeServiceError.unavailable }
         isQualifying = true
-        let previouslyAdmitted = admitted
-        defer { isQualifying = false }
-        let baseline = try await readNative()
+        defer { isQualifying = false; qualificationBaseline = nil }
+        let baseline = try await readNative(); observed = baseline
         let battery = await batteryProvider()
-        guard baseline.configuration.target != 100 else {
-            message = "For validation with an existing 100% limit, first choose a lower supported limit in macOS and let the battery discharge naturally below it. No setting was written."
+        guard baseline.isFresh,
+              NativeChargeAdmission.isPersistent(baseline, target: 90, optimizedCharging: baseline.configuration.optimizedCharging) else {
+            throw NativeChargeServiceError.readbackMismatch
+        }
+        guard battery.fresh, let percent = battery.percent, (0...88).contains(percent) else {
+            message = "Validation requires a confirmed persistent 90% baseline and fresh battery at 88% or below. No setting was written."
             throw NativeChargeServiceError.staleBattery
         }
-        guard baseline.isFresh && baseline.policyMatches && baseline.supportedTargets.contains(100),
-              battery.fresh, let percent = battery.percent, percent <= baseline.configuration.target - 2 else {
-            message = "For the bounded native test, unplug and let the battery fall at least two percentage points below the existing limit. No setting was written."
-            throw NativeChargeServiceError.staleBattery
-        }
-        // Explicit opt-in qualification is a finite journaled transaction, not a
-        // preference that switches on untested writes. Ordinary UI Apply stays disabled.
-        admitted = true
+        // This grant never sets admitted=true. It only permits 90→95→90 with
+        // unchanged OBC, a complete persistent state and a durable scoped journal.
+        qualificationBaseline = baseline
+        self.batteryPercent = percent; self.batteryFresh = true
+        let transaction = makeTransaction()
+        var firstStageComplete = false
         do {
-            try await applyInternal(100, batteryPercent: percent, batteryFresh: true)
-            guard let changed = observed, changed.policyMatches, changed.configuration.target == 100,
-                  changed.configuration.optimizedCharging == baseline.configuration.optimizedCharging else { throw NativeChargeServiceError.readbackMismatch }
+            journal = makeScopedJournal(baseline: baseline, plannedTarget: 95)
+            transaction.sessionID = journal?.sessionID
+            try saveJournal()
+            try await mutate(transaction: transaction,
+                             expected: .init(enabled: true, target: 95, optimizedCharging: baseline.configuration.optimizedCharging)) {
+                try await self.setNativeLimit(95, transaction: transaction)
+            }
+            let changed = try await verify(target: 95, enabled: true)
+            guard NativeChargeAdmission.isPersistent(changed, target: 95, optimizedCharging: baseline.configuration.optimizedCharging),
+                  changed.supportedTargets == baseline.supportedTargets else { throw NativeChargeServiceError.readbackMismatch }
+            journal?.lastVerified = changed.configuration; journal?.phase = .owned; journal?.plannedTarget = nil
+            try saveJournal()
+            firstStageComplete = true
             let after = await batteryProvider()
             guard try await restoreInternal(batteryPercent: after.percent, batteryFresh: after.fresh), let restored = observed,
-                  restored.configuration == baseline.configuration, restored.policyMatches else { throw NativeChargeServiceError.recoveryRequired }
+                  NativeChargeAdmission.isPersistent(restored, target: 90, optimizedCharging: baseline.configuration.optimizedCharging),
+                  restored.supportedTargets == baseline.supportedTargets else { throw NativeChargeServiceError.recoveryRequired }
             let proof = NativeChargeAdmission(version: NativeChargeAdmission.version, environment: environment,
-                offeredTargets: baseline.supportedTargets, baseline: baseline.configuration,
+                semanticContract: NativeChargeAdmission.semanticContract, authorizedPersistentTargets: NativeChargeAdmission.persistentPair,
+                offeredTargets: baseline.supportedTargets, baseline: baseline.configuration, before: baseline,
                 changed: changed, restored: restored, completedAt: Date())
-            try JSONEncoder().encode(proof).write(to: admissionURL, options: .atomic)
-            admitted = NativeChargeAdmission.load(from: admissionURL, environment: environment)
-            guard admitted else { throw NativeChargeServiceError.readbackMismatch }
-            message = "Native limit setting and restoration passed on this Mac. Physical cutoff remains separately observed."
+            // Encode/validate before replacing historical proof bytes. No failed
+            // qualification can migrate an old proof into current authority.
+            guard let scope = NativeChargeAdmission.validatedScope(proof, environment: environment) else { throw NativeChargeServiceError.readbackMismatch }
+            let encoded = try JSONEncoder().encode(proof)
+            do { try persistAdmission(encoded, to: admissionURL) }
+            catch { throw AdmissionPersistenceFailure() }
+            admissionScope = scope; admitted = true
+            message = "Persistent 90% and 95% setting and restoration passed on this Mac. Other targets and physical cutoff remain unqualified."
         } catch {
-            admitted = previouslyAdmitted
+            if !firstStageComplete { handleFailure(transaction, failure: error) }
             if journal != nil { recoveryRequired = true }
+            if error is AdmissionPersistenceFailure { message = error.localizedDescription }
             throw error
         }
+    }
+
+    private struct AdmissionPersistenceFailure: Error, LocalizedError {
+        var errorDescription: String? {
+            "The persistent baseline was restored, but the validation proof could not be saved safely. The previous proof was preserved."
+        }
+    }
+
+    /// Only the successful, restored qualification commits evidence. Existing
+    /// proof bytes are retained privately and verified before atomic replacement.
+    private func persistAdmission(_ encoded: Data, to url: URL) throws {
+        let failure = AdmissionPersistenceFailure()
+        guard let proof = try? JSONDecoder().decode(NativeChargeAdmission.self, from: encoded),
+              NativeChargeAdmission.validatedScope(proof, environment: environment) != nil else { throw failure }
+        let root = open(url.deletingLastPathComponent().path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard root >= 0 else { throw failure }
+        defer { close(root) }
+
+        func regularMetadata(_ descriptor: Int32, mode: mode_t? = nil) throws -> stat {
+            var value = stat()
+            guard fstat(descriptor, &value) == 0, value.st_mode & S_IFMT == S_IFREG,
+                  value.st_nlink == 1, value.st_uid == geteuid(),
+                  mode.map({ value.st_mode & 0o777 == $0 }) ?? true else { throw failure }
+            return value
+        }
+        func readRegular(_ directory: Int32, _ name: String, mode: mode_t? = nil) throws -> (Data, stat) {
+            let descriptor = openat(directory, name, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
+            guard descriptor >= 0 else { throw failure }
+            defer { close(descriptor) }
+            let before = try regularMetadata(descriptor, mode: mode)
+            let data = try FileHandle(fileDescriptor: descriptor, closeOnDealloc: false).readToEnd() ?? Data()
+            let after = try regularMetadata(descriptor, mode: mode)
+            guard before.st_dev == after.st_dev, before.st_ino == after.st_ino,
+                  before.st_size == after.st_size, Int64(data.count) == after.st_size else { throw failure }
+            return (data, after)
+        }
+        func writeRegular(_ directory: Int32, _ name: String, data: Data, mode: mode_t) throws {
+            let descriptor = openat(directory, name, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, mode_t(0o600))
+            guard descriptor >= 0 else { throw failure }
+            defer { close(descriptor) }
+            _ = try regularMetadata(descriptor, mode: 0o600)
+            try FileHandle(fileDescriptor: descriptor, closeOnDealloc: false).write(contentsOf: data)
+            guard fchmod(descriptor, mode) == 0, fsync(descriptor) == 0 else { throw failure }
+            _ = try regularMetadata(descriptor, mode: mode)
+        }
+
+        let liveName = url.lastPathComponent
+        var live = stat()
+        let existing = fstatat(root, liveName, &live, AT_SYMLINK_NOFOLLOW) == 0
+        guard existing || errno == ENOENT else { throw failure }
+        var previous: Data?
+        var publicationMode: mode_t = 0o600
+        if existing {
+            let (bytes, metadata) = try readRegular(root, liveName)
+            guard live.st_dev == metadata.st_dev, live.st_ino == metadata.st_ino else { throw failure }
+            previous = bytes; publicationMode = metadata.st_mode & 0o600
+            let historyName = "native-charge-proof-history"
+            guard mkdirat(root, historyName, mode_t(0o700)) == 0 || errno == EEXIST else { throw failure }
+            let history = openat(root, historyName, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+            guard history >= 0 else { throw failure }
+            defer { close(history) }
+            var directory = stat()
+            guard fstat(history, &directory) == 0, directory.st_mode & S_IFMT == S_IFDIR,
+                  directory.st_uid == geteuid(), directory.st_mode & 0o777 == 0o700 else { throw failure }
+            let receipt = "proof-\(UUID().uuidString).json"
+            try writeRegular(history, receipt, data: bytes, mode: 0o600)
+            let (archived, _) = try readRegular(history, receipt, mode: 0o600)
+            guard archived == bytes else { throw failure }
+        }
+
+        let stagedName = ".native-charge-proof-\(UUID().uuidString).tmp"
+        defer { unlinkat(root, stagedName, 0) }
+        try writeRegular(root, stagedName, data: encoded, mode: publicationMode)
+        let (staged, _) = try readRegular(root, stagedName, mode: publicationMode)
+        guard staged == encoded else { throw failure }
+        // A changed, linked or replaced live proof must not be overwritten after
+        // the archive was checked. Descriptor-relative operations never follow
+        // a replacement symlink for either the receipt or publication target.
+        if let previous {
+            let (current, metadata) = try readRegular(root, liveName)
+            guard current == previous, metadata.st_dev == live.st_dev, metadata.st_ino == live.st_ino,
+                  metadata.st_mode == live.st_mode else { throw failure }
+        } else {
+            var appeared = stat()
+            guard fstatat(root, liveName, &appeared, AT_SYMLINK_NOFOLLOW) != 0, errno == ENOENT else { throw failure }
+        }
+        guard renameat(root, stagedName, root, liveName) == 0 else { throw failure }
+    }
+
+    private func makeScopedJournal(baseline: NativeChargeSnapshot, plannedTarget: Int) -> NativeChargeJournal {
+        var saved = NativeChargeJournal(sessionID: UUID(), environment: environment, baseline: baseline.configuration,
+            lastVerified: baseline.configuration, plannedTarget: plannedTarget, phase: .preparing)
+        saved.version = 2; saved.semanticContract = NativeChargeAdmission.semanticContract
+        saved.persistentTargets = NativeChargeAdmission.persistentPair; saved.baselineSnapshot = baseline
+        return saved
     }
 
     func refresh() async {
@@ -289,7 +467,16 @@ enum NativeChargeServiceError: Error, LocalizedError {
                 return
             }
             observed = value
-            if !monitoringOnly, let journal, journal.phase != .preparing && journal.phase != .restoring && journal.phase != .indeterminate,
+            if !monitoringOnly, let journal, journal.version == 2,
+               (!NativeChargeAdmission.isPersistent(value, target: value.configuration.target, optimizedCharging: journal.baseline.optimizedCharging)
+                || !NativeChargeAdmission.persistentPair.contains(value.configuration.target)
+                || value.supportedTargets != journal.baselineSnapshot?.supportedTargets
+                || (journal.expectedMutation == nil && value.configuration != journal.lastVerified)) {
+                recoveryRequired = true
+                message = "The current macOS state is outside the verified persistent session. Its recovery journal was preserved without a write."
+                return
+            }
+            if !monitoringOnly, let journal, journal.version != 2, journal.phase != .preparing && journal.phase != .restoring && journal.phase != .indeterminate,
                !value.configuration.matchesManual(journal.lastVerified) {
                 try relinquish()
                 message = "The macOS charge setting changed outside Tilvero. Control was released without overwriting it."
@@ -317,7 +504,11 @@ enum NativeChargeServiceError: Error, LocalizedError {
         observed = current
         guard current.isFresh && current.policyMatches else { throw NativeChargeServiceError.readbackMismatch }
         guard current.supportedTargets.contains(target) else { throw NativeChargeServiceError.unsupportedTarget }
-        if let journal, !current.configuration.matchesManual(journal.lastVerified) {
+        if !trustedFixtureAuthority {
+            guard admissionScope?.authorizedPersistentTargets.contains(target) == true else { throw NativeChargeServiceError.unqualifiedTarget }
+            guard isAuthorizedPersistentState(current) else { throw NativeChargeServiceError.readbackMismatch }
+        }
+        if let journal, !(journal.version == 2 ? current.configuration == journal.lastVerified : current.configuration.matchesManual(journal.lastVerified)) {
             try relinquish(); throw NativeChargeServiceError.recoveryRequired
         }
         if current.configuration.enabled && current.configuration.target == target {
@@ -329,8 +520,10 @@ enum NativeChargeServiceError: Error, LocalizedError {
         let transaction = makeTransaction()
         do {
             if journal == nil {
-                journal = .init(sessionID: UUID(), environment: environment, baseline: current.configuration,
-                                lastVerified: current.configuration, plannedTarget: target, phase: .preparing)
+                if trustedFixtureAuthority {
+                    journal = .init(sessionID: UUID(), environment: environment, baseline: current.configuration,
+                                    lastVerified: current.configuration, plannedTarget: target, phase: .preparing)
+                } else { journal = makeScopedJournal(baseline: current, plannedTarget: target) }
             }
             transaction.sessionID = journal?.sessionID
             journal?.plannedTarget = target
@@ -401,6 +594,8 @@ enum NativeChargeServiceError: Error, LocalizedError {
             guard reviewReason != .journalIntegrity else { throw NativeChargeServiceError.recoveryRequired }
             pendingTarget = nil; recoveryRequired = false; return true
         }
+        if saved.version == 2 { return try await restorePersistent(saved, batteryPercent: batteryPercent, batteryFresh: batteryFresh) }
+        guard trustedFixtureAuthority else { throw NativeChargeServiceError.unavailable }
         isBusy = true; defer { isBusy = false }
         let current = try await readNative(); observed = current
         guard current.isFresh && current.policyReadbackAvailable else { throw NativeChargeServiceError.readbackMismatch }
@@ -473,8 +668,65 @@ enum NativeChargeServiceError: Error, LocalizedError {
         }
     }
 
+    /// A scoped journal can authorize only restoration to its verified persistent
+    /// pair baseline. It never grants Apply and never enters legacy recall paths.
+    private func restorePersistent(_ saved: NativeChargeJournal, batteryPercent: Int?, batteryFresh: Bool) async throws -> Bool {
+        guard saved.hasPersistentScope(environment: environment) else { throw NativeChargeServiceError.recoveryRequired }
+        isBusy = true; defer { isBusy = false }
+        let current = try await readNative(); observed = current
+        guard current.isFresh, NativeChargeAdmission.persistentPair.contains(current.configuration.target),
+              current.supportedTargets == saved.baselineSnapshot?.supportedTargets,
+              NativeChargeAdmission.isPersistent(current, target: current.configuration.target, optimizedCharging: saved.baseline.optimizedCharging)
+        else { throw NativeChargeServiceError.readbackMismatch }
+        if saved.hasWritten, current.configuration == saved.baseline,
+           (saved.expectedMutation != nil || [.indeterminate, .preparing, .restoring].contains(saved.phase)) {
+            recoveryRequired = true
+            message = "An unconfirmed native operation may still take effect. The recovery journal was preserved; no follow-up write was started."
+            return false
+        }
+        if current.configuration == saved.baseline {
+            try relinquish(); message = "The verified persistent baseline is confirmed."; return true
+        }
+        guard current.configuration == saved.lastVerified || current.configuration == saved.expectedMutation else {
+            throw NativeChargeServiceError.recoveryRequired
+        }
+        let battery = await batteryProvider?()
+        let fresh = battery?.fresh ?? batteryFresh
+        let percent = battery != nil ? battery!.percent : batteryPercent
+        guard fresh, let percent, (0...100).contains(percent) else { throw NativeChargeServiceError.staleBattery }
+        self.batteryPercent = percent; self.batteryFresh = true
+        let transaction = makeTransaction()
+        do {
+            guard percent < saved.baseline.target else {
+                journal?.phase = .restorationPending; restorationPending = true
+                try saveJournal()
+                message = "Restoring the persistent baseline is waiting for natural discharge."
+                return false
+            }
+            journal?.phase = .restoring; journal?.lastVerified = current.configuration; try saveJournal()
+            try await mutate(transaction: transaction, expected: saved.baseline) {
+                try await self.setNativeLimit(saved.baseline.target, transaction: transaction)
+            }
+            let restored = try await verify(target: saved.baseline.target, enabled: true)
+            guard restored.configuration == saved.baseline else { throw NativeChargeServiceError.readbackMismatch }
+            observed = restored; try relinquish()
+            message = "The original persistent macOS charge setting was verified as restored."
+            return true
+        } catch {
+            if case NativeChargeServiceError.unsafeEnable = error,
+               !transaction.everDispatched || transaction.allDispatchedConfirmed {
+                journal?.phase = .restorationPending; restorationPending = true
+                recoveryRequired = transaction.entryRecovery
+                do { try saveJournal() } catch { markJournalIntegrity(); throw error }
+                return false
+            }
+            handleFailure(transaction, failure: error)
+            throw error
+        }
+    }
+
     func chargeToFullOnce(batteryPercent: Int?, batteryFresh: Bool) async throws {
-        guard fullOnceQualified else { throw NativeChargeServiceError.unavailable }
+        guard fullOnceQualified, trustedFixtureAuthority else { throw NativeChargeServiceError.unavailable }
         let previous = hasOwnedSettings ? observed?.configuration.target : nil
         try await apply(100, batteryPercent: batteryPercent, batteryFresh: batteryFresh)
         guard journal != nil else { return }
@@ -503,7 +755,25 @@ enum NativeChargeServiceError: Error, LocalizedError {
         guard before.isFresh, before.policyReadbackAvailable, before.policyMatches else {
             throw NativeChargeServiceError.readbackMismatch
         }
-        guard before.configuration.matchesManual(saved.lastVerified) else {
+        let scoped = saved.version == 2
+        if scoped {
+            guard saved.hasPersistentScope(environment: environment), before.supportedTargets == saved.baselineSnapshot?.supportedTargets,
+                  NativeChargeAdmission.isPersistent(before, target: before.configuration.target, optimizedCharging: saved.baseline.optimizedCharging),
+                  NativeChargeAdmission.persistentPair.contains(before.configuration.target), expected.enabled,
+                  NativeChargeAdmission.persistentPair.contains(expected.target), expected.optimizedCharging == saved.baseline.optimizedCharging,
+                  !permitDisabled100, !allowRestoredBaseline else { throw NativeChargeServiceError.readbackMismatch }
+            if isQualifying {
+                guard let baseline = qualificationBaseline,
+                      baseline.configuration == saved.baseline,
+                      (before.configuration.target == 90 && expected.target == 95 && saved.phase == .preparing)
+                        || (before.configuration.target == 95 && expected.target == 90 && saved.phase == .restoring)
+                else { throw NativeChargeServiceError.unqualifiedTarget }
+            } else if saved.phase != .restoring {
+                guard admissionScope?.authorizedPersistentTargets.contains(expected.target) == true,
+                      isAuthorizedPersistentState(before) else { throw NativeChargeServiceError.unqualifiedTarget }
+            }
+        }
+        guard scoped ? before.configuration == saved.lastVerified : before.configuration.matchesManual(saved.lastVerified) else {
             try relinquish()
             message = "An external charge change was preserved before the next operation."
             throw NativeChargeServiceError.recoveryRequired
@@ -512,6 +782,9 @@ enum NativeChargeServiceError: Error, LocalizedError {
         let fresh = battery?.fresh ?? batteryFresh
         let percent = battery != nil ? battery!.percent : batteryPercent
         guard fresh, let percent else { throw NativeChargeServiceError.staleBattery }
+        if scoped && isQualifying && before.configuration.target == 90 && expected.target == 95 && !(0...88).contains(percent) {
+            throw NativeChargeServiceError.staleBattery
+        }
         if expected.enabled && expected.target != before.configuration.target && percent >= expected.target {
             throw NativeChargeServiceError.unsafeEnable
         }
@@ -533,6 +806,10 @@ enum NativeChargeServiceError: Error, LocalizedError {
         guard after.isFresh && (after.configuration.matchesManual(expected) || (permitDisabled100 && after.configuration.target == 100) || baselineWasRecalled) else {
             throw NativeChargeServiceError.readbackMismatch
         }
+        if scoped {
+            guard NativeChargeAdmission.isPersistent(after, target: expected.target, optimizedCharging: saved.baseline.optimizedCharging),
+                  after.supportedTargets == saved.baselineSnapshot?.supportedTargets else { throw NativeChargeServiceError.readbackMismatch }
+        }
         // Setter return and the first fresh matching configuration are separate
         // proofs. Registration is intentionally verified by the later policy read.
         transaction.mutation = .configurationConfirmed(after.configuration)
@@ -540,27 +817,39 @@ enum NativeChargeServiceError: Error, LocalizedError {
     }
 
     private func readNative() async throws -> NativeChargeSnapshot {
-        do { return try await operationGate.call(purpose: .read) { [client] in try await client.read() } }
+        do {
+            let value = try await operationGate.call(purpose: .read) { [client] in try await client.read() }
+            if let previous = incompleteObservation, message == previous.localizedDescription { message = nil }
+            incompleteObservation = nil
+            return value
+        }
         catch {
             observed = nil
+            incompleteObservation = nil
             if let failure = error as? NativeChargeReadFailure {
                 // Discovery is independent of a usable current setting. Keep
                 // offered targets visible without inferring enabled state,
                 // admission, ownership or permission to dispatch a setter.
                 knownTargets = failure.supportedTargets
                 nativeSetting = nil
+                incompleteObservation = failure
                 message = failure.localizedDescription
             }
             throw error
         }
     }
     private func setNativeLimit(_ target: Int, transaction: Transaction) async throws {
+        if let saved = journal, saved.version == 2 {
+            guard saved.hasPersistentScope(environment: environment), NativeChargeAdmission.persistentPair.contains(target),
+                  saved.expectedMutation?.enabled == true, saved.expectedMutation?.target == target else { throw NativeChargeServiceError.unqualifiedTarget }
+        }
         try await operationGate.call(purpose: .setLimit(target: target), onDispatch: {
             transaction.everDispatched = true
             if let expected = self.journal?.expectedMutation { transaction.mutation = .dispatched(expected) }
         }) { [client] in try await client.setLimit(target) }
     }
     private func setNativeEnabled(_ enabled: Bool, transaction: Transaction) async throws {
+        guard journal?.version != 2, trustedFixtureAuthority, !isQualifying else { throw NativeChargeServiceError.unqualifiedTarget }
         try await operationGate.call(purpose: .setEnabled(enabled: enabled), onDispatch: {
             transaction.everDispatched = true
             if let expected = self.journal?.expectedMutation { transaction.mutation = .dispatched(expected) }
@@ -630,6 +919,10 @@ enum NativeChargeServiceError: Error, LocalizedError {
         for attempt in 0..<verificationAttempts {
             let value = try await readNative(); observed = value
             if value.isFresh && value.configuration.target == target && (enabled.map { $0 == value.configuration.enabled } ?? true) && value.policyMatches {
+                if let saved = journal, saved.version == 2 {
+                    guard NativeChargeAdmission.isPersistent(value, target: target, optimizedCharging: saved.baseline.optimizedCharging),
+                          value.supportedTargets == saved.baselineSnapshot?.supportedTargets else { throw NativeChargeServiceError.readbackMismatch }
+                }
                 return value
             }
             if attempt + 1 < verificationAttempts { try await Task.sleep(for: verificationDelay) }

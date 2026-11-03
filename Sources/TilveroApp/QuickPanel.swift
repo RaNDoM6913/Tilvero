@@ -152,10 +152,10 @@ struct ChargeLimitControl: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
             HStack {
-                StudioText(L10n.text("Charge limit"), id: "charge.title").font(.headline)
+                StudioText(L10n.text(model.isDemo ? "Charge limit" : "New charge limit"), id: "charge.title").font(.headline)
                 Spacer()
                 if model.canShowChargeControls {
-                    TextField(L10n.text("Desired percentage"), text: Binding(get: { model.draftText }, set: { model.draftText = $0; model.typedDraftChanged() }))
+                    TextField(L10n.text("Choose"), text: Binding(get: { model.draftText }, set: { model.draftText = $0; model.typedDraftChanged() }))
                         .textFieldStyle(.roundedBorder).multilineTextAlignment(.trailing).frame(width: 55)
                         .disabled(!model.canEdit).onSubmit { _ = model.validateTypedDraft() }
                         .accessibilityLabel(L10n.text("Desired percentage"))
@@ -164,17 +164,23 @@ struct ChargeLimitControl: View {
                 }
             }
             if model.canShowChargeControls {
-                Slider(value: Binding(get: { model.sliderIndex }, set: model.setSliderIndex),
-                       in: 0...Double(max(1, model.acceptedTargets.count - 1)), step: 1)
-                    .disabled(!model.canEdit).accessibilityLabel(L10n.text("Charge limit"))
-                    .accessibilityValue("\(model.draftText)%, \(L10n.text("Draft"))")
-                    .accessibilityIdentifier("charge.slider")
-                    .studioElement("charge.slider", label: "Charge limit slider")
-                HStack {
-                    Text(model.acceptedTargets.first.map { "\($0)%" } ?? "—")
-                    Spacer()
-                    Text(model.acceptedTargets.last.map { "\($0)%" } ?? "—")
-                }.font(.caption).foregroundStyle(.secondary)
+                if model.draftTarget != nil {
+                    Slider(value: Binding(get: { model.sliderIndex }, set: model.setSliderIndex),
+                           in: 0...Double(max(1, model.acceptedTargets.count - 1)), step: 1)
+                        .disabled(!model.canEdit).accessibilityLabel(L10n.text("Charge limit"))
+                        .accessibilityValue("\(model.draftText)%, \(L10n.text("Draft"))")
+                        .accessibilityIdentifier("charge.slider")
+                        .studioElement("charge.slider", label: "Charge limit slider")
+                    HStack {
+                        Text(model.acceptedTargets.first.map { "\($0)%" } ?? "—")
+                        Spacer()
+                        Text(model.acceptedTargets.last.map { "\($0)%" } ?? "—")
+                    }.font(.caption).foregroundStyle(.secondary)
+                } else {
+                    Text(L10n.text("Choose a new limit. No target has been selected."))
+                        .font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 HStack {
                     ForEach([80, 90, 100], id: \.self) { target in
                         StudioActionButton("\(target)%", id: "charge.preset.\(target)") { model.setDraft(target) }.disabled(!model.canEdit || !model.acceptedTargets.contains(target))
@@ -184,7 +190,7 @@ struct ChargeLimitControl: View {
                         .buttonStyle(.borderedProminent).disabled(!model.canApply)
                         .accessibilityIdentifier("charge.apply")
                 }
-                if !isQuickPanel { Text(L10n.text("Draft") + ": " + model.draftText + "%").font(.caption).foregroundStyle(.secondary) }
+                if !isQuickPanel, model.draftTarget != nil { Text(L10n.text("Draft") + ": " + model.draftText + "%").font(.caption).foregroundStyle(.secondary) }
                 if !model.usesNativeCharge { StudioText(model.effectiveLimitText, id: "charge.effective").font(.subheadline).foregroundStyle(.secondary) }
                 if model.usesNativeCharge { NativeChargeStatusPanel(model: model, compact: isQuickPanel) }
                 if model.pendingTarget != nil {

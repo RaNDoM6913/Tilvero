@@ -24,6 +24,18 @@ import ChargeBackends
                         }.frame(width: 12, height: 12)
                     }
                 }
+            } else if let target = model.nativeCharge.currentReportedTarget {
+                StudioText(L10n.text("Current target reported by macOS") + ": \(target)%", id: "native.reportedTarget")
+                    .font(.subheadline).monospacedDigit()
+            }
+            if let stored = model.nativeCharge.diagnosticStoredTarget {
+                StudioText(L10n.text("Saved target reported by macOS") + ": \(stored)%", id: "native.diagnosticStoredTarget")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .help(L10n.text("This diagnostic value is not a confirmed active limit; its source freshness is unknown."))
+                Text(L10n.text("The return time is unavailable here. Check the charging mode in macOS settings."))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button(L10n.text("Charging settings in macOS…")) { model.openBatterySettings() }
             }
             if let status = statusText(state) {
                 StudioText(L10n.text(status), id: "native.status").font(.caption)
@@ -43,13 +55,18 @@ import ChargeBackends
                 StudioActionButton(L10n.text("Refresh"), id: "action.refresh") { Task { await model.refreshNativeCharge() } }
                     .disabled(actionsBlocked)
                 if !model.nativeCharge.admitted && !model.nativeCharge.recoveryRequired {
-                    StudioActionButton(L10n.text("Validate native control…"), id: "action.validate-native-control") { model.qualifyNativeCharge() }
-                        .disabled(actionsBlocked)
-                        .help(L10n.text("Native control needs one local setting-and-restoration check."))
+                    StudioActionButton(L10n.text("Validate 90% and 95%…"), id: "action.validate-native-control") { model.qualifyNativeCharge() }
+                        .disabled(actionsBlocked || !model.nativeCharge.canRequestQualification)
+                        .help(L10n.text("Validation uses 90% → 95% → 90% only, after a confirmed persistent 90% baseline and natural discharge to 88% or below."))
                 }
             }
             if model.nativeCharge.interfaceWasDiscovered && !model.nativeCharge.admitted {
                 Text(L10n.text("Native control must be validated on this macOS version before Apply is available."))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if model.nativeCharge.admitted && model.nativeCharge.authorizedPersistentTargets == [90, 95] {
+                Text(L10n.text("Verified persistent limits: 90% and 95%. Other targets and one-time full charging need separate validation."))
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -114,9 +131,13 @@ import ChargeBackends
         case .lowerTargetPending:
             state.pendingTarget == nil ? "The lower target is waiting for natural discharge." : nil
         case .policyUnconfirmed:
-            model.nativeCharge.nativeSetting == nil
-                ? model.nativeCharge.message ?? "Active charge policy is unconfirmed"
-                : "Active charge policy is unconfirmed"
+            if model.nativeCharge.incompleteObservation != nil, model.nativeCharge.currentReportedTarget != nil {
+                "The current target is readable. Safe control and restoration are not yet confirmed for this charging mode."
+            } else {
+                model.nativeCharge.nativeSetting == nil
+                    ? model.nativeCharge.message ?? "Active charge policy is unconfirmed"
+                    : "Active charge policy is unconfirmed"
+            }
         case .none: nil
         }
     }

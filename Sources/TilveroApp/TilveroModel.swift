@@ -98,7 +98,7 @@ final class TilveroModel: ObservableObject {
     func releaseUpdateInstallation() { updatePreparationActive = false; updateExclusion = nil }
     @Published private(set) var snapshot: BatterySnapshot
     @Published private(set) var control: SimulationControlSnapshot?
-    @Published var draftText = "80"
+    @Published var draftText = ""
     @Published private(set) var notice: String?
     @Published private(set) var isApplying = false
     @Published private(set) var storeError: String?
@@ -432,6 +432,8 @@ final class TilveroModel: ObservableObject {
             self?.objectWillChange.send()
             self?.onPresentationChange?()
         }
+        if isDemo { draftText = "80" }
+        else if let target = self.nativeCharge.currentReportedTarget { draftText = String(target) }
     }
 
     var visibleOverviewMetrics: [OverviewMetric] {
@@ -664,10 +666,11 @@ final class TilveroModel: ObservableObject {
     func discardDraft() {
         if !isDemo, case let .ceiling(target) = nativeCharge.requestedIntent { draftText = String(target) }
         else if !isDemo, let observed = nativeCharge.observed { draftText = String(observed.configuration.target) }
+        else if !isDemo, let reported = nativeCharge.currentReportedTarget { draftText = String(reported) }
         else if !isDemo, case let .ceiling(target) = liveControl.requestedIntent { draftText = String(target) }
         else if case let .ceiling(target) = chargeState?.requested { draftText = String(target) }
         else if let value = chargeState?.appliedTarget, acceptedTargets.contains(value) { draftText = String(value) }
-        else { draftText = acceptedTargets.first.map(String.init) ?? "" }
+        else { draftText = isDemo ? acceptedTargets.first.map(String.init) ?? "" : "" }
         draftDirty = false
     }
     func applyDemoTarget() { guard canApply, validateTypedDraft(), let target = draftTarget else { return }; perform(.setCeiling(percent: target)) }
@@ -766,8 +769,9 @@ final class TilveroModel: ObservableObject {
         modeLibrary = updated
     }
     func modePreview(_ plan: ModePlan) -> [ModeActionRow] {
-        plan.preview(chargeTargets: acceptedTargets, chargeAvailable: isDemo || (usesNativeCharge && nativeCharge.canApply),
-                     restoreAvailable: isDemo || canReleaseCharge || liveControl.hasOwnedSettings || liveControl.recoveryRequired)
+        let targets = !isDemo && usesNativeCharge ? nativeCharge.authorizedPersistentTargets : acceptedTargets
+        return plan.preview(chargeTargets: targets, chargeAvailable: isDemo || (usesNativeCharge && nativeCharge.canApply),
+                            restoreAvailable: isDemo || canReleaseCharge || liveControl.hasOwnedSettings || liveControl.recoveryRequired)
     }
     func applyMode(_ mode: WorkMode) async {
         guard !controlsAreSuspended, !isApplying, !nativeCharge.isBusy, !nativeCharge.isQualifying, !liveControl.isBusy else { return }

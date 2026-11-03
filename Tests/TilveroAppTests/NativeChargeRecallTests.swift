@@ -4,29 +4,32 @@ import ChargeBackends
 @testable import TilveroApp
 
 @MainActor final class NativeChargeRecallTests: XCTestCase {
-    func testQualificationAcceptsVerifiedBaselineRecalledByEnableWithoutExtraSetter() async throws {
+    func testTrustedFixtureRestoreAcceptsVerifiedBaselineRecalledByEnableWithoutExtraSetter() async throws {
         let f = Fixture(); defer { f.cleanup() }
-        try await f.service.qualify()
+        try await f.service.apply(100, batteryPercent: 68, batteryFresh: true)
+        let restored = try await f.service.restore(batteryPercent: 68, batteryFresh: true)
+        XCTAssertTrue(restored)
         XCTAssertTrue(f.service.admitted)
         XCTAssertFalse(f.service.hasOwnedSettings)
         XCTAssertFalse(FileManager.default.fileExists(atPath: f.journal.path))
-        XCTAssertTrue(NativeChargeAdmission.load(from: f.admission, environment: "fixture"))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: f.admission.path), "Trusted fixture restoration is not schema2 qualification")
         XCTAssertEqual(f.service.observed?.configuration, .init(enabled: true, target: 80, optimizedCharging: true))
         let writes = await f.client.writes; XCTAssertEqual(writes, ["limit100", "enable"])
     }
     func testFreshBatteryRecheckBlocksEnableWhenItWouldRecallAnUnsafeBaseline() async throws {
         let f = Fixture(rising: true); defer { f.cleanup() }
-        do { try await f.service.qualify(); XCTFail("Natural discharge is required") } catch {}
-        XCTAssertFalse(f.service.admitted)
+        try await f.service.apply(100, batteryPercent: 68, batteryFresh: true)
+        let restored = try await f.service.restore(batteryPercent: 68, batteryFresh: true)
+        XCTAssertFalse(restored, "Natural discharge is required")
         XCTAssertFalse(FileManager.default.fileExists(atPath: f.admission.path))
         let writes = await f.client.writes; XCTAssertEqual(writes, ["limit100"])
         XCTAssertTrue(FileManager.default.fileExists(atPath: f.journal.path))
     }
-    func testUnconfirmedOrDifferentRecalledStateCannotGrantAdmissionOrStartFollowUp() async throws {
+    func testTrustedFixtureUnconfirmedOrDifferentRecallCannotStartFollowUpOrCreateProof() async throws {
         for invalid in ["target", "obc", "policy", "throw"] {
             let f = Fixture(invalid: invalid); defer { f.cleanup() }
-            do { try await f.service.qualify(); XCTFail("Must remain unqualified: \(invalid)") } catch {}
-            XCTAssertFalse(f.service.admitted)
+            try await f.service.apply(100, batteryPercent: 68, batteryFresh: true)
+            do { _ = try await f.service.restore(batteryPercent: 68, batteryFresh: true); XCTFail("Must reject recall: \(invalid)") } catch {}
             XCTAssertFalse(FileManager.default.fileExists(atPath: f.admission.path))
             XCTAssertTrue(FileManager.default.fileExists(atPath: f.journal.path))
             let writes = await f.client.writes; XCTAssertEqual(writes, ["limit100", "enable"])
@@ -41,7 +44,7 @@ import ChargeBackends
         init(rising: Bool = false, invalid: String? = nil) {
             client = RecallTransport(rising: rising, invalid: invalid)
             let transport = client
-            service = NativeChargeService(client: client, journalURL: directory.appendingPathComponent("session.json"), verificationAttempts: 2,
+            service = NativeChargeService(client: client, journalURL: directory.appendingPathComponent("session.json"), admitted: true, verificationAttempts: 2,
                 environment: "fixture", batteryProvider: { await transport.battery() }, admissionURL: directory.appendingPathComponent("admission.json"))
         }
         func cleanup() { try? FileManager.default.removeItem(at: directory) }
@@ -56,7 +59,7 @@ private actor RecallTransport: NativeChargeTransport {
     init(rising: Bool, invalid: String?) { self.rising = rising; self.invalid = invalid }
     func battery() -> ChargeObservation {
         batteryReads += 1
-        return .init(percent: rising && batteryReads >= 5 ? 80 : 68, externalPower: true)
+        return .init(percent: rising && batteryReads >= 4 ? 80 : 68, externalPower: true)
     }
     func read() -> NativeChargeSnapshot {
         .init(configuration: .init(enabled: enabled, target: target, optimizedCharging: optimized), supportedTargets: [80,85,90,95,100],

@@ -4,6 +4,73 @@ import PowerCore
 @testable import TilveroApp
 
 @MainActor final class NativeChargeDiscoveryTests: XCTestCase {
+    func testPartialCurrentTargetIsDistinctFromDiagnosticTargetAndDraft() async throws {
+        let fixture = try DiscoveryFixture(admitted: false)
+        defer { fixture.cleanUp() }
+        await fixture.transport.setPartialObservation(current: 100, stored: 90)
+        await fixture.model.refreshNativeCharge()
+        XCTAssertEqual(fixture.native.currentReportedTarget, 100)
+        XCTAssertEqual(fixture.native.diagnosticStoredTarget, 90)
+        XCTAssertNotNil(fixture.native.incompleteObservation)
+        XCTAssertNil(fixture.native.nativeSetting)
+        XCTAssertNil(fixture.native.observed)
+        XCTAssertNil(fixture.model.chargeState?.appliedTarget)
+        XCTAssertEqual(fixture.model.draftText, "100", "An untouched draft may start from the reported target, never the lowest offered target")
+        fixture.model.setDraft(90)
+        await fixture.model.refreshNativeCharge()
+        XCTAssertEqual(fixture.model.draftText, "90")
+        XCTAssertEqual(fixture.native.currentReportedTarget, 100)
+        XCTAssertFalse(fixture.model.canApply)
+        let writes = await fixture.transport.writes
+        XCTAssertTrue(writes.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.journal.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.admission.path))
+    }
+
+    func testStalePartialTargetCannotInitializeDraftOrDisplayStoredTarget() async throws {
+        let fixture = try DiscoveryFixture(admitted: false)
+        defer { fixture.cleanUp() }
+        await fixture.transport.setPartialObservation(current: 100, stored: 90, date: Date().addingTimeInterval(-120))
+        await fixture.model.refreshNativeCharge()
+        XCTAssertNil(fixture.native.currentReportedTarget)
+        XCTAssertNil(fixture.native.diagnosticStoredTarget)
+        XCTAssertTrue(fixture.model.draftText.isEmpty)
+        XCTAssertFalse(fixture.native.canApply)
+    }
+
+    func testCompleteOrUnrelatedFailedReadClearsPartialObservation() async throws {
+        for fullRead in [false, true] {
+            let fixture = try DiscoveryFixture(admitted: false)
+            defer { fixture.cleanUp() }
+            await fixture.transport.setPartialObservation(current: 100, stored: 90)
+            await fixture.model.refreshNativeCharge()
+            XCTAssertNotNil(fixture.native.incompleteObservation)
+            if fullRead { await fixture.transport.setUnknown(false) }
+            else { await fixture.transport.setUnsupported() }
+            await fixture.model.refreshNativeCharge()
+            XCTAssertNil(fixture.native.incompleteObservation)
+            XCTAssertNil(fixture.native.diagnosticStoredTarget)
+            XCTAssertEqual(fixture.native.currentReportedTarget, fullRead ? 85 : nil)
+            if fullRead { XCTAssertNil(fixture.native.message, "A recovered complete read clears its former partial-read warning") }
+            XCTAssertFalse(fixture.native.admitted)
+        }
+    }
+
+    func testUnknownConfigurationDoesNotInventLowestOfferedLimitAsDraft() async throws {
+        let fixture = try DiscoveryFixture(admitted: false)
+        defer { fixture.cleanUp() }
+        XCTAssertTrue(fixture.model.draftText.isEmpty, "An unread setting must not look like an 80% limit")
+        await fixture.model.refreshNativeCharge()
+        XCTAssertTrue(fixture.model.draftText.isEmpty)
+        XCTAssertNil(fixture.model.draftTarget)
+
+        fixture.model.setDraft(90)
+        await fixture.model.refreshNativeCharge()
+        XCTAssertEqual(fixture.model.draftText, "90", "A deliberately selected draft survives read failure")
+        XCTAssertEqual(fixture.model.draftTarget, 90)
+        XCTAssertFalse(fixture.model.canApply)
+    }
+
     func testUnknownStateKeepsNativeEditorVisibleWithoutAuthorizingWrites() async throws {
         for admitted in [false, true] {
             let fixture = try DiscoveryFixture(admitted: admitted)
@@ -125,12 +192,21 @@ private actor DiscoveryTransport: NativeChargeTransport {
     private var unsupported = false
     private var target = 85
     private var enabled = true
+    private var partialCurrent: Int?
+    private var partialStored: Int?
+    private var partialDate: Date?
     private(set) var writes: [String] = []
     func setUnknown(_ value: Bool) { unknown = value }
     func setUnsupported() { unsupported = true }
+    func setPartialObservation(current: Int?, stored: Int?, date: Date? = nil) {
+        partialCurrent = current; partialStored = stored; partialDate = date
+    }
     func read() throws -> NativeChargeSnapshot {
         if unsupported { throw NSError(domain: "Tilvero.NativeCharge", code: 4) }
-        if unknown { throw NativeChargeReadFailure(supportedTargets: [80, 85, 90, 95, 100])! }
+        if unknown {
+            throw NativeChargeReadFailure(supportedTargets: [80, 85, 90, 95, 100], currentTarget: partialCurrent,
+                rawManualState: 3, diagnosticStoredTarget: partialStored, collectedAt: partialDate ?? Date())!
+        }
         return .init(configuration: .init(enabled: enabled, target: target, optimizedCharging: true),
             supportedTargets: [80, 85, 90, 95, 100], registeredManualLimit: enabled ? target : nil)
     }
