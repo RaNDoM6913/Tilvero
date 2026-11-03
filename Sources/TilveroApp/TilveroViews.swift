@@ -472,6 +472,14 @@ private struct SettingsPanel: View {
         VStack(alignment: .leading, spacing: 20) {
             ProductSurface(title: "Menu bar") {
                 HStack(alignment: .firstTextBaseline) {
+                    StudioText(L10n.text("Battery appearance"), id: "settings.batteryAppearance.title")
+                    Spacer()
+                    Picker(L10n.text("Battery appearance"), selection: $model.menuBarBatteryAppearance) {
+                        ForEach(MenuBarBatteryAppearance.allCases) { Text($0.title).tag($0) }
+                    }.labelsHidden().frame(width: 220).studioElement("settings.batteryAppearance", label: "Battery appearance")
+                }
+                Divider()
+                HStack(alignment: .firstTextBaseline) {
                     StudioText(L10n.text("Menu bar"), id: "settings.menuBar.title")
                     Spacer()
                     Picker(L10n.text("Menu bar"), selection: $model.displayStyle) { ForEach(MenuBarDisplayStyle.allCases) { Text($0.title).tag($0) } }.studioElement("settings.displayStyle", label: "Menu bar display style")

@@ -329,6 +329,87 @@ final class NativeBatteryStatusImageTests: XCTestCase {
         for index in 1..<amounts.count { XCTAssertGreaterThan(amounts[index], amounts[index - 1]) }
     }
 
+    func testModernAppearanceFitsEveryMeasuredAndUnavailableStateAtSupportedScales() throws {
+        for style in MenuBarDisplayStyle.allCases {
+            for ac in [false, true] {
+                for scale in [CGFloat(0.85), 1, 1.15] {
+                    let zero = NativeBatteryStatusImage.make(level: 0, style: style, externalPower: ac, scale: scale, appearance: .macOS27)
+                    let unknown = NativeBatteryStatusImage.make(level: nil, style: style, externalPower: ac, scale: scale, appearance: .macOS27)
+                    XCTAssertNotEqual(pixels(zero), pixels(unknown), "Unavailable data must never become a measured zero.")
+                    for invalid in [-1, 101] {
+                        XCTAssertEqual(pixels(NativeBatteryStatusImage.make(level: invalid, style: style, externalPower: ac, scale: scale, appearance: .macOS27)), pixels(unknown))
+                    }
+                    for level in [0, 10, 90, 100, nil] {
+                        let image = NativeBatteryStatusImage.make(level: level, style: style, externalPower: ac, scale: scale, appearance: .macOS27)
+                        for backingScale in [1, 2] {
+                            let rep = render(image, scale: backingScale)
+                            let ink = occupied(rep)
+                            XCTAssertFalse(ink.isEmpty)
+                            XCTAssertTrue(ink.allSatisfy { $0.y > 0 && $0.y < rep.pixelsHigh - 1 })
+                            XCTAssertLessThan(edgeAlpha(rep), 0.35, "Native contact, numerals and adapter cue must fit the status canvas.")
+                        }
+                    }
+                }
+            }
+        }
+        let modern = NativeBatteryStatusImage.make(level: 90, style: .inside, externalPower: true, appearance: .macOS27)
+        let legacy = NativeBatteryStatusImage.make(level: 90, style: .inside, externalPower: true, appearance: .macOS26)
+        XCTAssertLessThan(modern.size.width, legacy.size.width, "The selected compact macOS 27 reference must not inherit the elongated iOS-inspired body.")
+        XCTAssertNotEqual(pixels(modern), pixels(legacy))
+    }
+
+    func testModernNumeralsAndAdapterHaveContrastingCutoutsAndAVisibleGap() throws {
+        for size in MenuBarTextSize.allCases {
+            let full = render(NativeBatteryStatusImage.make(level: 100, style: .inside, externalPower: true, textSize: size, appearance: .macOS27), scale: 8)
+            let centre = (6 * 8..<12 * 8).flatMap { y in
+                (5 * 8..<23 * 8).map { x in full.colorAt(x: x, y: y)!.alphaComponent }
+            }
+            XCTAssertGreaterThan(centre.filter { $0 < 0.1 }.count, centre.count / 10, "Full charge needs readable transparent numerals and a bolt.")
+            XCTAssertGreaterThan(centre.filter { $0 > 0.9 }.count, centre.count / 3)
+            for y in 6 * 8..<12 * 8 {
+                XCTAssertGreaterThan(full.colorAt(x: 19 * 8, y: y)!.alphaComponent, 0.95, "100 and the AC cue must remain separate.")
+            }
+            let off = pixels(NativeBatteryStatusImage.make(level: 90, style: .inside, externalPower: false, textSize: size, appearance: .macOS27))
+            let ac = pixels(NativeBatteryStatusImage.make(level: 90, style: .inside, externalPower: true, textSize: size, appearance: .macOS27))
+            XCTAssertNotEqual(off, ac, "Adapter presence remains independent from the numeric battery reading.")
+        }
+    }
+
+    func testModernAwakeBlueAndSelectedMaskPreserveTheSameBatteryAlpha() throws {
+        for style in MenuBarDisplayStyle.allCases {
+            let off = NativeBatteryStatusImage.make(level: 90, style: style, externalPower: true, appearance: .macOS27)
+            let active = NativeBatteryStatusImage.make(level: 90, style: style, externalPower: true, awake: .active, appearance: .macOS27)
+            let selected = NativeBatteryStatusImage.make(level: 90, style: style, externalPower: true, awake: .active, highlighted: true, appearance: .macOS27)
+            let unconfirmed = NativeBatteryStatusImage.make(level: 90, style: style, externalPower: true, awake: .unconfirmed, appearance: .macOS27)
+            XCTAssertFalse(active.isTemplate)
+            XCTAssertTrue(selected.isTemplate)
+            XCTAssertTrue(unconfirmed.isTemplate)
+            let a = render(off, scale: 2), b = render(active, scale: 2), c = render(selected, scale: 2)
+            for y in 0..<a.pixelsHigh { for x in 0..<a.pixelsWide {
+                XCTAssertEqual(a.colorAt(x: x, y: y)!.alphaComponent, b.colorAt(x: x, y: y)!.alphaComponent, accuracy: 0.02)
+                XCTAssertEqual(b.colorAt(x: x, y: y)!.alphaComponent, c.colorAt(x: x, y: y)!.alphaComponent, accuracy: 0.02)
+            } }
+            XCTAssertNotEqual(pixels(selected), pixels(unconfirmed))
+        }
+    }
+
+    func testExportNativeAppearanceComparisonWhenExplicitlyRequested() throws {
+        guard let path = ProcessInfo.processInfo.environment["TILVERO_BATTERY_RENDER_DIR"] else { return }
+        let root = URL(fileURLWithPath: path)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        for appearance in MenuBarBatteryAppearance.allCases {
+            for style in MenuBarDisplayStyle.allCases {
+                for ac in [false, true] {
+                    for level in [0, 10, 90, 100, nil] {
+                        let image = NativeBatteryStatusImage.make(level: level, style: style, externalPower: ac, textSize: .system, appearance: appearance)
+                        let data = try XCTUnwrap(render(image, scale: 8).representation(using: .png, properties: [:]))
+                        try data.write(to: root.appendingPathComponent("\(appearance.rawValue)-\(style.rawValue)-\(ac ? "ac" : "battery")-\(level.map(String.init) ?? "unknown").png"))
+                    }
+                }
+            }
+        }
+    }
+
     private func render(_ image: NSImage, scale: Int) -> NSBitmapImageRep {
         let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int((image.size.width * CGFloat(scale)).rounded(.up)),
             pixelsHigh: Int((image.size.height * CGFloat(scale)).rounded(.up)), bitsPerSample: 8, samplesPerPixel: 4,

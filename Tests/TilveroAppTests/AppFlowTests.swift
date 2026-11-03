@@ -94,3 +94,56 @@ final class MenuBarSizingPreferenceTests: XCTestCase {
         XCTAssertEqual(model.menuBarIconScale, 1)
     }
 }
+
+@MainActor
+final class MenuBarBatteryAppearancePreferenceTests: XCTestCase {
+    func testOSDefaultsDoNotOverrideAnExplicitLegacyOrModernChoice() {
+        XCTAssertEqual(MenuBarBatteryAppearance.restored(nil, operatingSystemMajorVersion: 26), .macOS26)
+        XCTAssertEqual(MenuBarBatteryAppearance.restored(nil, operatingSystemMajorVersion: 27), .macOS27)
+        XCTAssertEqual(MenuBarBatteryAppearance.restored("obsolete", operatingSystemMajorVersion: 27), .macOS27)
+        for major in [26, 27, 28] {
+            for appearance in MenuBarBatteryAppearance.allCases {
+                XCTAssertEqual(MenuBarBatteryAppearance.restored(appearance.rawValue, operatingSystemMajorVersion: major), appearance)
+            }
+        }
+    }
+
+    func testChangingAndRestoringAppearancePreservesPlacementSizingMeasurementsAndPolicy() async throws {
+        let suite = "TilveroTests.\(UUID().uuidString)"
+        let preferences = UserDefaults(suiteName: suite)!
+        defer { preferences.removePersistentDomain(forName: suite) }
+        preferences.set(MenuBarBatteryAppearance.macOS26.rawValue, forKey: "menuBarBatteryAppearance")
+        preferences.set(MenuBarDisplayStyle.beside.rawValue, forKey: "menuBarDisplayStyle")
+        preferences.set(MenuBarTextSize.larger.rawValue, forKey: "menuBarTextSize")
+        preferences.set(0.95, forKey: "menuBarIconScale")
+        let model = TilveroModel(isDemo: true, preferences: preferences)
+        await model.refresh()
+        let reading = model.snapshot.chargePercent, policy = model.control?.charge
+        var presentationChanges = 0
+        model.onPresentationChange = { presentationChanges += 1 }
+        model.menuBarBatteryAppearance = .macOS27
+        XCTAssertEqual(presentationChanges, 1, "Appearance must redraw the actual status item immediately.")
+        let restored = TilveroModel(isDemo: true, preferences: preferences)
+        XCTAssertEqual(restored.menuBarBatteryAppearance, .macOS27)
+        XCTAssertEqual(restored.displayStyle, .beside)
+        XCTAssertEqual(restored.menuBarTextSize, .larger)
+        XCTAssertEqual(restored.menuBarIconScale, 0.95)
+        XCTAssertEqual(model.snapshot.chargePercent, reading)
+        XCTAssertEqual(model.control?.charge, policy)
+        restored.menuBarBatteryAppearance = .macOS26
+        XCTAssertEqual(TilveroModel(isDemo: true, preferences: preferences).menuBarBatteryAppearance, .macOS26)
+        XCTAssertEqual(preferences.string(forKey: "menuBarDisplayStyle"), MenuBarDisplayStyle.beside.rawValue)
+    }
+
+    func testMissingPlacementUsesAppearanceDefaultWhileAnExplicitPlacementSurvives() {
+        for appearance in MenuBarBatteryAppearance.allCases {
+            let suite = "TilveroTests.\(UUID().uuidString)"
+            let preferences = UserDefaults(suiteName: suite)!
+            defer { preferences.removePersistentDomain(forName: suite) }
+            preferences.set(appearance.rawValue, forKey: "menuBarBatteryAppearance")
+            XCTAssertEqual(TilveroModel(isDemo: true, preferences: preferences).displayStyle, appearance.defaultDisplayStyle)
+            preferences.set(MenuBarDisplayStyle.iconOnly.rawValue, forKey: "menuBarDisplayStyle")
+            XCTAssertEqual(TilveroModel(isDemo: true, preferences: preferences).displayStyle, .iconOnly)
+        }
+    }
+}

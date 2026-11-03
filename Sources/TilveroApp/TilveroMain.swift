@@ -526,8 +526,8 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         let attached = power.availability == .available && power.freshness != .stale && power.value == true
         let awake = KeepAwakeStatusIndicator(service: model.keepAwake)
         button.font = NativeStatusPresentation.font(for: model.menuBarTextSize)
-        button.image = NativeBatteryStatusImage.make(level: level, style: model.displayStyle, externalPower: attached, scale: CGFloat(model.menuBarIconScale), textSize: model.menuBarTextSize, awake: awake, highlighted: button.state == .on)
-        button.alternateImage = awake == .active ? NativeBatteryStatusImage.make(level: level, style: model.displayStyle, externalPower: attached, scale: CGFloat(model.menuBarIconScale), textSize: model.menuBarTextSize, awake: awake, highlighted: true) : nil
+        button.image = NativeBatteryStatusImage.make(level: level, style: model.displayStyle, externalPower: attached, scale: CGFloat(model.menuBarIconScale), textSize: model.menuBarTextSize, awake: awake, highlighted: button.state == .on, appearance: model.menuBarBatteryAppearance)
+        button.alternateImage = awake == .active ? NativeBatteryStatusImage.make(level: level, style: model.displayStyle, externalPower: attached, scale: CGFloat(model.menuBarIconScale), textSize: model.menuBarTextSize, awake: awake, highlighted: true, appearance: model.menuBarBatteryAppearance) : nil
         let percentageTitle = model.displayStyle == .beside ? NativeStatusPresentation.percentageTitle(level: level) : ""
         // Development-only marker: fixtures must remain identifiable even when closed.
         button.title = percentageTitle + (model.isDemo ? " DEMO" : "")

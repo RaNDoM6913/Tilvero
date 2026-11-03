@@ -545,6 +545,12 @@
         }
       }
     },
+    "Battery appearance": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Battery appearance" } },
+        "ru": { "stringUnit": { "state": "translated", "value": "Вид батареи" } }
+      }
+    },
     "Menu bar": {
       "localizations": {
         "en": {

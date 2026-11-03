@@ -88,6 +88,9 @@ final class TilveroModel: ObservableObject {
     @Published var displayStyle: MenuBarDisplayStyle {
         didSet { preferences.set(displayStyle.rawValue, forKey: "menuBarDisplayStyle"); onPresentationChange?() }
     }
+    @Published var menuBarBatteryAppearance: MenuBarBatteryAppearance {
+        didSet { preferences.set(menuBarBatteryAppearance.rawValue, forKey: "menuBarBatteryAppearance"); onPresentationChange?() }
+    }
     @Published var menuBarTextSize: MenuBarTextSize {
         didSet { preferences.set(menuBarTextSize.rawValue, forKey: "menuBarTextSize"); onPresentationChange?() }
     }
@@ -303,7 +306,9 @@ final class TilveroModel: ObservableObject {
         retentionDays = preferences.object(forKey: "retentionDays") as? Int ?? 30
         menuBarTextSize = MenuBarTextSize(rawValue: preferences.string(forKey: "menuBarTextSize") ?? "") ?? .system
         menuBarIconScale = MenuBarSizing.validatedIconScale(preferences.object(forKey: "menuBarIconScale") as? Double ?? 1)
-        displayStyle = MenuBarDisplayStyle(rawValue: preferences.string(forKey: "menuBarDisplayStyle") ?? "") ?? .beside
+        let batteryAppearance = MenuBarBatteryAppearance.restored(preferences.string(forKey: "menuBarBatteryAppearance"))
+        menuBarBatteryAppearance = batteryAppearance
+        displayStyle = MenuBarDisplayStyle(rawValue: preferences.string(forKey: "menuBarDisplayStyle") ?? "") ?? batteryAppearance.defaultDisplayStyle
         if let data = preferences.data(forKey: isDemo ? "demoSchedule" : "schedule") { schedule = try? JSONDecoder().decode(ScheduleRule.self, from: data) }
         if let data = preferences.data(forKey: isDemo ? "demoArbiter" : "arbiter"), let saved = try? JSONDecoder().decode(ProfileArbiter.self, from: data) { arbiter = saved }
         if isDemo {

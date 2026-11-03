@@ -58,16 +58,17 @@ enum NativeStatusPresentation {
     }
 }
 
-/// Normal mode uses public native SF Symbol layers with continuous fill. The inside
-/// mode is deliberately custom and iOS-inspired. Template alpha, including text
+/// macOS 27 uses the public native filled silhouette with continuous measured
+/// fill. macOS 26 retains its original outline and iOS-inspired inside mode.
+/// Template alpha, including text
 /// cutouts, lets the status bar adapt both modes to its actual appearance. Only a
 /// confirmed own Keep Awake session uses blue, with a separate monochrome cup.
 @MainActor
 enum NativeBatteryStatusImage {
     static func make(level: Int?, style: MenuBarDisplayStyle, externalPower: Bool, scale: CGFloat = 1, textSize: MenuBarTextSize = .larger,
-                     awake: KeepAwakeStatusIndicator = .off, highlighted: Bool = false) -> NSImage {
+                     awake: KeepAwakeStatusIndicator = .off, highlighted: Bool = false, appearance: MenuBarBatteryAppearance = .macOS26) -> NSImage {
         let inside = style == .inside
-        let batteryWidth: CGFloat = inside ? 35 : 29
+        let batteryWidth: CGFloat = appearance == .macOS27 ? 29 : inside ? 35 : 27
         let canvas = NSSize(width: batteryWidth + (awake == .off ? 0 : 10), height: 18)
         let factor = CGFloat(MenuBarSizing.validatedIconScale(Double(scale)))
         let size = NSSize(width: canvas.width * factor, height: canvas.height * factor)
@@ -79,7 +80,9 @@ enum NativeBatteryStatusImage {
             transform.translateX(by: rect.minX, yBy: rect.minY)
             transform.scaleX(by: rect.width / canvas.width, yBy: rect.height / canvas.height)
             transform.concat()
-            if inside {
+            if appearance == .macOS27 {
+                drawModern(level: level, style: style, externalPower: externalPower, textSize: textSize)
+            } else if inside {
                 drawInside(level: level, externalPower: externalPower, textSize: textSize)
             } else {
                 drawNormal(level: level, externalPower: externalPower)
@@ -124,17 +127,45 @@ enum NativeBatteryStatusImage {
     }
 
     private static func drawNormal(level: Int?, externalPower: Bool) {
+        // Runtime SF Symbols change with the OS. This original vector preserves
+        // the owner's macOS 26 appearance even while running macOS 27.
+        drawFallbackNormal(level: level, externalPower: externalPower)
+    }
+
+    private static func drawModern(level: Int?, style: MenuBarDisplayStyle, externalPower: Bool, textSize: MenuBarTextSize) {
         let density = max(1, min(8, Int((NSGraphicsContext.current?.cgContext.ctm.a ?? 2).magnitude.rounded())))
-        if let native = SystemBatterySymbol.make(level: level ?? 0, adapter: externalPower, density: density) {
+        if let native = SystemBatterySymbol.makeFilled(level: level, density: density) {
             let offset = floor(1.5 * CGFloat(density)) / CGFloat(density)
             native.draw(at: NSPoint(x: -offset, y: -3), from: .zero, operation: .sourceOver, fraction: 1)
-            if level == nil {
-                drawText("—", centeredAt: NSPoint(x: externalPower ? 7 : 12.5, y: 9), size: 8, operation: .sourceOver)
-            }
-            return
+        } else {
+            let body = NSRect(x: 1, y: 3, width: 23, height: 12)
+            NSColor.black.withAlphaComponent(0.2).setFill()
+            NSBezierPath(roundedRect: body, xRadius: 3.5, yRadius: 3.5).fill()
+            drawFill(level: level, in: body, radius: 3.5)
+            NSColor.black.withAlphaComponent(0.45).setFill()
+            NSBezierPath(roundedRect: NSRect(x: 25.5, y: 7, width: 1.5, height: 4), xRadius: 0.75, yRadius: 0.75).fill()
         }
-        // A future symbol-topology change must retain truthful measured fill.
-        drawFallbackNormal(level: level, externalPower: externalPower)
+        if style == .inside {
+            // Three digits get a compact face rather than stretching the body or
+            // allowing 100 to collide with the independent adapter marker.
+            let size: CGFloat = level == 100 ? (textSize == .system ? 9.5 : 10) : (textSize == .system ? 11 : 12)
+            drawModernText(level.map(String.init) ?? "—", centeredAt: NSPoint(x: externalPower ? 10.5 : 12.5, y: 9), size: size)
+        } else if level == nil {
+            drawModernText("—", centeredAt: NSPoint(x: externalPower ? 10.5 : 12.5, y: 9), size: 9)
+        }
+        if externalPower {
+            let marker = NSImage(size: NSSize(width: 7, height: 12), flipped: false) { _ in
+                NSColor.black.setFill()
+                boltPath(center: NSPoint(x: 3.5, y: 6), height: 7).fill()
+                return true
+            }
+            let x: CGFloat = style == .inside || level == nil ? 18 : 9
+            marker.draw(in: NSRect(x: x, y: 3, width: 7, height: 12), from: .zero, operation: .xor, fraction: 1)
+        }
+    }
+
+    private static func drawModernText(_ value: String, centeredAt point: NSPoint, size: CGFloat) {
+        drawText(value, centeredAt: point, size: size, operation: .xor, rounded: false)
     }
 
     private static func drawFallbackNormal(level: Int?, externalPower: Bool) {
@@ -200,11 +231,11 @@ enum NativeBatteryStatusImage {
         NSGraphicsContext.restoreGraphicsState()
     }
 
-    private static func drawText(_ text: String, centeredAt point: NSPoint, size: CGFloat, operation: NSCompositingOperation) {
+    private static func drawText(_ text: String, centeredAt point: NSPoint, size: CGFloat, operation: NSCompositingOperation, rounded: Bool = true) {
         let baseFont = NSFont.systemFont(ofSize: size, weight: .bold, width: .condensed)
         // Selecting the rounded design resets weight on some macOS releases.
         // Reapply traits so small status-bar digits retain their strong stems.
-        let descriptor = baseFont.fontDescriptor.withDesign(.rounded)?.withSymbolicTraits([.bold, .condensed])
+        let descriptor = rounded ? baseFont.fontDescriptor.withDesign(.rounded)?.withSymbolicTraits([.bold, .condensed]) : nil
         let font = descriptor.flatMap { NSFont(descriptor: $0, size: size) } ?? baseFont
         let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.black]
         let string = text as NSString
