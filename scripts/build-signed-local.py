@@ -361,7 +361,7 @@ def build_and_sign(root, candidate, receipt, identity, run=command):
         run(arguments + [str(target)])
         verify = ["/usr/bin/codesign", "--verify", "--strict"]
         if target in (app, helper):
-            verify += ["-R", requirement(team, APP_ID if target == app else HELPER_ID)]
+            verify += ["-R", "=" + requirement(team, APP_ID if target == app else HELPER_ID)]
         run(verify + [str(target)])
     run(["/usr/bin/codesign", "--verify", "--deep", "--strict", str(app)])
     validate_framework(root, framework)

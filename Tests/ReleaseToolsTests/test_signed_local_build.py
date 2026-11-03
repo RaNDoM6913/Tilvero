@@ -208,8 +208,7 @@ class SignedLocalTests(unittest.TestCase):
         self.assertEqual(build[1], str(self.root / "scripts/build-xcode.sh"))
         self.assertEqual(build[build.index("--app-info") + 1], str(candidate / "AppInfo.plist"))
         self.assertEqual(build[build.index("--helper-info") + 1], str(candidate / "HelperInfo.plist"))
-        requirements = [args[args.index("-R") + 1] for args in boundary.calls if "-R" in args]
-        self.assertEqual(set(requirements), {self.module.requirement(TEAM, self.module.APP_ID), self.module.requirement(TEAM, self.module.HELPER_ID)})
+        self.assertEqual(set(boundary.parsed_requirements), {self.module.requirement(TEAM, self.module.APP_ID), self.module.requirement(TEAM, self.module.HELPER_ID)})
         targets = [Path(args[-1]) for args in boundary.calls if "--sign" in args]
         framework = app / "Contents/Frameworks/Sparkle.framework"
         self.assertLess(targets.index(framework / "Versions/B/Autoupdate"), targets.index(framework))
@@ -217,6 +216,20 @@ class SignedLocalTests(unittest.TestCase):
         self.assertEqual(targets[-1], app)
         self.assertTrue(all("--timestamp=none" in args for args in boundary.calls if "--sign" in args))
         self.assertFalse(any(args[0] in {"open", "launchctl", "sudo", "osascript", "sfltool"} for args in boundary.calls))
+
+    def test_codesign_boundary_distinguishes_literal_requirements_from_files(self):
+        # codesign's requirement argument is a file name unless prefixed with '='.
+        # Model both accepted forms so a raw expression cannot silently pass as a file.
+        raw = 'anchor apple generic and identifier "example.fixture"'
+        boundary = Boundary(self)
+        command = ["/usr/bin/codesign", "--verify", "-R"]
+        with self.assertRaises(subprocess.CalledProcessError):
+            boundary(command + [raw, "fixture.app"])
+        boundary(command + ["=" + raw, "fixture.app"])
+        requirement_file = Path(self.temporary.name) / "requirement.txt"
+        requirement_file.write_text(raw)
+        boundary(command + [str(requirement_file), "fixture.app"])
+        self.assertEqual(boundary.parsed_requirements, [raw, raw])
 
     def test_identity_embedded_metadata_payload_and_verification_fail_closed(self):
         for option in ("bad_identity", "wrong_team", "missing_embedded", "wrong_embedded", "changed_source", "changed_resource", "changed_code", "bad_pin", "bad_verify"):
@@ -277,6 +290,7 @@ class Boundary:
     def __init__(self, test, option=None):
         self.test, self.option, self.calls = test, option, []
         self.app = None
+        self.parsed_requirements = []
 
     def __call__(self, arguments, *, cwd=None, data=None):
         self.calls.append(arguments)
@@ -314,6 +328,16 @@ class Boundary:
                 (self.test.root / "Package.swift").write_bytes(b"changed")
             return b""
         if arguments[0] == "/usr/bin/codesign":
+            if "-R" in arguments:
+                specification = arguments[arguments.index("-R") + 1]
+                if specification.startswith("="):
+                    expression = specification[1:]
+                else:
+                    try:
+                        expression = Path(specification).read_text()
+                    except OSError as error:
+                        raise subprocess.CalledProcessError(1, arguments, stderr=str(error).encode()) from error
+                self.parsed_requirements.append(expression)
             if "--sign" in arguments and self.option in {"changed_resource", "changed_code"}:
                 path = self.app / ("Contents/Resources/resource" if self.option == "changed_resource" else "Contents/MacOS/TilveroApp")
                 path.write_bytes(path.read_bytes() + b"tampered")
