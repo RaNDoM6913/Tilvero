@@ -24,12 +24,7 @@ struct QuickPanel: View {
     @State var section: QuickPanelSection = .overview
 
     var body: some View {
-        QuickPanelLayout(maximumHeight: maximumHeight) {
-            ViewThatFits(in: .vertical) {
-                content.fixedSize(horizontal: false, vertical: true)
-                ScrollView { content }
-            }
-        }
+        QuickPanelViewport(maximumHeight: maximumHeight) { content }
         .frame(width: 360)
         .environment(\.locale, L10n.locale)
         .studioElement("quick.canvas", kind: "container", label: "Quick panel canvas")
@@ -218,8 +213,20 @@ struct ChargeLimitControl: View {
     }
 }
 
-/// Measure the natural stack before offering a bounded viewport to ViewThatFits.
-/// A maxHeight frame around a ScrollView alone asks AppKit to reserve the entire cap.
+struct QuickPanelViewport<Content: View>: View {
+    let maximumHeight: CGFloat
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        QuickPanelLayout(maximumHeight: maximumHeight) {
+            ScrollView { content }
+        }
+    }
+}
+
+/// Measure the scroll content with an unspecified height, then offer its single
+/// viewport the bounded result. Keep one editor tree as content crosses the cap;
+/// separate fitted/scrolling copies lose local page and disclosure state.
 private struct QuickPanelLayout: Layout {
     let maximumHeight: CGFloat
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {

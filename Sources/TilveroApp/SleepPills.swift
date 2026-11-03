@@ -395,6 +395,22 @@ enum SleepPillActionError: LocalizedError, Equatable {
     }
 }
 
+@MainActor struct AwakeSettingsDisclosure: View {
+    @ObservedObject var model: TilveroModel
+    @Binding var isExpanded: Bool
+
+    var body: some View {
+        DisclosureGroup(L10n.text("Settings"), isExpanded: $isExpanded) {
+            StudioText(L10n.text("The display can turn off. Closing the lid or choosing Sleep still works."), id: "awake.settings.explanation")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true).padding(.top, 4)
+            ClosedLidExplanationView(model: model)
+        }
+        .font(.system(size: 12)).frame(maxWidth: .infinity, alignment: .leading)
+        .studioElement("awake.settings", kind: "container", label: "Keep Awake settings")
+    }
+}
+
 @MainActor struct KeepAwakePillsPanel: View {
     @ObservedObject var model: TilveroModel
     @State private var wheelMode: SleepWheelMode?
@@ -406,6 +422,7 @@ enum SleepPillActionError: LocalizedError, Equatable {
     @State private var pending: PendingAction?
     @State private var consent: SleepPillConfirmation?
     @State private var confirms = false
+    @State private var settingsExpanded = false
     private var service: KeepAwakeService { model.keepAwake }
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 4)
     var body: some View {
@@ -413,32 +430,25 @@ enum SleepPillActionError: LocalizedError, Equatable {
             masterRow
             TimelineView(.periodic(from: .now, by: 1)) { _ in
                 let applied = SleepPillActions.awakeSelection(model)
-                VStack(alignment: .leading, spacing: 10) {
-                    LazyVGrid(columns: columns, spacing: 6) {
-                        ForEach(KeepAwakeDuration.allCases) { duration in
-                            pill(durationLabel(duration), option: .preset(duration.rawValue), applied: applied, raw: duration.rawValue) {
-                                apply(.duration(duration.rawValue))
-                            }
+                LazyVGrid(columns: columns, spacing: 6) {
+                    ForEach(KeepAwakeDuration.allCases) { duration in
+                        pill(durationLabel(duration), option: .preset(duration.rawValue), applied: applied, raw: duration.rawValue) {
+                            apply(.duration(duration.rawValue))
                         }
-                        pill("∞", option: .untilStopped, applied: applied, raw: 0,
-                             accessibilityTitle: L10n.text("Until stopped")) { apply(.untilStopped) }
-                        pill(L10n.text("Until…"), option: .until, applied: applied, raw: -2) { wheelMode = .until; error = nil }
-                            .background { wheelAnchor(mode: .until) }
                     }
-                    HStack(alignment: .top, spacing: 12) {
-                        DisclosureGroup(L10n.text("Settings")) {
-                            StudioText(L10n.text("The display can turn off. Closing the lid or choosing Sleep still works."), id: "awake.settings.explanation")
-                                .font(.caption).foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true).padding(.top, 4)
-                            ClosedLidExplanationView(model: model)
-                        }
-                        .font(.system(size: 12)).frame(maxWidth: .infinity, alignment: .leading)
-                        .studioElement("awake.settings", kind: "container", label: "Keep Awake settings")
-                        if applied == .custom {
-                            StudioText(KeepAwakePresentation.countdown(service.remainingSeconds), id: "awake.custom.countdown")
-                                .font(.system(size: 12, weight: .semibold)).monospacedDigit()
-                                .foregroundStyle(.secondary)
-                        }
+                    pill("∞", option: .untilStopped, applied: applied, raw: 0,
+                         accessibilityTitle: L10n.text("Until stopped")) { apply(.untilStopped) }
+                    pill(L10n.text("Until…"), option: .until, applied: applied, raw: -2) { wheelMode = .until; error = nil }
+                        .background { wheelAnchor(mode: .until) }
+                }
+            }
+            HStack(alignment: .top, spacing: 12) {
+                AwakeSettingsDisclosure(model: model, isExpanded: $settingsExpanded)
+                if SleepPillActions.awakeSelection(model) == .custom {
+                    TimelineView(.periodic(from: .now, by: 1)) { _ in
+                        StudioText(KeepAwakePresentation.countdown(service.remainingSeconds), id: "awake.custom.countdown")
+                            .font(.system(size: 12, weight: .semibold)).monospacedDigit()
+                            .foregroundStyle(.secondary)
                     }
                 }
             }

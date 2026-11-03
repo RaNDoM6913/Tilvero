@@ -4,6 +4,9 @@ import ClosedLidControl
 @MainActor struct ClosedLidExplanationView: View {
     @ObservedObject var model: TilveroModel
     @ObservedObject private var service: ClosedLidService
+    // The small native switch can settle from 24 to 20 pt on first mount.
+    // Keep the row stable while allowing larger text to increase its height.
+    @ScaledMetric(relativeTo: .caption) private var minimumSwitchRowHeight: CGFloat = 24
     init(model: TilveroModel) { self.model = model; service = model.closedLid }
     private var ru: Bool { L10n.language == "ru" }
     var body: some View {
@@ -14,6 +17,7 @@ import ClosedLidControl
                 .toggleStyle(.switch).controlSize(.small)
                 .disabled(!service.isAvailable || service.busy || (!service.isOn && (!model.keepAwake.hasOwnedAssertion || service.needsRecovery)))
                 .accessibilityIdentifier("closed-lid-master")
+                .frame(minHeight: minimumSwitchRowHeight)
             Text(capabilityDescription)
                 .font(.caption2).foregroundStyle(.secondary)
             if service.state.phase != .idle { Text(status).font(.caption).foregroundStyle(service.needsRecovery ? .orange : .secondary).accessibilityIdentifier("closed-lid-status") }

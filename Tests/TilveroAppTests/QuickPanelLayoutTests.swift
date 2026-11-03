@@ -88,6 +88,34 @@ final class QuickPanelLayoutTests: XCTestCase {
         XCTAssertGreaterThan(host.preferredContentSize.height, 240)
     }
 
+    func testScreenCapKeepsTheSelectedSleepPageInTheSameContentTree() async throws {
+        let fixture = try Fixture(isDemo: true)
+        defer { fixture.cleanUp() }
+        let host = QuickPanelHostingController(model: fixture.model, maximumHeight: 900, section: .awake)
+        let window = NSWindow(contentViewController: host)
+        defer { window.orderOut(nil) }
+        host.onSizeChange = { window.setContentSize($0) }
+        window.setContentSize(host.preferredContentSize)
+        try await Task.sleep(for: .milliseconds(50))
+        host.view.layoutSubtreeIfNeeded()
+        let tabs = try XCTUnwrap(descendants(of: host.view).compactMap { $0 as? NSSegmentedControl }.first { $0.segmentCount == 2 })
+        tabs.selectedSegment = 1
+        XCTAssertTrue(tabs.sendAction(tabs.action, to: tabs.target))
+        try await Task.sleep(for: .milliseconds(50))
+        host.view.layoutSubtreeIfNeeded()
+        XCTAssertEqual(tabs.selectedSegment, 1)
+
+        host.updateMaximumHeight(240)
+        try await Task.sleep(for: .milliseconds(50))
+        host.view.layoutSubtreeIfNeeded()
+        let cappedTabs = try XCTUnwrap(descendants(of: host.view).compactMap { $0 as? NSSegmentedControl }.first { $0.segmentCount == 2 })
+        XCTAssertTrue(cappedTabs === tabs, "Introducing scrolling must not replace the active Sleep editor or its local disclosure state.")
+        XCTAssertEqual(cappedTabs.selectedSegment, 1, "The viewport cap must preserve the selected Awake page.")
+        XCTAssertLessThanOrEqual(host.preferredContentSize.height, 240)
+        XCTAssertFalse(fixture.model.keepAwake.hasOwnedAssertion)
+        XCTAssertFalse(fixture.model.sleepTimer.isActive)
+    }
+
     func testRussianChargeAndModesFitWidthWithoutUnboundedHeight() async throws {
         let savedArguments = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
         UserDefaults.standard.setVolatileDomain(savedArguments.merging(["language": "ru"]) { _, value in value },

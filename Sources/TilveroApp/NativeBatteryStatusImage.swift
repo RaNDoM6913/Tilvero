@@ -68,11 +68,13 @@ enum NativeBatteryStatusImage {
     static func make(level: Int?, style: MenuBarDisplayStyle, externalPower: Bool, scale: CGFloat = 1, textSize: MenuBarTextSize = .larger,
                      awake: KeepAwakeStatusIndicator = .off, highlighted: Bool = false, appearance: MenuBarBatteryAppearance = .macOS26) -> NSImage {
         let inside = style == .inside
-        let batteryWidth: CGFloat = appearance == .macOS27 ? 29 : inside ? 35 : 27
+        let validLevel = ReadingPresentation.validLevel(level)
+        let modernExtension = appearance == .macOS27 && inside ? modernBodyExtension(level: validLevel, textSize: textSize) : 0
+        let batteryWidth: CGFloat = appearance == .macOS27 ? 29 + CGFloat(modernExtension) : inside ? 35 : 27
         let canvas = NSSize(width: batteryWidth + (awake == .off ? 0 : 10), height: 18)
         let factor = CGFloat(MenuBarSizing.validatedIconScale(Double(scale)))
         let size = NSSize(width: canvas.width * factor, height: canvas.height * factor)
-        let level = ReadingPresentation.validLevel(level)
+        let level = validLevel
         let image = NSImage(size: size, flipped: false) { rect in
             NSGraphicsContext.saveGraphicsState()
             defer { NSGraphicsContext.restoreGraphicsState() }
@@ -81,7 +83,7 @@ enum NativeBatteryStatusImage {
             transform.scaleX(by: rect.width / canvas.width, yBy: rect.height / canvas.height)
             transform.concat()
             if appearance == .macOS27 {
-                drawModern(level: level, style: style, externalPower: externalPower, textSize: textSize)
+                drawModern(level: level, style: style, externalPower: externalPower, textSize: textSize, bodyExtension: modernExtension)
             } else if inside {
                 drawInside(level: level, externalPower: externalPower, textSize: textSize)
             } else {
@@ -132,40 +134,57 @@ enum NativeBatteryStatusImage {
         drawFallbackNormal(level: level, externalPower: externalPower)
     }
 
-    private static func drawModern(level: Int?, style: MenuBarDisplayStyle, externalPower: Bool, textSize: MenuBarTextSize) {
+    private static func modernFont(_ size: MenuBarTextSize) -> NSFont {
+        NSFont.systemFont(ofSize: size == .system ? 10 : 11, weight: .medium)
+    }
+
+    private static func modernBodyExtension(level: Int?, textSize: MenuBarTextSize) -> Int {
+        let value = (level.map(String.init) ?? "—") as NSString
+        let width = value.size(withAttributes: [.font: modernFont(textSize)]).width
+        let referenceWidth = ("90" as NSString).size(withAttributes: [.font: modernFont(.system)]).width
+        // This public font is the measured fit to the supplied 90 reference.
+        // Keep its size for 100 and reserve space rather than shrinking digits.
+        return max(0, Int(ceil(width - referenceWidth)))
+    }
+
+    private static func drawModern(level: Int?, style: MenuBarDisplayStyle, externalPower: Bool, textSize: MenuBarTextSize, bodyExtension: Int) {
+        let extra = CGFloat(bodyExtension)
         let density = max(1, min(8, Int((NSGraphicsContext.current?.cgContext.ctm.a ?? 2).magnitude.rounded())))
-        if let native = SystemBatterySymbol.makeFilled(level: level, density: density) {
+        if let native = SystemBatterySymbol.makeFilled(level: level, density: density, contactOpacity: 0.3, bodyExtension: bodyExtension) {
             let offset = floor(1.5 * CGFloat(density)) / CGFloat(density)
             native.draw(at: NSPoint(x: -offset, y: -3), from: .zero, operation: .sourceOver, fraction: 1)
         } else {
-            let body = NSRect(x: 1, y: 3, width: 23, height: 12)
+            let body = NSRect(x: 1, y: 3, width: 23 + extra, height: 12)
             NSColor.black.withAlphaComponent(0.2).setFill()
             NSBezierPath(roundedRect: body, xRadius: 3.5, yRadius: 3.5).fill()
             drawFill(level: level, in: body, radius: 3.5)
-            NSColor.black.withAlphaComponent(0.45).setFill()
-            NSBezierPath(roundedRect: NSRect(x: 25.5, y: 7, width: 1.5, height: 4), xRadius: 0.75, yRadius: 0.75).fill()
+            NSColor.black.withAlphaComponent(0.3).setFill()
+            NSBezierPath(roundedRect: NSRect(x: 25.5 + extra, y: 7, width: 1.5, height: 4), xRadius: 0.75, yRadius: 0.75).fill()
         }
         if style == .inside {
-            // Three digits get a compact face rather than stretching the body or
-            // allowing 100 to collide with the independent adapter marker.
-            let size: CGFloat = level == 100 ? (textSize == .system ? 9.5 : 10) : (textSize == .system ? 11 : 12)
-            drawModernText(level.map(String.init) ?? "—", centeredAt: NSPoint(x: externalPower ? 10.5 : 12.5, y: 9), size: size)
+            drawModernText(level.map(String.init) ?? "—", centeredAt: NSPoint(x: (externalPower ? 10 : 12.5) + extra / 2, y: 9), font: modernFont(textSize))
         } else if level == nil {
-            drawModernText("—", centeredAt: NSPoint(x: externalPower ? 10.5 : 12.5, y: 9), size: 9)
+            drawModernText("—", centeredAt: NSPoint(x: externalPower ? 10 : 12.5, y: 9), font: modernFont(textSize))
         }
         if externalPower {
-            let marker = NSImage(size: NSSize(width: 7, height: 12), flipped: false) { _ in
-                NSColor.black.setFill()
-                boltPath(center: NSPoint(x: 3.5, y: 6), height: 7).fill()
-                return true
-            }
-            let x: CGFloat = style == .inside || level == nil ? 18 : 9
-            marker.draw(in: NSRect(x: x, y: 3, width: 7, height: 12), from: .zero, operation: .xor, fraction: 1)
+            guard let marker = NSImage(systemSymbolName: "bolt.fill", accessibilityDescription: nil)?
+                .withSymbolConfiguration(.init(pointSize: 7.5, weight: .regular)) else { return }
+            let centreX: CGFloat = style == .inside || level == nil ? 19.5 + extra : 12.5
+            marker.draw(at: NSPoint(x: centreX - marker.size.width / 2, y: 9.25 - marker.size.height / 2),
+                        from: .zero, operation: .xor, fraction: 1)
         }
     }
 
-    private static func drawModernText(_ value: String, centeredAt point: NSPoint, size: CGFloat) {
-        drawText(value, centeredAt: point, size: size, operation: .xor, rounded: false)
+    private static func drawModernText(_ value: String, centeredAt point: NSPoint, font: NSFont) {
+        let string = value as NSString
+        let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.black]
+        let dimensions = string.size(withAttributes: attributes)
+        let image = NSImage(size: dimensions, flipped: false) { _ in
+            string.draw(at: .zero, withAttributes: attributes)
+            return true
+        }
+        image.draw(at: NSPoint(x: point.x - dimensions.width / 2, y: point.y - dimensions.height / 2),
+                   from: .zero, operation: .xor, fraction: 1)
     }
 
     private static func drawFallbackNormal(level: Int?, externalPower: Bool) {

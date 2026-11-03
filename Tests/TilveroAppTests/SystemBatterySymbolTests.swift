@@ -45,10 +45,29 @@ import XCTest
         }
     }
 
+    func testWiderNumericBodyKeepsNativeEndcapsAndIndependentContact() throws {
+        guard ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27 else { return }
+        for scale in [1, 2] {
+            let original = render(try XCTUnwrap(SystemBatterySymbol.makeFilled(level: 100, density: scale)), scale: scale)
+            let extendedImage = try XCTUnwrap(SystemBatterySymbol.makeFilled(level: 100, density: scale, bodyExtension: 5))
+            let extended = render(extendedImage, scale: scale)
+            XCTAssertEqual(extendedImage.size.width, 37)
+            for y in 0..<original.pixelsHigh {
+                for x in 0..<12 * scale {
+                    XCTAssertEqual(original.colorAt(x: x, y: y)!.alphaComponent, extended.colorAt(x: x, y: y)!.alphaComponent)
+                }
+                for x in 20 * scale..<original.pixelsWide {
+                    XCTAssertEqual(original.colorAt(x: x, y: y)!.alphaComponent, extended.colorAt(x: x + 5 * scale, y: y)!.alphaComponent,
+                                   "Reserving numeral width must translate the native cap/contact, not stretch their shape.")
+                }
+            }
+        }
+    }
+
     private func render(_ image: NSImage, scale: Int) -> NSBitmapImageRep {
-        let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 32 * scale, pixelsHigh: 24 * scale,
+        let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(image.size.width) * scale, pixelsHigh: Int(image.size.height) * scale,
             bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
-        rep.size = NSSize(width: 32, height: 24)
+        rep.size = image.size
         NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
         image.draw(at: .zero, from: .zero, operation: .sourceOver, fraction: 1)
         NSGraphicsContext.restoreGraphicsState()

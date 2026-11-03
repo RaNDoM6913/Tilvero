@@ -329,6 +329,91 @@ final class NativeBatteryStatusImageTests: XCTestCase {
         for index in 1..<amounts.count { XCTAssertGreaterThan(amounts[index], amounts[index - 1]) }
     }
 
+    func testModern90MatchesOwnerReferenceTypographyAndPowerCue() throws {
+        guard ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27 else { return }
+        // Owner's supplied 2× macOS 27 90 + AC screenshot, cropped to the
+        // 29×18 pt canvas. Quantized alpha is estimated in linear sRGB from
+        // the sampled backdrop and full fill, not copied into the runtime.
+        // This bounds typography/cue regression; it is not pixel-perfect proof.
+        let reference = """
+            0000000000000000000000000000000000000000000000000000000000
+            0000000000000000000000000000000000000000000000000000000000
+            0000000000000000000000000000000000000000000000000000000000
+            0000000000000000000000000000000000000000000000000000000000
+            0000000000000000000000000000000000000000000000000000000000
+            0000000000000000000000000000000000000000000000000000000000
+            00000015aceeffffffffffffffffffffffffffeeca5100000000000000
+            000005efffffffffffffffffffffffffffffffffffff10000000000000
+            00009fffffffffffffffffffffffffffffffffffffff32000000000000
+            0005fffffffffffffffffffffeffffffffffffffffff33100000000000
+            001effffff620014efffffe410018ffffffffff75fff33300000000000
+            005ffffff30000001cffff3000000affffffff904fff33310000000000
+            00afffff5001672003fff800164001effffffd00bfff33320000000000
+            00cfffff201cfff300aff100dff6005fffffd102ffff33330000000000
+            00efffff103ffffb005fd005fffe102fffff3009ffff33330040000000
+            00effffe004ffffc003fa00affff301ffff4001dffff33330054000000
+            00ffffff101efff5002f700dffff500fff900018889f33330055200000
+            00ffffff40029b50001f500fffff700df9000000001f33330055400000
+            00ffffffe1000000002f600effff500ef1000000009f33330055400000
+            00fffffffd310005104f900bffff301ff988810009ff33330055200000
+            00efffffffffccfd007fc007ffff102fffffd1004fff33330054000000
+            00efffff212ffff300aff001fff9004fffff9003ffff33330040000000
+            00cfffff4004ec5001fff5004d9100cfffff201dffff33330000000000
+            00afffffd00000000affff10000006fffffb00dfffff33320000000000
+            005ffffffc1000019fffffb100003ffffff409ffffff33310000000000
+            001efffffffd99afffffffffa98cfffffff57fffffff33300000000000
+            0005ffffffffffffffffffffffffffffffffffffffff33100000000000
+            00009fffffffffffffffffffffffffffffffffffffff32000000000000
+            000005efffffffffffffffffffffffffffffffffffff10000000000000
+            00000015acefffffffffffffffffffffffffffeeca5100000000000000
+            0000000000000000000000000000000000000000000000000000000000
+            0000000000000000000000000000000000000000000000000000000000
+            0000000000000000000000000000000000000000000000000000000000
+            0000000000000000000000000000000000000000000000000000000000
+            0000000000000000000000000000000000000000000000000000000000
+            0000000000000000000000000000000000000000000000000000000000
+            """.filter { !$0.isWhitespace }.map { CGFloat(Int(String($0), radix: 16)!) / 15 }
+        let actual = render(NativeBatteryStatusImage.make(level: 90, style: .inside, externalPower: true,
+                            textSize: .system, appearance: .macOS27), scale: 2)
+        XCTAssertEqual(reference.count, actual.pixelsWide * actual.pixelsHigh)
+        func error(x: Range<Int>, y: Range<Int>) -> CGFloat {
+            let differences = y.flatMap { yy in x.map { xx in
+                abs(actual.colorAt(x: xx, y: yy)!.alphaComponent - reference[yy * 58 + xx])
+            } }
+            return differences.reduce(0, +) / CGFloat(differences.count)
+        }
+        XCTAssertLessThan(error(x: 6..<33, y: 9..<27), 0.12,
+                          "The 90 reference has medium standard-width numerals, not bold condensed type.")
+        XCTAssertLessThan(error(x: 33..<44, y: 9..<27), 0.10,
+                          "The AC cue must retain the reference's painted size, baseline and gap.")
+        XCTAssertLessThan(error(x: 0..<58, y: 0..<36), 0.045)
+    }
+
+    func testModernThreeDigitsKeepTheSameLegibleTypeSize() throws {
+        for textSize in MenuBarTextSize.allCases {
+            for ac in [false, true] {
+                let two = NativeBatteryStatusImage.make(level: 90, style: .inside, externalPower: ac, textSize: textSize, appearance: .macOS27)
+                let three = NativeBatteryStatusImage.make(level: 100, style: .inside, externalPower: ac, textSize: textSize, appearance: .macOS27)
+                XCTAssertGreaterThan(three.size.width, two.size.width,
+                                     "Reserve space for the extra digit instead of shrinking 100.")
+                for scale in [1, 2] {
+                    func cutoutHeight(_ image: NSImage, right: CGFloat) -> Int {
+                        let rep = render(image, scale: scale)
+                        let ys = (4 * scale..<14 * scale).filter { y in
+                            (4 * scale..<Int(right * CGFloat(scale))).contains { x in rep.colorAt(x: x, y: y)!.alphaComponent < 0.3 }
+                        }
+                        return (ys.max() ?? 0) - (ys.min() ?? 0) + 1
+                    }
+                    // The interior ranges exclude reservoir corners, contact and
+                    // the independent AC cue. Compare actual painted cap height.
+                    let twoRight: CGFloat = ac ? 16 : 20
+                    let threeRight = twoRight + three.size.width - two.size.width
+                    XCTAssertEqual(cutoutHeight(three, right: threeRight), cutoutHeight(two, right: twoRight), accuracy: 1)
+                }
+            }
+        }
+    }
+
     func testModernAppearanceFitsEveryMeasuredAndUnavailableStateAtSupportedScales() throws {
         for style in MenuBarDisplayStyle.allCases {
             for ac in [false, true] {
@@ -366,8 +451,32 @@ final class NativeBatteryStatusImageTests: XCTestCase {
             }
             XCTAssertGreaterThan(centre.filter { $0 < 0.1 }.count, centre.count / 10, "Full charge needs readable transparent numerals and a bolt.")
             XCTAssertGreaterThan(centre.filter { $0 > 0.9 }.count, centre.count / 3)
-            for y in 6 * 8..<12 * 8 {
-                XCTAssertGreaterThan(full.colorAt(x: 19 * 8, y: y)!.alphaComponent, 0.95, "100 and the AC cue must remain separate.")
+            // Find the actual numeral and cue cutouts rather than testing the
+            // old fixed x=19, which is inside a digit after reserving 100's width.
+            var remaining = Set((4 * 8..<14 * 8).flatMap { y in
+                (3 * 8..<full.pixelsWide - 6 * 8).compactMap { x in
+                    full.colorAt(x: x, y: y)!.alphaComponent < 0.3 ? y * full.pixelsWide + x : nil
+                }
+            })
+            var components: [[Int]] = []
+            while let first = remaining.first {
+                remaining.remove(first)
+                var component = [first], cursor = 0
+                while cursor < component.count {
+                    let pixel = component[cursor]; cursor += 1
+                    for next in [pixel - 1, pixel + 1, pixel - full.pixelsWide, pixel + full.pixelsWide] where remaining.remove(next) != nil {
+                        component.append(next)
+                    }
+                }
+                // Discard tiny corner fringes outside the text/cue's interior.
+                if component.count >= 8 * 8 { components.append(component) }
+            }
+            components.sort { ($0.map { $0 % full.pixelsWide }.min() ?? 0) < ($1.map { $0 % full.pixelsWide }.min() ?? 0) }
+            XCTAssertEqual(components.count, 4, "100 and the AC cue must paint four independently legible shapes.")
+            if components.count == 4 {
+                let lastDigit = components[2].map { $0 % full.pixelsWide }.max()!
+                let cue = components[3].map { $0 % full.pixelsWide }.min()!
+                XCTAssertGreaterThanOrEqual(cue - lastDigit - 1, 4, "The final digit and AC cue need at least half a point of clear separation.")
             }
             let off = pixels(NativeBatteryStatusImage.make(level: 90, style: .inside, externalPower: false, textSize: size, appearance: .macOS27))
             let ac = pixels(NativeBatteryStatusImage.make(level: 90, style: .inside, externalPower: true, textSize: size, appearance: .macOS27))

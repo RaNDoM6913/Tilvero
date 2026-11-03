@@ -20,7 +20,7 @@ import AppKit
     /// contact. Keep its exact native silhouette, including antialiasing, while
     /// clipping continuous measured fill. Numerals and the small adapter cue are
     /// composed by the caller because SF Symbols does not supply percentage text.
-    static func makeFilled(level: Int?, density: Int, contactOpacity: CGFloat = 0.45) -> NSImage? {
+    static func makeFilled(level: Int?, density: Int, contactOpacity: CGFloat = 0.45, bodyExtension: Int = 0) -> NSImage? {
         let scale = min(8, max(1, density))
         let layers: FilledLayers
         if let cached = filledCache[scale] { layers = cached }
@@ -42,19 +42,25 @@ import AppKit
             layers = .init(alpha: alpha, body: reservoir, contactBoundary: boundary, width: 32 * scale, height: 24 * scale)
             filledCache[scale] = layers
         }
-        guard let rep = bitmap(density: scale), let data = rep.bitmapData else { return nil }
+        // Extend only the solid centre column: native endcaps and the separate
+        // contact keep their geometry when three uncondensed digits need room.
+        let extra = max(0, min(16, bodyExtension)) * scale
+        let outputWidth = layers.width + extra
+        guard let rep = bitmap(density: scale, extraWidth: extra / scale), let data = rep.bitmapData else { return nil }
         let fraction = CGFloat(min(100, max(0, level ?? 0))) / 100
-        let edge = layers.body.minX + layers.body.width * fraction
-        for y in 0..<layers.height { for x in 0..<layers.width {
-            let i = y * layers.width + x
-            let body = CGFloat(x) < layers.contactBoundary
+        let edge = layers.body.minX + (layers.body.width + CGFloat(extra)) * fraction
+        let middle = Int(layers.body.midX.rounded())
+        for y in 0..<layers.height { for x in 0..<outputWidth {
+            let sourceX = x < middle ? x : x < middle + extra ? middle : x - extra
+            let i = y * layers.width + sourceX
+            let body = CGFloat(x) < layers.contactBoundary + CGFloat(extra)
             let coverage = level == nil ? 0 : min(1, max(0, edge - CGFloat(x)))
             let opacity: CGFloat = body ? 0.2 + 0.8 * coverage : contactOpacity
             let offset = y * rep.bytesPerRow + x * 4
             data[offset] = 0; data[offset + 1] = 0; data[offset + 2] = 0
             data[offset + 3] = UInt8((CGFloat(layers.alpha[i]) * opacity).rounded())
         } }
-        let image = NSImage(size: NSSize(width: 32, height: 24)); image.addRepresentation(rep)
+        let image = NSImage(size: rep.size); image.addRepresentation(rep)
         return image
     }
 
@@ -76,11 +82,11 @@ import AppKit
         }
         return result
     }
-    private static func bitmap(density: Int) -> NSBitmapImageRep? {
-        let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 32 * density, pixelsHigh: 24 * density,
+    private static func bitmap(density: Int, extraWidth: Int = 0) -> NSBitmapImageRep? {
+        let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: (32 + extraWidth) * density, pixelsHigh: 24 * density,
             bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
-            bytesPerRow: 32 * density * 4, bitsPerPixel: 32)
-        rep?.size = NSSize(width: 32, height: 24)
+            bytesPerRow: (32 + extraWidth) * density * 4, bitsPerPixel: 32)
+        rep?.size = NSSize(width: 32 + extraWidth, height: 24)
         return rep
     }
     private static func raster(_ name: String, density: Int) -> [UInt8]? {
