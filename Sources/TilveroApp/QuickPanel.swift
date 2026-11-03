@@ -173,6 +173,7 @@ struct ChargeLimitControl: View {
                        in: 0...Double(max(1, model.acceptedTargets.count - 1)), step: 1)
                     .disabled(!model.canEdit).accessibilityLabel(L10n.text("Charge limit"))
                     .accessibilityValue("\(model.draftText)%, \(L10n.text("Draft"))")
+                    .accessibilityIdentifier("charge.slider")
                     .studioElement("charge.slider", label: "Charge limit slider")
                 HStack {
                     Text(model.acceptedTargets.first.map { "\($0)%" } ?? "—")
@@ -186,6 +187,7 @@ struct ChargeLimitControl: View {
                     Spacer()
                     StudioActionButton(L10n.text(model.isApplying ? "Applying…" : "Apply"), id: "charge.apply") { model.applyDemoTarget() }
                         .buttonStyle(.borderedProminent).disabled(!model.canApply)
+                        .accessibilityIdentifier("charge.apply")
                 }
                 if !isQuickPanel { Text(L10n.text("Draft") + ": " + model.draftText + "%").font(.caption).foregroundStyle(.secondary) }
                 if !model.usesNativeCharge { StudioText(model.effectiveLimitText, id: "charge.effective").font(.subheadline).foregroundStyle(.secondary) }

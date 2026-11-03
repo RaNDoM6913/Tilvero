@@ -110,6 +110,7 @@ final class QuickPanelLayoutTests: XCTestCase {
         let fixture = try Fixture(isDemo: true)
         defer { fixture.cleanUp() }
         await fixture.model.refresh()
+        fixture.model.setDraft(90)
         var openedDetails = false
         fixture.model.openDetails = { openedDetails = true }
         let host = QuickPanelHostingController(model: fixture.model, maximumHeight: 900)
@@ -128,8 +129,22 @@ final class QuickPanelLayoutTests: XCTestCase {
         host.view.layoutSubtreeIfNeeded()
         XCTAssertNotEqual(host.preferredContentSize.height, oldHeight)
         XCTAssertNotNil(reported, "A tab change must resize the existing popover.")
-        XCTAssertTrue(descendants(of: host.view).compactMap { $0 as? NSSlider }.count > 0,
-                      "Charge controls belong to the selected quick-panel tab.")
+        let views = descendants(of: host.view)
+        // macOS 27 draws SwiftUI sliders in the host instead of creating an
+        // NSSlider descendant. Check the visible editor and shared draft contract;
+        // actual slider and Apply accessibility actions require the native Lab.
+        if #unavailable(macOS 27) {
+            XCTAssertFalse(views.compactMap { $0 as? NSSlider }.isEmpty,
+                           "Charge controls belong to the selected quick-panel tab.")
+        }
+        let percentage = try XCTUnwrap(views.compactMap { $0 as? NSTextField }.first {
+            $0.isEditable && $0.stringValue == fixture.model.draftText
+        }, "The selected Charge tab must contain its editable percentage field.")
+        XCTAssertEqual(percentage.stringValue, "90")
+        XCTAssertEqual(segments.selectedSegment, 1)
+        XCTAssertTrue(fixture.model.canEdit)
+        XCTAssertTrue(fixture.model.canApply)
+        XCTAssertEqual(fixture.model.sliderIndex, Double(try XCTUnwrap(fixture.model.acceptedTargets.firstIndex(of: 90))))
         XCTAssertFalse(openedDetails, "A segment switch must keep the owner in the quick panel.")
     }
 

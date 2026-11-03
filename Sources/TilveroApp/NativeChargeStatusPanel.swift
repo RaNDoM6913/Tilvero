@@ -9,8 +9,21 @@ import ChargeBackends
         let state = model.nativeCharge.presentation()
         VStack(alignment: .leading, spacing: compact ? 7 : 9) {
             if let preference = state.currentPreference {
-                StudioText(L10n.text("Native macOS setting") + ": " + configurationText(preference), id: "native.setting")
-                    .font(compact ? .subheadline : .caption).monospacedDigit()
+                HStack(spacing: 8) {
+                    StudioText(L10n.text("Native macOS setting") + ": " + configurationText(preference), id: "native.setting")
+                        .font(compact ? .subheadline : .caption).monospacedDigit()
+                    if compact {
+                        Spacer(minLength: 0)
+                        // A refresh of a known setting belongs to this row. Keep
+                        // its slot stable while the native read comes and goes.
+                        ZStack {
+                            if state.pendingPurpose == .read {
+                                ProgressView().controlSize(.mini)
+                                    .accessibilityLabel(L10n.text("Reading the native charge policy…"))
+                            }
+                        }.frame(width: 12, height: 12)
+                    }
+                }
             }
             if let status = statusText(state) {
                 StudioText(L10n.text(status), id: "native.status").font(.caption)
@@ -75,13 +88,22 @@ import ChargeBackends
     private func configurationText(_ configuration: NativeChargeConfiguration) -> String {
         configuration.enabled ? "\(configuration.target)%" : L10n.text("System managed")
     }
-    private func statusText(_ state: NativeChargePresentation) -> String? {
+    func statusText(_ state: NativeChargePresentation) -> String? {
         switch state.attention {
         case .sessionReview: "Saved charging session needs review."
         case .mutationUnresolved: "A dispatched native setting still has an unconfirmed outcome."
         case .journalIntegrity: "The native session journal needs review before further changes."
         case .operationPending:
-            state.pendingPurpose == .read ? "Reading the native charge policy…" : "Waiting for the native charging operation…"
+            if state.pendingPurpose == .read {
+                if compact && !model.nativeCharge.isBusy && !model.nativeCharge.isQualifying,
+                   let message = model.nativeCharge.message {
+                    message
+                } else {
+                    compact && state.currentPreference != nil ? nil : "Reading the native charge policy…"
+                }
+            } else {
+                "Waiting for the native charging operation…"
+            }
         case .restorationPending:
             state.restorationTarget == nil ? "Restoring the previous setting is waiting for natural discharge." : nil
         case .lowerTargetPending:
