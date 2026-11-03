@@ -547,8 +547,18 @@
     },
     "Battery appearance": {
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Battery appearance" } },
-        "ru": { "stringUnit": { "state": "translated", "value": "Вид батареи" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Battery appearance"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вид батареи"
+          }
+        }
       }
     },
     "Menu bar": {
@@ -13699,6 +13709,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "Отменить таймер сна."
+          }
+        }
+      }
+    },
+    "macOS returned an unrecognized charging state. Apply remains unavailable until the native state is confirmed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS returned an unrecognized charging state. Apply remains unavailable until the native state is confirmed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS вернула неизвестное состояние зарядки. Применение недоступно, пока состояние не подтверждено."
+          }
+        }
+      }
+    },
+    "Native control must be validated on this macOS version before Apply is available.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Native control must be validated on this macOS version before Apply is available."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для применения лимита нужна проверка нативного управления на текущей версии macOS."
+          }
+        }
+      }
+    },
+    "Unrecognized native charge state": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unrecognized native charge state"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Состояние зарядки не распознано"
           }
         }
       }

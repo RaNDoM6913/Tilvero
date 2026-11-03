@@ -541,7 +541,18 @@ enum NativeChargeServiceError: Error, LocalizedError {
 
     private func readNative() async throws -> NativeChargeSnapshot {
         do { return try await operationGate.call(purpose: .read) { [client] in try await client.read() } }
-        catch { observed = nil; throw error }
+        catch {
+            observed = nil
+            if let failure = error as? NativeChargeReadFailure {
+                // Discovery is independent of a usable current setting. Keep
+                // offered targets visible without inferring enabled state,
+                // admission, ownership or permission to dispatch a setter.
+                knownTargets = failure.supportedTargets
+                nativeSetting = nil
+                message = failure.localizedDescription
+            }
+            throw error
+        }
     }
     private func setNativeLimit(_ target: Int, transaction: Transaction) async throws {
         try await operationGate.call(purpose: .setLimit(target: target), onDispatch: {

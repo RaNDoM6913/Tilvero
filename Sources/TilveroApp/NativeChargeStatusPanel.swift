@@ -48,6 +48,11 @@ import ChargeBackends
                         .help(L10n.text("Native control needs one local setting-and-restoration check."))
                 }
             }
+            if model.nativeCharge.interfaceWasDiscovered && !model.nativeCharge.admitted {
+                Text(L10n.text("Native control must be validated on this macOS version before Apply is available."))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             // Recovery is an explicit existing action, never a consequence of
             // merely displaying a readable preference or this status panel.
             if !compact && (state.hasOwnership || model.nativeCharge.recoveryRequired || model.nativeCharge.restorationPending) {
@@ -108,7 +113,10 @@ import ChargeBackends
             state.restorationTarget == nil ? "Restoring the previous setting is waiting for natural discharge." : nil
         case .lowerTargetPending:
             state.pendingTarget == nil ? "The lower target is waiting for natural discharge." : nil
-        case .policyUnconfirmed: "Active charge policy is unconfirmed"
+        case .policyUnconfirmed:
+            model.nativeCharge.nativeSetting == nil
+                ? model.nativeCharge.message ?? "Active charge policy is unconfirmed"
+                : "Active charge policy is unconfirmed"
         case .none: nil
         }
     }

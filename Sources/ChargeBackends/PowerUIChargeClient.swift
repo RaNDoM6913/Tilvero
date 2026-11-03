@@ -33,15 +33,42 @@ public protocol NativeChargeTransport: Sendable {
     func setEnabled(_ enabled: Bool) async throws
 }
 
+/// A failed state read may still report independently validated capabilities.
+public struct NativeChargeReadFailure: Error, LocalizedError, Sendable {
+    public let supportedTargets: [Int]
+    public init?(supportedTargets: [Int]) {
+        guard (1...21).contains(supportedTargets.count),
+              supportedTargets.allSatisfy({ (80...100).contains($0) }),
+              zip(supportedTargets, supportedTargets.dropFirst()).allSatisfy({ $0 < $1 }) else { return nil }
+        self.supportedTargets = supportedTargets
+    }
+    public var errorDescription: String? {
+        "macOS returned an unrecognized charging state. Apply remains unavailable until the native state is confirmed."
+    }
+}
+
 /// Actor serialization keeps user-space calls off the UI thread and prevents
 /// a second mutation while a slow XPC operation is still in flight.
 public actor PowerUIChargeClient: NativeChargeTransport {
     public init() {}
+    nonisolated static func readError(_ error: NSError) -> any Error {
+        guard error.domain == "Tilvero.NativeCharge", error.code == 5,
+              let raw = error.userInfo["supportedTargets"] as? [NSNumber],
+              (1...21).contains(raw.count) else { return error }
+        var targets: [Int] = []
+        for value in raw {
+            let number = value.doubleValue
+            guard CFGetTypeID(value) != CFBooleanGetTypeID(), number.isFinite,
+                  (80...100).contains(number), number.rounded(.towardZero) == number else { return error }
+            targets.append(Int(number))
+        }
+        return NativeChargeReadFailure(supportedTargets: targets) ?? error
+    }
     public func read() async throws -> NativeChargeSnapshot {
         let value = try autoreleasepool {
             var error: NSError?
             let value = TVNativeChargeRead(&error)
-            if let error { throw error }
+            if let error { throw Self.readError(error) }
             return value
         }
         guard let raw = value, let enabled = raw["enabled"] as? Bool, let target = raw["target"] as? Int,

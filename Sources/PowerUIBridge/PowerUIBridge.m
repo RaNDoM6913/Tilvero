@@ -20,6 +20,17 @@ static BOOL TVFail(NSError **error, NSInteger code, NSString *message) {
     if (error) *error = [NSError errorWithDomain:@"Tilvero.NativeCharge" code:code userInfo:@{NSLocalizedDescriptionKey:message}];
     return NO;
 }
+static BOOL TVValidTargets(id targets) {
+    if (![targets isKindOfClass:NSArray.class] || ![targets count] || [targets count]>21) return NO;
+    NSInteger previous = 79;
+    for (id value in targets) {
+        if (![value isKindOfClass:NSNumber.class] || CFGetTypeID((__bridge CFTypeRef)value) == CFBooleanGetTypeID()) return NO;
+        double number = [value doubleValue];
+        if (!(number>=80 && number<=100) || number != [value integerValue] || [value integerValue]<=previous) return NO;
+        previous = [value integerValue];
+    }
+    return YES;
+}
 static id TVClient(NSError **error) {
     static void *handle;
     static dispatch_once_t once;
@@ -56,11 +67,15 @@ NSDictionary<NSString *,id> *TVNativeChargeRead(NSError **error) {
         uint8_t target = [client getMCLLimitWithError:&failure]; if (failure) { if(error)*error=failure; return nil; }
         NSArray *targets = [client availableChargeLimitsWithError:&failure]; if (failure) { if(error)*error=failure; return nil; }
         NSUInteger optimized = [client isSmartChargingCurrentlyEnabled:&failure]; if (failure) { if(error)*error=failure; return nil; }
-        if (enabled>1 || optimized>1 || target<80 || target>100 || ![targets isKindOfClass:NSArray.class] || !targets.count || targets.count>21) {
-            TVFail(error,5,@"Native charge readback is incomplete or invalid."); return nil;
-        }
-        for (id value in targets) if (![value isKindOfClass:NSNumber.class] || [value doubleValue] != [value integerValue] || [value integerValue]<80 || [value integerValue]>100) {
+        if (!TVValidTargets(targets)) {
             TVFail(error,5,@"Native target list is invalid."); return nil;
+        }
+        if (enabled>1 || optimized>1 || target<80 || target>100) {
+            // Preserve capability discovery, never a normalized state snapshot.
+            // The setter's required complete readback still fails closed.
+            if (error) *error = [NSError errorWithDomain:@"Tilvero.NativeCharge" code:5
+                userInfo:@{NSLocalizedDescriptionKey:@"Native charge readback is incomplete or invalid.", @"supportedTargets":targets}];
+            return nil;
         }
         return [[NSDictionary alloc] initWithDictionary:@{@"enabled":@(enabled==1), @"target":@(target), @"optimizedCharging":@(optimized==1), @"targets":targets}];
     } @catch (NSException *exception) { TVFail(error,6,@"The native charging interface failed."); return nil; }
