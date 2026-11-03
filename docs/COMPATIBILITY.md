@@ -12,12 +12,18 @@ A source prerelease and a trusted Mac download are separate deliverables.
 | OS | macOS 26.0 or later |
 | Build tools | Full Xcode with a compatible macOS SDK and Swift 6; Command Line Tools alone are not the validated route |
 | Interface | Native SwiftUI and AppKit; Russian and English |
-| Connectivity | No account, cloud service or internet connection required by the app |
+| Connectivity | Offline monitoring core; optional release checks use HTTPS without an account or telemetry upload |
 | Monitoring | Runs without administrator approval or helper enrollment |
 
 The deployment target does not prove every model/OS combination has been tested.
 Recorded actual monitoring/UI observations include MacBook Air M5 / Mac17,3 on
 macOS 26.6.2. MacBook Air is fanless; a Pro simulator cannot qualify Pro hardware.
+
+Native UI and local-update continuity were also checked on macOS 27.2. Settings →
+General → Battery appearance offers the compact macOS 27 battery and retained
+macOS 26 appearance; percentage placement remains a separate preference. The
+legacy renderer was compared on the current host, not rerun on a macOS 26 host.
+This UI acceptance does not renew hardware-control qualification after an OS upgrade.
 
 ## Capability matrix
 
@@ -25,6 +31,7 @@ macOS 26.6.2. MacBook Air is fanless; a Pro simulator cannot qualify Pro hardwar
 | --- | --- | --- |
 | Battery and adapter readings | Implemented; actual local app observations | The 115-field catalog is a schema, not a promise of 115 available measurements |
 | Menu bar and detail window | Implemented; native UI, keyboard and appearance checks recorded | Full VoiceOver speech acceptance remains open |
+| Updates | Native version/build, source-release discovery, notes, retry and opt-in checking; qualified Sparkle integration | Development/Lab/trial stay manual; actual signed feed, trusted binary and downloaded-install acceptance remain open |
 | Local history and CSV/JSON export | Implemented and fixture-tested; actual history observed | Gaps stay visible; no invented samples; preview exports before sharing |
 | Application activity | Read-only process counters, search, filtering and ranking | CPU energy/power estimates cover CPU activity only; accessible processes may be a partial set |
 | Sleep & drain | Read-only observation and fixture coverage | New app-observed intervals only; completed real sleep/wake validation remains a device gate |

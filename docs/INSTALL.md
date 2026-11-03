@@ -67,6 +67,10 @@ around rejection. A checksum confirms integrity, not signing trust or notarizati
 
 ### Updates and local data
 
+Choose **Settings → General → Battery appearance** for macOS 27 or macOS 26.
+Percentage placement is independent: choose **Percent inside** for the compact
+modern presentation or **Percent beside** for the traditional layout.
+
 Settings → Updates shows the running version/build, release notes and published
 source previews. **Check for Updates…** is also in the app menu. Automatic checking
 is off initially; opting in does not enable automatic installation. Source
@@ -159,6 +163,10 @@ bash scripts/run-local.sh
 к подписи или нотарификацию.
 
 ### Обновление и данные
+
+В «Настройки → Основные → Вид батареи» доступны macOS 27 и macOS 26.
+Размещение процента выбирается отдельно: «Процент внутри» для компактного
+нового вида или «Процент рядом» для традиционного расположения.
 
 В «Настройки → Обновления» видны текущая версия и сборка, заметки и опубликованные
 исходники. В меню приложения также есть «Проверить обновления…». Автопроверка
