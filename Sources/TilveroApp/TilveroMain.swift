@@ -251,7 +251,13 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         #if TILVERO_LAB_STUDIO
         showDetails()
         #else
-        if CommandLine.arguments.contains("--show-details") { showDetails() }
+        if model.canShowSetup && !model.hasReviewedSetup {
+            model.selectedSettingsPage = .setup
+            model.selectedSection = .settings
+            showDetails()
+        } else if CommandLine.arguments.contains("--show-details") {
+            showDetails()
+        }
         #endif
     }
 
@@ -506,7 +512,9 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     }
 
     private func showDetails() {
-        try? model.keepAwake.reconcile()
+        // Setup presents and refreshes its own read-only facts.
+        let observeControls = model.selectedSection != .settings || model.selectedSettingsPage != .setup
+        if observeControls { try? model.keepAwake.reconcile() }
         closePopover(reason: "details opened")
         if detailsWindow == nil {
             #if TILVERO_LAB_STUDIO
@@ -535,7 +543,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         model.isDetailVisible = true
         NSApplication.shared.activate(ignoringOtherApps: true)
         detailsWindow?.makeKeyAndOrderFront(nil)
-        Task { await model.refresh() }
+        if observeControls { Task { await model.refresh() } }
     }
 
     private func updateStatusItem() {

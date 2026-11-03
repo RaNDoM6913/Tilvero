@@ -13,12 +13,13 @@ import ChargeBackends
 
 /// Explicit ports for application actions that are not telemetry or owned control.
 /// Production retains the normal macOS implementation; isolated hosts supply all
-/// four operations together rather than inheriting a native action accidentally.
+/// operations together. Setup login actions are a separate, explicit opt-in.
 @MainActor struct TilveroModelSideEffects {
     var loginStatus: () -> String
     var toggleLogin: () throws -> Void
     var openBatterySettings: () -> Void
     var rawCatalog: @Sendable () async -> [CatalogReading]
+    var setupLogin: SetupLoginPort? = nil
 
     static var native: Self {
         .init(loginStatus: {
@@ -150,6 +151,28 @@ final class TilveroModel: ObservableObject {
     }
     @Published private(set) var menuBarIconScale: Double
     @Published var loginStatus = "Not enabled"
+    @Published private(set) var hasReviewedSetup: Bool
+    let canShowSetup: Bool
+    private let setupBundle: Bundle
+    private let setupLogin: SetupLoginPort?
+    private let setupUsesNativeHost: Bool
+    lazy var setupCoordinator = SetupActionCoordinator(ports: .init(
+        readInputs: { [weak self] in self?.readSetupInputs() ?? SetupReadinessInputs(launchPolicy: .monitoringOnly) },
+        viewRequirements: { [weak self] in try self?.showSetupRequirements($0) },
+        openApprovalSettings: { [weak self] in try self?.openSetupApprovalSettings($0) },
+        registerHelper: { [weak self] in try await self?.registerSetupHelper() },
+        enableLogin: { [weak self] in try self?.enableSetupLogin() },
+        setHistoryEnabled: { [weak self] enabled in
+            guard let self, self.canShowSetup else { throw SetupRuntimeError.actionUnavailable }
+            if self.historyEnabled != enabled { self.historyEnabled = enabled }
+        },
+        requestNativeChargeValidation: { throw SetupRuntimeError.actionUnavailable }))
+
+    func markSetupReviewed() {
+        guard canShowSetup, !hasReviewedSetup else { return }
+        preferences.set(true, forKey: SetupRuntime.reviewedKey)
+        hasReviewedSetup = true
+    }
     @Published var demoPercent = 76.0
     @Published var demoExternal = true
     @Published var demoOverride = false
@@ -314,7 +337,8 @@ final class TilveroModel: ObservableObject {
          updateIdentity: UpdateIdentity? = nil,
          updateEvidence: (() -> [UpdateEvidenceProbe.Result])? = nil,
          updateLeaseDirectory: URL? = nil,
-         sideEffects: TilveroModelSideEffects? = nil) {
+         sideEffects: TilveroModelSideEffects? = nil,
+         setupBundle: Bundle = .main) {
         updates = UpdateCheckService(identity: updateIdentity ?? .current(), defaults: preferences)
         self.updateLeaseDirectory = updateLeaseDirectory
         self.updateEvidence = updateEvidence ?? {
@@ -351,6 +375,16 @@ final class TilveroModel: ObservableObject {
         keepAwake = keepAwakeService ?? KeepAwakeService(driver: keepAwakeTransport ?? NativeKeepAwakeTransport(), allowed: !isDemo && !monitoring)
         sleepTimer = sleepTimerService ?? SleepTimerService(driver: sleepTimerTransport ?? NativeSleepTimerTransport(), allowed: !isDemo && !monitoring)
         closedLid = closedLidService ?? ClosedLidService(allowed: !isDemo && !monitoring)
+        self.setupBundle = setupBundle
+        let setupIdentity = try? ReleaseIdentity.current(bundle: setupBundle)
+        canShowSetup = !isDemo && setupIdentity?.isLaboratory == false && !closedLid.isFixture && !closedLid.isLiveTrial
+        hasReviewedSetup = canShowSetup && preferences.bool(forKey: SetupRuntime.reviewedKey)
+        let ordinaryAppID = setupBundle.bundleIdentifier == ReleaseIdentity.prototypeBundleIdentifier
+            || setupBundle.bundleIdentifier == UpdateInstallConfiguration.productionBundleID
+        let nativeSetupHost = canShowSetup && sideEffects == nil && ordinaryAppID
+            && setupBundle.bundleURL.pathExtension == "app" && setupBundle.bundleURL == Bundle.main.bundleURL
+        setupUsesNativeHost = nativeSetupHost
+        setupLogin = sideEffects?.setupLogin ?? (nativeSetupHost ? .native : nil)
         modeLibrary = ModeLibrary.load(preferences.data(forKey: isDemo ? "demoModePlans.v1" : "modePlans.v1"))
         overviewPreferences = OverviewPreferences.load(preferences.data(forKey: "overviewPreferences.v1"))
         self.sleepActivityProvider = sleepActivityProvider ?? {
@@ -975,6 +1009,94 @@ final class TilveroModel: ObservableObject {
     }
     func updateLoginStatus() {
         loginStatus = sideEffects.loginStatus()
+    }
+
+    private var setupControlsIdle: Bool {
+        let charge = nativeCharge.presentation()
+        return !controlsAreSuspended && !isApplying && !isReading && !sleeping && !sleepTimer.isActive && !sleepTimer.needsHoldRelease
+            && !keepAwake.hasOwnedAssertion && !closedLid.busy && !closedLid.isOn && !closedLid.needsRecovery
+            && !nativeCharge.isBusy && !nativeCharge.isQualifying && !nativeCharge.hasOwnedSettings
+            && !nativeCharge.recoveryRequired && !nativeCharge.restorationPending && nativeCharge.pendingTarget == nil
+            && charge.pendingPurpose == nil && !charge.hasRecordedMutation && !charge.hasSavedAction
+            && !keyboardBacklight.isBusy && !liveControl.isBusy
+    }
+
+    private func readSetupInputs() -> SetupReadinessInputs {
+        var inputs = SetupReadinessInputs(launchPolicy: .monitoringOnly)
+        guard canShowSetup else { return inputs }
+        inputs.launchPolicy = SetupRuntime.launchPolicy(launchPolicy)
+        inputs.monitoring = snapshot.chargePercent.availability == .available ? .available : .unknown
+        inputs.hasReviewedSetup = hasReviewedSetup
+        inputs.historyEnabled = historyEnabled
+        inputs.login = setupLogin?.readStatus() ?? .unavailable
+
+        let persistent = nativeCharge.observed.map {
+            $0.isFresh && NativeChargeAdmission.isPersistent($0, target: $0.configuration.target,
+                optimizedCharging: $0.configuration.optimizedCharging)
+        } ?? false
+        let observedCapability = persistent || nativeCharge.incompleteObservation?.isFresh() == true
+        let discoveredCapability = liveControl.capabilities.first { $0.backend == "native-powerui" }?.readiness
+        inputs.nativeCharge = .init(availability: observedCapability ? .available : SetupRuntime.availability(discoveredCapability),
+            hasCompletePersistentState: persistent, currentOSQualified: nativeCharge.isAvailable
+                && !nativeCharge.recoveryRequired && !nativeCharge.restorationPending,
+            canSafelyRequestValidation: false) // The charging screen owns explicit qualification consent.
+        inputs.fanAvailability = liveControl.setupFanAvailability
+        inputs.helperPowerAvailability = liveControl.setupPowerAvailability
+        if setupUsesNativeHost {
+            inputs.helper = liveControl.readSetupHelper()
+            inputs.helper.canRequestRegistration = inputs.helper.canRequestRegistration && setupControlsIdle
+        }
+        switch keyboardBacklight.availability {
+        case .available: inputs.keyboardBacklight = .available
+        case .unsupported: inputs.keyboardBacklight = .unsupported
+        case .unavailable: inputs.keyboardBacklight = .unavailable
+        case .unknown: inputs.keyboardBacklight = .unknown
+        }
+        inputs.keepAwake = keepAwake.isAvailable ? .available : .unavailable
+        inputs.sleepTimer = sleepTimer.isAvailable ? .available : .unavailable
+        inputs.closedLid.restorationRequired = closedLid.needsRecovery
+        inputs.updates = SetupRuntime.updates(bundle: setupBundle,
+            eligiblePolicy: launchPolicy.monitoringOnly && updates.identity.supportsInstallerProfile) {
+                !updatePreparationActive && updateReadiness.blockers.isEmpty
+            }
+        return inputs
+    }
+
+    private func showSetupRequirements(_ feature: SetupFeature) throws {
+        guard canShowSetup else { throw SetupRuntimeError.actionUnavailable }
+        switch feature {
+        case .monitoring: selectedSection = .overview
+        case .nativeCharging: selectedSection = .charging
+        case .fans: selectedSection = .cooling
+        case .helperPowerModes, .keyboardBacklight: selectedSection = .diagnostics
+        case .keepAwake, .closedLid: selectedSleepPage = .awake; selectedSection = .sleep
+        case .sleepTimer: selectedSleepPage = .timer; selectedSection = .sleep
+        case .history: selectedSettingsPage = .history; selectedSection = .settings
+        case .launchAtLogin: selectedSettingsPage = .general; selectedSection = .settings
+        case .updateChecks, .updateInstallation: selectedSettingsPage = .updates; selectedSection = .settings
+        }
+    }
+
+    private func openSetupApprovalSettings(_ feature: SetupFeature) throws {
+        guard canShowSetup, let setupLogin else { throw SetupRuntimeError.actionUnavailable }
+        // Both the login item and ordinary helper use the same System Settings pane.
+        switch feature {
+        case .launchAtLogin, .fans, .helperPowerModes: setupLogin.openApprovalSettings()
+        default: throw SetupRuntimeError.actionUnavailable
+        }
+    }
+
+    private func registerSetupHelper() async throws {
+        guard setupUsesNativeHost, setupControlsIdle else { throw SetupRuntimeError.actionUnavailable }
+        isApplying = true
+        defer { isApplying = false }
+        try await liveControl.registerSetupHelper()
+    }
+
+    private func enableSetupLogin() throws {
+        guard canShowSetup, let setupLogin else { throw SetupRuntimeError.actionUnavailable }
+        defer { updateLoginStatus() }
+        try setupLogin.enable()
     }
     func toggleLogin() {
         do {

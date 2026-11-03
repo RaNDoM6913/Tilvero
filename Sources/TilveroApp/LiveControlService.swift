@@ -4,6 +4,7 @@ import PowerCore
 import PowerPrivileged
 import ChargeBackends
 import FanBackends
+import Security
 
 /// The app can replace its transport in fixture tests; production always constructs
 /// HelperClient, whose immutable signing requirements are checked in both directions.
@@ -25,6 +26,16 @@ private final class SignedHelperRegistration: LiveHelperRegistrationDriving {
     private let trust: HelperTrustConfiguration?
     init(trust: HelperTrustConfiguration?) { self.trust = trust }
     var state: HelperInstallationState { service.state }
+    var bundledHelperMatchesTrust: Bool {
+        guard let trust else { return false }
+        let executable = Bundle.main.bundleURL.appendingPathComponent("Contents/Library/HelperTools/TilveroHelper")
+        var code: SecStaticCode?, requirement: SecRequirement?
+        guard SecStaticCodeCreateWithPath(executable as CFURL, [], &code) == errSecSuccess, let code,
+              SecRequirementCreateWithString(trust.helperRequirement as CFString, [], &requirement) == errSecSuccess,
+              let requirement else { return false }
+        let flags = SecCSFlags(rawValue: kSecCSCheckAllArchitectures | kSecCSStrictValidate)
+        return SecStaticCodeCheckValidity(code, flags, requirement) == errSecSuccess
+    }
     func register() async throws {
         guard let trust else { throw PrivilegeError.missingTrust }
         try await service.register(trust: trust)
@@ -114,6 +125,40 @@ enum LiveControlError: Error, LocalizedError, Equatable {
     var canRegister: Bool {
         trustVerified && !isBusy && !terminating && !unregistering && registrationState != .enabled && registrationState != .requiresApproval
         && capabilities.contains { $0.readiness == .available }
+    }
+
+    var setupFanAvailability: SetupAvailability {
+        let readiness = capability("smc-standard-fan")?.readiness
+        if readiness == .unavailable, fanObservation?.descriptors.isEmpty == true { return .unsupported }
+        if readiness == .available, fanObservation?.descriptors.isEmpty != false { return .unknown }
+        return SetupRuntime.availability(readiness)
+    }
+
+    var setupPowerAvailability: SetupAvailability {
+        SetupRuntime.availability(capability("pmset-lowpowermode")?.readiness)
+    }
+
+    /// Reads ServiceManagement directly without reconnecting or mutating helper state.
+    func readSetupHelper() -> SetupHelperInputs {
+        guard !monitoringOnly else { return SetupHelperInputs() }
+        let state = registration.state
+        let sameTeam = trustVerified && (registration as? SignedHelperRegistration)?.bundledHelperMatchesTrust == true
+        let path = Bundle.main.bundleURL.standardizedFileURL.path
+        let installed = path.hasPrefix("/Applications/") && path.hasSuffix(".app")
+        let needsRestoration = recoveryRequired || hasOwnedSettings
+        let allowed = sameTeam && installed && state == .notRegistered && !isBusy && !transportBusy
+            && !terminating && !unregistering && !needsRestoration
+            && (setupFanAvailability == .available || setupPowerAvailability == .available)
+        return SetupHelperInputs(sameTeamTrustVerified: sameTeam, installedInApplications: installed,
+            registration: SetupRuntime.registration(state), connected: connected && state == .enabled && !terminating,
+            canRequestRegistration: allowed, restorationRequired: needsRestoration)
+    }
+
+    func registerSetupHelper() async throws {
+        guard readSetupHelper().canRequestRegistration else { throw LiveControlError.notQualified }
+        registrationState = registration.state
+        guard registrationState == .notRegistered else { throw LiveControlError.notQualified }
+        try await registerHelper()
     }
     var hasOwnedSettings: Bool { !ownedResources.isEmpty }
     private var hasActiveFanPolicy: Bool { fanState.requested != .systemAuto && (fanState.phase == .acquiring || fanState.phase == .managed) }

@@ -14080,6 +14080,886 @@
           }
         }
       }
+    },
+    "Setup": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Setup"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Настройка"
+          }
+        }
+      }
+    },
+    "First-time setup": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "First-time setup"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Первоначальная настройка"
+          }
+        }
+      }
+    },
+    "You can monitor your Mac now and set up optional features whenever you need them.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can monitor your Mac now and set up optional features whenever you need them."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Наблюдение уже доступно. Дополнительные функции можно настроить позже."
+          }
+        }
+      }
+    },
+    "Monitoring and everyday tools": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monitoring and everyday tools"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Наблюдение и повседневные инструменты"
+          }
+        }
+      }
+    },
+    "Additional features": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Additional features"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дополнительные функции"
+          }
+        }
+      }
+    },
+    "Your choices": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your choices"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "По вашему выбору"
+          }
+        }
+      }
+    },
+    "Save battery history": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save battery history"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохранять историю батареи"
+          }
+        }
+      }
+    },
+    "Battery history is stored locally. You can change this choice later in History settings.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Battery history is stored locally. You can change this choice later in History settings."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "История батареи хранится локально. Этот выбор можно изменить в настройках истории."
+          }
+        }
+      }
+    },
+    "Checking setup status…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking setup status…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверка состояния функций…"
+          }
+        }
+      }
+    },
+    "Refresh setup status": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refresh setup status"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновить статус"
+          }
+        }
+      }
+    },
+    "Continue monitoring": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue monitoring"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Продолжить наблюдение"
+          }
+        }
+      }
+    },
+    "This action is no longer available. Check the updated status.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This action is no longer available. Check the updated status."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Действие больше недоступно. Посмотрите обновлённый статус."
+          }
+        }
+      }
+    },
+    "Another setup action is in progress.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Another setup action is in progress."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выполняется другое действие настройки."
+          }
+        }
+      }
+    },
+    "The setup action could not be completed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The setup action could not be completed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось завершить действие."
+          }
+        }
+      }
+    },
+    "Battery and power monitoring": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Battery and power monitoring"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Наблюдение за батареей и питанием"
+          }
+        }
+      }
+    },
+    "Fans": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fans"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вентиляторы"
+          }
+        }
+      }
+    },
+    "System power modes": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System power modes"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Системные режимы питания"
+          }
+        }
+      }
+    },
+    "Closed-lid operation": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Closed-lid operation"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Работа с закрытой крышкой"
+          }
+        }
+      }
+    },
+    "Battery history": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Battery history"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "История батареи"
+          }
+        }
+      }
+    },
+    "Check for new versions": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check for new versions"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверка новых версий"
+          }
+        }
+      }
+    },
+    "Install updates": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install updates"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Установка обновлений"
+          }
+        }
+      }
+    },
+    "Ready": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ready"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Готово"
+          }
+        }
+      }
+    },
+    "Optional": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Optional"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "По желанию"
+          }
+        }
+      }
+    },
+    "macOS approval needed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS approval needed"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нужно разрешение macOS"
+          }
+        }
+      }
+    },
+    "Needs verification": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Needs verification"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нужна проверка"
+          }
+        }
+      }
+    },
+    "Unsupported on this Mac": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unsupported on this Mac"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не поддерживается на этом Mac"
+          }
+        }
+      }
+    },
+    "Unavailable in this build": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unavailable in this build"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Недоступно в этой сборке"
+          }
+        }
+      }
+    },
+    "Battery and power readings do not require the system helper. Missing readings stay unavailable.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Battery and power readings do not require the system helper. Missing readings stay unavailable."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показания батареи и питания доступны без системного помощника. Отсутствующие показания отмечаются как недоступные."
+          }
+        }
+      }
+    },
+    "The charge control scope has been verified on this macOS version. See Charging for the supported targets.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The charge control scope has been verified on this macOS version. See Charging for the supported targets."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Управление зарядкой проверено на этой версии macOS. Поддерживаемые лимиты указаны в разделе «Зарядка»."
+          }
+        }
+      }
+    },
+    "macOS reports that launch at login is enabled.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS reports that launch at login is enabled."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS сообщает, что запуск при входе включён."
+          }
+        }
+      }
+    },
+    "This app can consider updates. Each update still has to pass its own checks.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This app can consider updates. Each update still has to pass its own checks."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Приложение готово принимать обновления. Каждое обновление проходит отдельную проверку."
+          }
+        }
+      }
+    },
+    "Available in this session.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Available in this session."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Доступно в текущем сеансе."
+          }
+        }
+      }
+    },
+    "You can skip this choice and change it later.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can skip this choice and change it later."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Этот выбор можно пропустить и изменить позже."
+          }
+        }
+      }
+    },
+    "The current status is unknown. Refresh to check again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The current status is unknown. Refresh to check again."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Текущий статус неизвестен. Обновите его для повторной проверки."
+          }
+        }
+      }
+    },
+    "This session is limited to monitoring.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This session is limited to monitoring."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В этом сеансе доступно только наблюдение."
+          }
+        }
+      }
+    },
+    "The current charging policy could not be confirmed. Check Charging for the latest readings and requirements.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The current charging policy could not be confirmed. Check Charging for the latest readings and requirements."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Действующий режим зарядки не удалось подтвердить. Свежие показания и требования указаны в разделе «Зарядка»."
+          }
+        }
+      }
+    },
+    "Charge control needs a separate verification on this macOS version, including restoration of the previous setting.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charge control needs a separate verification on this macOS version, including restoration of the previous setting."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для управления зарядкой на этой версии macOS нужна отдельная проверка с восстановлением предыдущей настройки."
+          }
+        }
+      }
+    },
+    "This Mac does not support the feature.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This Mac does not support the feature."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Этот Mac не поддерживает функцию."
+          }
+        }
+      }
+    },
+    "This feature is currently unavailable. Refresh to check again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This feature is currently unavailable. Refresh to check again."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Функция сейчас недоступна. Обновите статус для повторной проверки."
+          }
+        }
+      }
+    },
+    "This feature needs a compatibility and restoration check before it can be used.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This feature needs a compatibility and restoration check before it can be used."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перед использованием функции нужно проверить совместимость и восстановление настроек."
+          }
+        }
+      }
+    },
+    "This feature needs an app and system helper with verified signatures from the same team.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This feature needs an app and system helper with verified signatures from the same team."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для этой функции нужны проверенные подписи приложения и системного помощника от одной команды разработчиков."
+          }
+        }
+      }
+    },
+    "Install Tilvero in Applications before connecting the system helper.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install Tilvero in Applications before connecting the system helper."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Установите Tilvero в папку «Программы», прежде чем подключать системного помощника."
+          }
+        }
+      }
+    },
+    "You can connect the system helper for supported controls. macOS may ask you to approve it.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can connect the system helper for supported controls. macOS may ask you to approve it."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для поддерживаемых функций можно подключить системного помощника. macOS может запросить подтверждение."
+          }
+        }
+      }
+    },
+    "Approve this feature in System Settings, then refresh its status.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Approve this feature in System Settings, then refresh its status."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешите функцию в системных настройках и обновите её статус."
+          }
+        }
+      }
+    },
+    "macOS reports that approval was denied. You can review this choice in System Settings.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS reports that approval was denied. You can review this choice in System Settings."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS сообщает об отказе в разрешении. Этот выбор можно проверить в системных настройках."
+          }
+        }
+      }
+    },
+    "macOS reports that the helper is enabled. Its connection to Tilvero is still unverified.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS reports that the helper is enabled. Its connection to Tilvero is still unverified."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS сообщает, что помощник включён. Его подключение к Tilvero ещё не подтверждено."
+          }
+        }
+      }
+    },
+    "Restore the previous settings before enabling this feature.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore the previous settings before enabling this feature."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перед включением функции восстановите предыдущие настройки."
+          }
+        }
+      }
+    },
+    "Closed-lid operation requires a dedicated build and a verified recovery procedure.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Closed-lid operation requires a dedicated build and a verified recovery procedure."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для работы с закрытой крышкой нужны специальная сборка и проверенная процедура восстановления."
+          }
+        }
+      }
+    },
+    "Installing updates requires a signed distribution build and a verified update feed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installing updates requires a signed distribution build and a verified update feed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для установки обновлений нужны подписанная релизная сборка и проверенный источник обновлений."
+          }
+        }
+      }
+    },
+    "This copy of Tilvero cannot install updates.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This copy of Tilvero cannot install updates."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эта копия Tilvero не может устанавливать обновления."
+          }
+        }
+      }
+    },
+    "Update installation is available only when controls are idle and recovery is complete.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update installation is available only when controls are idle and recovery is complete."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновление можно установить после завершения всех операций управления и восстановления."
+          }
+        }
+      }
+    },
+    "Open Charging in Tilvero": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Charging in Tilvero"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть раздел «Зарядка»"
+          }
+        }
+      }
+    },
+    "View requirements…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View requirements…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Посмотреть требования…"
+          }
+        }
+      }
+    },
+    "Open System Settings…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open System Settings…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть системные настройки…"
+          }
+        }
+      }
+    },
+    "Enable launch at login": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enable launch at login"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Включить запуск при входе"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

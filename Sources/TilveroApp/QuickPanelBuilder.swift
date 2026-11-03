@@ -4,10 +4,10 @@ import PowerCore
 import UniformTypeIdentifiers
 
 enum SettingsPage: String, CaseIterable, Identifiable {
-    case general, quickPanel, history, updates
+    case general, quickPanel, history, updates, setup
     var id: String { rawValue }
     var title: String {
-        switch self { case .general: "General"; case .quickPanel: "Quick panel"; case .history: "History"; case .updates: "Updates" }
+        switch self { case .general: "General"; case .quickPanel: "Quick panel"; case .history: "History"; case .updates: "Updates"; case .setup: "Setup" }
     }
 }
 

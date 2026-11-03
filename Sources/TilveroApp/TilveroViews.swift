@@ -71,6 +71,9 @@ struct BatteryInfoView: View {
         #endif
     }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private var showingSetup: Bool {
+        presentedSection == .settings && model.canShowSetup && model.selectedSettingsPage == .setup
+    }
     @State private var search = ""
     @State private var showUnavailable = true
     @State private var reveal = false
@@ -85,7 +88,7 @@ struct BatteryInfoView: View {
                     HStack(alignment: .firstTextBaseline) {
                         StudioText(presentedSection.title, id: "page.title").font(.system(size: 24, weight: .semibold))
                         Spacer(minLength: 8)
-                        if presentedSection != .sleep || presentedSleepPage == .reports {
+                        if !showingSetup && (presentedSection != .sleep || presentedSleepPage == .reports) {
                         Button { Task { await model.refresh(); if presentedSection == .sleep { await model.refreshSleepActivity() } } } label: { Image(systemName: "arrow.clockwise") }
                             .accessibilityLabel(L10n.text("Refresh"))
                             .studioElement("page.refresh", label: "Refresh readings")
@@ -435,25 +438,29 @@ private struct SettingsPanel: View {
     #if TILVERO_LAB_STUDIO
     @Environment(\.studioCaptureRoute) private var studioCaptureRoute
     #endif
+    private var settingsPages: [SettingsPage] {
+        SettingsPage.allCases.filter { $0 != .setup || model.canShowSetup }
+    }
     private var presentedSettingsPage: SettingsPage {
         #if TILVERO_LAB_STUDIO
-        studioCaptureRoute?.settingsPage ?? model.selectedSettingsPage
+        let requested = studioCaptureRoute?.settingsPage ?? model.selectedSettingsPage
         #else
-        model.selectedSettingsPage
+        let requested = model.selectedSettingsPage
         #endif
+        return settingsPages.contains(requested) ? requested : .general
     }
     private var pageSelection: Binding<SettingsPage> {
         #if TILVERO_LAB_STUDIO
-        if let route = studioCaptureRoute { return .constant(route.settingsPage) }
+        if studioCaptureRoute != nil { return .constant(presentedSettingsPage) }
         #endif
-        return $model.selectedSettingsPage
+        return Binding(get: { presentedSettingsPage }, set: { model.selectedSettingsPage = $0 })
     }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var confirmErase = false
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             Picker(L10n.text("Settings section"), selection: pageSelection) {
-                ForEach(SettingsPage.allCases) { StudioText(L10n.text($0.title), id: "settings.tab." + $0.rawValue).tag($0) }
+                ForEach(settingsPages) { StudioText(L10n.text($0.title), id: "settings.tab." + $0.rawValue).tag($0) }
             }.pickerStyle(.segmented).labelsHidden().id(L10n.language).studioElement("settings.tabs", label: "Settings subpages")
             Group {
                 switch presentedSettingsPage {
@@ -462,6 +469,7 @@ private struct SettingsPanel: View {
                 case .history: historySettings
                 case .updates: UpdatesPanel(service: model.updates, installer: model.updateInstaller,
                                            diagnostics: model.openUpdateDiagnostics)
+                case .setup: FirstSetupPanel(model: model)
                 }
             }.id(presentedSettingsPage).transition(.opacity).studioScope("tab." + presentedSettingsPage.rawValue)
                 .animation(ProductMotion.animation(reduceMotion: reduceMotion), value: presentedSettingsPage)
