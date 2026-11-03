@@ -15,6 +15,8 @@ The first installer host must satisfy all of these checks against its actual bun
 
 A signed appcast candidate must additionally have a strictly greater integer build, an application DMG, valid signed-feed status and enclosure attributes `tilveroBundleID`, `tilveroProfile=monitoring`, `tilveroTeamID` and `tilveroArchitecture=arm64` matching the installed profile. Sparkle validates archive signatures and the replacement app signature. Stable/beta selection adds only the beta channel; it never changes feed/profile/identity or admits a downgrade.
 
+The updater delegate pins the actual runtime feed to the sealed URL even when legacy `SUFeedURL` preferences exist, and the check gate verifies that effective URL. Local feed verification binds the admitted build's audience, display version and minimum OS to its release manifest and rejects duplicate or conflicting canonical fields. A beta item must explicitly retain `beta`; stable uses the default audience.
+
 ## Consent, recovery and quit
 
 Opening Updates, checking metadata, checking an appcast and reading notes perform no termination recovery. The custom native `SPUUserDriver` provides an explicit **Install and Restart…** choice before its first `.install` reply. It explains that this starts authenticated download/preparation and that an installer already started may finish after host exit, including an unexpected exit. This is an installation choice, not a download-only promise.

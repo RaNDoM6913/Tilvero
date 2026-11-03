@@ -1,6 +1,17 @@
 import Foundation
 import Observation
 
+/// Progress cancellation is one-shot; a failed or declined restart stays
+/// retryable until the progress presentation is explicitly dismissed.
+@MainActor final class UpdateInstallProgressAction {
+    private var action: (() -> Void)?
+    private var repeats = false
+    func setCancellation(_ action: (() -> Void)?) { self.action = action; repeats = false }
+    func setRetry(_ action: @escaping () -> Void) { self.action = action; repeats = true }
+    func perform() { let current = action; if !repeats { action = nil }; current?() }
+    func clear() { action = nil; repeats = false }
+}
+
 /// No installation or termination authority is derived from release discovery.
 /// A staging session blocks ordinary quit; only fresh, explicit final consent
 /// can acquire the model's exclusion and authorize the installer's quit event.

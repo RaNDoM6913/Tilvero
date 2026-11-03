@@ -105,10 +105,24 @@ def verify(args):
         required = {'tilveroBundleID': BUNDLE_ID, 'tilveroProfile': 'monitoring', 'tilveroTeamID': config['teamID'], 'tilveroArchitecture': 'arm64', '{'+SPARKLE+'}installationType': 'application'}
         if any(e.get(k) != v for k, v in required.items()) or not https_url(e.get('url')) or not e['url'].split('?')[0].endswith('.dmg'):
             raise UpdaterError('Wrong profile, identity, team, architecture or artifact')
-        build = item.findtext('{'+SPARKLE+'}version') or e.get('{'+SPARKLE+'}version', '')
+        canonical = {}
+        for field in ('version', 'shortVersionString', 'minimumSystemVersion'):
+            nodes = item.findall('{'+SPARKLE+'}'+field)
+            if len(nodes) != 1 or len(nodes[0]) != 0 or not nodes[0].text or '{'+SPARKLE+'}'+field in e:
+                raise UpdaterError('Missing or ambiguous canonical feed field: '+field)
+            canonical[field] = nodes[0].text
+        channels = item.findall('{'+SPARKLE+'}channel')
+        if len(channels) > 1 or (channels and (len(channels[0]) != 0 or channels[0].text != 'beta')):
+            raise UpdaterError('Only one beta channel or the default stable audience is allowed')
+        build = canonical['version']
         if not re.fullmatch(r'[1-9][0-9]*', build):
             raise UpdaterError('Invalid build in feed')
         if build == manifest['build']:
+            expected_channel = 'beta' if manifest['channel'] == 'beta' else None
+            if (channels[0].text if channels else None) != expected_channel:
+                raise UpdaterError('Feed audience differs from the admitted release channel')
+            if canonical['shortVersionString'] != manifest['version'] or canonical['minimumSystemVersion'] != manifest['minimumOS']:
+                raise UpdaterError('Feed display version or minimum OS differs from the admitted release')
             matching.append(e)
     if len(matching) != 1:
         raise UpdaterError('Expected exactly one item for the admitted release build')

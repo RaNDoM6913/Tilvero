@@ -9,6 +9,8 @@ import struct
 import hashlib
 import tempfile
 import unittest
+from types import SimpleNamespace
+import xml.etree.ElementTree as ET
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -84,6 +86,44 @@ class UpdaterPackagingTests(unittest.TestCase):
         actual, sig = feed.signed_feed_content(data)
         self.assertEqual(actual, content); self.assertEqual(sig.encode(), signature)
         with self.assertRaises(package.UpdaterError): feed.signed_feed_content(data+data)
+
+    def verify_fixture_feed(self, manifest_channel='beta', change=None):
+        self.config.update(enabled=True, teamID='ABCD123456', publicKey=base64.b64encode(bytes(32)).decode(), feedURL='https://example.org/monitoring/appcast.xml')
+        manifest = dict(build='4', version='0.1.1', minimumOS='26.0', channel=manifest_channel)
+        record = dict(name='Tilvero-4.dmg', size=17)
+        rss = ET.Element('rss'); channel = ET.SubElement(rss, 'channel'); item = ET.SubElement(channel, 'item')
+        for field, value in [('version','4'), ('shortVersionString','0.1.1'), ('minimumSystemVersion','26.0')]:
+            ET.SubElement(item, '{'+feed.SPARKLE+'}'+field).text=value
+        if manifest_channel == 'beta': ET.SubElement(item, '{'+feed.SPARKLE+'}channel').text='beta'
+        ET.SubElement(item, 'enclosure', {'url':'https://example.org/Tilvero-4.dmg', 'length':'17', 'tilveroBundleID':package.BUNDLE_ID,
+            'tilveroProfile':'monitoring', 'tilveroTeamID':'ABCD123456', 'tilveroArchitecture':'arm64',
+            '{'+feed.SPARKLE+'}installationType':'application', '{'+feed.SPARKLE+'}edSignature':base64.b64encode(bytes(64)).decode()})
+        if change: change(item)
+        content=ET.tostring(rss)
+        path=self.root/'fixture.xml'
+        path.write_bytes(content+b'<!-- sparkle-signatures:\nedSignature: '+base64.b64encode(bytes(64))+b'\nlength: '+str(len(content)).encode()+b'\n-->\n')
+        # Trust/cryptography have separate tests. This fixture isolates semantic
+        # feed admission without generating keys or an installable artifact.
+        with mock.patch.object(feed, 'admitted_release', return_value=(manifest,record,self.root/record['name'])), mock.patch.object(feed, 'verify_signature'):
+            return feed.verify(SimpleNamespace(config=self.write_config(), release_manifest=self.root/'release.json', feed=path))
+
+    def test_feed_preserves_beta_and_default_stable_audiences(self):
+        for channel in ['beta','stable']:
+            self.assertEqual(self.verify_fixture_feed(channel)['status'], 'locally-verified-signed-feed')
+        with self.assertRaises(package.UpdaterError):
+            self.verify_fixture_feed('beta', lambda item: item.remove(item.find('{'+feed.SPARKLE+'}channel')))
+        with self.assertRaises(package.UpdaterError):
+            self.verify_fixture_feed('stable', lambda item: setattr(ET.SubElement(item, '{'+feed.SPARKLE+'}channel'), 'text', 'beta'))
+
+    def test_feed_matches_display_version_os_and_rejects_ambiguous_fields(self):
+        for field in ['shortVersionString','minimumSystemVersion']:
+            with self.subTest(field=field), self.assertRaises(package.UpdaterError):
+                self.verify_fixture_feed(change=lambda item: setattr(item.find('{'+feed.SPARKLE+'}'+field), 'text', '999'))
+        for field in ['version','shortVersionString','minimumSystemVersion','channel']:
+            with self.subTest(duplicate=field), self.assertRaises(package.UpdaterError):
+                self.verify_fixture_feed(change=lambda item: setattr(ET.SubElement(item, '{'+feed.SPARKLE+'}'+field), 'text', '4'))
+        with self.assertRaises(package.UpdaterError):
+            self.verify_fixture_feed(change=lambda item: item.find('enclosure').set('{'+feed.SPARKLE+'}version','4'))
 
     def test_code_payload_hash_ignores_only_signature_block_not_executable_bytes(self):
         # Tiny deterministic Mach-O-format payload, not executable code or an

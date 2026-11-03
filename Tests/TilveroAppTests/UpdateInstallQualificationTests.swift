@@ -1,4 +1,5 @@
 import XCTest
+import Sparkle
 @testable import TilveroApp
 
 final class UpdateInstallQualificationTests: XCTestCase {
@@ -49,5 +50,30 @@ final class UpdateInstallQualificationTests: XCTestCase {
     func testActualUnitTestHostCannotAcquireProductionQualification() {
         let configuration = UpdateInstallConfiguration(info: Bundle.main.infoDictionary ?? [:])
         XCTAssertFalse(UpdateInstallHostFacts.inspect(bundle: .main, configuration: configuration).blockers(configuration: configuration).isEmpty)
+    }
+
+    @MainActor func testSealedFeedOverridesStaleHostDefaultsWithoutNetworkOrPreferenceCleanup() throws {
+        let identifier = "TilveroUpdateFeedTest.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: identifier))
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("UpdateFeed-\(UUID())")
+        defer { defaults.removePersistentDomain(forName: identifier); try? FileManager.default.removeItem(at: root) }
+        let app = root.appendingPathComponent("Fixture.app"), contents = app.appendingPathComponent("Contents")
+        try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+        let expected = "https://updates.example.org/monitoring/appcast.xml"
+        try PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": identifier, "CFBundleName": "Fixture",
+            "CFBundleVersion": "3", "CFBundleShortVersionString": "0.1.0", "CFBundlePackageType": "APPL", "SUFeedURL": expected,
+            "TilveroUpdaterConfiguration": ["enabled": true, "teamID": "ABCD123456", "feedURL": expected,
+                "publicKey": Data(repeating: 1, count: 32).base64EncodedString()]], format: .xml, options: 0)
+            .write(to: contents.appendingPathComponent("Info.plist"))
+        defaults.set("http://legacy.example.org/other-profile.xml", forKey: "SUFeedURL")
+        let bundle = try XCTUnwrap(Bundle(url: app))
+        let installer = SparkleUpdateInstaller(bundle: bundle, readOnlyReadiness: { [] },
+            prepareAfterExplicitConsent: { XCTFail("A feed read cannot prepare recovery"); return false },
+            releaseInstallationExclusion: {}, diagnostics: {})
+        let driver = SPUStandardUserDriver(hostBundle: bundle, delegate: nil)
+        let updater = SPUUpdater(hostBundle: bundle, applicationBundle: bundle, userDriver: driver, delegate: installer)
+        XCTAssertEqual(updater.feedURL?.absoluteString, expected)
+        XCTAssertEqual(defaults.string(forKey: "SUFeedURL"), "http://legacy.example.org/other-profile.xml")
+        XCTAssertFalse(installer.isQualified, "An unsigned test bundle never qualifies for installation")
     }
 }

@@ -80,10 +80,15 @@ extension SparkleUpdateInstaller: SPUUpdaterDelegate {
     func updater(_ updater: SPUUpdater, mayPerform updateCheck: SPUUpdateCheck) throws {
         guard updateCheck == .updates, !updater.automaticallyDownloadsUpdates,
               !updater.automaticallyChecksForUpdates, !updater.sendsSystemProfile,
+              UpdateInstallConfiguration.isHTTPS(updater.feedURL),
+              updater.feedURL?.absoluteString == configuration.feedURL?.absoluteString,
               UpdateInstallHostFacts.inspect(bundle: bundle, configuration: configuration).blockers(configuration: configuration).isEmpty else {
             throw NSError(domain: "Tilvero.Updates", code: 1, userInfo: [NSLocalizedDescriptionKey: text("Only explicit qualified update checks are allowed.", "Разрешена только явная проверка для подходящей сборки.")])
         }
     }
+    // SUFeedURL in legacy host preferences otherwise wins over signed Info.plist.
+    // Always resolve the executable feed from the sealed profile configuration.
+    func feedURLString(for updater: SPUUpdater) -> String? { configuration.feedURL?.absoluteString }
     func allowedChannels(for updater: SPUUpdater) -> Set<String> { channel == .beta ? ["beta"] : [] }
     func allowedSystemProfileKeys(for updater: SPUUpdater) -> [String]? { [] }
     func updaterShouldPromptForPermissionToCheck(forUpdates updater: SPUUpdater) -> Bool { false }
@@ -114,7 +119,7 @@ private final class SparkleExplicitUserDriver: NSObject, SPUUserDriver {
     private var statusLabel: NSTextField?
     private var progress: NSProgressIndicator?
     private var cancelButton: NSButton?
-    private var cancellation: (() -> Void)?
+    private let progressAction = UpdateInstallProgressAction()
     private var received: UInt64 = 0
     private var expected: UInt64 = 0
 
@@ -160,7 +165,7 @@ private final class SparkleExplicitUserDriver: NSObject, SPUUserDriver {
     func showDownloadDidReceiveExpectedContentLength(_ expectedContentLength: UInt64) { expected = expectedContentLength; updateProgress() }
     func showDownloadDidReceiveData(ofLength length: UInt64) { received = received.addingReportingOverflow(length).partialValue; updateProgress() }
     func showDownloadDidStartExtractingUpdate() {
-        cancellation = nil; cancelButton?.isEnabled = false
+        progressAction.clear(); cancelButton?.isEnabled = false
         statusLabel?.stringValue = text("Verifying and preparing update…", "Проверка и подготовка обновления…")
         progress?.isIndeterminate = true; progress?.startAnimation(nil)
     }
@@ -182,7 +187,7 @@ private final class SparkleExplicitUserDriver: NSObject, SPUUserDriver {
         // A canceled/indefinitely delayed termination must not retain a retry
         // closure that bypasses fresh consent. This native Retry button repeats
         // the same async gate; no automatic retries are scheduled.
-        cancellation = { [weak self, weak owner] in
+        progressAction.setRetry { [weak self, weak owner] in
             guard let self, let owner else { return }
             owner.gate.invalidateHandoff()
             guard self.confirm(text("Retry restart?", "Повторить перезапуск?"), text("Readiness will be checked again.", "Готовность будет проверена повторно."), action: text("Retry Restart", "Повторить перезапуск")) else { return }
@@ -215,7 +220,7 @@ private final class SparkleExplicitUserDriver: NSObject, SPUUserDriver {
         if alert.runModal() == .alertSecondButtonReturn { owner.openDiagnostics() }
     }
     private func showProgress(_ title: String, cancellation: (() -> Void)?) {
-        closeProgress(); self.cancellation = cancellation
+        closeProgress(); progressAction.setCancellation(cancellation)
         let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 390, height: 130), styleMask: [.titled], backing: .buffered, defer: false)
         panel.title = text("Tilvero Update", "Обновление Tilvero"); panel.isReleasedWhenClosed = false
         let label = NSTextField(labelWithString: title); label.frame = NSRect(x: 20, y: 80, width: 350, height: 24)
@@ -225,8 +230,8 @@ private final class SparkleExplicitUserDriver: NSObject, SPUUserDriver {
         progressPanel = panel; statusLabel = label; progress = indicator; cancelButton = button
         panel.center(); panel.makeKeyAndOrderFront(nil)
     }
-    @objc private func cancel() { let action = cancellation; cancellation = nil; action?() }
-    private func closeProgress() { progressPanel?.close(); progressPanel = nil; statusLabel = nil; progress = nil; cancelButton = nil; cancellation = nil }
+    @objc private func cancel() { progressAction.perform() }
+    private func closeProgress() { progressPanel?.close(); progressPanel = nil; statusLabel = nil; progress = nil; cancelButton = nil; progressAction.clear() }
     private func updateProgress() {
         guard expected > 0 else { return }
         progress?.isIndeterminate = false; progress?.doubleValue = min(1, Double(received) / Double(expected))
