@@ -81,7 +81,7 @@ struct BatteryInfoView: View {
     private var query: String { CatalogDataGroup.normalizedSearch(search) }
     var body: some View {
         HStack(spacing: 0) {
-            sidebar.frame(width: 190)
+            sidebar.frame(width: 182)
             ZStack(alignment: .topLeading) {
             ScrollView {
                 VStack(alignment: .leading, spacing: studioPresentation.spacing(presentedSection == .sleep ? 18 : 22)) {
@@ -147,10 +147,10 @@ struct BatteryInfoView: View {
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 7) {
-                StudioText(AppIdentity.displayName, id: "sidebar.brand").font(.system(size: 18, weight: .semibold))
-                TilveroEnergyMark().stroke(studioPresentation.accent, style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                    .frame(width: 27, height: 15).accessibilityHidden(true)
-            }.padding(.horizontal, 14).padding(.top, 27).padding(.bottom, 22)
+                StudioText(AppIdentity.displayName, id: "sidebar.brand").font(.system(size: 24, weight: .semibold))
+                TilveroEnergyMark().stroke(studioPresentation.accent, style: StrokeStyle(lineWidth: 2.6, lineCap: .round))
+                    .frame(width: 36, height: 20).accessibilityHidden(true)
+            }.padding(.horizontal, 14).padding(.top, 22).padding(.bottom, 6)
             ForEach(InfoSection.allCases) { item in
                 if item == .history {
                     Text(L10n.text("Analytics")).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
@@ -180,7 +180,7 @@ struct BatteryInfoView: View {
                     Image(systemName: "circle.fill").font(.system(size: 6)).foregroundStyle(.orange)
                         .accessibilityHidden(true)
                 }
-            }.padding(.horizontal, 10).padding(.vertical, 9)
+            }.padding(.leading, 10).padding(.trailing, 8).padding(.vertical, 9)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color.black.opacity(selected ? 0.065 : 0), in: RoundedRectangle(cornerRadius: 7))
                 .contentShape(RoundedRectangle(cornerRadius: 7))
