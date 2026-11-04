@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.2.0"><img src="https://img.shields.io/badge/source-preview-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Source preview" height="28"></a>
-  <a href="https://github.com/RaNDoM6913/Tilvero/releases"><img src="https://img.shields.io/badge/source%20downloads-5-2F6E4B?style=for-the-badge&amp;labelColor=172A22" alt="5 source ZIP downloads" height="28"></a>
+  <a href="https://github.com/RaNDoM6913/Tilvero/releases"><img src="https://img.shields.io/badge/downloads%20%2B%20clones-275-2F6E4B?style=for-the-badge&amp;labelColor=172A22" alt="275 GitHub downloads and clones" height="28"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="License: GPL-3.0-only" height="28"></a>
   <a href="https://github.com/RaNDoM6913/Tilvero/stargazers"><img src="https://img.shields.io/github/stars/RaNDoM6913/Tilvero?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B&amp;label=stars" alt="GitHub stars" height="28"></a>
 </p>
@@ -18,7 +18,10 @@ understand changes over time, without an account or a cloud service.
 · [Release notes and checksums](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.2.0)
 · [Build and run](#build-and-run) · [Roadmap](ROADMAP.md)
 
-As of **4 November 2026 (UTC)**, GitHub recorded **6** downloads of release source ZIPs. The badge excludes one download used to verify the published archive.
+The **2026-11-04 UTC** GitHub snapshot combines **6** downloads of release
+source ZIPs, **0** public app downloads, and **269** Git clones from
+**2026-10-20 through 2026-11-02 UTC**. Repeat downloads and clones by the same
+person can all contribute to the total.
 
 A signed, notarized Mac download is still in preparation. The planned
 **Monitoring Preview** DMG will be read-only; this repository also contains

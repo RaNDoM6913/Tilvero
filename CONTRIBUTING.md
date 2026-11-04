@@ -44,4 +44,6 @@ Changes to privilege, signing, authority, journals or recovery require review of
 
 Do not commit local databases, exports, runtime logs, signing material or owner-specific evidence. Check the diff and `.gitignore` before submitting. Redact serials, hardware/identity tokens, usernames and unrelated file paths from any evidence you choose to share. Issue reports should contain the smallest relevant excerpt, not a full diagnostic dump.
 
+Small README, badge and GitHub traffic snapshot updates may be committed directly to `main` after checking the data, links and diff. Reuse the current maintenance checkout for these updates. Feature and behavioral changes follow their focused branch and review workflow.
+
 Keep changes focused, preserve existing work and include the user-visible result, verification and limitations in your pull request. Add third-party code only with a compatible license and required notices in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
