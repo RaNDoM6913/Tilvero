@@ -4,7 +4,7 @@ Tilvero has two distribution routes. The **Source Preview** distributes code for
 
 ## Source Preview
 
-The current source release is `v0.2.0` (release build 10). It targets developers building on Apple silicon with macOS 26 or later and a compatible full Xcode installation. It includes no `.app`, helper executable or DMG. The source tree contains gated development controls as well as monitoring. The local development bundle has its own version and build identity.
+The current source release is `v0.2.0`. It targets developers building on Apple silicon with macOS 26 or later and a compatible full Xcode installation. It includes no `.app`, helper executable or DMG. The source tree contains gated development controls as well as monitoring.
 
 The source profile's exact upload allowlist is:
 

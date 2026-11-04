@@ -12993,38 +12993,6 @@
         }
       }
     },
-    "Build": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Build"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "сборка"
-          }
-        }
-      }
-    },
-    "Development build": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Development build"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Сборка для разработки"
-          }
-        }
-      }
-    },
     "Laboratory build": {
       "localizations": {
         "en": {

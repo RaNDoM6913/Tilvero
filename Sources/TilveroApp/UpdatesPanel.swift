@@ -15,8 +15,11 @@ import SwiftUI
                         .resizable().frame(width: 52, height: 52).accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(L10n.text("Installed version")).foregroundStyle(.secondary)
-                        Text(installedVersion).font(.title2.weight(.semibold)).textSelection(.enabled)
-                        Text(L10n.text(profileLabel)).font(.callout).foregroundStyle(.secondary)
+                        Text(service.identity.version ?? L10n.text("Unavailable"))
+                            .font(.title2.weight(.semibold)).textSelection(.enabled)
+                        if let profileLabel {
+                            Text(L10n.text(profileLabel)).font(.callout).foregroundStyle(.secondary)
+                        }
                     }
                     Spacer(minLength: 0)
                 }
@@ -68,14 +71,9 @@ import SwiftUI
         }.accessibilityIdentifier("settings.updates")
     }
 
-    private var installedVersion: String {
-        let version = service.identity.version ?? L10n.text("Unavailable")
-        guard let build = service.identity.build else { return version }
-        return version + " (" + L10n.text("Build") + " " + build + ")"
-    }
-    private var profileLabel: String {
+    private var profileLabel: String? {
         switch service.identity.profile {
-        case .development: "Development build"
+        case .development: nil
         case .lab: "Laboratory build"
         case .trial: "Closed-lid trial build"
         case .monitoring: "Monitoring build"
