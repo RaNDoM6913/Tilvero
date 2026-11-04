@@ -120,6 +120,10 @@ import ChargeBackends
                 if compact && !model.nativeCharge.isBusy && !model.nativeCharge.isQualifying,
                    let message = model.nativeCharge.message {
                     message
+                } else if compact && !model.nativeCharge.isQualifying, let partialPolicyWarning {
+                    // The same reported target and diagnostic context remain visible
+                    // while a read is pending. Keep their policy warning in place.
+                    partialPolicyWarning
                 } else {
                     compact && state.currentPreference != nil ? nil : "Reading the native charge policy…"
                 }
@@ -131,15 +135,16 @@ import ChargeBackends
         case .lowerTargetPending:
             state.pendingTarget == nil ? "The lower target is waiting for natural discharge." : nil
         case .policyUnconfirmed:
-            if model.nativeCharge.incompleteObservation != nil, model.nativeCharge.currentReportedTarget != nil {
-                "The current target is readable. Safe control and restoration are not yet confirmed for this charging mode."
-            } else {
-                model.nativeCharge.nativeSetting == nil
-                    ? model.nativeCharge.message ?? "Active charge policy is unconfirmed"
-                    : "Active charge policy is unconfirmed"
-            }
+            partialPolicyWarning ?? (model.nativeCharge.nativeSetting == nil
+                ? model.nativeCharge.message ?? "Active charge policy is unconfirmed"
+                : "Active charge policy is unconfirmed")
         case .none: nil
         }
+    }
+    private var partialPolicyWarning: String? {
+        guard model.nativeCharge.incompleteObservation != nil,
+              model.nativeCharge.currentReportedTarget != nil else { return nil }
+        return "The current target is readable. Safe control and restoration are not yet confirmed for this charging mode."
     }
     private func explanationText(_ state: NativeChargePresentation) -> String? {
         switch state.attention {

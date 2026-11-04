@@ -133,7 +133,9 @@ final class TilveroModel: ObservableObject {
     @Published var selectedMode: WorkMode = .economy
     @Published var language: String { didSet { preferences.set(language, forKey: "language"); onPresentationChange?() } }
     @Published var fahrenheit: Bool { didSet { preferences.set(fahrenheit, forKey: "fahrenheit") } }
+    @Published private(set) var weeklyCapacity: WeeklyCapacity?
     @Published var historyEnabled: Bool { didSet {
+        if !historyEnabled { weeklyCapacity = nil }
         preferences.set(historyEnabled, forKey: "historyEnabled")
         do { try store?.markGap(reason: .explicitBoundary) } catch { storeError = String(describing: error) }
         lastPersisted = nil
@@ -617,6 +619,16 @@ final class TilveroModel: ObservableObject {
         highCPUApplications = processHighlights.accept(activity, monotonic: observed.monotonic)
         lastProcessRefreshUptime = ProcessInfo.processInfo.systemUptime
     }
+    /// A read-only display sample. The normal refresh owns history and control observations.
+    func readOverviewMetrics() async -> [CatalogReading]? {
+        guard !isDemo, !sleeping, isDetailVisible, selectedSection == .overview else { return nil }
+        let epoch = lifecycleEpoch
+        let sample = await snapshotProvider()
+        guard !Task.isCancelled, epoch == lifecycleEpoch, !sleeping, isDetailVisible,
+              selectedSection == .overview, sample.batteryIdentityToken == snapshot.batteryIdentityToken else { return nil }
+        return sample.catalog.filter { $0.id == "039" || $0.id == "054" }
+    }
+
     func refresh() async {
         try? keepAwake.reconcile()
         guard !isReading, !sleeping else { return }
@@ -636,6 +648,9 @@ final class TilveroModel: ObservableObject {
             // a sleep/wake/erase boundary cannot become the post-wake endpoint.
             guard readEpoch == lifecycleEpoch, !sleeping else { return }
             queuedWakeRefresh = false
+            if weeklyCapacity != nil && (raw.batteryIdentityToken == nil || raw.batteryIdentityToken != snapshot.batteryIdentityToken) {
+                weeklyCapacity = nil
+            }
             let previousPower = snapshot.isExternalPower.value
             if historyEnabled {
                 lastRawSleepEndpoint = SleepBatteryEndpoint(snapshot: raw, stamp: sleepStamp())
@@ -662,6 +677,8 @@ final class TilveroModel: ObservableObject {
                         return age >= 60 || age < 0
                     }) ?? true {
                         try store?.record(snapshot); lastPersisted = snapshot; reloadHistory()
+                        let capacity = try? store?.weeklyCapacity(for: raw)
+                        if weeklyCapacity != capacity { weeklyCapacity = capacity }
                     }
                     if let rows = try store?.catalogReadings(at: snapshot.collectedAt) { snapshot = snapshot.replacingCatalog(rows) }
                     storeError = nil
@@ -928,7 +945,10 @@ final class TilveroModel: ObservableObject {
     }
     func eraseHistory() {
         resetSleepObservation(reason: .historyErased, persist: false)
-        do { try store?.erase(); lastPersisted = nil; reloadHistory(); reloadSleepSessions() }
+        do {
+            try store?.erase(); lastPersisted = nil; weeklyCapacity = nil
+            reloadHistory(); reloadSleepSessions()
+        }
         catch { storeError = String(describing: error) }
     }
     private func sleepStamp() -> SleepObservationStamp {

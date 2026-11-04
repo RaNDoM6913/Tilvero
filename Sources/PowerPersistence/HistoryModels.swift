@@ -53,6 +53,16 @@ public struct HistorySample: Identifiable, Codable, Sendable, Equatable {
     public let dischargedWh: Double?
     public let externalPowerSeconds: Double
 }
+/// A private-history projection. Battery identity is never part of this value.
+public struct WeeklyCapacity: Codable, Sendable, Equatable {
+    public let percent: Double
+    public let observedDays: Int
+    public let firstObservedAt: Date
+    public let lastObservedAt: Date
+    public let publishedAt: Date
+    public var nextEligibleAt: Date { publishedAt.addingTimeInterval(7 * 86400) }
+}
+
 public struct HistorySession: Identifiable, Codable, Sendable, Equatable {
     public let id: UUID
     public let segmentID: UUID

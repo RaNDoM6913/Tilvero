@@ -23,3 +23,30 @@ enum HistoryChart {
         return result
     }
 }
+
+/// Overview draws connectors between recorded endpoints without adding data points.
+struct OverviewHistorySeries {
+    struct Gap {
+        let start: HistoryChartPoint
+        let end: HistoryChartPoint
+    }
+
+    let points: [HistoryChartPoint]
+    let gaps: [Gap]
+    let isolatedPoints: [HistoryChartPoint]
+
+    init(_ observations: [ChartObservation]) {
+        let points = HistoryChart.points(observations)
+        self.points = points
+        gaps = zip(points, points.dropFirst()).compactMap { start, end in
+            guard start.series != end.series, start.date < end.date else { return nil }
+            return Gap(start: start, end: end)
+        }
+        isolatedPoints = points.indices.compactMap { index in
+            let point = points[index]
+            let followsSeries = index > 0 && points[index - 1].series == point.series
+            let continuesSeries = index + 1 < points.count && points[index + 1].series == point.series
+            return followsSeries || continuesSeries ? nil : point
+        }
+    }
+}

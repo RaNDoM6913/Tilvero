@@ -252,6 +252,7 @@ struct BatteryInfoView: View {
         switch presentedSection {
         case .overview:
             OverviewDashboard(model: model)
+                .id(ObjectIdentifier(model))
             if model.isDemo { SimulationPanel(model: model) }
         case .activity:
             ProcessActivityPanel(model: model)

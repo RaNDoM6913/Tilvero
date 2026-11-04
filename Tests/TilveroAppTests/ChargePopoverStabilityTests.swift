@@ -75,6 +75,42 @@ import ChargeBackends
         XCTAssertEqual(writes, 0)
     }
 
+    func testCompactReadPreservesFreshPartialPolicyWarningAndHeight() async throws {
+        let fixture = try StatusFixture()
+        defer { fixture.cleanUp() }
+        await fixture.transport.useIncompleteReads()
+        await fixture.native.refresh()
+        XCTAssertEqual(fixture.native.currentReportedTarget, 100)
+        XCTAssertEqual(fixture.native.diagnosticStoredTarget, 90)
+        XCTAssertFalse(fixture.model.canApply)
+
+        let panel = NativeChargeStatusPanel(model: fixture.model, compact: true)
+        let host = NSHostingController(rootView: panel.frame(width: 320))
+        let window = NSWindow(contentViewController: host)
+        let proposal = NSSize(width: 320, height: 900)
+        let initialSize = host.sizeThatFits(in: proposal)
+        window.setContentSize(initialSize)
+        host.view.layoutSubtreeIfNeeded()
+        let warning = try XCTUnwrap(panel.statusText(fixture.native.presentation()))
+
+        await fixture.transport.holdNextRead()
+        let refresh = Task { await fixture.model.refreshNativeCharge() }
+        await fixture.transport.waitUntilSuspended()
+        try await Task.sleep(for: .milliseconds(30))
+        host.view.layoutSubtreeIfNeeded()
+        XCTAssertEqual(fixture.native.presentation().pendingPurpose, .read)
+        XCTAssertEqual(panel.statusText(fixture.native.presentation()), warning)
+        XCTAssertEqual(host.sizeThatFits(in: proposal), initialSize)
+        XCTAssertFalse(fixture.model.canApply)
+        await fixture.transport.releaseRead()
+        await refresh.value
+
+        XCTAssertEqual(panel.statusText(fixture.native.presentation()), warning)
+        XCTAssertEqual(fixture.model.draftText, "100")
+        let writes = await fixture.transport.writes
+        XCTAssertEqual(writes, 0)
+    }
+
     func testPendingTargetAndSavedRecoveryStayVisibleDuringRead() async throws {
         let normal = try StatusFixture()
         defer { normal.cleanUp() }
@@ -202,11 +238,13 @@ private actor PopoverReadTransport: NativeChargeTransport {
     private var delay = Duration.zero
     private var holdsNextRead = false
     private var failsRead = false
+    private var incompleteReads = false
     private var suspendedRead: CheckedContinuation<Void, Never>?
     private var suspensionWaiter: CheckedContinuation<Void, Never>?
     private(set) var readCount = 0
     private(set) var writes = 0
     func setDelay(_ value: Duration) { delay = value }
+    func useIncompleteReads() { incompleteReads = true }
     func holdNextRead() { holdsNextRead = true }
     func waitUntilSuspended() async {
         if suspendedRead != nil { return }
@@ -227,6 +265,10 @@ private actor PopoverReadTransport: NativeChargeTransport {
         }
         if failsRead { failsRead = false; throw NativeChargeServiceError.readbackMismatch }
         if delay > .zero { try await Task.sleep(for: delay) }
+        if incompleteReads {
+            throw NativeChargeReadFailure(supportedTargets: [80, 85, 90, 95, 100],
+                currentTarget: 100, rawManualState: 3, diagnosticStoredTarget: 90)!
+        }
         return .init(configuration: .init(enabled: true, target: 90, optimizedCharging: true),
                      supportedTargets: [80, 85, 90, 95, 100], registeredManualLimit: 90)
     }

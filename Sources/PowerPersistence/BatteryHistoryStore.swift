@@ -17,6 +17,8 @@ import PowerCore
     private var writesSinceMaintenance = 0
     private var summaryCache: HistorySummary?
     private var seriesCache: [String: (count: Int, latest: Double)] = [:]
+    private var weeklyCapacityMiss: (identity: String, start: Date)?
+    private static let weeklyCapacityKind = "weekly-capacity-v1"
     public let url: URL?
     public var retentionDays: Int { configuration.retentionDays }
 
@@ -170,6 +172,72 @@ import PowerCore
             return try context.fetch(request).reversed().map { try decode(HistorySample.self, object: $0) }
         } catch { throw clean(error) }
     }
+    /// Uses the existing private record identity, across launch and sleep segments.
+    /// Only the frozen aggregate leaves the store, with no token or raw telemetry.
+    public func weeklyCapacity(for snapshot: BatterySnapshot, at now: Date = Date(),
+                               calendar: Calendar = .current) throws -> WeeklyCapacity? {
+        try ensureOpen()
+        guard !snapshot.isDemo, let identity = snapshot.batteryIdentityToken, !identity.isEmpty,
+              let start = calendar.date(byAdding: .day, value: -6, to: calendar.startOfDay(for: now)) else { return nil }
+
+        let publications = try records(kind: Self.weeklyCapacityKind, ascending: false, limit: 0)
+        if let saved = publications.first, saved.value(forKey: "identityToken") as? String == identity {
+            let result = try decode(WeeklyCapacity.self, object: saved)
+            guard result.percent.isFinite, result.percent > 0, (1...7).contains(result.observedDays),
+                  result.firstObservedAt <= result.lastObservedAt, result.lastObservedAt <= result.publishedAt else {
+                throw HistoryStoreError.corruptRecord
+            }
+            guard result.publishedAt <= now else { return nil }
+            if now < result.nextEligibleAt { return result }
+        }
+
+        if weeklyCapacityMiss?.identity == identity, weeklyCapacityMiss?.start == start,
+           Self.capacityEstimate(snapshot.catalog.first { $0.id == "026" }) == nil { return nil }
+
+        let candidates = request(kind: "sample", ascending: true, limit: 0)
+        candidates.predicate = NSPredicate(format: "kind == %@ AND identityToken == %@ AND atDate >= %@ AND atDate <= %@",
+                                            "sample", identity, start as NSDate, now as NSDate)
+        var byDay: [Date: [Double]] = [:]
+        var first: Date?, last: Date?
+        for object in try context.fetch(candidates) {
+            let sample = try decode(HistorySample.self, object: object)
+            guard !sample.isAggregate,
+                  let estimate = Self.capacityEstimate(sample.readings.first { $0.id == "026" }) else { continue }
+            byDay[calendar.startOfDay(for: sample.collectedAt), default: []].append(estimate)
+            first = min(first ?? sample.collectedAt, sample.collectedAt)
+            last = max(last ?? sample.collectedAt, sample.collectedAt)
+        }
+        guard let first, let last else { weeklyCapacityMiss = (identity, start); return nil }
+        let result = WeeklyCapacity(percent: Self.median(byDay.values.map(Self.median)), observedDays: byDay.count,
+                                    firstObservedAt: first, lastObservedAt: last, publishedAt: now)
+        let previousSequence = sequence
+        do {
+            for publication in publications { context.delete(publication) }
+            try insert(result, kind: Self.weeklyCapacityKind, at: now, identity: identity)
+            try context.save()
+            weeklyCapacityMiss = nil
+            return result
+        } catch {
+            context.rollback(); sequence = previousSequence
+            throw clean(error)
+        }
+    }
+
+    nonisolated private static func capacityEstimate(_ reading: CatalogReading?) -> Double? {
+        guard let reading, reading.availability == .available, reading.freshness != .stale,
+              reading.provenance == .estimated, let value = reading.value?.doubleValue,
+              value.isFinite, value > 0 else { return nil }
+        return value
+    }
+
+    nonisolated private static func median(_ observations: [Double]) -> Double {
+        let sorted = observations.sorted()
+        let middle = sorted.count / 2
+        return sorted.count.isMultiple(of: 2)
+            ? sorted[middle - 1] / 2 + sorted[middle] / 2
+            : sorted[middle]
+    }
+
     private struct SleepPayload: Codable { let version: Int; let record: SleepSessionRecord }
 
     /// Updates one stable observation row. Assertions and process details never enter this payload.
@@ -303,6 +371,7 @@ import PowerCore
             try context.save()
             latest = nil; latestIdentity = nil; pendingGap = nil; needsLaunchBoundary = true; sequence = 0
             summaryCache = nil; seriesCache = [:]
+            weeklyCapacityMiss = nil
         } catch { context.rollback(); throw clean(error) }
     }
     public func close() throws {

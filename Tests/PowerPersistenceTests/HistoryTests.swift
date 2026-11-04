@@ -5,6 +5,57 @@ import CoreData
 @testable import PowerPersistence
 
 @MainActor final class HistoryTests: XCTestCase {
+    func testWeeklyCapacityWeightsDaysAndFreezesAcrossReopen() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let url = folder.appendingPathComponent("history.sqlite")
+        let now = Date(timeIntervalSince1970: 1_795_435_200)
+        let day = TimeInterval(86400)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        func observation(_ offset: TimeInterval, _ value: Double?, identity: String? = "weekly-fixture-a",
+                         freshness: TelemetryFreshness = .fresh) -> BatterySnapshot {
+            let at = now.addingTimeInterval(offset)
+            let field = CatalogReading(definition: BatteryCatalog.definition("026"), value: value.map(CatalogValue.decimal),
+                                       source: "fixture", collectedAt: at, provenance: .estimated, freshness: freshness)
+            return BatterySnapshot(chargePercent: .init(value: 80, source: "fixture", collectedAt: at),
+                                   collectedAt: at, catalog: [field], batteryIdentityToken: identity)
+        }
+
+        let initial = try BatteryHistoryStore(url: url)
+        try initial.record(observation(-8 * day, 60))
+        try initial.record(observation(-3 * day, 99, identity: "weekly-fixture-b"))
+        for minute in 0..<20 { try initial.record(observation(-2 * day + Double(minute) * 60, 104)) }
+        try initial.record(observation(-day, 84))
+        try initial.record(observation(-20, 50, freshness: .stale))
+        try initial.record(observation(-10, 94))
+        let reading = observation(0, 70)
+        let first = try XCTUnwrap(initial.weeklyCapacity(for: reading, at: now, calendar: calendar))
+        XCTAssertEqual(first.percent, 94, "Median of three daily medians, without weighting the most-sampled day")
+        XCTAssertEqual(first.observedDays, 3)
+        XCTAssertEqual(first.firstObservedAt, now.addingTimeInterval(-2 * day))
+        XCTAssertEqual(first.lastObservedAt, now.addingTimeInterval(-10))
+        XCTAssertEqual(first.nextEligibleAt, now.addingTimeInterval(7 * day))
+        XCTAssertNil(try initial.weeklyCapacity(for: observation(0, 99, identity: nil), at: now, calendar: calendar))
+        XCTAssertNil(try initial.weeklyCapacity(for: observation(0, 99, identity: "unseen"), at: now, calendar: calendar))
+        try initial.close()
+
+        let reopened = try BatteryHistoryStore(url: url)
+        let later = observation(day, 79)
+        try reopened.record(later)
+        XCTAssertEqual(try reopened.weeklyCapacity(for: later, at: later.collectedAt, calendar: calendar), first)
+        let end = observation(7 * day, 90)
+        try reopened.record(end)
+        let second = try XCTUnwrap(reopened.weeklyCapacity(for: end, at: end.collectedAt, calendar: calendar))
+        XCTAssertEqual(second.percent, 84.5)
+        XCTAssertEqual(second.observedDays, 2)
+        XCTAssertEqual(second.publishedAt, end.collectedAt)
+        XCTAssertFalse(String(decoding: try reopened.exportJSON(), as: UTF8.self).contains("weekly-fixture"))
+        try reopened.erase()
+        XCTAssertNil(try reopened.weeklyCapacity(for: end, at: end.collectedAt, calendar: calendar))
+        try reopened.close()
+    }
+
     func testSimulationNeverEntersHistory() throws {
         let store = try BatteryHistoryStore(url: nil)
         XCTAssertThrowsError(try store.record(.demo()))

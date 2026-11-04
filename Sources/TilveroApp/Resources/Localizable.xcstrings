@@ -6625,6 +6625,118 @@
         }
       }
     },
+    "Weekly capacity estimate": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weekly capacity estimate"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Недельная оценка ёмкости"
+          }
+        }
+      }
+    },
+    "Each day with a recorded estimate contributes one median. The overview updates at most once every seven days.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Each day with a recorded estimate contributes one median. The overview updates at most once every seven days."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для каждого дня с записанными оценками берётся одна медиана. Значение в обзоре обновляется не чаще раза в семь дней."
+          }
+        }
+      }
+    },
+    "Recorded days: %lld of 7": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recorded days: %lld of 7"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дней с записями: %lld из 7"
+          }
+        }
+      }
+    },
+    "Recorded from %@ to %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recorded from %@ to %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Записи с %@ по %@"
+          }
+        }
+      }
+    },
+    "Next update no earlier than %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next update no earlier than %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Следующее обновление не раньше %@"
+          }
+        }
+      }
+    },
+    "A recognized battery and a usable estimate recorded within seven days are required.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A recognized battery and a usable estimate recorded within seven days are required."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нужны распознанная батарея и хотя бы одна пригодная оценка, записанная за последние семь дней."
+          }
+        }
+      }
+    },
+    "Turn on local history to see a weekly estimate.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn on local history to see a weekly estimate."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Включите локальную историю, чтобы увидеть недельную оценку."
+          }
+        }
+      }
+    },
     "Capacity retention": {
       "localizations": {
         "en": {
@@ -9821,6 +9933,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Здесь доступны все поля каталога. Кнопка сведений открывает пояснение и технические данные."
+          }
+        }
+      }
+    },
+    "No measurements": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No measurements"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Без замеров"
+          }
+        }
+      }
+    },
+    "Dashed lines mark intervals without recorded measurements.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dashed lines mark intervals without recorded measurements."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пунктир отмечает интервалы без замеров."
           }
         }
       }
