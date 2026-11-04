@@ -1,8 +1,15 @@
 # Changelog
 
-## Unreleased — local build 3
+## 0.2.0 — Source Preview — 2026-11-04
 
-- Use the same native full-width segmented control in production and Lab for both quick-menu destinations and Timer/Awake tabs; keep equal segments, aligned edges, accessibility and typed navigation.
+- Refined the sidebar and menu bar battery indicator, and shared the native full-width segmented controls between the app and Lab.
+- Improved Overview with a daily charge chart that distinguishes gaps, a weekly capacity estimate based on recorded observations, and clearer power readings.
+- Improved the quick Charge tab during refresh and separated the configured charge limit, diagnostic readback and editable draft.
+- Added a first-run readiness checklist and an Updates screen for GitHub release discovery.
+
+This release contains source for Apple silicon with macOS 26.0+ and full Xcode.
+Automatic installation remains gated. Native charge, fan and closed-lid
+controls require their separate device and recovery checks.
 
 ## 0.1.0-beta.2 — Sleep Controls Source Preview — 2026-11-02
 

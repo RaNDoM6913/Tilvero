@@ -1,8 +1,8 @@
 ![Tilvero — Battery, power and activity. Swift 6, macOS 26+, Apple silicon. Source preview.](.github/assets/cover.png)
 
 <p align="center">
-  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.1.0-beta.2"><img src="https://img.shields.io/badge/source-preview-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Source preview" height="28"></a>
-  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.1.0-beta.2"><img src="https://img.shields.io/github/downloads/RaNDoM6913/Tilvero/v0.1.0-beta.2/Tilvero-0.1.0-beta.2-source.zip?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B&amp;label=source+downloads&amp;displayAssetName=false" alt="Downloads of the v0.1.0-beta.2 source ZIP" height="28"></a>
+  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.2.0"><img src="https://img.shields.io/badge/source-preview-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Source preview" height="28"></a>
+  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.2.0"><img src="https://img.shields.io/github/downloads/RaNDoM6913/Tilvero/v0.2.0/Tilvero-0.2.0-source.zip?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B&amp;label=source+downloads&amp;displayAssetName=false" alt="Downloads of the v0.2.0 source ZIP" height="28"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="License: GPL-3.0-only" height="28"></a>
   <a href="https://github.com/RaNDoM6913/Tilvero/stargazers"><img src="https://img.shields.io/github/stars/RaNDoM6913/Tilvero?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B&amp;label=stars" alt="GitHub stars" height="28"></a>
 </p>
@@ -13,10 +13,10 @@ Tilvero puts battery and power information in your menu bar, with a clear native
 window when you want the details. Follow charging, inspect battery health and
 understand changes over time, without an account or a cloud service.
 
-**Source preview for developers: beta.2.**
+**0.2.0 Source Preview for developers.**
 Sleep controls and the gated closed-lid development trial are included in source; physical closed-lid support remains unqualified.
-[Get the source](https://github.com/RaNDoM6913/Tilvero/releases/download/v0.1.0-beta.2/Tilvero-0.1.0-beta.2-source.zip)
-· [Release notes and checksums](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.1.0-beta.2)
+[Get the source](https://github.com/RaNDoM6913/Tilvero/releases/download/v0.2.0/Tilvero-0.2.0-source.zip)
+· [Release notes and checksums](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.2.0)
 · [Build and run](#build-and-run) · [Roadmap](ROADMAP.md)
 
 A signed, notarized Mac download is still in preparation. The planned
@@ -62,7 +62,7 @@ You need **Apple silicon, macOS 26.0+ and a full Xcode installation** with a
 compatible macOS SDK and Swift 6. Command Line Tools alone are not the validated route.
 
 ```sh
-git clone https://github.com/RaNDoM6913/Tilvero.git
+git clone --branch v0.2.0 https://github.com/RaNDoM6913/Tilvero.git
 cd Tilvero
 bash scripts/test.sh
 bash scripts/build-local-app.sh

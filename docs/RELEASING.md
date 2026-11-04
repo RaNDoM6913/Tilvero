@@ -1,14 +1,14 @@
 # Releasing Tilvero
 
-Tilvero has two distinct distribution routes: the first **Source Preview** and a future trusted **Monitoring Preview** Mac download. A source release does not establish that a prebuilt app is ready for public distribution.
+Tilvero has two distribution routes. The **Source Preview** distributes code for local builds. The planned **Monitoring Preview** is a trusted Mac download with its own distribution checks.
 
 ## Source Preview
 
-The Sleep-controls source prerelease uses `v0.1.0-beta.2` (build 2); the original `v0.1.0-beta.1` remains immutable. It targets developers building on Apple silicon with macOS 26 or later and a compatible full Xcode installation. It includes no `.app`, helper executable or DMG. Its source tree contains gated development controls as well as monitoring; a normal development build is distinct from the future monitoring-only package.
+The current source release is `v0.2.0` (release build 10). It targets developers building on Apple silicon with macOS 26 or later and a compatible full Xcode installation. It includes no `.app`, helper executable or DMG. The source tree contains gated development controls as well as monitoring. The local development bundle has its own version and build identity.
 
 The source profile's exact upload allowlist is:
 
-- `Tilvero-0.1.0-beta.2-source.zip`
+- `Tilvero-0.2.0-source.zip`
 - `source-release.json`
 - `SHA256SUMS`
 
@@ -17,7 +17,7 @@ Prepare only after every public source, document and media asset is committed an
 ```sh
 python3 scripts/source_release.py prepare --commit <full-current-commit>
 python3 scripts/source_release.py verify \
-  --manifest build/source-releases/v0.1.0-beta.2/source-release.json
+  --manifest build/source-releases/v0.2.0/source-release.json
 ```
 
 The tool requires an exact 40-character current commit, matching committed configuration, an unused local tag and the admitted public ancestry. The coordinator must also check the remote tag/release state. It exports the full committed tree, rejects private/runtime/signing files and verifies ZIP entries, raw blobs, permissions, CRC, commit identity and final checksums. Untracked and ignored local inputs never become release source. Even accidentally tracked `local-lab` paths are rejected; source exports must not contain Studio state, captures, owner data or signing material. Existing output is never replaced; failed work remains `.incomplete` for inspection.
@@ -29,7 +29,7 @@ Before publishing:
 1. Review the exact public source/media/doc changes, build requirements, legal notices and capability wording.
 2. Prepare and verify the three files from the final clean commit.
 3. Create a non-reused tag bound to that exact commit; verify local and remote targets.
-4. Create a GitHub prerelease draft and upload only the allowlisted assets.
+4. Create a GitHub release draft and upload only the allowlisted assets. Mark beta tags as prereleases so the GitHub flag, version tag and manifest channel agree. Label the release as source-only in its title and notes.
 5. Check draft title/body, asset names/sizes and source-only status, then publish under the owner's release authorization.
 6. Download every published asset again and compare its bytes/checksums and committed source. Verify the actual GitHub README/release rendering and final links.
 
@@ -41,7 +41,7 @@ The configured package uses the production identifier `io.github.random6913.tilv
 
 A trusted public DMG requires an owner-controlled Developer ID Application identity, matching Team ID, Hardened Runtime, notarization and actual quarantined downloaded-install acceptance. Missing credentials are a blocker, never an automatic downgrade to ad hoc. No enrollment, purchase, password collection, fake Team ID or security-protection bypass belongs to the release process. A Developer ID Installer certificate is not required for the planned drag-and-drop image.
 
-After a source-only beta uses its tag, select a fresh beta tag and monotonically higher build for a later binary release. Commit the new configuration before source admission. Do not reuse the source prerelease's tag to attach a later, differently qualified binary.
+Reserve a fresh tag and a monotonically higher build for a later binary release. Commit the new configuration before source admission. Published source tags and assets are immutable.
 
 The binary pipeline remains `scripts/release.py`:
 
