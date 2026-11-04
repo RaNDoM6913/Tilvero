@@ -12,10 +12,9 @@ unchanged by this README refresh.
 
 The README badge row uses Shields' `for-the-badge` style: 28 px high, Verdana
 uppercase type, dark pine labels (`#172A22`) and green values (`#2F6E4B`).
-Downloads + Clones displays the dated GitHub snapshot explained in both READMEs.
-It combines release asset downloads for the source ZIPs and available app
-packages with clones from the UTC window returned by GitHub. Stars come from
-the repository count.
+Source Downloads shows the dated GitHub snapshot explained in both READMEs.
+It counts custom source ZIP downloads across releases and excludes the
+project’s verification download. Stars come from the repository count.
 
 The bilingual gallery in `screenshots/` renders actual SwiftUI views using isolated synthetic fixtures; every frame visibly identifies demo data. It is not owner telemetry or binary/hardware acceptance.
 

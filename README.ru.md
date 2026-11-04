@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.2.0"><img src="https://img.shields.io/badge/source-preview-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Предварительная версия в исходниках" height="28"></a>
-  <a href="https://github.com/RaNDoM6913/Tilvero/releases"><img src="https://img.shields.io/badge/downloads%20%2B%20clones-275-2F6E4B?style=for-the-badge&amp;labelColor=172A22" alt="275 скачиваний и клонирований на GitHub" height="28"></a>
+  <a href="https://github.com/RaNDoM6913/Tilvero/releases"><img src="https://img.shields.io/badge/source%20downloads-5-2F6E4B?style=for-the-badge&amp;labelColor=172A22" alt="5 скачиваний ZIP с исходниками" height="28"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Лицензия GPL-3.0-only" height="28"></a>
   <a href="https://github.com/RaNDoM6913/Tilvero/stargazers"><img src="https://img.shields.io/github/stars/RaNDoM6913/Tilvero?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B&amp;label=stars" alt="Звёзды GitHub" height="28"></a>
 </p>
@@ -18,10 +18,7 @@ Tilvero показывает состояние батареи и питания
 · [Описание выпуска и контрольные суммы](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.2.0)
 · [Сборка и запуск](#сборка-и-запуск) · [План развития](ROADMAP.md)
 
-Снимок статистики GitHub на **4 ноября 2026 г. (UTC)** включает **6** скачиваний
-ZIP с исходниками из выпусков, **0** скачиваний приложения и **269**
-клонирований за **20 октября — 2 ноября 2026 г. (UTC)**. Повторные скачивания
-и клонирования одного пользователя тоже входят в сумму.
+На **4 ноября 2026 г. (UTC)** GitHub учёл **6** скачиваний релизных ZIP с исходниками. Пилл показывает число за вычетом одного скачивания для проверки опубликованного архива.
 
 Подписанная и нотарифицированная версия для Mac готовится. Планируемый DMG
 **Monitoring Preview** будет работать только для чтения; в репозитории также
