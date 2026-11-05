@@ -69,7 +69,7 @@ import PowerPersistence
     }
     private var rightRail: some View {
         VStack(alignment: .leading, spacing: 26) {
-            WeeklyCapacityMetric(publication: model.weeklyCapacity, historyEnabled: model.historyEnabled)
+            OverviewDashboardMetric(reading: reading("026"), title: "Capacity retention", fahrenheit: model.fahrenheit)
             OverviewDashboardMetric(reading: reading("027"), title: "Cycle count", fahrenheit: model.fahrenheit)
         }
     }
@@ -130,65 +130,6 @@ import PowerPersistence
                 OverviewHistoryPlot(series: series, window: window)
             }
         }
-    }
-}
-
-@MainActor private struct WeeklyCapacityMetric: View {
-    let publication: WeeklyCapacity?
-    let historyEnabled: Bool
-    @State private var showsInfo = false
-    @FocusState private var infoFocused: Bool
-
-    private var value: String {
-        guard let publication else { return "—" }
-        return "≈ " + publication.percent.formatted(.number.precision(.fractionLength(0...1)).locale(L10n.locale)) + "%"
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            StudioText(value, id: "overview.metric.026.value")
-                .font(.system(size: 28, weight: .medium, design: .rounded)).monospacedDigit()
-                .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
-            HStack(alignment: .firstTextBaseline, spacing: 3) {
-                StudioText(L10n.text("Capacity retention"), id: "overview.metric.026.title")
-                    .font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                Button { showsInfo = true } label: {
-                    Image(systemName: "info.circle").font(.system(size: 12))
-                        .frame(width: 20, height: 20).contentShape(Rectangle())
-                }
-                .buttonStyle(.plain).foregroundStyle(.secondary)
-                .focusable().focused($infoFocused)
-                .onKeyPress(.space) { showsInfo = true; return .handled }
-                .onKeyPress(.return) { showsInfo = true; return .handled }
-                .accessibilityLabel(L10n.text("Weekly capacity estimate"))
-                .accessibilityIdentifier("reading-info-026")
-                .studioElement("catalog.026.info", label: "Weekly capacity estimate")
-                .help(L10n.text("Weekly capacity estimate"))
-                .popover(isPresented: $showsInfo, arrowEdge: .trailing) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(L10n.text("Weekly capacity estimate")).font(.headline)
-                        Text(L10n.text("Each day with a recorded estimate contributes one median. The overview updates at most once every seven days."))
-                        if let publication {
-                            Text(String(format: L10n.text("Recorded days: %lld of 7"), locale: L10n.locale, Int64(publication.observedDays)))
-                            Text(String(format: L10n.text("Recorded from %@ to %@"), locale: L10n.locale,
-                                        date(publication.firstObservedAt), date(publication.lastObservedAt)))
-                            Text(String(format: L10n.text("Next update no earlier than %@"), locale: L10n.locale,
-                                        date(publication.nextEligibleAt)))
-                        } else {
-                            Text(L10n.text(historyEnabled
-                                ? "A recognized battery and a usable estimate recorded within seven days are required."
-                                : "Turn on local history to see a weekly estimate."))
-                        }
-                    }
-                    .font(.callout).padding(14).frame(width: 270, alignment: .leading)
-                }
-                .onChange(of: showsInfo) { _, visible in if !visible { infoFocused = true } }
-            }
-        }.frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func date(_ value: Date) -> String {
-        value.formatted(.dateTime.day().month(.abbreviated).year().locale(L10n.locale))
     }
 }
 
