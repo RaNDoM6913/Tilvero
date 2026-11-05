@@ -107,7 +107,7 @@ enum SleepWheelValue: Equatable {
                     .keyboardShortcut(.cancelAction)
                     .studioElement("sleep.wheel.cancel", label: "Cancel time picker")
                 Button(action: commit) {
-                    Label(L10n.text("Apply"), systemImage: "checkmark").lineLimit(1).minimumScaleFactor(0.85).frame(maxWidth: .infinity)
+                    Text(L10n.text("Apply")).lineLimit(1).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(WheelCapsuleButtonStyle(prominent: true))
                 .keyboardShortcut(.defaultAction)
