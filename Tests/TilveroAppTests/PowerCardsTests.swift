@@ -8,8 +8,8 @@ import PowerTelemetry
     func testNewPowerCardsAppendHiddenWithoutReplacingSavedComposition() {
         let saved = OverviewPreferences.load(Data(#"{"order":["history","power","temperature","forecast","chargeLimit","keepAwake"],"hidden":["temperature"]}"#.utf8))
         XCTAssertEqual(Array(saved.order.prefix(6)).map(\.rawValue), ["history","power","temperature","forecast","chargeLimit","keepAwake"])
-        XCTAssertEqual(Array(saved.order.suffix(4)).map(\.rawValue), ["systemPower","adapter","batteryHealth","applications"])
-        XCTAssertEqual(saved.hidden.map(\.rawValue).sorted(), ["adapter","applications","batteryHealth","systemPower","temperature"])
+        XCTAssertEqual(Array(saved.order.suffix(5)).map(\.rawValue), ["systemPower","adapter","batteryHealth","applications","keyboardBacklight"])
+        XCTAssertEqual(saved.hidden.map(\.rawValue).sorted(), ["adapter","applications","batteryHealth","keyboardBacklight","systemPower","temperature"])
     }
     func testMetricGraphBreaksAtStaleMissingSourceAndPowerTransitions() throws {
         let now = Date()

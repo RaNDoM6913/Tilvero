@@ -64,7 +64,7 @@ struct OverviewDragState {
 }
 struct OverviewPreferences: Codable, Equatable {
     var order = OverviewMetric.allCases
-    var hidden: Set<OverviewMetric> = [.chargeLimit, .keepAwake, .systemPower, .adapter, .batteryHealth, .applications]
+    var hidden: Set<OverviewMetric> = [.chargeLimit, .keepAwake, .systemPower, .adapter, .batteryHealth, .applications, .keyboardBacklight]
     init() {}
     private enum CodingKeys: String, CodingKey { case order, hidden }
     init(from decoder: any Decoder) throws {

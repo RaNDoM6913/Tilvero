@@ -19,6 +19,7 @@ import KeyboardBackends
                 await service.refresh()
                 XCTAssertEqual(service.isAvailable, available)
                 let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"), keyboardBacklight: service)
+                model.overviewPreferences.hidden.remove(.keyboardBacklight)
                 let quick = QuickPanel(model: model, section: .overview)
                 let host = NSHostingController(rootView: quick.frame(width: 360).background(Color(nsColor: .windowBackgroundColor)).environment(\.colorScheme, .dark).environment(\.locale, L10n.locale))
                 let size = host.sizeThatFits(in: NSSize(width: 360, height: 900))
