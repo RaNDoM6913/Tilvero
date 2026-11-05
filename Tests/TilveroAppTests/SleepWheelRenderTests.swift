@@ -16,7 +16,7 @@ import XCTest
                 let until = SleepWheelPicker(mode: .until, initialMinutes: 30, initialDate: target, onCommit: { _ in }, onCancel: {})
                 try await render(until, size: NSSize(width: 244, height: 220), name: "until-" + name, dark: dark)
                 let duration = SleepWheelPicker(mode: .duration, initialMinutes: 90, initialDate: target, onCommit: { _ in }, onCancel: {})
-                try await render(duration, size: NSSize(width: 244, height: 236), name: "duration-" + name, dark: dark)
+                try await render(duration, size: NSSize(width: 244, height: 238), name: "duration-" + name, dark: dark)
             }
         }
     }

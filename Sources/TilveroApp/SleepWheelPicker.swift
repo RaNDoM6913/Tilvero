@@ -84,10 +84,10 @@ enum SleepWheelValue: Equatable {
                     .frame(maxWidth: .infinity, minHeight: 16, maxHeight: 16, alignment: .leading)
             }
 
-            actions.frame(height: isCompact ? 26 : 28)
+            actions.frame(height: 28)
         }
         .padding(12).frame(width: 244,
-                           height: isCompact ? (value(at: now) == nil ? 260 : 236) : (value(at: now) == nil ? 244 : 220))
+                           height: isCompact ? (value(at: now) == nil ? 262 : 238) : (value(at: now) == nil ? 244 : 220))
         .opacity(appeared ? 1 : 0)
         .onAppear { withAnimation(reduceMotion ? nil : .easeOut(duration: 0.16)) { appeared = true } }
         .environment(\.calendar, calendar).environment(\.timeZone, calendar.timeZone)
@@ -99,36 +99,17 @@ enum SleepWheelValue: Equatable {
         .studioElement("sleep.wheel.editor", kind: "container", label: "Sleep time wheel picker")
     }
 
-    @ViewBuilder private var actions: some View {
-        if !isCompact {
-            HStack(spacing: 8) {
-                Button(action: cancel) { Text(L10n.text("Cancel")).lineLimit(1).frame(maxWidth: .infinity) }
-                    .buttonStyle(WheelCapsuleButtonStyle(prominent: false))
-                    .keyboardShortcut(.cancelAction)
-                    .studioElement("sleep.wheel.cancel", label: "Cancel time picker")
-                Button(action: commit) {
-                    Text(L10n.text("Apply")).lineLimit(1).frame(maxWidth: .infinity)
-                }
+    private var actions: some View {
+        HStack(spacing: 8) {
+            Button(action: cancel) { Text(L10n.text("Cancel")).lineLimit(1).frame(maxWidth: .infinity) }
+                .buttonStyle(WheelCapsuleButtonStyle(prominent: false))
+                .keyboardShortcut(.cancelAction)
+                .studioElement("sleep.wheel.cancel", label: "Cancel time picker")
+            Button(action: commit) { Text(L10n.text("Apply")).lineLimit(1).frame(maxWidth: .infinity) }
                 .buttonStyle(WheelCapsuleButtonStyle(prominent: true))
                 .keyboardShortcut(.defaultAction)
                 .disabled(completed || value(at: now) == nil)
                 .studioElement("sleep.wheel.apply", label: "Apply selected time")
-            }
-        } else {
-            HStack(spacing: 10) {
-                Spacer(minLength: 0)
-                Button(L10n.language == "ru" ? "Отмена" : "Cancel", action: cancel)
-                    .buttonStyle(.borderless).controlSize(.small)
-                    .frame(minHeight: 26)
-                    .keyboardShortcut(.cancelAction)
-                    .studioElement("sleep.wheel.cancel", label: "Cancel time picker")
-                Button(L10n.text("Apply"), action: commit)
-                    .buttonStyle(WheelCapsuleButtonStyle(prominent: true, expands: false))
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(completed || value(at: now) == nil)
-                    .studioElement("sleep.wheel.apply", label: "Apply selected time")
-            }
-            .font(.system(size: 13))
         }
     }
 
@@ -238,14 +219,12 @@ enum SleepWheelValue: Equatable {
 /// which is how the quick-menu popover presents this picker.
 private struct WheelCapsuleButtonStyle: ButtonStyle {
     let prominent: Bool
-    var expands = true
     @Environment(\.isEnabled) private var isEnabled
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 13, weight: prominent ? .medium : .regular))
             .foregroundStyle(prominent ? Color.white : Color.primary)
-            .padding(.horizontal, expands ? 0 : 14)
-            .frame(maxWidth: expands ? .infinity : nil, minHeight: expands ? 28 : 26)
+            .frame(maxWidth: .infinity, minHeight: 28)
             .background(Capsule().fill(prominent ? Color.accentColor : Color.primary.opacity(0.10)))
             .overlay(Capsule().fill(Color.black.opacity(configuration.isPressed ? 0.14 : 0)))
             .opacity(isEnabled ? 1 : 0.4)
