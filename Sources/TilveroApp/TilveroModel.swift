@@ -734,7 +734,20 @@ final class TilveroModel: ObservableObject {
     func resetMenuBarSizing() { menuBarTextSize = .system; setMenuBarIconScale(1) }
     /// Read-only: the quick panel's keyboard row exists only once the backlight has been read, and a view
     /// modifier on an initially empty row never runs, so opening the panel refreshes it explicitly.
-    func quickPanelWillOpen() async { await keyboardBacklight.refresh() }
+    func quickPanelWillOpen() async {
+        async let keyboard: Void = keyboardBacklight.refresh()
+        // Discover the native charge interface (read-only) before the Charge tab is opened. Doing it only
+        // when that tab appears made its content grow and shrink three times, a visible vertical jump.
+        if !isDemo, !sleeping { lastNativeChargeRead = Date(); await nativeCharge.refresh() }
+        await keyboard
+    }
+    private var lastNativeChargeRead: Date?
+    /// For views that merely appear: skips the read when the panel opening (or an explicit refresh) just did it,
+    /// so the status rows do not flash a "reading" state and resize the open menu.
+    func refreshNativeChargeIfStale(maximumAge: TimeInterval = 30) async {
+        if let last = lastNativeChargeRead, Date().timeIntervalSince(last) < maximumAge { return }
+        await refreshNativeCharge()
+    }
     func quickPanelDidClose() {
         isPopoverVisible = false
         if !isDetailVisible || selectedSection != .charging { discardDraft() }
@@ -774,6 +787,7 @@ final class TilveroModel: ObservableObject {
     }
     func refreshNativeCharge() async {
         guard !isDemo, !sleeping else { return }
+        lastNativeChargeRead = Date()
         await nativeCharge.refresh()
         if !draftDirty { discardDraft() }
     }

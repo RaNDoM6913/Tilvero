@@ -41,6 +41,32 @@ import ChargeBackends
         XCTAssertEqual(writes, 0)
     }
 
+    func testOpeningChargeAfterThePanelOpenedResizesOnceEvenWithoutAdmission() async throws {
+        let suite = "ChargeOpenOnce-\(UUID())", preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("ChargeOpenOnce-\(UUID())")
+        defer { preferences.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        preferences.set(false, forKey: "historyEnabled")
+        let transport = PopoverReadTransport()
+        // Not admitted (for example after an OS update): the panel still discovers the interface up front.
+        let native = NativeChargeService(client: transport, journalURL: root.appendingPathComponent("native.json"), admitted: false)
+        let model = TilveroModel(isDemo: false, preferences: preferences, historyURL: root.appendingPathComponent("History.sqlite"),
+                                snapshotProvider: { .unavailable(reason: "Popover fixture") }, nativeCharge: native)
+        defer { model.stop() }
+        await model.quickPanelWillOpen()
+        XCTAssertTrue(model.usesNativeCharge, "Opening the panel discovers the native interface.")
+        await transport.setDelay(.milliseconds(50))
+        let host = QuickPanelHostingController(model: model, maximumHeight: 900)
+        let window = NSWindow(contentViewController: host)
+        window.setContentSize(host.preferredContentSize); host.view.layoutSubtreeIfNeeded()
+        try await Task.sleep(for: .milliseconds(50))
+        let segments = try XCTUnwrap(descendants(host.view).compactMap { $0 as? NSSegmentedControl }.first)
+        var heights: [CGFloat] = []
+        host.onSizeChange = { size in heights.append(size.height); window.setContentSize(size) }
+        segments.selectedSegment = 1; _ = segments.sendAction(segments.action, to: segments.target)
+        for _ in 0..<40 { try await Task.sleep(for: .milliseconds(20)); host.view.layoutSubtreeIfNeeded() }
+        XCTAssertLessThanOrEqual(heights.count, 1, "Opening Charge must resize once, not grow and shrink: \(heights)")
+    }
+
     func testCompactRefreshKeepsStableProgressAndFailedPolicyVisible() async throws {
         let fixture = try StatusFixture()
         defer { fixture.cleanUp() }

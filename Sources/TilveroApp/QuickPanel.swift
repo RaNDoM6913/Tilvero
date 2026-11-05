@@ -215,7 +215,7 @@ struct ChargeLimitControl: View {
                 }
             }
         }.studioElement("charge.editor", kind: "container", label: "Charge limit editor")
-        .task { await model.refreshNativeCharge() }
+        .task { await model.refreshNativeChargeIfStale() }
     }
 }
 
