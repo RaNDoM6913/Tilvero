@@ -218,6 +218,9 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     private var sleepTimerWarning: SleepTimerWarningController?
     private let popover = NSPopover()
     private var detailsWindow: NSWindow?
+    /// Activating the app for the quick panel raises every app window. While the panel is open the already
+    /// visible details window is made invisible and click-through, then restored when the panel is gone.
+    private var detailsHiddenForQuickPanel = false
     private var outsideClickMonitor: Any?
     private var escapeMonitor: Any?
     private var popoverGeneration: UInt64 = 0
@@ -377,6 +380,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     }
     func applicationDidResignActive(_ notification: Notification) {
         closePopover(reason: "application deactivated")
+        restoreDetailsAfterQuickPanel()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -439,10 +443,25 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         if activationGate.request(applicationIsActive: NSApplication.shared.isActive) {
             presentPopover()
         } else {
+            hideDetailsForQuickPanel()
             startPopoverEventMonitors()
             NSApplication.shared.activate(ignoringOtherApps: true)
             if NSApplication.shared.isActive, activationGate.applicationBecameActive() { presentPopover() }
         }
+    }
+
+    private func hideDetailsForQuickPanel() {
+        guard let window = detailsWindow, window.isVisible, !NSApplication.shared.isActive else { return }
+        window.alphaValue = 0
+        window.ignoresMouseEvents = true
+        detailsHiddenForQuickPanel = true
+    }
+
+    private func restoreDetailsAfterQuickPanel() {
+        guard detailsHiddenForQuickPanel else { return }
+        detailsHiddenForQuickPanel = false
+        detailsWindow?.alphaValue = 1
+        detailsWindow?.ignoresMouseEvents = false
     }
 
     private func presentPopover() {
@@ -541,6 +560,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
             detailsWindow = window
         }
         model.isDetailVisible = true
+        restoreDetailsAfterQuickPanel()
         NSApplication.shared.activate(ignoringOtherApps: true)
         detailsWindow?.makeKeyAndOrderFront(nil)
         if observeControls { Task { await model.refresh() } }
@@ -591,6 +611,15 @@ extension TilveroAppDelegate: NSPopoverDelegate {
         statusItem?.button?.highlight(false)
         updateStatusItem()
         model.quickPanelDidClose()
+        if detailsHiddenForQuickPanel {
+            // The user closed the panel without asking for the details window: hand activation back to the
+            // previous app instead of revealing it. A fallback guarantees the window is never left invisible.
+            if NSApplication.shared.isActive { NSApplication.shared.deactivate() }
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(500))
+                self?.restoreDetailsAfterQuickPanel()
+            }
+        }
         popoverLog.info("Quick panel closed; event monitors removed")
     }
 }
