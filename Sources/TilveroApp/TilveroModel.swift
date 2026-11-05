@@ -732,6 +732,9 @@ final class TilveroModel: ObservableObject {
         onPresentationChange?()
     }
     func resetMenuBarSizing() { menuBarTextSize = .system; setMenuBarIconScale(1) }
+    /// Read-only: the quick panel's keyboard row exists only once the backlight has been read, and a view
+    /// modifier on an initially empty row never runs, so opening the panel refreshes it explicitly.
+    func quickPanelWillOpen() async { await keyboardBacklight.refresh() }
     func quickPanelDidClose() {
         isPopoverVisible = false
         if !isDetailVisible || selectedSection != .charging { discardDraft() }

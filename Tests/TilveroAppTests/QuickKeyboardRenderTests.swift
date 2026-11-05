@@ -16,10 +16,11 @@ import KeyboardBackends
                 let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
                 defer { prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
                 let service = KeyboardBacklightService(driver: QuickKeyboardDriver(fails: !available), storage: QuickKeyboardMemory())
-                await service.refresh()
-                XCTAssertEqual(service.isAvailable, available)
+                XCTAssertFalse(service.isAvailable, "Before the panel opens nothing has been read.")
                 let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"), keyboardBacklight: service)
                 model.overviewPreferences.hidden.remove(.keyboardBacklight)
+                await model.quickPanelWillOpen()
+                XCTAssertEqual(service.isAvailable, available, "Opening the quick panel reads the backlight.")
                 let quick = QuickPanel(model: model, section: .overview)
                 let host = NSHostingController(rootView: quick.frame(width: 360).background(Color(nsColor: .windowBackgroundColor)).environment(\.colorScheme, .dark).environment(\.locale, L10n.locale))
                 let size = host.sizeThatFits(in: NSSize(width: 360, height: 900))
