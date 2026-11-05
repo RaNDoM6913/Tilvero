@@ -14,7 +14,7 @@ import XCTest
             for dark in [true, false] {
                 let name = "\(language)-\(dark ? "dark" : "light")"
                 let until = SleepWheelPicker(mode: .until, initialMinutes: 30, initialDate: target, onCommit: { _ in }, onCancel: {})
-                try await render(until, size: NSSize(width: 300, height: 226), name: "until-" + name, dark: dark)
+                try await render(until, size: NSSize(width: 244, height: 220), name: "until-" + name, dark: dark)
                 let duration = SleepWheelPicker(mode: .duration, initialMinutes: 90, initialDate: target, onCommit: { _ in }, onCancel: {})
                 try await render(duration, size: NSSize(width: 244, height: 236), name: "duration-" + name, dark: dark)
             }
@@ -29,7 +29,7 @@ import XCTest
             .background(RoundedRectangle(cornerRadius: 14).fill(Color(nsColor: .windowBackgroundColor)))
             .padding(margin)
             .background(Color(white: dark ? 0.09 : 0.82))
-            .environment(\.controlActiveState, .key).environment(\.colorScheme, dark ? .dark : .light).environment(\.locale, L10n.locale))
+            .environment(\.controlActiveState, .inactive).environment(\.colorScheme, dark ? .dark : .light).environment(\.locale, L10n.locale))
         let window = NSWindow(contentViewController: host)
         window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
         window.setContentSize(total); NSApp.activate(ignoringOtherApps: true); window.makeKeyAndOrderFront(nil); host.view.layoutSubtreeIfNeeded()

@@ -12,7 +12,7 @@ struct NativeDrumPicker: View {
             case .compact, .unified: NSSize(width: 100, height: 126)
             }
         }
-        fileprivate var numberFontSize: CGFloat { self == .regular ? 27 : 28 }
+        fileprivate var numberFontSize: CGFloat { self == .regular ? 27 : 24 }
     }
 
     @Binding var selection: Int

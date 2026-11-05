@@ -84,10 +84,10 @@ enum SleepWheelValue: Equatable {
                     .frame(maxWidth: .infinity, minHeight: 16, maxHeight: 16, alignment: .leading)
             }
 
-            actions.frame(height: 26)
+            actions.frame(height: isCompact ? 26 : 28)
         }
-        .padding(12).frame(width: isCompact ? 244 : 300,
-                           height: isCompact ? (value(at: now) == nil ? 260 : 236) : (value(at: now) == nil ? 250 : 226))
+        .padding(12).frame(width: 244,
+                           height: isCompact ? (value(at: now) == nil ? 260 : 236) : (value(at: now) == nil ? 244 : 220))
         .opacity(appeared ? 1 : 0)
         .onAppear { withAnimation(reduceMotion ? nil : .easeOut(duration: 0.16)) { appeared = true } }
         .environment(\.calendar, calendar).environment(\.timeZone, calendar.timeZone)
@@ -102,16 +102,18 @@ enum SleepWheelValue: Equatable {
     @ViewBuilder private var actions: some View {
         if !isCompact {
             HStack(spacing: 8) {
-                Button(action: cancel) { Text(L10n.text("Cancel")).frame(maxWidth: .infinity) }
+                Button(action: cancel) { Text(L10n.text("Cancel")).lineLimit(1).frame(maxWidth: .infinity) }
+                    .buttonStyle(WheelCapsuleButtonStyle(prominent: false))
                     .keyboardShortcut(.cancelAction)
                     .studioElement("sleep.wheel.cancel", label: "Cancel time picker")
                 Button(action: commit) {
-                    Label(L10n.text("Apply"), systemImage: "checkmark").frame(maxWidth: .infinity)
+                    Label(L10n.text("Apply"), systemImage: "checkmark").lineLimit(1).minimumScaleFactor(0.85).frame(maxWidth: .infinity)
                 }
-                .keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent)
+                .buttonStyle(WheelCapsuleButtonStyle(prominent: true))
+                .keyboardShortcut(.defaultAction)
                 .disabled(completed || value(at: now) == nil)
                 .studioElement("sleep.wheel.apply", label: "Apply selected time")
-            }.controlSize(.large)
+            }
         } else {
             HStack(spacing: 10) {
                 Spacer(minLength: 0)
@@ -121,8 +123,7 @@ enum SleepWheelValue: Equatable {
                     .keyboardShortcut(.cancelAction)
                     .studioElement("sleep.wheel.cancel", label: "Cancel time picker")
                 Button(L10n.text("Apply"), action: commit)
-                    .buttonStyle(.borderedProminent).controlSize(.small)
-                    .frame(minHeight: 26)
+                    .buttonStyle(WheelCapsuleButtonStyle(prominent: true, expands: false))
                     .keyboardShortcut(.defaultAction)
                     .disabled(completed || value(at: now) == nil)
                     .studioElement("sleep.wheel.apply", label: "Apply selected time")
@@ -174,8 +175,9 @@ enum SleepWheelValue: Equatable {
     }
 
     private var untilTimeText: String {
-        guard case .until(let target)? = value(at: now) else { return "—" }
-        return target.formatted(.dateTime.hour().minute().locale(L10n.locale))
+        // The wheels are 24-hour, so the time reads 24-hour in every language.
+        guard case .until? = value(at: now) else { return "—" }
+        return String(format: "%02d:%02d", hours, minutes)
     }
 
     /// The wheels pick a time of day; the date follows to the next occurrence (today, or tomorrow once it has passed).
@@ -229,5 +231,24 @@ enum SleepWheelValue: Equatable {
         guard !completed else { return }
         completed = true
         onCancel()
+    }
+}
+
+/// Explicit accent fill: the system prominent style turns grey whenever the hosting panel is not the key window,
+/// which is how the quick-menu popover presents this picker.
+private struct WheelCapsuleButtonStyle: ButtonStyle {
+    let prominent: Bool
+    var expands = true
+    @Environment(\.isEnabled) private var isEnabled
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: prominent ? .medium : .regular))
+            .foregroundStyle(prominent ? Color.white : Color.primary)
+            .padding(.horizontal, expands ? 0 : 14)
+            .frame(maxWidth: expands ? .infinity : nil, minHeight: expands ? 28 : 26)
+            .background(Capsule().fill(prominent ? Color.accentColor : Color.primary.opacity(0.10)))
+            .overlay(Capsule().fill(Color.black.opacity(configuration.isPressed ? 0.14 : 0)))
+            .opacity(isEnabled ? 1 : 0.4)
+            .contentShape(Capsule())
     }
 }
