@@ -308,7 +308,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         replacement.selectedSection = model.selectedSection
         replacement.selectedSettingsPage = model.selectedSettingsPage
         replacement.selectedSleepPage = model.selectedSleepPage
-        replacement.isDetailVisible = detailsWindow?.isVisible == true
+        replacement.isDetailVisible = detailsAreOnScreen
         model.onPresentationChange = nil
         keepAwakeStatusBinding = nil
         sleepTimerWarning?.close()
@@ -450,11 +450,19 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         }
     }
 
+    /// A covered, minimised or hidden details window needs neither fast polling nor live metrics.
+    private var detailsAreOnScreen: Bool {
+        guard let window = detailsWindow else { return false }
+        return window.isVisible && window.occlusionState.contains(.visible) && !detailsHiddenForQuickPanel
+    }
+    private func syncDetailsVisibility() { model.isDetailVisible = detailsAreOnScreen }
+
     private func hideDetailsForQuickPanel() {
         guard let window = detailsWindow, window.isVisible, !NSApplication.shared.isActive else { return }
         window.alphaValue = 0
         window.ignoresMouseEvents = true
         detailsHiddenForQuickPanel = true
+        syncDetailsVisibility()
     }
 
     private func restoreDetailsAfterQuickPanel() {
@@ -462,6 +470,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         detailsHiddenForQuickPanel = false
         detailsWindow?.alphaValue = 1
         detailsWindow?.ignoresMouseEvents = false
+        syncDetailsVisibility()
     }
 
     private func presentPopover() {
@@ -558,11 +567,15 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
             window.delegate = self
             window.center()
             detailsWindow = window
+            NotificationCenter.default.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: window, queue: .main) { [weak self] _ in
+                Task { @MainActor [weak self] in self?.syncDetailsVisibility() }
+            }
         }
         model.isDetailVisible = true
         restoreDetailsAfterQuickPanel()
         NSApplication.shared.activate(ignoringOtherApps: true)
         detailsWindow?.makeKeyAndOrderFront(nil)
+        syncDetailsVisibility()
         if observeControls { Task { await model.refresh() } }
     }
 

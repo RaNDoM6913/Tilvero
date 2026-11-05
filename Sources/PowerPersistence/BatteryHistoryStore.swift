@@ -18,6 +18,9 @@ import PowerCore
     private var summaryCache: HistorySummary?
     private var seriesCache: [String: (count: Int, latest: Double)] = [:]
     private var weeklyCapacityMiss: (identity: String, start: Date)?
+    /// First cycle count of a segment; decoding the whole sample history per refresh was the app's main CPU cost.
+    private var cycleBaseline: (segment: UUID, initial: Int?, checkedSequence: Int64)?
+    private var catalogSummary: (summary: HistorySummary, at: Date)?
     private static let weeklyCapacityKind = "weekly-capacity-v1"
     public let url: URL?
     public var retentionDays: Int { configuration.retentionDays }
@@ -370,7 +373,7 @@ import PowerCore
             for object in try records(kind: nil, ascending: true, limit: 200000) { context.delete(object) }
             try context.save()
             latest = nil; latestIdentity = nil; pendingGap = nil; needsLaunchBoundary = true; sequence = 0
-            summaryCache = nil; seriesCache = [:]
+            summaryCache = nil; seriesCache = [:]; cycleBaseline = nil; catalogSummary = nil
             weeklyCapacityMiss = nil
         } catch { context.rollback(); throw clean(error) }
     }
@@ -412,8 +415,15 @@ import PowerCore
         }
         return Data((rows.joined(separator: "\n") + "\n").utf8)
     }
-    public func catalogReadings(at date: Date = Date()) throws -> [CatalogReading] {
-        let summary = try summary()
+    /// `summaryMaxAge` lets a frequent caller reuse a recent summary: rebuilding it decodes every stored sample.
+    public func catalogReadings(at date: Date = Date(), summaryMaxAge: TimeInterval = 0) throws -> [CatalogReading] {
+        let summary: HistorySummary
+        if summaryMaxAge > 0, let cached = catalogSummary, date >= cached.at, date.timeIntervalSince(cached.at) < summaryMaxAge {
+            summary = cached.summary
+        } else {
+            summary = try self.summary()
+            catalogSummary = (summary, date)
+        }
         func reading(_ id: String, _ value: CatalogValue?, reason: String? = nil, provenance: TelemetryProvenance = .recorded) -> CatalogReading {
             CatalogReading(definition: BatteryCatalog.definition(id), value: value, source: "PowerPersistence", keyPath: "localHistory/\(id)", collectedAt: date, provenance: provenance, freshness: .fresh, reason: reason)
         }
@@ -427,13 +437,18 @@ import PowerCore
                 reason: series == nil ? "No qualified values have been recorded for this series." : "Retained points include labelled aggregates and explicit segment boundaries."))
         }
         if let last = latest, let final = last.cycleCount {
-            let first = try records(kind: "sample", ascending: true, limit: configuration.maximumSamples).first { object in
-                guard let sample = try? decode(HistorySample.self, object: object) else { return false }
-                return sample.segmentID == last.segmentID && sample.cycleCount != nil
+            let initial: Int?
+            if let cached = cycleBaseline, cached.segment == last.segmentID, cached.initial != nil || cached.checkedSequence == sequence {
+                initial = cached.initial
+            } else {
+                let first = try records(kind: "sample", ascending: true, limit: configuration.maximumSamples).first { object in
+                    guard let sample = try? decode(HistorySample.self, object: object) else { return false }
+                    return sample.segmentID == last.segmentID && sample.cycleCount != nil
+                }
+                initial = try first.flatMap { try decode(HistorySample.self, object: $0).cycleCount }
+                cycleBaseline = (last.segmentID, initial, sequence)
             }
-            if let first, let initial = try decode(HistorySample.self, object: first).cycleCount, final >= initial {
-                fields.append(reading("082", .integer(Int64(final - initial))))
-            }
+            if let initial, final >= initial { fields.append(reading("082", .integer(Int64(final - initial)))) }
         }
         let sessions = summary.sessions
         if let session = sessions.last(where: { $0.kind == "externalPower" && $0.endedAt == nil && $0.originalStartKnown }) { fields.append(reading("072", .date(session.observedFrom))) }
@@ -529,7 +544,7 @@ import PowerCore
             let gaps = try records(kind: "gap", ascending: false, limit: 200000)
             for object in gaps.dropFirst(1000) { context.delete(object) }
             try context.save()
-            summaryCache = nil
+            summaryCache = nil; cycleBaseline = nil; catalogSummary = nil
         } catch { context.rollback(); throw clean(error) }
     }
     private static func redactedReading(_ reading: CatalogReading) -> CatalogReading {

@@ -700,7 +700,7 @@ final class TilveroModel: ObservableObject {
                         let capacity = try? store?.weeklyCapacity(for: raw)
                         if weeklyCapacity != capacity { weeklyCapacity = capacity }
                     }
-                    if let rows = try store?.catalogReadings(at: snapshot.collectedAt) { snapshot = snapshot.replacingCatalog(rows) }
+                    if let rows = try store?.catalogReadings(at: snapshot.collectedAt, summaryMaxAge: 600) { snapshot = snapshot.replacingCatalog(rows) }
                     storeError = nil
                 }
                 catch { storeError = String(describing: error) }
