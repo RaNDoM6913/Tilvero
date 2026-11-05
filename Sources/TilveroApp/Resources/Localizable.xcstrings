@@ -8625,6 +8625,22 @@
         }
       }
     },
+    "Keyboard backlight brightness": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keyboard backlight brightness"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Яркость подсветки клавиатуры"
+          }
+        }
+      }
+    },
     "Keyboard backlight": {
       "localizations": {
         "en": {

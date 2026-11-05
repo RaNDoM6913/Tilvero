@@ -57,3 +57,53 @@ import KeyboardBackends
         }
     }
 }
+
+/// Quick-menu row: on/off and brightness. Only user gestures write; opening the panel only reads.
+@MainActor struct KeyboardBacklightQuickRow: View {
+    @ObservedObject var service: KeyboardBacklightService
+    @State private var draft = 0.0
+    @State private var editing = false
+
+    var body: some View {
+        Group {
+            if service.isAvailable, let observation = service.observation {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Label(L10n.text("Keyboard backlight"), systemImage: "keyboard")
+                        Spacer()
+                        Toggle(L10n.text("Keyboard backlight"), isOn: Binding(get: { service.isEnabled ?? (observation.brightness > 0) },
+                                                                                  set: { value in Task { await service.setEnabled(value) } }))
+                            .labelsHidden().toggleStyle(.switch).controlSize(.small)
+                            .disabled(service.isBusy)
+                            .accessibilityIdentifier("quick-keyboard-backlight-toggle")
+                            .studioElement("quick.keyboard.toggle", label: "Keyboard backlight switch")
+                    }.font(.subheadline)
+                    HStack(spacing: 6) {
+                        Image(systemName: "light.min").foregroundStyle(.secondary).accessibilityHidden(true)
+                        Slider(value: Binding(get: { editing ? draft : observation.brightness }, set: { draft = $0 }), in: 0...1,
+                               onEditingChanged: { began in
+                                   if began { draft = observation.brightness; editing = true }
+                                   else { editing = false; let value = draft; Task { await service.setBrightness(value) } }
+                               })
+                            .disabled(service.isBusy)
+                            .accessibilityLabel(L10n.text("Keyboard backlight brightness"))
+                            .accessibilityValue(Text((editing ? draft : observation.brightness).formatted(.percent.precision(.fractionLength(0)))))
+                            .studioElement("quick.keyboard.slider", label: "Keyboard backlight brightness")
+                        Image(systemName: "light.max").foregroundStyle(.secondary).accessibilityHidden(true)
+                        Text((editing ? draft : observation.brightness).formatted(.percent.locale(L10n.locale).precision(.fractionLength(0))))
+                            .font(.caption).monospacedDigit().foregroundStyle(.secondary).frame(width: 38, alignment: .trailing)
+                    }
+                    if observation.automaticBrightness {
+                        Text(L10n.text("Automatic keyboard brightness remains enabled in macOS."))
+                            .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    }
+                    if let error = service.error {
+                        Text(L10n.text(error.localizedDescription)).font(.caption2).foregroundStyle(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
+        .task { await service.refresh() }
+    }
+}

@@ -33,6 +33,7 @@ import PowerCore
                 case .systemPower: PowerMetricCard(model: model, title: "System", symbol: "desktopcomputer", id: "043")
                 case .adapter: AdapterMetricCard(model: model)
                 case .batteryHealth: BatteryHealthMetricCard(model: model)
+                case .keyboardBacklight: KeyboardBacklightQuickRow(service: model.keyboardBacklight)
                 case .chargeLimit:
                     HStack {
                         Label(L10n.text("Charge limit"), systemImage: "battery.100percent")
