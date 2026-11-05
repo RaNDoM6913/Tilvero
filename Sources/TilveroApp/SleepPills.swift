@@ -614,7 +614,7 @@ enum SleepPillActionError: LocalizedError, Equatable {
                 Spacer(minLength: 8)
                 Toggle(L10n.text("Sleep at charge"), isOn: Binding(get: { service.isArmed }, set: setEnabled))
                     .toggleStyle(.switch).controlSize(.regular).labelsHidden().fixedSize()
-                    .disabled(!service.isArmed && !canArm(model.sleepAtChargeChoice) && !service.canChooseTarget)
+                    .disabled(!service.isArmed && !service.canChooseTarget)
                     .accessibilityIdentifier("sleep-at-charge-master")
                     .studioElement("charge-sleep.master", label: "Sleep at charge master switch")
             }
@@ -628,7 +628,7 @@ enum SleepPillActionError: LocalizedError, Equatable {
                 }
             }
             status
-            Text(L10n.text("Sleeps once; cancelled by sleep or quitting Tilvero."))
+            Text(L10n.text("Keeps Mac awake until the charge drops to the level (up to 24 h), then requests sleep."))
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             if !service.isAvailable {
                 Text(L10n.text("Sleep at charge is unavailable in this build or simulation.")).font(.caption).foregroundStyle(.secondary)

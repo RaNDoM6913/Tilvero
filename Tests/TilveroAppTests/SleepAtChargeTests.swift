@@ -8,10 +8,18 @@ import XCTest
     var console = true
     var sleepRequests = 0
     var failRequest = false
-    func acquireIdleHold(seconds: Int) throws { hasIdleHold = true }
+    var failAcquire = false
+    var failRelease = false
+    func acquireIdleHold(seconds: Int) throws {
+        if failAcquire { throw KeepAwakeError.unconfirmed }
+        hasIdleHold = true
+    }
     func extendIdleHold() throws {}
     func replaceIdleHold(seconds: Int) throws {}
-    func releaseIdleHold() throws { hasIdleHold = false }
+    func releaseIdleHold() throws {
+        if failRelease { throw KeepAwakeError.releaseFailed }
+        hasIdleHold = false
+    }
     func isCurrentConsoleSession() -> Bool { console }
     func requestSleep() throws {
         sleepRequests += 1
@@ -34,6 +42,12 @@ import XCTest
         try service.arm(target: 20)
         XCTAssertEqual(service.target, 20)
         XCTAssertEqual(driver.sleepRequests, 0, "Arming never sleeps by itself.")
+        XCTAssertTrue(driver.hasIdleHold, "While armed the Mac is held awake until the level.")
+        try service.arm(target: 10)
+        XCTAssertEqual(service.target, 10, "Choosing another level keeps the single hold.")
+        XCTAssertTrue(driver.hasIdleHold)
+        service.disarm()
+        XCTAssertFalse(driver.hasIdleHold, "Cancelling releases the hold.")
     }
 
     func testFiresOnceOnBatteryPowerWhenTheChargeReachesTheLevel() async throws {
@@ -42,8 +56,10 @@ import XCTest
         try service.arm(target: 30)
         await service.observe(percent: 31, fresh: true, externalPower: false)
         XCTAssertEqual(driver.sleepRequests, 0)
+        XCTAssertTrue(driver.hasIdleHold)
         await service.observe(percent: 30, fresh: true, externalPower: false)
         XCTAssertEqual(driver.sleepRequests, 1)
+        XCTAssertFalse(driver.hasIdleHold, "The hold is released before the sleep request.")
         XCTAssertNil(service.target, "The intent is consumed when it fires.")
         await service.observe(percent: 25, fresh: true, externalPower: false)
         XCTAssertEqual(driver.sleepRequests, 1, "A consumed intent never fires again.")
@@ -116,6 +132,40 @@ import XCTest
         XCTAssertEqual(driver.sleepRequests, 1)
         XCTAssertNil(service.target)
         XCTAssertEqual(service.message, "macOS declined the sleep request.")
+    }
+
+    func testAFailedHoldAcquisitionDoesNotArm() async throws {
+        let driver = ChargeSleepDriver(); driver.failAcquire = true
+        let service = makeService(driver)
+        await service.observe(percent: 40, fresh: true, externalPower: false)
+        XCTAssertThrowsError(try service.arm(target: 30))
+        XCTAssertNil(service.target)
+        XCTAssertFalse(driver.hasIdleHold)
+    }
+
+    func testAFailedReleaseBlocksTheSleepRequestAndCancelRetries() async throws {
+        let driver = ChargeSleepDriver(), service = makeService(driver)
+        await service.observe(percent: 40, fresh: true, externalPower: false)
+        try service.arm(target: 30)
+        driver.failRelease = true
+        await service.observe(percent: 20, fresh: true, externalPower: false)
+        XCTAssertEqual(driver.sleepRequests, 0, "No sleep request while the hold could not be released.")
+        XCTAssertTrue(driver.hasIdleHold)
+        driver.failRelease = false
+        service.disarm()
+        XCTAssertFalse(driver.hasIdleHold, "Cancel retries the release.")
+    }
+
+    func testTheHoldIsBoundedToTwentyFourHours() async throws {
+        let driver = ChargeSleepDriver()
+        var clock = Date(timeIntervalSince1970: 1_000_000)
+        let service = SleepAtChargeService(driver: driver, allowed: true, now: { clock })
+        await service.observe(percent: 60, fresh: true, externalPower: true)
+        try service.arm(target: 30)
+        clock = clock.addingTimeInterval(SleepAtChargeService.maximumHold + 1)
+        await service.observe(percent: 55, fresh: true, externalPower: true)
+        XCTAssertNil(service.target)
+        XCTAssertFalse(driver.hasIdleHold)
     }
 
     func testUnavailableInDemoOrMonitoring() async throws {

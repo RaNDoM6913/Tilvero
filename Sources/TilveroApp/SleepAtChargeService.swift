@@ -1,13 +1,15 @@
 import Foundation
 import Combine
 
-/// One-shot "sleep when the charge falls to N %". The intent lives only in memory: it is consumed when it fires,
-/// and cancelled by sleep, wake, a lost console session, a stop or an explicit cancel, so a wake at a low charge
-/// can never put the Mac straight back to sleep. It fires only from a fresh charge reading taken on battery
-/// power; it never keeps the Mac awake and changes no power setting (the request is the same explicit system
-/// sleep the sleep timer uses).
+/// One-shot "stay awake until the charge falls to N %, then sleep" (the sleep timer with a charge condition instead
+/// of a time). While armed it holds a finite idle-sleep assertion (at most `maximumHold`), released before the
+/// sleep request. The intent lives only in memory: it is consumed when it fires, and cancelled by sleep, wake, a
+/// lost console session, a stop, the hold limit or an explicit cancel, so a wake at a low charge can never put the
+/// Mac straight back to sleep. It fires only from a fresh charge reading taken on battery power and changes no
+/// power setting (the request is the same explicit system sleep the sleep timer uses).
 @MainActor final class SleepAtChargeService: ObservableObject {
     static let targets = [50, 30, 20, 10, 5]
+    static let maximumHold: TimeInterval = 24 * 3600
 
     @Published private(set) var target: Int?
     @Published private(set) var message: String?
@@ -20,10 +22,15 @@ import Combine
     var prepare: @MainActor () async -> Bool
     private let driver: any SleepTimerTransport
     private let allowed: Bool
+    private let now: @MainActor () -> Date
     private var generation: UInt64 = 0
+    private var armedAt: Date?
+    @Published private(set) var isHoldingAwake = false
 
-    init(driver: any SleepTimerTransport, allowed: Bool = true, prepare: @escaping @MainActor () async -> Bool = { true }) {
-        self.driver = driver; self.allowed = allowed; self.prepare = prepare
+    init(driver: any SleepTimerTransport, allowed: Bool = true, now: @escaping @MainActor () -> Date = { Date() },
+         prepare: @escaping @MainActor () async -> Bool = { true }) {
+        self.driver = driver; self.allowed = allowed; self.prepare = prepare; self.now = now
+        isHoldingAwake = driver.hasIdleHold
     }
 
     var isAvailable: Bool { allowed }
@@ -40,16 +47,38 @@ import Combine
         guard !isRequesting, driver.isCurrentConsoleSession() else { throw SleepAtChargeError.unavailable }
         guard let percent = currentPercent else { throw SleepAtChargeError.chargeUnknown }
         guard candidate < percent else { throw SleepAtChargeError.alreadyReached }
+        if target == nil {
+            do {
+                try driver.acquireIdleHold(seconds: Int(Self.maximumHold))
+                guard driver.hasIdleHold else { throw KeepAwakeError.unconfirmed }
+            } catch {
+                releaseHold()
+                message = "Sleep at charge could not keep the Mac awake. It was not started."
+                throw error
+            }
+            armedAt = now()
+        }   // Changing the level of an armed intent keeps its hold and its 24 h limit.
         generation &+= 1
         target = candidate
+        isHoldingAwake = true
         message = nil
     }
 
     func disarm(message note: String? = "Sleep at charge cancelled.") {
-        guard target != nil else { return }
+        guard target != nil || driver.hasIdleHold else { return }
         generation &+= 1
         target = nil
-        message = note
+        armedAt = nil
+        let released = releaseHold()
+        message = released ? note : "The awake hold could not be released. Try Cancel again."
+    }
+
+    /// Ownership stays with the transport after a failed release; the next cancel retries only this hold.
+    @discardableResult private func releaseHold() -> Bool {
+        guard driver.hasIdleHold else { isHoldingAwake = false; return true }
+        do { try driver.releaseIdleHold() } catch {}
+        isHoldingAwake = driver.hasIdleHold
+        return !driver.hasIdleHold
     }
 
     func systemWillSleep() { disarm(message: "Sleep at charge cancelled because the Mac went to sleep.") }
@@ -61,6 +90,9 @@ import Combine
     func observe(percent: Int?, fresh: Bool, externalPower: Bool?) async {
         currentPercent = fresh ? percent.flatMap { (0...100).contains($0) ? $0 : nil } : currentPercent
         onExternalPower = externalPower
+        if let start = armedAt, target != nil, !isRequesting, now().timeIntervalSince(start) >= Self.maximumHold {
+            disarm(message: "Sleep at charge cancelled after 24 hours."); return
+        }
         guard let goal = target, !isRequesting, fresh, let percent, (0...100).contains(percent),
               externalPower == false, percent <= goal else { return }
         guard driver.isCurrentConsoleSession() else { sessionResigned(); return }
@@ -72,9 +104,17 @@ import Combine
         // The intent is consumed before the single native call; nothing can re-fire it.
         generation &+= 1
         target = nil
+        armedAt = nil
         guard ready, driver.isCurrentConsoleSession() else {
+            releaseHold()
             isRequesting = false
             message = "Sleep at charge cancelled because safe preparation could not be confirmed."
+            return
+        }
+        // The hold is released before the single native request, exactly as the sleep timer does.
+        guard releaseHold() else {
+            isRequesting = false
+            message = "The awake hold could not be released. Try Cancel again."
             return
         }
         do {

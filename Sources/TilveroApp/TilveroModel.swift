@@ -396,7 +396,8 @@ final class TilveroModel: ObservableObject {
         keepAwake = keepAwakeService ?? KeepAwakeService(driver: keepAwakeTransport ?? NativeKeepAwakeTransport(), allowed: !isDemo && !monitoring)
         let sleepTransport = sleepTimerTransport ?? NativeSleepTimerTransport()
         sleepTimer = sleepTimerService ?? SleepTimerService(driver: sleepTransport, allowed: !isDemo && !monitoring)
-        sleepAtCharge = SleepAtChargeService(driver: sleepTransport, allowed: !isDemo && !monitoring)
+        // Its own idle hold, independent of the timer's (a real run gets a separate transport instance).
+        sleepAtCharge = SleepAtChargeService(driver: sleepTimerTransport ?? NativeSleepTimerTransport(), allowed: !isDemo && !monitoring)
         closedLid = closedLidService ?? ClosedLidService(allowed: !isDemo && !monitoring)
         self.setupBundle = setupBundle
         let setupIdentity = try? ReleaseIdentity.current(bundle: setupBundle)
@@ -859,6 +860,7 @@ final class TilveroModel: ObservableObject {
     func restoreAll() { runLive { guard try await $0.restoreAll() else { throw PrivilegeError.recoveryRequired } } }
     func prepareForTermination(systemInitiated: Bool = false) async -> Bool {
         guard await closedLid.prepareForTermination() else { return false }
+        sleepAtCharge.stop()   // releases its awake hold before any termination or update install
         if systemInitiated { sleepTimer.stop() }
         else {
             if sleepTimer.needsHoldRelease { sleepTimer.cancel(); guard !sleepTimer.needsHoldRelease else { return false } }

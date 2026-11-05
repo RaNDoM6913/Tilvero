@@ -15345,18 +15345,66 @@
         }
       }
     },
-    "Sleeps once; cancelled by sleep or quitting Tilvero.": {
+    "Keeps Mac awake until the charge drops to the level (up to 24 h), then requests sleep.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sleeps once; cancelled by sleep or quitting Tilvero."
+            "value": "Keeps Mac awake until the charge drops to the level (up to 24 h), then requests sleep."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Срабатывает один раз; отменяется сном или выходом из Tilvero."
+            "value": "Не даёт Mac уснуть, пока заряд не снизится до уровня (не дольше 24 ч), затем запрашивает сон."
+          }
+        }
+      }
+    },
+    "Sleep at charge could not keep the Mac awake. It was not started.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep at charge could not keep the Mac awake. It was not started."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон при заряде не смог удержать Mac бодрым и не был запущен."
+          }
+        }
+      }
+    },
+    "The awake hold could not be released. Try Cancel again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The awake hold could not be released. Try Cancel again."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удержание не удалось снять. Нажмите «Отмена» ещё раз."
+          }
+        }
+      }
+    },
+    "Sleep at charge cancelled after 24 hours.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep at charge cancelled after 24 hours."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон при заряде отменён через 24 часа."
           }
         }
       }
