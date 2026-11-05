@@ -40,9 +40,18 @@ enum SleepWheelValue: Equatable {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
+            HStack(spacing: 10) {
                 StudioText(mode == .duration ? L10n.text("Custom duration") : L10n.text("Until"), id: "sleep.wheel.title")
                     .font(.system(size: 14, weight: .semibold))
+                if mode == .until {
+                    DatePicker("", selection: $selectedDay, displayedComponents: .date)
+                        .labelsHidden().datePickerStyle(.field).fixedSize()
+                        .accessibilityLabel(L10n.language == "ru" ? "Дата окончания" : "End date")
+                        .studioElement("sleep.wheel.date", label: "End date")
+                    StudioText(untilTimeText, id: "sleep.wheel.time")
+                        .font(.system(size: 13)).monospacedDigit()
+                        .foregroundStyle(value(at: now) == nil ? Color.secondary : Color.primary)
+                }
                 Spacer(minLength: 8)
                 if !isCompact {
                     Button(action: cancel) { Image(systemName: "xmark") }
@@ -51,14 +60,6 @@ enum SleepWheelValue: Equatable {
                         .studioElement("sleep.wheel.close", label: "Cancel time picker")
                 }
             }.frame(height: 20)
-
-            if mode == .until {
-                DatePicker(L10n.language == "ru" ? "Дата" : "Date", selection: $selectedDay, displayedComponents: .date)
-                    .datePickerStyle(.field)
-                    .accessibilityLabel(L10n.language == "ru" ? "Дата окончания" : "End date")
-                    .studioElement("sleep.wheel.date", label: "End date")
-                    .frame(height: 24, alignment: .leading)
-            }
 
             if isCompact {
                 VStack(spacing: 4) {
@@ -72,25 +73,27 @@ enum SleepWheelValue: Equatable {
                         .background { unifiedTray }
                 }.frame(width: 220)
             } else {
-                wheels
+                wheels.frame(maxWidth: .infinity).background { unifiedTray }
             }
 
-            if !isCompact || value(at: now) == nil {
+            if value(at: now) == nil {
                 StudioText(summary, id: "sleep.wheel.summary")
                     .font(.system(size: 11)).monospacedDigit()
                     .foregroundStyle(value(at: now) == nil ? Color.orange : Color.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, minHeight: isCompact ? 16 : 30, maxHeight: isCompact ? 16 : 30, alignment: .leading)
+                    .frame(maxWidth: .infinity, minHeight: 16, maxHeight: 16, alignment: .leading)
             }
 
             actions.frame(height: 26)
         }
         .padding(12).frame(width: isCompact ? 244 : 300,
-                           height: isCompact ? (value(at: now) == nil ? 260 : 236) : 368)
+                           height: isCompact ? (value(at: now) == nil ? 260 : 236) : (value(at: now) == nil ? 250 : 226))
         .opacity(appeared ? 1 : 0)
         .onAppear { withAnimation(reduceMotion ? nil : .easeOut(duration: 0.16)) { appeared = true } }
         .environment(\.calendar, calendar).environment(\.timeZone, calendar.timeZone)
         .environment(\.locale, L10n.locale)
+        .onChange(of: hours) { rollDay() }
+        .onChange(of: minutes) { rollDay() }
         .onSubmit(commit).onExitCommand(perform: cancel)
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { now = $0 }
         .studioElement("sleep.wheel.editor", kind: "container", label: "Sleep time wheel picker")
@@ -98,17 +101,17 @@ enum SleepWheelValue: Equatable {
 
     @ViewBuilder private var actions: some View {
         if !isCompact {
-            HStack {
-                Button(L10n.text("Cancel"), action: cancel).keyboardShortcut(.cancelAction)
+            HStack(spacing: 8) {
+                Button(action: cancel) { Text(L10n.text("Cancel")).frame(maxWidth: .infinity) }
+                    .keyboardShortcut(.cancelAction)
                     .studioElement("sleep.wheel.cancel", label: "Cancel time picker")
-                Spacer(minLength: 8)
                 Button(action: commit) {
-                    Label(L10n.text("Apply"), systemImage: "checkmark")
+                    Label(L10n.text("Apply"), systemImage: "checkmark").frame(maxWidth: .infinity)
                 }
                 .keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent)
                 .disabled(completed || value(at: now) == nil)
                 .studioElement("sleep.wheel.apply", label: "Apply selected time")
-            }
+            }.controlSize(.large)
         } else {
             HStack(spacing: 10) {
                 Spacer(minLength: 0)
@@ -128,13 +131,10 @@ enum SleepWheelValue: Equatable {
         }
     }
 
-    private var wheelStyle: NativeDrumPicker.Style {
-        guard isCompact else { return .regular }
-        return .unified
-    }
+    private var wheelStyle: NativeDrumPicker.Style { .unified }
 
     private var wheels: some View {
-        HStack(spacing: isCompact ? 12 : 16) {
+        HStack(spacing: 12) {
             NativeDrumPicker(selection: hourSelection, range: mode == .duration ? 0...24 : 0...23,
                 unit: L10n.text("h"), accessibilityName: L10n.language == "ru" ? "Часы" : "Hours",
                 style: wheelStyle, onSubmit: commit, onCancel: cancel)
@@ -143,19 +143,12 @@ enum SleepWheelValue: Equatable {
                 unit: L10n.text("min"), accessibilityName: L10n.language == "ru" ? "Минуты" : "Minutes",
                 style: wheelStyle, onSubmit: commit, onCancel: cancel)
                 .studioElement("sleep.wheel.minutes", label: "Minutes wheel")
-        }.frame(width: isCompact ? 212 : 276, height: isCompact ? 126 : 210)
+        }.frame(width: 212, height: 126)
     }
 
+    /// iOS/macOS 27 style: no tray, one neutral translucent capsule behind the selected row of both wheels.
     private var unifiedTray: some View {
-        RoundedRectangle(cornerRadius: 13)
-            .fill(Color(nsColor: .controlBackgroundColor).opacity(0.55))
-            .overlay {
-                RoundedRectangle(cornerRadius: 9)
-                    .fill(Color.accentColor.opacity(0.10))
-                    .overlay { RoundedRectangle(cornerRadius: 9).stroke(Color.accentColor.opacity(0.24), lineWidth: 1) }
-                    .frame(height: 40).padding(.horizontal, 5)
-            }
-            .overlay { RoundedRectangle(cornerRadius: 13).stroke(Color(nsColor: .separatorColor), lineWidth: 1) }
+        Capsule().fill(Color.primary.opacity(0.11)).frame(height: 42).padding(.horizontal, 4)
     }
 
     private var hourSelection: Binding<Int> {
@@ -178,6 +171,23 @@ enum SleepWheelValue: Equatable {
         guard let target = Self.concreteDate(day: selectedDay, hour: hours, minute: minutes, calendar: calendar) else { return nil }
         let interval = target.timeIntervalSince(date)
         return interval.isFinite && interval > 0 && interval <= 86_400 ? .until(target) : nil
+    }
+
+    private var untilTimeText: String {
+        guard case .until(let target)? = value(at: now) else { return "—" }
+        return target.formatted(.dateTime.hour().minute().locale(L10n.locale))
+    }
+
+    /// The wheels pick a time of day; the date follows to the next occurrence (today, or tomorrow once it has passed).
+    private func rollDay() {
+        guard mode == .until else { return }
+        let today = Date()
+        if let candidate = Self.concreteDate(day: today, hour: hours, minute: minutes, calendar: calendar), candidate > today {
+            selectedDay = candidate
+        } else if let tomorrow = calendar.date(byAdding: .day, value: 1, to: today),
+                  let candidate = Self.concreteDate(day: tomorrow, hour: hours, minute: minutes, calendar: calendar) {
+            selectedDay = candidate
+        }
     }
 
     private var summary: String {

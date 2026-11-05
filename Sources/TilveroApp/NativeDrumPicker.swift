@@ -12,7 +12,7 @@ struct NativeDrumPicker: View {
             case .compact, .unified: NSSize(width: 100, height: 126)
             }
         }
-        fileprivate var numberFontSize: CGFloat { self == .regular ? 27 : 24 }
+        fileprivate var numberFontSize: CGFloat { self == .regular ? 27 : 28 }
     }
 
     @Binding var selection: Int
@@ -335,10 +335,10 @@ private final class DrumScrollView: NSScrollView {
         for index in first...last {
             let value = allowedRange.lowerBound + index
             let distance = abs(value - selectedValue)
-            let alpha: CGFloat = distance == 0 ? 1 : distance == 1 ? 0.70 : 0.35
+            let alpha: CGFloat = distance == 0 ? 1 : distance == 1 ? (showsUnit ? 0.70 : 0.42) : (showsUnit ? 0.35 : 0.2)
             let number = String(value) as NSString
             let suffix = unit as NSString
-            let numberFont = NSFont.monospacedDigitSystemFont(ofSize: numberFontSize, weight: distance == 0 ? .semibold : .regular)
+            let numberFont = NSFont.monospacedDigitSystemFont(ofSize: numberFontSize, weight: distance == 0 ? (showsUnit ? .semibold : .regular) : (showsUnit ? .regular : .light))
             let unitFont = NSFont.systemFont(ofSize: 11, weight: .medium)
             let numberAttributes: [NSAttributedString.Key: Any] = [
                 .font: numberFont, .foregroundColor: NSColor.labelColor.withAlphaComponent(alpha)
