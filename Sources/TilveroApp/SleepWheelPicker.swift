@@ -44,10 +44,7 @@ enum SleepWheelValue: Equatable {
                 StudioText(mode == .duration ? L10n.text("Custom duration") : L10n.text("Until"), id: "sleep.wheel.title")
                     .font(.system(size: 14, weight: .semibold))
                 if mode == .until {
-                    DatePicker("", selection: $selectedDay, displayedComponents: .date)
-                        .labelsHidden().datePickerStyle(.field).fixedSize()
-                        .accessibilityLabel(L10n.language == "ru" ? "Дата окончания" : "End date")
-                        .studioElement("sleep.wheel.date", label: "End date")
+                    dayMenu
                     StudioText(untilTimeText, id: "sleep.wheel.time")
                         .font(.system(size: 13)).monospacedDigit()
                         .foregroundStyle(value(at: now) == nil ? Color.secondary : Color.primary)
@@ -153,6 +150,40 @@ enum SleepWheelValue: Equatable {
         guard let target = Self.concreteDate(day: selectedDay, hour: hours, minute: minutes, calendar: calendar) else { return nil }
         let interval = target.timeIntervalSince(date)
         return interval.isFinite && interval > 0 && interval <= 86_400 ? .until(target) : nil
+    }
+
+    /// The end is always within 24 hours, so only today or tomorrow are valid: a native pull-down replaces the
+    /// editable date field, which grabbed keyboard focus the moment the picker opened.
+    private var dayMenu: some View {
+        let dayChoice = Binding<Int>(
+            get: { calendar.isDateInToday(selectedDay) ? 0 : 1 },
+            set: { offset in
+                guard let day = calendar.date(byAdding: .day, value: offset, to: Date()) else { return }
+                selectedDay = Self.concreteDate(day: day, hour: hours, minute: minutes, calendar: calendar) ?? day
+            })
+        return Menu {
+            Picker("", selection: dayChoice) {
+                Text(dayTitle(offset: 0)).tag(0)
+                Text(dayTitle(offset: 1)).tag(1)
+            }.pickerStyle(.inline).labelsHidden()
+        } label: {
+            HStack(spacing: 4) {
+                Text(selectedDay.formatted(.dateTime.day().month(.abbreviated).locale(L10n.locale)))
+                    .font(.system(size: 13)).monospacedDigit()
+                Image(systemName: "chevron.up.chevron.down").font(.system(size: 8, weight: .semibold)).foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 8).padding(.vertical, 3)
+            .background(RoundedRectangle(cornerRadius: 7).fill(Color.primary.opacity(0.09)))
+        }
+        .menuStyle(.button).menuIndicator(.hidden).buttonStyle(.plain).fixedSize()
+        .accessibilityLabel(L10n.language == "ru" ? "Дата окончания" : "End date")
+        .studioElement("sleep.wheel.date", label: "End date")
+    }
+
+    private func dayTitle(offset: Int) -> String {
+        let day = calendar.date(byAdding: .day, value: offset, to: Date()) ?? Date()
+        let name = offset == 0 ? (L10n.language == "ru" ? "Сегодня" : "Today") : (L10n.language == "ru" ? "Завтра" : "Tomorrow")
+        return name + ", " + day.formatted(.dateTime.day().month(.abbreviated).locale(L10n.locale))
     }
 
     private var untilTimeText: String {

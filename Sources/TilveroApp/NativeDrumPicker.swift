@@ -80,15 +80,9 @@ private final class DrumHost: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        if style == .unified {
-            if window?.firstResponder === wheel {
-                let focus = NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 11, yRadius: 11)
-                NSColor.keyboardFocusIndicatorColor.setStroke()
-                focus.lineWidth = 2
-                focus.stroke()
-            }
-            return
-        }
+        // The unified (capsule) wheels draw no focus block: clicking a wheel must not highlight it.
+        // Keyboard input (arrows, Home/End, Return, Escape) still works through the first responder.
+        if style == .unified { return }
         let outline = NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 13, yRadius: 13)
         NSColor.controlBackgroundColor.withAlphaComponent(0.55).setFill()
         outline.fill()
