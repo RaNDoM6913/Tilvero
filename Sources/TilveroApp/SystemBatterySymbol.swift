@@ -15,6 +15,8 @@ import AppKit
         let height: Int
     }
     private static var filledCache: [Int: FilledLayers] = [:]
+    /// Right edge of the measured fill in points, measured from the left of the last image `makeFilled` returned.
+    private(set) static var lastFillEdge: CGFloat = 0
 
     /// The macOS 27 public full-battery symbol is a filled body and a separate
     /// contact. Keep its exact native silhouette, including antialiasing, while
@@ -52,6 +54,7 @@ import AppKit
         guard let rep = bitmap(density: scale, extraWidth: extra / scale), let data = rep.bitmapData else { return nil }
         let fraction = CGFloat(min(100, max(0, level ?? 0))) / 100
         let edge = layers.body.minX + (layers.body.width + CGFloat(extra)) * fraction
+        lastFillEdge = edge / CGFloat(scale)
         let middle = Int(layers.body.midX.rounded())
         for y in 0..<layers.height { for x in 0..<outputWidth {
             let sourceX = x < middle ? x : x < middle + extra ? middle : x - extra

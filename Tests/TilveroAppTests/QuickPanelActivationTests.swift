@@ -18,3 +18,12 @@ final class QuickPanelActivationTests: XCTestCase {
         XCTAssertFalse(gate.isWaiting)
     }
 }
+
+final class QuickPanelActivationPolicyTests: XCTestCase {
+    func testSkipsActivationOnlyWhenTheDetailsWindowLivesOnAnotherSpace() {
+        XCTAssertTrue(QuickPanelActivationPolicy.avoidsActivation(applicationIsActive: false, detailsWindowOnAnotherSpace: true))
+        XCTAssertFalse(QuickPanelActivationPolicy.avoidsActivation(applicationIsActive: false, detailsWindowOnAnotherSpace: false),
+                       "No window elsewhere: activation cannot switch Spaces, keep the normal path.")
+        XCTAssertFalse(QuickPanelActivationPolicy.avoidsActivation(applicationIsActive: true, detailsWindowOnAnotherSpace: true))
+    }
+}

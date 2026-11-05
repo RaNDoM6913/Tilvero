@@ -66,7 +66,8 @@ enum NativeStatusPresentation {
 @MainActor
 enum NativeBatteryStatusImage {
     static func make(level: Int?, style: MenuBarDisplayStyle, externalPower: Bool, scale: CGFloat = 1, textSize: MenuBarTextSize = .larger,
-                     awake: KeepAwakeStatusIndicator = .off, highlighted: Bool = false, appearance: MenuBarBatteryAppearance = .macOS26) -> NSImage {
+                     awake: KeepAwakeStatusIndicator = .off, highlighted: Bool = false, appearance: MenuBarBatteryAppearance = .macOS26,
+                     redWhenLow: Bool = false) -> NSImage {
         let inside = style == .inside
         let validLevel = ReadingPresentation.validLevel(level)
         let modernExtension = appearance == .macOS27 && inside ? modernBodyExtension(textSize: textSize) : 0
@@ -75,6 +76,9 @@ enum NativeBatteryStatusImage {
         let factor = CGFloat(MenuBarSizing.validatedIconScale(Double(scale)))
         let size = NSSize(width: canvas.width * factor, height: canvas.height * factor)
         let level = validLevel
+        // Like the system indicator: a red fill at 20 % or less while running on battery. Only the modern (macOS 27)
+        // body is composed this way; the pressed state keeps the plain template.
+        let lowFill = redWhenLow && appearance == .macOS27 && !externalPower && !highlighted && (level.map { $0 <= lowChargeThreshold } ?? false)
         let image = NSImage(size: size, flipped: false) { rect in
             NSGraphicsContext.saveGraphicsState()
             defer { NSGraphicsContext.restoreGraphicsState() }
@@ -82,8 +86,9 @@ enum NativeBatteryStatusImage {
             transform.translateX(by: rect.minX, yBy: rect.minY)
             transform.scaleX(by: rect.width / canvas.width, yBy: rect.height / canvas.height)
             transform.concat()
+            var redRegion: NSRect?
             if appearance == .macOS27 {
-                drawModern(level: level, style: style, externalPower: externalPower, textSize: textSize, bodyExtension: modernExtension)
+                redRegion = drawModern(level: level, style: style, externalPower: externalPower, textSize: textSize, bodyExtension: modernExtension)
             } else if inside {
                 drawInside(level: level, externalPower: externalPower, textSize: textSize)
             } else {
@@ -95,10 +100,19 @@ enum NativeBatteryStatusImage {
                 // cutouts remain identical to the native template presentation.
                 NSColor.systemBlue.setFill()
                 NSRect(origin: .zero, size: canvas).fill(using: .sourceIn)
+            } else if lowFill {
+                // Not a template: resolve the ink here, in the status button's appearance.
+                (isDarkInk ? NSColor.white : NSColor.black).setFill()
+                NSRect(origin: .zero, size: canvas).fill(using: .sourceIn)
+            }
+            if lowFill, let region = redRegion {
+                // sourceAtop keeps the numeral cutouts and the antialiased silhouette of the fill.
+                NSColor.systemRed.setFill()
+                region.fill(using: .sourceAtop)
             }
             return true
         }
-        image.isTemplate = awake != .active || highlighted
+        image.isTemplate = (awake != .active && !lowFill) || highlighted
         return image
     }
 
@@ -176,13 +190,20 @@ enum NativeBatteryStatusImage {
         NSAppearance.currentDrawing().bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? 1 : 0.75
     }
 
-    private static func drawModern(level: Int?, style: MenuBarDisplayStyle, externalPower: Bool, textSize: MenuBarTextSize, bodyExtension: Int) {
+    /// Charge at or below which the fill turns red on battery power (the system indicator does the same).
+    static let lowChargeThreshold = 20
+
+    /// Returns the rectangle of the measured fill (canvas coordinates) when the native symbol was used.
+    @discardableResult
+    private static func drawModern(level: Int?, style: MenuBarDisplayStyle, externalPower: Bool, textSize: MenuBarTextSize, bodyExtension: Int) -> NSRect? {
+        var fillRegion: NSRect?
         let extra = CGFloat(bodyExtension)
         let compactFullCharge = style == .inside && level == 100
         let density = max(1, min(8, Int((NSGraphicsContext.current?.cgContext.ctm.a ?? 2).magnitude.rounded())))
         if let native = SystemBatterySymbol.makeFilled(level: level, density: density, contactOpacity: modernContactOpacity, trackOpacity: modernTrackOpacity, bodyExtension: bodyExtension, contactInset: 0.5) {
             let offset = floor(1.5 * CGFloat(density)) / CGFloat(density)
             native.draw(at: NSPoint(x: -offset, y: -3), from: .zero, operation: .sourceOver, fraction: 1)
+            fillRegion = NSRect(x: -offset, y: 0, width: SystemBatterySymbol.lastFillEdge, height: 18)
         } else {
             let body = NSRect(x: 1, y: 3, width: 23 + extra, height: 12)
             NSColor.black.withAlphaComponent(0.2).setFill()
@@ -199,12 +220,13 @@ enum NativeBatteryStatusImage {
         }
         if externalPower {
             guard let marker = NSImage(systemSymbolName: "bolt.fill", accessibilityDescription: nil)?
-                .withSymbolConfiguration(.init(pointSize: compactFullCharge ? 6 : 7.5, weight: .regular)) else { return }
+                .withSymbolConfiguration(.init(pointSize: compactFullCharge ? 6 : 7.5, weight: .regular)) else { return fillRegion }
             let centreX: CGFloat = style == .inside || level == nil ? (compactFullCharge ? 21 : 19.5) + extra : 12.5
             let centreY: CGFloat = compactFullCharge ? 9 : 9.25
             marker.draw(at: NSPoint(x: centreX - marker.size.width / 2, y: centreY - marker.size.height / 2),
                         from: .zero, operation: modernCutoutOperation, fraction: modernCutoutOpacity)
         }
+        return fillRegion
     }
 
     private static func drawModernText(_ value: String, centeredAt point: NSPoint, font: NSFont) {

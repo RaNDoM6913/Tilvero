@@ -225,6 +225,12 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     private var escapeMonitor: Any?
     private var popoverGeneration: UInt64 = 0
     private var activationGate = QuickPanelActivationGate()
+    private var presentingWithoutActivation = false
+    private var textEditingObserver: Any?
+    private var detailsWindowIsOnAnotherSpace: Bool {
+        guard let window = detailsWindow, window.isVisible, !window.isMiniaturized else { return false }
+        return !window.isOnActiveSpace
+    }
     private let popoverLog = Logger(subsystem: Bundle.main.bundleIdentifier ?? ReleaseIdentity.prototypeBundleIdentifier, category: "MenuPopover")
 
     func start() {
@@ -236,6 +242,17 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         item.button?.font = NativeStatusPresentation.font(for: model.menuBarTextSize)
 
         popover.behavior = .transient
+        // Typing needs an active application. Without activation the popover works with the mouse; the first text
+        // field edit activates (and, as for any activation, hides the details window while the panel is open).
+        textEditingObserver = NotificationCenter.default.addObserver(forName: NSControl.textDidBeginEditingNotification, object: nil, queue: .main) { [weak self] note in
+            let editedWindow = (note.object as? NSView)?.window
+            MainActor.assumeIsolated {
+                guard let self, self.popover.isShown, !NSApplication.shared.isActive,
+                      editedWindow != nil, editedWindow === self.popover.contentViewController?.view.window else { return }
+                self.hideDetailsForQuickPanel()
+                NSApplication.shared.activate()
+            }
+        }
         configureQuickPanel()
         configureModelPresentation()
         NSWorkspace.shared.notificationCenter.addObserver(
@@ -441,7 +458,12 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         popoverGeneration &+= 1
         button.state = .on
         button.highlight(true)
-        if activationGate.request(applicationIsActive: NSApplication.shared.isActive) {
+        // Activating the app switches to the Space that holds its details window. Opening the quick menu must not
+        // move the user away from the desktop they are on, so in that case the popover is shown without activation
+        // (mouse works as usual; a text field asks for activation when editing starts, see below).
+        presentingWithoutActivation = QuickPanelActivationPolicy.avoidsActivation(
+            applicationIsActive: NSApplication.shared.isActive, detailsWindowOnAnotherSpace: detailsWindowIsOnAnotherSpace)
+        if activationGate.request(applicationIsActive: NSApplication.shared.isActive || presentingWithoutActivation) {
             presentPopover()
         } else {
             hideDetailsForQuickPanel()
@@ -478,7 +500,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         Task { await model.refreshProcessActivity() }
         Task { await model.quickPanelWillOpen() }
         try? model.keepAwake.reconcile()
-        guard NSApplication.shared.isActive, let button = statusItem?.button else { return }
+        guard NSApplication.shared.isActive || presentingWithoutActivation, let button = statusItem?.button else { return }
         (popover.contentViewController as? QuickPanelHostingController)?.updateMaximumHeight(panelMaximumHeight)
         model.isPopoverVisible = true
         QuickPanelMotion.configure(popover, reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
@@ -588,7 +610,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         let attached = power.availability == .available && power.freshness != .stale && power.value == true
         let awake = KeepAwakeStatusIndicator(service: model.keepAwake)
         button.font = NativeStatusPresentation.font(for: model.menuBarTextSize)
-        button.image = NativeBatteryStatusImage.make(level: level, style: model.displayStyle, externalPower: attached, scale: CGFloat(model.menuBarIconScale), textSize: model.menuBarTextSize, awake: awake, highlighted: button.state == .on, appearance: model.menuBarBatteryAppearance)
+        button.image = NativeBatteryStatusImage.make(level: level, style: model.displayStyle, externalPower: attached, scale: CGFloat(model.menuBarIconScale), textSize: model.menuBarTextSize, awake: awake, highlighted: button.state == .on, appearance: model.menuBarBatteryAppearance, redWhenLow: true)
         button.alternateImage = awake == .active ? NativeBatteryStatusImage.make(level: level, style: model.displayStyle, externalPower: attached, scale: CGFloat(model.menuBarIconScale), textSize: model.menuBarTextSize, awake: awake, highlighted: true, appearance: model.menuBarBatteryAppearance) : nil
         let percentageTitle = model.displayStyle == .beside ? NativeStatusPresentation.percentageTitle(level: level) : ""
         // Development-only marker: fixtures must remain identifiable even when closed.
