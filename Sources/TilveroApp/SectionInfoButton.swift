@@ -10,8 +10,8 @@ import SwiftUI
 
     var body: some View {
         Button { shown = true } label: {
-            Image(systemName: "info.circle").font(.system(size: 13)).foregroundStyle(.secondary)
-                .frame(width: 22, height: 22).contentShape(Rectangle())
+            Image(systemName: "info.circle").font(.system(size: 11)).foregroundStyle(.tertiary)
+                .frame(width: 20, height: 20).contentShape(Rectangle())
         }
         .buttonStyle(.plain).focusEffectDisabled()
         .accessibilityLabel(L10n.text("About") + ": " + title)
