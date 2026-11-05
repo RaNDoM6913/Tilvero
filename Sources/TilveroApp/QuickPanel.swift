@@ -33,9 +33,11 @@ struct QuickPanel: View {
         .onGeometryChange(for: CGSize.self) { $0.size } action: { onSizeChange?($0) }
     }
 
-    /// Smooth cross-fade with a barely perceptible scale; the panel height follows the same curve.
-    static let pageAnimation = Animation.smooth(duration: 0.34)
-    static let pageTransition = AnyTransition.opacity.combined(with: .scale(scale: 0.985, anchor: .top))
+    /// One timeline per page switch: the outgoing page fades, the incoming page fades in, and the page area (and
+    /// with it the popover) changes height on a spring with no overshoot. Opacity only, no scale.
+    static let pageFade = Animation.easeInOut(duration: 0.2)
+    static let pageTransition = AnyTransition.opacity
+    @State private var pageMotion = QuickPanelPageMotion()   // not observed here: only the page area follows it
 
     private var content: some View {
         VStack(alignment: .leading, spacing: studioPresentation.spacing(14)) {
@@ -48,15 +50,18 @@ struct QuickPanel: View {
             QuickPanelTabs(selection: $section)
                 .frame(maxWidth: .infinity).id(L10n.language)
                 .studioElement("quick.tabs", label: "Quick menu destinations")
-            Group {
+            QuickPageSwitcher(selection: section) {
                 switch section {
-                case .overview: overview.transition(Self.pageTransition)
-                case .charge: charge.transition(Self.pageTransition)
-                case .modes: modes.transition(Self.pageTransition)
-                case .awake: SleepControlsPanel(model: model, compact: true).id(model.language).transition(Self.pageTransition)
+                case .overview: overview.quickPage(section)
+                case .charge: charge.quickPage(section)
+                case .modes: modes.quickPage(section)
+                case .awake: SleepControlsPanel(model: model, compact: true).id(model.language).quickPage(section)
                 }
             }
-            .animation(reduceMotion ? nil : Self.pageAnimation, value: section)
+            .animation(reduceMotion ? nil : Self.pageFade, value: section)
+            .fixedSize(horizontal: false, vertical: true)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { pageMotion.naturalHeightChanged($0, animated: !reduceMotion) }
+            .quickPageArea(pageMotion)
             if let notice = contextualNotice {
                 Text(notice).font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -248,4 +253,105 @@ private struct QuickPanelLayout: Layout {
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         subviews[0].place(at: bounds.origin, proposal: ProposedViewSize(bounds.size))
     }
+}
+
+/// Layout key naming a page; the switcher sizes itself to the selected page only, so the outgoing page that is
+/// still fading out does not make the area taller.
+private struct QuickPageIDKey: LayoutValueKey { static let defaultValue: String = "" }
+
+extension View {
+    func quickPage(_ section: QuickPanelSection) -> some View { quickPage(id: section.rawValue) }
+    func quickPage(id: String) -> some View {
+        layoutValue(key: QuickPageIDKey.self, value: id).transition(QuickPanel.pageTransition)
+    }
+}
+
+/// Stacks pages at the top edge and sizes to the selected one. Page changes are cross-fades (see `quickPage`).
+struct QuickPageSwitcher<Selection: RawRepresentable, Content: View>: View where Selection.RawValue == String {
+    let selection: Selection
+    @ViewBuilder var content: Content
+    var body: some View { QuickPageLayout(selectedID: selection.rawValue) { content } }
+}
+
+private struct QuickPageLayout: Layout {
+    let selectedID: String
+    private func width(_ proposal: ProposedViewSize) -> CGFloat? { proposal.width }
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let proposed = ProposedViewSize(width: proposal.width, height: nil)
+        let sizes = subviews.map { ($0[QuickPageIDKey.self], $0.sizeThatFits(proposed)) }
+        let chosen = sizes.first { $0.0 == selectedID }?.1 ?? sizes.last?.1 ?? .zero
+        return CGSize(width: proposal.width ?? chosen.width, height: chosen.height)
+    }
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        for subview in subviews {
+            subview.place(at: bounds.origin, anchor: .topLeading, proposal: ProposedViewSize(width: bounds.width, height: nil))
+        }
+    }
+}
+
+
+/// Height of the page area, advanced by a spring on the display's frame clock. SwiftUI's own animated layout is not
+/// observable from the AppKit side, and the popover has to follow every intermediate height, so the value is
+/// stepped here and applied as an ordinary (unanimated) frame: content, divider/footer and window all move together
+/// from one source. The target is the selected page's natural height; an interrupted move retargets with its
+/// current velocity.
+@MainActor final class QuickPanelPageMotion: NSObject, ObservableObject {
+    @Published private(set) var height: CGFloat?
+    weak var clockView: NSView? { didSet { if clockView == nil { stop() } } }
+    private var target: CGFloat = 0
+    private var velocity: CGFloat = 0
+    private var link: CADisplayLink?
+    private static let spring = Spring(duration: 0.34, bounce: 0)
+
+    func naturalHeightChanged(_ natural: CGFloat, animated: Bool) {
+        guard natural.isFinite, natural > 0 else { return }
+        target = natural
+        guard let current = height else { height = natural; return }
+        guard abs(current - natural) >= 0.01 || velocity != 0 else { return }
+        guard animated, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion, let view = clockView, view.window?.isVisible == true else {
+            stop(); height = natural; return
+        }
+        if link == nil {
+            let created = view.displayLink(target: self, selector: #selector(step(_:)))
+            created.add(to: .main, forMode: .common)
+            link = created
+        }
+    }
+
+    @objc private func step(_ link: CADisplayLink) {
+        guard var value = height else { stop(); return }
+        let dt = max(1.0 / 240.0, min(1.0 / 20.0, link.targetTimestamp - link.timestamp))
+        Self.spring.update(value: &value, velocity: &velocity, target: target, deltaTime: dt)
+        if abs(value - target) < 0.25 && abs(velocity) < 2 {
+            stop(); height = target
+        } else {
+            // Whole backing pixels: a fractional height would shimmer the top-aligned content.
+            let scale = clockView?.window?.backingScaleFactor ?? 2
+            height = (value * scale).rounded() / scale
+        }
+    }
+
+    private func stop() {
+        link?.invalidate(); link = nil; velocity = 0
+    }
+}
+
+private struct QuickPageAreaModifier: ViewModifier {
+    @ObservedObject var motion: QuickPanelPageMotion
+    func body(content: Content) -> some View {
+        content
+            .frame(height: motion.height, alignment: .top)
+            .clipped()
+            .background(QuickFrameClock(motion: motion))
+    }
+}
+
+private struct QuickFrameClock: NSViewRepresentable {
+    let motion: QuickPanelPageMotion
+    func makeNSView(context: Context) -> NSView { let view = NSView(frame: .zero); motion.clockView = view; return view }
+    func updateNSView(_ view: NSView, context: Context) { motion.clockView = view }
+}
+
+extension View {
+    fileprivate func quickPageArea(_ motion: QuickPanelPageMotion) -> some View { modifier(QuickPageAreaModifier(motion: motion)) }
 }

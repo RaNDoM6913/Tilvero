@@ -216,7 +216,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     private var menuLanguage: String?
     private var keepAwakeStatusBinding: NativeKeepAwakeStatusBinding?
     private var sleepTimerWarning: SleepTimerWarningController?
-    private let popover = NSPopover()
+    let popover = NSPopover()
     private var detailsWindow: NSWindow?
     /// Activating the app for the quick panel raises every app window. While the panel is open the already
     /// visible details window is made invisible and click-through, then restored when the panel is gone.
@@ -251,6 +251,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         buildMenu()
         updateStatusItem()
         model.start()
+        runMotionProbeIfRequested()
         #if TILVERO_LAB_STUDIO
         showDetails()
         #else
@@ -272,7 +273,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         #if TILVERO_LAB_STUDIO
         panel.attachStudio(studio)
         #endif
-        panel.onSizeChange = { [weak self] size in self?.popover.contentSize = size }
+        panel.onSizeChange = { [weak self] size in if let popover = self?.popover { QuickPanelPopoverSizing.apply(size, to: popover) } }
         popover.contentViewController = panel
         popover.contentSize = panel.preferredContentSize
         popover.delegate = self
@@ -431,7 +432,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         NSApplication.shared.mainMenu = main
     }
 
-    @objc private func togglePopover() {
+    @objc func togglePopover() {
         guard let button = statusItem?.button else { return }
         if popover.isShown || activationGate.isWaiting {
             closePopover(reason: "status item toggled")

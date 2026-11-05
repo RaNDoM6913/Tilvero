@@ -77,8 +77,7 @@ final class QuickPanelLayoutTests: XCTestCase {
         fixture.model.setDraft(80)
         fixture.model.applyDemoTarget()
         for _ in 0..<100 where fixture.model.isApplying { await Task.yield() }
-        try await Task.sleep(for: .milliseconds(30))
-        host.view.layoutSubtreeIfNeeded()
+        try await settle(host)
         XCTAssertGreaterThan(host.preferredContentSize.height, initialHeight,
                              "The existing host must expand for a pending target without replacing its editor.")
         XCTAssertFalse(reports.isEmpty, "The popover owner must receive a size change after content updates.")
@@ -153,8 +152,7 @@ final class QuickPanelLayoutTests: XCTestCase {
         XCTAssertEqual(segments.segmentCount, 4)
         segments.selectedSegment = 1
         _ = segments.sendAction(segments.action, to: segments.target)
-        try await Task.sleep(for: .milliseconds(30))
-        host.view.layoutSubtreeIfNeeded()
+        try await settle(host)
         XCTAssertNotEqual(host.preferredContentSize.height, oldHeight)
         XCTAssertNotNil(reported, "A tab change must resize the existing popover.")
         let views = descendants(of: host.view)
@@ -174,6 +172,19 @@ final class QuickPanelLayoutTests: XCTestCase {
         XCTAssertTrue(fixture.model.canApply)
         XCTAssertEqual(fixture.model.sliderIndex, Double(try XCTUnwrap(fixture.model.acceptedTargets.firstIndex(of: 90))))
         XCTAssertFalse(openedDetails, "A segment switch must keep the owner in the quick panel.")
+    }
+
+    /// The page area changes height on a spring (about a third of a second); wait until the reported size is stable.
+    private func settle(_ host: QuickPanelHostingController) async throws {
+        var previous: CGFloat = -1, stable = 0
+        for _ in 0..<150 {
+            try await Task.sleep(for: .milliseconds(20))
+            host.view.layoutSubtreeIfNeeded()
+            let height = host.preferredContentSize.height
+            stable = abs(height - previous) < 0.01 ? stable + 1 : 0
+            previous = height
+            if stable >= 6 { return }
+        }
     }
 
     private func descendants(of view: NSView) -> [NSView] {

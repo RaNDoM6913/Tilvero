@@ -60,8 +60,9 @@ import SwiftUI
         }
     }
 
-    /// Only sizing changes. AppKit retains select-one accessibility, focus,
-    /// keyboard navigation, selection rendering and target/action behavior.
+    /// Native NSSegmentedControl behaviour (select-one tracking, VoiceOver, arrow keys, target/action) with a
+    /// layer-composited look. The pill and its label mask move with a Core Animation spring, so the render server
+    /// animates them and a busy main thread cannot stall the slide; nothing is redrawn per frame.
     @MainActor final class FullWidthControl: NSSegmentedControl {
         override class var cellClass: AnyClass? {
             get { CapsuleSegmentedCell.self }
@@ -71,73 +72,187 @@ import SwiftUI
             NSSize(width: NSView.noIntrinsicMetric, height: max(super.intrinsicContentSize.height, CapsuleSegmentedCell.height))
         }
 
-        // The selection pill is a spring-driven fractional segment index (read by CapsuleSegmentedCell). A press or
-        // drag moves the pill with the pointer and stretches it slightly; release snaps to the nearest segment.
-        private(set) var indicator: CGFloat = 0
-        private(set) var isDragging = false
-        private var goal: CGFloat = 0
-        private var velocity: CGFloat = 0
-        private var link: CADisplayLink?
+        private let trackLayer = CALayer()
+        private let labelsLayer = CALayer()      // labels in the primary text colour, under the pill
+        private let pillLayer = CALayer()
+        private let pillLabelsLayer = CALayer()  // the same labels in white, visible only through the pill mask
+        private let pillMask = CALayer()
+        private var labelLayers: [CATextLayer] = []
+        private var pillLabelLayers: [CATextLayer] = []
+        private var laidOutSize: NSSize = .zero
+        private var laidOutLabels: [String] = []
+
+        override init(frame frameRect: NSRect) {
+            super.init(frame: frameRect)
+            configureLayers()
+        }
+        @available(*, unavailable) required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+        private func configureLayers() {
+            wantsLayer = true
+            layerContentsRedrawPolicy = .never
+            focusRingType = .none
+            guard let root = layer else { return }
+            root.masksToBounds = false
+            for sublayer in [trackLayer, labelsLayer, pillLayer, pillLabelsLayer] {
+                sublayer.actions = ["position": NSNull(), "bounds": NSNull(), "contents": NSNull(), "backgroundColor": NSNull(), "cornerRadius": NSNull()]
+                root.addSublayer(sublayer)
+            }
+            pillMask.backgroundColor = NSColor.black.cgColor
+            pillMask.actions = pillLayer.actions
+            pillLabelsLayer.mask = pillMask
+        }
 
         override var selectedSegment: Int {
-            didSet { if !isDragging { moveIndicator(to: CGFloat(max(0, selectedSegment)), animated: window != nil) } }
+            didSet { if selectedSegment != oldValue { updateGeometry(animated: window != nil) } }
         }
-
-        private func fraction(for event: NSEvent) -> CGFloat {
-            guard segmentCount > 0, bounds.width > 0 else { return 0 }
+        override func setLabel(_ label: String, forSegment segment: Int) {
+            super.setLabel(label, forSegment: segment)
+            needsLayout = true
+        }
+        override var isEnabled: Bool {
+            didSet { if isEnabled != oldValue { refreshColors() } }
+        }
+        // A press selects the segment under the pointer on release (the same segment must be under the press and the
+        // release). No modal tracking loop: the pill slide is a layer animation and needs nothing from the pointer.
+        private var pressedSegment: Int?
+        override var acceptsFirstResponder: Bool { true }
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+        private func segment(at event: NSEvent) -> Int? {
+            guard segmentCount > 0, bounds.width > 0 else { return nil }
             let point = convert(event.locationInWindow, from: nil)
-            return point.x / (bounds.width / CGFloat(segmentCount)) - 0.5
+            guard bounds.contains(point) else { return nil }
+            return min(segmentCount - 1, max(0, Int(point.x / (bounds.width / CGFloat(segmentCount)))))
         }
-        private func clamped(_ value: CGFloat) -> CGFloat { min(max(value, 0), CGFloat(max(0, segmentCount - 1))) }
-
         override func mouseDown(with event: NSEvent) {
-            guard isEnabled, segmentCount > 0 else { return }
-            isDragging = true
-            moveIndicator(to: clamped(fraction(for: event)), animated: true)
-        }
-        override func mouseDragged(with event: NSEvent) {
-            guard isDragging else { return }
-            moveIndicator(to: clamped(fraction(for: event)), animated: true)
+            guard isEnabled else { return }
+            pressedSegment = segment(at: event)
         }
         override func mouseUp(with event: NSEvent) {
-            guard isDragging else { return }
-            isDragging = false
-            let index = Int(clamped(fraction(for: event)).rounded())
-            if selectedSegment != index {
-                selectedSegment = index
-                sendAction(action, to: self.target)
-            } else {
-                moveIndicator(to: CGFloat(index), animated: true)
-            }
-            needsDisplay = true
+            defer { pressedSegment = nil }
+            guard isEnabled, let pressed = pressedSegment, segment(at: event) == pressed else { return }
+            if selectedSegment != pressed { selectedSegment = pressed }
+            _ = sendAction(action, to: target)
         }
 
-        private func moveIndicator(to value: CGFloat, animated: Bool) {
-            goal = value
-            if !animated || NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
-                indicator = value; velocity = 0; needsDisplay = true; link?.invalidate(); link = nil
-                return
-            }
-            if link == nil {
-                let created = displayLink(target: self, selector: #selector(step(_:)))
-                created.add(to: .main, forMode: .common)
-                link = created
-            }
+        /// Native selection (arrow keys, VoiceOver) goes through the cell and does not call the control's
+        /// property setter, so the pill is moved here, just before the action is delivered.
+        override func sendAction(_ action: Selector?, to target: Any?) -> Bool {
+            updateGeometry(animated: window != nil)
+            return super.sendAction(action, to: target)
         }
-        @objc private func step(_ link: CADisplayLink) {
-            let dt = CGFloat(max(1.0 / 240.0, min(1.0 / 20.0, link.targetTimestamp - link.timestamp)))
-            let stiffness: CGFloat = 520, damping = 2 * stiffness.squareRoot() * 0.72
-            velocity += (stiffness * (goal - indicator) - damping * velocity) * dt
-            indicator += velocity * dt
-            needsDisplay = true
-            if abs(goal - indicator) < 0.002 && abs(velocity) < 0.03 {
-                indicator = goal; velocity = 0; link.invalidate(); self.link = nil
-            }
+        override func layout() {
+            super.layout()
+            updateGeometry(animated: false)
+        }
+        override func viewDidChangeEffectiveAppearance() {
+            super.viewDidChangeEffectiveAppearance()
+            refreshColors()
+        }
+        override func viewDidChangeBackingProperties() {
+            super.viewDidChangeBackingProperties()
+            let scale = window?.backingScaleFactor ?? 2
+            for layer in [trackLayer, labelsLayer, pillLayer, pillLabelsLayer, pillMask] { layer.contentsScale = scale }
+            for layer in labelLayers + pillLabelLayers { layer.contentsScale = scale }
         }
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
-            if window == nil { link?.invalidate(); link = nil }
-            else if !isDragging && link == nil { indicator = CGFloat(max(0, selectedSegment)); goal = indicator }
+            viewDidChangeBackingProperties()
+            refreshColors()
+            updateGeometry(animated: false)
+            NotificationCenter.default.removeObserver(self, name: NSColor.systemColorsDidChangeNotification, object: nil)
+            if window != nil {
+                NotificationCenter.default.addObserver(self, selector: #selector(accentChanged), name: NSColor.systemColorsDidChangeNotification, object: nil)
+            }
+        }
+        @objc private func accentChanged() { refreshColors() }
+
+        private var segmentWidth: CGFloat { segmentCount > 0 ? bounds.width / CGFloat(segmentCount) : 0 }
+        private func pillFrame(forIndex index: Int) -> CGRect {
+            CGRect(x: CGFloat(index) * segmentWidth + 2, y: 2, width: max(0, segmentWidth - 4), height: max(0, bounds.height - 4))
+        }
+
+        private func refreshColors() {
+            effectiveAppearance.performAsCurrentDrawingAppearance {
+                trackLayer.backgroundColor = NSColor.labelColor.withAlphaComponent(0.07).cgColor
+                pillLayer.backgroundColor = NSColor.controlAccentColor.cgColor
+                pillLayer.opacity = isEnabled ? 1 : 0.45
+                let primary = isEnabled ? NSColor.labelColor : NSColor.disabledControlTextColor
+                for layer in labelLayers { layer.foregroundColor = primary.cgColor }
+                for layer in pillLabelLayers { layer.foregroundColor = NSColor.white.cgColor }
+            }
+        }
+
+        private func rebuildLabelLayersIfNeeded() {
+            let labels = (0..<segmentCount).map { label(forSegment: $0) ?? "" }
+            guard labels != laidOutLabels || labelLayers.count != segmentCount else { return }
+            laidOutLabels = labels
+            for layer in labelLayers + pillLabelLayers { layer.removeFromSuperlayer() }
+            func make(_ text: String) -> CATextLayer {
+                let layer = CATextLayer()
+                layer.string = text
+                layer.font = NSFont.systemFont(ofSize: 13, weight: .medium)
+                layer.fontSize = 13
+                layer.alignmentMode = .center
+                layer.truncationMode = .end
+                layer.isWrapped = false
+                layer.contentsScale = window?.backingScaleFactor ?? 2
+                layer.actions = ["position": NSNull(), "bounds": NSNull(), "contents": NSNull(), "foregroundColor": NSNull()]
+                return layer
+            }
+            labelLayers = labels.map(make)
+            pillLabelLayers = labels.map(make)
+            for layer in labelLayers { labelsLayer.addSublayer(layer) }
+            for layer in pillLabelLayers { pillLabelsLayer.addSublayer(layer) }
+            refreshColors()
+        }
+
+        private var lastPillIndex: Int?
+        /// True while the pill's slide runs as a Core Animation spring (render-server side).
+        var isPillSliding: Bool { pillLayer.animation(forKey: "slide") != nil }
+        var pillTargetFrame: CGRect { pillLayer.frame }
+
+        private func updateGeometry(animated: Bool) {
+            guard segmentCount > 0, bounds.width > 0 else { return }
+            let sizeChanged = laidOutSize != bounds.size
+            rebuildLabelLayersIfNeeded()
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            for layer in [trackLayer, labelsLayer, pillLabelsLayer] { layer.frame = bounds }
+            trackLayer.cornerRadius = bounds.height / 2
+            let lineHeight = ceil(NSFont.systemFont(ofSize: 13, weight: .medium).boundingRectForFont.height)
+            for index in 0..<segmentCount {
+                let frame = CGRect(x: CGFloat(index) * segmentWidth + 4, y: (bounds.height - lineHeight) / 2 + 1,
+                                   width: max(0, segmentWidth - 8), height: lineHeight)
+                labelLayers[index].frame = frame
+                pillLabelLayers[index].frame = frame
+            }
+            let target = max(0, selectedSegment)
+            let rect = pillFrame(forIndex: target)
+            let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+            let shouldAnimate = animated && !reduceMotion && !sizeChanged && lastPillIndex != nil && lastPillIndex != target
+            let fromX = pillLayer.presentation()?.position.x
+            for layer in [pillLayer, pillMask] {
+                layer.bounds = CGRect(origin: .zero, size: rect.size)
+                layer.cornerRadius = rect.height / 2
+                layer.position = CGPoint(x: rect.midX, y: rect.midY)
+            }
+            CATransaction.commit()
+            if shouldAnimate, let fromX {
+                // Retargets from the on-screen position, so an interrupted slide continues instead of jumping.
+                for layer in [pillLayer, pillMask] {
+                    let spring = CASpringAnimation(perceptualDuration: 0.32, bounce: 0)
+                    spring.keyPath = "position.x"
+                    spring.fromValue = fromX
+                    spring.toValue = rect.midX
+                    spring.duration = spring.settlingDuration
+                    layer.add(spring, forKey: "slide")
+                }
+            } else if !shouldAnimate && (sizeChanged || lastPillIndex != target) {
+                pillLayer.removeAnimation(forKey: "slide"); pillMask.removeAnimation(forKey: "slide")
+            }
+            lastPillIndex = target
+            laidOutSize = bounds.size
         }
     }
 }
@@ -175,60 +290,11 @@ import SwiftUI
     }
 }
 
-/// macOS 26/27 look for the equal-width tabs: a translucent capsule track and one neutral capsule behind the
-/// selected segment, without separators. Only drawing changes; selection, keyboard and accessibility stay AppKit's.
+/// The cell keeps AppKit's select-one tracking, accessibility and keyboard handling; the look is composited from
+/// layers by `FullWidthControl`, so the cell itself draws nothing.
 final class CapsuleSegmentedCell: NSSegmentedCell {
     static let height: CGFloat = 30
-    override func draw(withFrame cellFrame: NSRect, in controlView: NSView) {
-        let track = NSBezierPath(roundedRect: cellFrame, xRadius: cellFrame.height / 2, yRadius: cellFrame.height / 2)
-        NSColor.labelColor.withAlphaComponent(0.07).setFill()
-        track.fill()
-        guard segmentCount > 0 else { return }
-        let width = cellFrame.width / CGFloat(segmentCount)
-        let control = controlView as? FullWidthSegmentedTabs.FullWidthControl
-        let position = control?.indicator ?? CGFloat(max(0, selectedSegment))
-        let dragging = control?.isDragging == true
-        // Pill: inset 2 pt inside the track (concentric corners). While dragged it grows a little and lifts.
-        let grow: CGFloat = dragging ? 3 : 0
-        let pillWidth = width - 4 + grow * 2
-        let pillRect = NSRect(x: cellFrame.minX + (position + 0.5) * width - pillWidth / 2, y: cellFrame.minY + 2 - grow / 2,
-                              width: pillWidth, height: cellFrame.height - 4 + grow)
-        let pill = NSBezierPath(roundedRect: pillRect, xRadius: pillRect.height / 2, yRadius: pillRect.height / 2)
-        NSGraphicsContext.saveGraphicsState()
-        if dragging {
-            let shadow = NSShadow()
-            shadow.shadowColor = NSColor.black.withAlphaComponent(0.35); shadow.shadowBlurRadius = 6; shadow.shadowOffset = NSSize(width: 0, height: -1)
-            shadow.set()
-        }
-        // The system accent, not the selected-content colour: that one turns grey in a non-key panel.
-        NSColor.controlAccentColor.setFill()
-        pill.fill()
-        NSGraphicsContext.restoreGraphicsState()
-        if dragging {
-            // Liquid-glass sheen: a soft top-down highlight clipped to the lifted pill.
-            NSGraphicsContext.saveGraphicsState()
-            pill.addClip()
-            NSGradient(colors: [NSColor.white.withAlphaComponent(0.30), NSColor.white.withAlphaComponent(0)])?
-                .draw(in: pillRect, angle: 270)
-            NSGraphicsContext.restoreGraphicsState()
-        }
-        let selectedIndex = Int(position.rounded())
-        for index in 0..<segmentCount {
-            let frame = NSRect(x: cellFrame.minX + CGFloat(index) * width, y: cellFrame.minY, width: width, height: cellFrame.height)
-            drawSegment(index, inFrame: frame, with: controlView, selectedOverride: index == selectedIndex)
-        }
-    }
-    override func drawSegment(_ segment: Int, inFrame frame: NSRect, with controlView: NSView) {
-        drawSegment(segment, inFrame: frame, with: controlView, selectedOverride: isSelected(forSegment: segment))
-    }
-    private func drawSegment(_ segment: Int, inFrame frame: NSRect, with controlView: NSView, selectedOverride selected: Bool) {
-        let label = (self.label(forSegment: segment) ?? "") as NSString
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 13, weight: selected ? .semibold : .medium),
-            .foregroundColor: (controlView as? NSControl)?.isEnabled == false ? NSColor.disabledControlTextColor
-                : (selected ? NSColor.white : NSColor.labelColor),
-        ]
-        let size = label.size(withAttributes: attributes)
-        label.draw(at: NSPoint(x: frame.midX - size.width / 2, y: frame.midY - size.height / 2), withAttributes: attributes)
-    }
+    override func draw(withFrame cellFrame: NSRect, in controlView: NSView) {}
+    override func drawSegment(_ segment: Int, inFrame frame: NSRect, with controlView: NSView) {}
+    override func drawFocusRingMask(withFrame cellFrame: NSRect, in controlView: NSView) {}
 }

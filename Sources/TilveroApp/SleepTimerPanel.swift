@@ -63,11 +63,17 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
                     }.pickerStyle(.segmented).labelsHidden()
                 }
             }.frame(maxWidth: compact ? .infinity : 480, alignment: .leading).studioElement("sleep.tabs", label: "Sleep destinations")
-            let page = presentedPage
-            switch page {
-            case .timer:
-                if compact { SleepTimerPillsPanel(model: model).studioScope("sleep.timer").transition(QuickPanel.pageTransition) }
-                else {
+            if compact {
+                QuickPageSwitcher(selection: presentedPage) {
+                    switch presentedPage {
+                    case .timer: SleepTimerPillsPanel(model: model).studioScope("sleep.timer").quickPage(id: presentedPage.rawValue)
+                    case .awake: KeepAwakePillsPanel(model: model).studioScope("sleep.awake").quickPage(id: presentedPage.rawValue)
+                    case .reports: SleepReportPanel(model: model).quickPage(id: presentedPage.rawValue)
+                    }
+                }.animation(reduceMotion ? nil : QuickPanel.pageFade, value: presentedPage)
+            } else {
+                switch presentedPage {
+                case .timer:
                     ProductSurface(studioID: "sleep.timer") { SleepTimerPanel(model: model).studioScope("sleep.timer") }.frame(maxWidth: 560)
                     VStack(alignment: .leading, spacing: 9) {
                         Label(L10n.text("Music and video do not extend the timer."), systemImage: "play.rectangle")
@@ -77,14 +83,12 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
                         Text(L10n.text("Tilvero prevents idle system sleep until the timer ends, then releases its hold and requests sleep. The display may turn off. Closing the lid, manual sleep and macOS safety actions still work. A quiet warning appears one minute before. Cancel or quit releases the hold. The timer never restarts after waking or reopening Tilvero."))
                             .font(.callout).foregroundStyle(.secondary).padding(.top, 8)
                     }.frame(maxWidth: 560).font(.system(size: 12))
+                case .awake:
+                    ProductSurface(studioID: "sleep.awake") { KeepAwakePanel(model: model).studioScope("sleep.awake") }.frame(maxWidth: 560)
+                case .reports: SleepReportPanel(model: model)
                 }
-            case .awake:
-                if compact { KeepAwakePillsPanel(model: model).studioScope("sleep.awake").transition(QuickPanel.pageTransition) }
-                else { ProductSurface(studioID: "sleep.awake") { KeepAwakePanel(model: model).studioScope("sleep.awake") }.frame(maxWidth: 560) }
-            case .reports: SleepReportPanel(model: model)
             }
         }
-        .animation(compact && !reduceMotion ? QuickPanel.pageAnimation : nil, value: presentedPage)
         .onAppear {
             if compact { quickPage = model.keepAwake.hasOwnedAssertion ? .awake : .timer }
         }

@@ -189,6 +189,7 @@ enum SleepPillActionError: LocalizedError, Equatable {
     var accessibilityTitle: String? = nil
     var selectedHelp: String? = nil
     let action: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var helpTitle: String {
         guard selected else { return accessibilityTitle ?? title }
         return selectedHelp ?? (L10n.language == "ru" ? "Изменить, продлить или завершить" : "Edit, extend or end session")
@@ -209,6 +210,7 @@ enum SleepPillActionError: LocalizedError, Equatable {
             .frame(maxWidth: .infinity, minHeight: 26).padding(.vertical, 5)
             .background(selected ? Color.accentColor : Color.primary.opacity(0.07), in: Capsule())
             .contentShape(Capsule())
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: selected)
         }
         .buttonStyle(.plain).accessibilityAddTraits(selected ? [.isSelected] : [])
         .accessibilityLabel(accessibilityTitle ?? title)
