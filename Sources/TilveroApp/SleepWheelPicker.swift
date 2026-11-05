@@ -118,11 +118,11 @@ enum SleepWheelValue: Equatable {
         HStack(spacing: 12) {
             NativeDrumPicker(selection: hourSelection, range: mode == .duration ? 0...24 : 0...23,
                 unit: L10n.text("h"), accessibilityName: L10n.language == "ru" ? "Часы" : "Hours",
-                style: wheelStyle, onSubmit: commit, onCancel: cancel)
+                style: wheelStyle, wraps: mode == .until, onSubmit: commit, onCancel: cancel)
                 .studioElement("sleep.wheel.hours", label: "Hours wheel")
             NativeDrumPicker(selection: minuteSelection, range: mode == .duration && hours == 24 ? 0...0 : 0...59,
                 unit: L10n.text("min"), accessibilityName: L10n.language == "ru" ? "Минуты" : "Minutes",
-                style: wheelStyle, onSubmit: commit, onCancel: cancel)
+                style: wheelStyle, wraps: mode == .until, onSubmit: commit, onCancel: cancel)
                 .studioElement("sleep.wheel.minutes", label: "Minutes wheel")
         }.frame(width: 212, height: 126)
     }

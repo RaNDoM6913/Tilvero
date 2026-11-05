@@ -20,11 +20,13 @@ struct NativeDrumPicker: View {
     let unit: String
     let accessibilityName: String
     var style: Style = .regular
+    /// A cyclic wheel: after the last value it continues with the first (and the other way round).
+    var wraps = false
     var onSubmit: () -> Void = {}
     var onCancel: () -> Void = {}
 
     var body: some View {
-        DrumSurface(selection: $selection, range: range, unit: unit, name: accessibilityName, style: style,
+        DrumSurface(selection: $selection, range: range, unit: unit, name: accessibilityName, style: style, wraps: wraps,
                     onSubmit: onSubmit, onCancel: onCancel)
             .frame(width: style.size.width, height: style.size.height)
     }
@@ -36,6 +38,7 @@ private struct DrumSurface: NSViewRepresentable {
     let unit: String
     let name: String
     let style: NativeDrumPicker.Style
+    let wraps: Bool
     let onSubmit: () -> Void
     let onCancel: () -> Void
 
@@ -48,7 +51,7 @@ private struct DrumSurface: NSViewRepresentable {
     func updateNSView(_ host: DrumHost, context: Context) {
         host.style = style
         host.wheel.configure(value: selection, range: range, unit: unit, name: name,
-                             numberFontSize: style.numberFontSize, showsUnit: style == .regular,
+                             numberFontSize: style.numberFontSize, showsUnit: style == .regular, wraps: wraps,
                              onSubmit: onSubmit, onCancel: onCancel) { selection = $0 }
     }
 
@@ -111,6 +114,13 @@ private final class DrumScrollView: NSScrollView {
     private let rows = DrumDocument(frame: .zero)
     private var allowedRange = 0...0
     private var selectedValue = 0
+    /// Cyclic wheels scroll a virtual range of `copies` repeats of the logical values; the selection is
+    /// silently moved back to the middle repeat after each settle, so the wheel never ends.
+    private var wraps = false
+    private var span = 1
+    private var logicalLower = 0
+    private static let copies = 21
+    private func display(_ virtual: Int) -> Int { wraps ? logicalLower + ((virtual % span) + span) % span : virtual }
     private var unit = ""
     private var numberFontSize: CGFloat = 27
     private var showsUnit = true
@@ -153,13 +163,27 @@ private final class DrumScrollView: NSScrollView {
     required init?(coder: NSCoder) { nil }
 
     func configure(value: Int, range: ClosedRange<Int>, unit: String, name: String,
-                   numberFontSize: CGFloat, showsUnit: Bool,
+                   numberFontSize: CGFloat, showsUnit: Bool, wraps: Bool = false,
                    onSubmit: @escaping () -> Void, onCancel: @escaping () -> Void,
                    onSelectionChanged: @escaping (Int) -> Void) {
-        let nextValue = min(max(value, range.lowerBound), range.upperBound)
-        let changedRange = allowedRange != range
-        let requiresCenter = !isConfigured || changedRange || nextValue != selectedValue
-        allowedRange = range
+        let nextValue: Int, changedRange: Bool, requiresCenter: Bool, effectiveRange: ClosedRange<Int>
+        if wraps {
+            let count = range.count
+            effectiveRange = 0...(count * Self.copies - 1)
+            let logical = min(max(value, range.lowerBound), range.upperBound)
+            changedRange = allowedRange != effectiveRange || !self.wraps || logicalLower != range.lowerBound
+            let keep = isConfigured && !changedRange && display(selectedValue) == logical
+            nextValue = keep ? selectedValue : count * (Self.copies / 2) + (logical - range.lowerBound)
+            requiresCenter = !keep
+            self.span = count; self.logicalLower = range.lowerBound
+        } else {
+            effectiveRange = range
+            nextValue = min(max(value, range.lowerBound), range.upperBound)
+            changedRange = allowedRange != range || self.wraps
+            requiresCenter = !isConfigured || changedRange || nextValue != selectedValue
+        }
+        self.wraps = wraps
+        allowedRange = effectiveRange
         self.unit = unit
         self.numberFontSize = numberFontSize
         self.showsUnit = showsUnit
@@ -229,6 +253,17 @@ private final class DrumScrollView: NSScrollView {
         mirrorVisibleCenter()
         isUserScrolling = false
         centerSelectedValue()
+        recenterIfNeeded()
+    }
+
+    /// Cyclic wheels: move to the identical row in the middle repeat once the selection nears either end.
+    private func recenterIfNeeded() {
+        guard wraps else { return }
+        let target = span * (Self.copies / 2) + ((selectedValue % span) + span) % span
+        guard abs(target - selectedValue) >= span * 2 else { return }
+        selectedValue = target
+        centerSelectedValue()
+        rows.needsDisplay = true
     }
 
     override func becomeFirstResponder() -> Bool { host?.needsDisplay = true; return true }
@@ -238,8 +273,8 @@ private final class DrumScrollView: NSScrollView {
         switch event.keyCode {
         case 126: step(-1)
         case 125: step(1)
-        case 115: choose(allowedRange.lowerBound)
-        case 119: choose(allowedRange.upperBound)
+        case 115: choose(wraps ? span * (Self.copies / 2) : allowedRange.lowerBound)
+        case 119: choose(wraps ? span * (Self.copies / 2) + span - 1 : allowedRange.upperBound)
         case 36, 76: onSubmit?()
         case 53: onCancel?()
         default: nextResponder?.keyDown(with: event)
@@ -269,7 +304,7 @@ private final class DrumScrollView: NSScrollView {
     func pointerUp(with event: NSEvent) {
         guard let origin = pointerOrigin else { return }
         pointerOrigin = nil
-        if pointerMoved { mirrorVisibleCenter(); centerSelectedValue() }
+        if pointerMoved { mirrorVisibleCenter(); centerSelectedValue(); recenterIfNeeded() }
         else { choose(origin.clickedValue) }
         pointerMoved = false
     }
@@ -297,7 +332,7 @@ private final class DrumScrollView: NSScrollView {
         guard value != selectedValue else { return }
         selectedValue = value
         rows.needsDisplay = true
-        onSelectionChanged?(value)
+        onSelectionChanged?(display(value))
         NSAccessibility.post(element: self, notification: .valueChanged)
     }
 
@@ -307,6 +342,7 @@ private final class DrumScrollView: NSScrollView {
         updateValue(min(max(value, allowedRange.lowerBound), allowedRange.upperBound))
         // No synthetic animation; reduced-motion users retain native wheel input.
         centerSelectedValue()
+        recenterIfNeeded()
     }
 
     private func step(_ delta: Int) {
@@ -314,10 +350,10 @@ private final class DrumScrollView: NSScrollView {
         choose(overflow ? (delta > 0 ? allowedRange.upperBound : allowedRange.lowerBound) : value)
     }
 
-    override func accessibilityValue() -> Any? { NSNumber(value: selectedValue) }
-    override func accessibilityValueDescription() -> String? { "\(selectedValue) \(unit)" }
-    override func accessibilityMinValue() -> Any? { NSNumber(value: allowedRange.lowerBound) }
-    override func accessibilityMaxValue() -> Any? { NSNumber(value: allowedRange.upperBound) }
+    override func accessibilityValue() -> Any? { NSNumber(value: display(selectedValue)) }
+    override func accessibilityValueDescription() -> String? { "\(display(selectedValue)) \(unit)" }
+    override func accessibilityMinValue() -> Any? { NSNumber(value: wraps ? logicalLower : allowedRange.lowerBound) }
+    override func accessibilityMaxValue() -> Any? { NSNumber(value: wraps ? logicalLower + span - 1 : allowedRange.upperBound) }
     override func accessibilityPerformIncrement() -> Bool { step(1); return true }
     override func accessibilityPerformDecrement() -> Bool { step(-1); return true }
 
@@ -330,7 +366,7 @@ private final class DrumScrollView: NSScrollView {
             let value = allowedRange.lowerBound + index
             let distance = abs(value - selectedValue)
             let alpha: CGFloat = distance == 0 ? 1 : distance == 1 ? (showsUnit ? 0.70 : 0.42) : (showsUnit ? 0.35 : 0.2)
-            let number = String(value) as NSString
+            let number = String(display(value)) as NSString
             let suffix = unit as NSString
             let numberFont = NSFont.monospacedDigitSystemFont(ofSize: numberFontSize, weight: distance == 0 ? (showsUnit ? .semibold : .regular) : (showsUnit ? .regular : .light))
             let unitFont = NSFont.systemFont(ofSize: 11, weight: .medium)

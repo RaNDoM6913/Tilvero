@@ -50,6 +50,31 @@ import XCTest
         }
     }
 
+    func testCyclicWheelContinuesPastTheEndsAndKeepsTurningBackAfterRecentering() async throws {
+        var selected = 23
+        let host = NSHostingController(rootView: NativeDrumPicker(
+            selection: Binding(get: { selected }, set: { selected = $0 }), range: 0...23,
+            unit: "h", accessibilityName: "Hours", style: .unified, wraps: true))
+        let window = NSWindow(contentViewController: host)
+        defer { window.orderOut(nil) }
+        window.setContentSize(host.sizeThatFits(in: NSSize(width: 400, height: 400)))
+        host.view.layoutSubtreeIfNeeded()
+        try await Task.sleep(for: .milliseconds(30))
+        host.view.layoutSubtreeIfNeeded()
+        let wheel = try XCTUnwrap(descendants(host.view).compactMap { $0 as? NSScrollView }.first)
+        XCTAssertTrue(wheel.accessibilityPerformIncrement())
+        XCTAssertEqual(selected, 0, "After 23 the cyclic wheel continues with 0.")
+        XCTAssertTrue(wheel.accessibilityPerformDecrement())
+        XCTAssertEqual(selected, 23, "And 0 turns back to 23.")
+        for expected in [0, 1, 2] { XCTAssertTrue(wheel.accessibilityPerformIncrement()); XCTAssertEqual(selected, expected) }
+        // Many full turns in one direction never run out of rows.
+        for _ in 0..<(24 * 12) { XCTAssertTrue(wheel.accessibilityPerformIncrement()) }
+        XCTAssertEqual(selected, 2, "Twelve full turns return to the same hour.")
+        XCTAssertEqual(wheel.accessibilityValue() as? Int, 2)
+        for _ in 0..<(24 * 12 + 3) { XCTAssertTrue(wheel.accessibilityPerformDecrement()) }
+        XCTAssertEqual(selected, 23)
+    }
+
     private func click(_ rows: NSView, in clip: NSClipView, deltaFromCenter: CGFloat, window: NSWindow) throws {
         let point = clip.convert(NSPoint(x: clip.bounds.midX, y: clip.bounds.midY + deltaFromCenter), to: nil)
         let down = try XCTUnwrap(NSEvent.mouseEvent(with: .leftMouseDown, location: point, modifierFlags: [],
