@@ -15088,6 +15088,278 @@
           }
         }
       }
+    },
+    "Sleep at charge": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep at charge"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон при заряде"
+          }
+        }
+      }
+    },
+    "Choose a charge level. The Mac sleeps once the battery drops to it.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a charge level. The Mac sleeps once the battery drops to it."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выберите уровень заряда — Mac уснёт, когда батарея разрядится до него."
+          }
+        }
+      }
+    },
+    "Sleep at charge cancelled.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep at charge cancelled."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон при заряде отменён."
+          }
+        }
+      }
+    },
+    "Sleep at charge cancelled because the Mac went to sleep.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep at charge cancelled because the Mac went to sleep."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон при заряде отменён: Mac уснул."
+          }
+        }
+      }
+    },
+    "Sleep at charge cancelled because the Mac woke from sleep.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep at charge cancelled because the Mac woke from sleep."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон при заряде отменён: Mac проснулся."
+          }
+        }
+      }
+    },
+    "Sleep at charge cancelled because this user session is no longer active.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep at charge cancelled because this user session is no longer active."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон при заряде отменён: сеанс пользователя неактивен."
+          }
+        }
+      }
+    },
+    "Sleep at charge cancelled because safe preparation could not be confirmed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep at charge cancelled because safe preparation could not be confirmed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон при заряде отменён: не удалось подтвердить безопасную подготовку."
+          }
+        }
+      }
+    },
+    "Sleep requested at the chosen charge.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep requested at the chosen charge."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Заряд достиг выбранного уровня — Mac засыпает."
+          }
+        }
+      }
+    },
+    "macOS declined the sleep request.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS declined the sleep request."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS отклонила запрос на сон."
+          }
+        }
+      }
+    },
+    "Sleep at charge is unavailable in this build or simulation.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep at charge is unavailable in this build or simulation."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон при заряде недоступен в этой сборке или в симуляции."
+          }
+        }
+      }
+    },
+    "Choose a charge between 1 and 99 %.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a charge between 1 and 99 %."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выберите заряд от 1 до 99 %."
+          }
+        }
+      }
+    },
+    "The charge level is not known yet.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The charge level is not known yet."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Уровень заряда пока неизвестен."
+          }
+        }
+      }
+    },
+    "The battery is already at or below that level.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The battery is already at or below that level."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Батарея уже на этом уровне или ниже."
+          }
+        }
+      }
+    },
+    "Sleeps at": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleeps at"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Уснёт при"
+          }
+        }
+      }
+    },
+    "now": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "now"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "сейчас"
+          }
+        }
+      }
+    },
+    "Waits until the Mac runs on battery power.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waits until the Mac runs on battery power."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сработает, когда Mac будет работать от батареи."
+          }
+        }
+      }
+    },
+    "Sleeps once; cancelled by sleep or quitting Tilvero.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleeps once; cancelled by sleep or quitting Tilvero."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Срабатывает один раз; отменяется сном или выходом из Tilvero."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

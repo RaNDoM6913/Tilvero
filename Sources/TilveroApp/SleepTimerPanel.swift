@@ -75,6 +75,7 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
                 switch presentedPage {
                 case .timer:
                     ProductSurface(studioID: "sleep.timer") { SleepTimerPanel(model: model).studioScope("sleep.timer") }.frame(maxWidth: 560)
+                    ProductSurface(studioID: "sleep.charge") { SleepAtChargePanel(model: model).studioScope("sleep.charge") }.frame(maxWidth: 560)
                     VStack(alignment: .leading, spacing: 9) {
                         Label(L10n.text("Music and video do not extend the timer."), systemImage: "play.rectangle")
                         Label(L10n.text("Keeps your Mac awake until the timer ends."), systemImage: "moon")

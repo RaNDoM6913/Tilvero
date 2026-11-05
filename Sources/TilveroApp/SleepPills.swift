@@ -291,6 +291,8 @@ enum SleepPillActionError: LocalizedError, Equatable {
             if !service.isAvailable {
                 Text(L10n.text("Sleep timer is unavailable in this build or simulation.")).font(.caption).foregroundStyle(.secondary)
             }
+            Divider().padding(.vertical, 2)
+            SleepAtChargePanel(model: model)
         }
         .studioElement("timer.editor", kind: "container", label: "Sleep timer editor")
         .onChange(of: ObjectIdentifier(model)) { _, _ in
@@ -594,5 +596,104 @@ enum SleepPillActionError: LocalizedError, Equatable {
             guard let captured = try? request ?? SleepPillActions.awakeDraftRequest(model) else { return }
             pending = .enable(captured); consent = needed; confirms = true
         } catch { self.error = error.localizedDescription }
+    }
+}
+
+/// "Sleep at charge" block under the sleep timer: a switch plus level pills. Picking a level arms it at once
+/// (like the timer's pills); the same pill again, or the switch, cancels it.
+@MainActor struct SleepAtChargePanel: View {
+    @ObservedObject var model: TilveroModel
+    @State private var error: String?
+    private var service: SleepAtChargeService { model.sleepAtCharge }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                StudioText(L10n.text("Sleep at charge"), id: "charge-sleep.heading")
+                    .font(.system(size: 14, weight: .semibold)).fixedSize()
+                Spacer(minLength: 8)
+                Toggle(L10n.text("Sleep at charge"), isOn: Binding(get: { service.isArmed }, set: setEnabled))
+                    .toggleStyle(.switch).controlSize(.regular).labelsHidden().fixedSize()
+                    .disabled(!service.isArmed && !canArm(model.sleepAtChargeChoice) && !service.canChooseTarget)
+                    .accessibilityIdentifier("sleep-at-charge-master")
+                    .studioElement("charge-sleep.master", label: "Sleep at charge master switch")
+            }
+            .frame(height: 32)
+            HStack(spacing: 6) {
+                ForEach(SleepAtChargeService.targets, id: \.self) { target in
+                    SleepAtChargePill(title: "\(target) %", selected: service.target == target,
+                                      enabled: service.target == target || canArm(target), id: "charge-sleep.preset.\(target)") {
+                        choose(target)
+                    }
+                }
+            }
+            status
+            Text(L10n.text("Sleeps once; cancelled by sleep or quitting Tilvero."))
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            if !service.isAvailable {
+                Text(L10n.text("Sleep at charge is unavailable in this build or simulation.")).font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .studioElement("charge-sleep.editor", kind: "container", label: "Sleep at charge editor")
+    }
+
+    @ViewBuilder private var status: some View {
+        if let target = service.target {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(L10n.text("Sleeps at") + " \(target) %" + (service.currentPercent.map { " · " + L10n.text("now") + " \($0) %" } ?? ""))
+                    .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                if service.onExternalPower == true {
+                    Text(L10n.text("Waits until the Mac runs on battery power.")).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        } else if let message = error ?? service.message {
+            Text(L10n.text(message)).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+        } else {
+            Text(L10n.text("Choose a charge level. The Mac sleeps once the battery drops to it."))
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func canArm(_ target: Int) -> Bool { service.canArm(target: target) }
+
+    private func choose(_ target: Int) {
+        error = nil
+        if service.target == target { service.disarm(); return }
+        do { try service.arm(target: target); model.sleepAtChargeChoice = target }
+        catch { self.error = error.localizedDescription }
+    }
+
+    private func setEnabled(_ on: Bool) {
+        error = nil
+        guard on else { service.disarm(); return }
+        // The remembered level, or the highest one still below the present charge.
+        let choice = model.sleepAtChargeChoice
+        let target = canArm(choice) ? choice : SleepAtChargeService.targets.first(where: canArm)
+        guard let target else { error = SleepAtChargeError.alreadyReached.localizedDescription; return }
+        choose(target)
+    }
+}
+
+@MainActor private struct SleepAtChargePill: View {
+    let title: String
+    let selected: Bool
+    let enabled: Bool
+    let id: String
+    let action: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    var body: some View {
+        Button(action: action) {
+            StudioText(title, id: id + ".caption")
+                .font(.system(size: 12, weight: .medium)).monospacedDigit()
+                .foregroundStyle(selected ? Color.white : Color.primary)
+                .lineLimit(1).frame(maxWidth: .infinity, minHeight: 26).padding(.vertical, 5)
+                .background(selected ? Color.accentColor : Color.primary.opacity(0.07), in: Capsule())
+                .contentShape(Capsule())
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: selected)
+        }
+        .buttonStyle(.plain).disabled(!enabled).opacity(enabled ? 1 : 0.4)
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
+        .accessibilityLabel(title)
+        .accessibilityIdentifier(id).studioElement(id, label: title)
     }
 }
