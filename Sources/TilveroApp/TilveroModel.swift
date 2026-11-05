@@ -62,10 +62,10 @@ final class TilveroModel: ObservableObject {
         result.nativeRecovery = nativeCharge.recoveryRequired || nativeCharge.restorationPending
         result.helperOwnership = liveControl.hasOwnedSettings || liveControl.connected
         result.helperRecovery = liveControl.recoveryRequired
-        result.lidOwnership = closedLid.isOn || closedLid.isLiveTrial
-        result.lidRecovery = closedLid.needsRecovery
+        result.lidOwnership = closedLid.isOn || closedLid.isLiveTrial || lidSleep.isOn
+        result.lidRecovery = closedLid.needsRecovery || lidSleep.needsRecovery
         result.operationInFlight = isApplying || isReading || nativeCharge.isBusy || nativeCharge.isQualifying
-            || liveControl.isBusy || closedLid.busy || keyboardBacklight.isBusy
+            || liveControl.isBusy || closedLid.busy || lidSleep.busy || keyboardBacklight.isBusy
         result.sleepTransition = sleeping || sleepTimerBlocksControls || sleepTimer.needsHoldRelease
         result.awakeActive = keepAwake.hasOwnedAssertion
         result.timerActive = sleepTimer.isActive
@@ -203,6 +203,9 @@ final class TilveroModel: ObservableObject {
     }
     private var sleepAtChargeSubscription: AnyCancellable?
     let closedLid: ClosedLidService
+    /// Ordinary builds: closed-lid Keep Awake through the `pmset disablesleep` override (trial/lab builds keep `closedLid`).
+    let lidSleep: LidSleepOverrideService
+    private var lidSleepSubscription: AnyCancellable?
     private var sleepTimerSubscription: AnyCancellable?
     @Published var selectedSleepPage: SleepPage = .timer
     @Published var sleepTimerMinutes: String { didSet {
@@ -360,6 +363,7 @@ final class TilveroModel: ObservableObject {
          sleepTimerTransport: (any SleepTimerTransport)? = nil,
          sleepTimerService: SleepTimerService? = nil,
          closedLidService: ClosedLidService? = nil,
+         lidSleepSystem: (any LidSleepSystem)? = nil,
          updateIdentity: UpdateIdentity? = nil,
          updateEvidence: (() -> [UpdateEvidenceProbe.Result])? = nil,
          updateLeaseDirectory: URL? = nil,
@@ -407,6 +411,7 @@ final class TilveroModel: ObservableObject {
         sleepAtCharge = SleepAtChargeService(driver: sleepTimerTransport ?? NativeSleepTimerTransport(), allowed: !isDemo && !monitoring)
         keepAwakeUntilCharge = SleepAtChargeService(driver: sleepTimerTransport ?? NativeSleepTimerTransport(), allowed: !isDemo && !monitoring, endAction: .release)
         closedLid = closedLidService ?? ClosedLidService(allowed: !isDemo && !monitoring)
+        lidSleep = LidSleepOverrideService(system: lidSleepSystem ?? NativeLidSleepSystem(), defaults: preferences, allowed: !isDemo && !monitoring)
         self.setupBundle = setupBundle
         let setupIdentity = try? ReleaseIdentity.current(bundle: setupBundle)
         canShowSetup = !isDemo && setupIdentity?.isLaboratory == false && !closedLid.isFixture && !closedLid.isLiveTrial
@@ -467,9 +472,13 @@ final class TilveroModel: ObservableObject {
         selectedSection = InfoSection(rawValue: preferences.string(forKey: "lastSection") ?? "") ?? .overview
         updateLoginStatus()
         closedLid.bind(keepAwake)
+        lidSleep.awakeIsActive = { [weak self] in self?.keepAwake.hasOwnedAssertion ?? false }
+        lidSleep.bind(keepAwake)
+        lidSleepSubscription = lidSleep.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
         sleepTimer.prepare = { [weak self] in
             guard let self else { return false }
             guard await self.closedLid.prepareForTermination() else { return false }
+            guard await self.lidSleep.prepareForTermination() else { return false }   // a sleep request must not meet a set override
             // An earlier observation may be suspended before a native auto-action.
             // Let it finish before preparing; new auto-actions are already gated.
             let readinessDeadline = ContinuousClock.now.advanced(by: .seconds(4))
@@ -485,6 +494,7 @@ final class TilveroModel: ObservableObject {
         sleepAtCharge.prepare = { [weak self] in
             guard let self else { return false }
             guard await self.closedLid.prepareForTermination() else { return false }
+            guard await self.lidSleep.prepareForTermination() else { return false }
             let readinessDeadline = ContinuousClock.now.advanced(by: .seconds(4))
             while self.isApplying || self.nativeCharge.isBusy || self.nativeCharge.isQualifying || self.liveControl.isBusy {
                 guard !self.sleeping, ContinuousClock.now < readinessDeadline, !Task.isCancelled else { return false }
@@ -573,7 +583,7 @@ final class TilveroModel: ObservableObject {
     var canPerformChargeActions: Bool { isDemo || (usesNativeCharge ? nativeCharge.canApply : liveControl.canCharge) }
     var canChargeToFullOnce: Bool { isDemo || (usesNativeCharge ? nativeCharge.canChargeToFullOnce : liveControl.canCharge) }
     var canReleaseCharge: Bool { isDemo || nativeCharge.hasOwnedSettings || nativeCharge.pendingTarget != nil || nativeCharge.recoveryRequired || liveControl.hasOwnedSettings }
-    var terminationRecoveryMessage: String? { keepAwake.message.map(L10n.text) ?? nativeCharge.message.map(L10n.text) ?? liveControl.message.map(L10n.text) }
+    var terminationRecoveryMessage: String? { keepAwake.message.map(L10n.text) ?? lidSleep.failure ?? nativeCharge.message.map(L10n.text) ?? liveControl.message.map(L10n.text) }
     var canApply: Bool {
         guard canEdit, let target = draftTarget else { return false }
         if !isDemo && usesNativeCharge && !nativeCharge.needsApply(target: target) { return false }
@@ -598,6 +608,7 @@ final class TilveroModel: ObservableObject {
         updates.start()
         processMonitorStopped = false
         guard pollingTask == nil else { return }
+        if !isDemo { Task { await lidSleep.recoverIfNeeded() } }
         if !isDemo { Task { await liveControl.start() }; observer.start { [weak self] in Task { await self?.refresh() } } }
         pollingTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
@@ -643,6 +654,7 @@ final class TilveroModel: ObservableObject {
         } else {
             observedWake = true
             try? keepAwake.reconcile()
+            Task { await lidSleep.reconcileAfterWake() }
             if !isDemo && historyEnabled { saveSleepChanges(sleepTracker.accept(.didWake(stamp: sleepStamp(), epoch: lifecycleEpoch))) }
             queuedWakeRefresh = true
             Task { await refresh() }
@@ -872,6 +884,10 @@ final class TilveroModel: ObservableObject {
     func restoreAll() { runLive { guard try await $0.restoreAll() else { throw PrivilegeError.recoveryRequired } } }
     func prepareForTermination(systemInitiated: Bool = false) async -> Bool {
         guard await closedLid.prepareForTermination() else { return false }
+        // A system-initiated logout or shutdown cannot wait: the recovery marker restores sleep at the next launch.
+        if !(await lidSleep.prepareForTermination()) {
+            if !systemInitiated { selectedSleepPage = .awake; return false }
+        }
         sleepAtCharge.stop(); keepAwakeUntilCharge.stop()   // release their awake holds before any termination or update install
         if systemInitiated { sleepTimer.stop() }
         else {
@@ -1134,7 +1150,7 @@ final class TilveroModel: ObservableObject {
     private var setupControlsIdle: Bool {
         let charge = nativeCharge.presentation()
         return !controlsAreSuspended && !isApplying && !isReading && !sleeping && !sleepTimer.isActive && !sleepTimer.needsHoldRelease
-            && !keepAwake.hasOwnedAssertion && !closedLid.busy && !closedLid.isOn && !closedLid.needsRecovery
+            && !keepAwake.hasOwnedAssertion && !closedLid.busy && !closedLid.isOn && !closedLid.needsRecovery && !lidSleep.isOn && !lidSleep.needsRecovery
             && !nativeCharge.isBusy && !nativeCharge.isQualifying && !nativeCharge.hasOwnedSettings
             && !nativeCharge.recoveryRequired && !nativeCharge.restorationPending && nativeCharge.pendingTarget == nil
             && charge.pendingPurpose == nil && !charge.hasRecordedMutation && !charge.hasSavedAction
@@ -1174,7 +1190,7 @@ final class TilveroModel: ObservableObject {
         }
         inputs.keepAwake = keepAwake.isAvailable ? .available : .unavailable
         inputs.sleepTimer = sleepTimer.isAvailable ? .available : .unavailable
-        inputs.closedLid.restorationRequired = closedLid.needsRecovery
+        inputs.closedLid.restorationRequired = closedLid.needsRecovery || lidSleep.needsRecovery
         inputs.updates = SetupRuntime.updates(bundle: setupBundle,
             eligiblePolicy: launchPolicy.monitoringOnly && updates.identity.supportsInstallerProfile) {
                 !updatePreparationActive && updateReadiness.blockers.isEmpty

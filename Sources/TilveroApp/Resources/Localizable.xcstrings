@@ -15456,6 +15456,230 @@
           }
         }
       }
+    },
+    "With lid closed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "With lid closed"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "С закрытой крышкой"
+          }
+        }
+      }
+    },
+    "Start Keep Awake first.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start Keep Awake first."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сначала включите «Не засыпать»."
+          }
+        }
+      }
+    },
+    "The permission was not granted. The lid mode stays off.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The permission was not granted. The lid mode stays off."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешение не выдано. Режим с закрытой крышкой остаётся выключенным."
+          }
+        }
+      }
+    },
+    "macOS did not enable the lid mode.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS did not enable the lid mode."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS не включила режим закрытой крышки."
+          }
+        }
+      }
+    },
+    "Normal sleep could not be restored. Use Restore sleep.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Normal sleep could not be restored. Use Restore sleep."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось вернуть обычный сон. Нажмите «Вернуть сон»."
+          }
+        }
+      }
+    },
+    "Restore sleep": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore sleep"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вернуть сон"
+          }
+        }
+      }
+    },
+    "Remove permission…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove permission…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отозвать разрешение…"
+          }
+        }
+      }
+    },
+    "Tilvero asks to allow one command, pmset disablesleep, without a password, so Keep Awake can work with the lid closed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero asks to allow one command, pmset disablesleep, without a password, so Keep Awake can work with the lid closed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero просит разрешить одну команду, pmset disablesleep, без пароля, чтобы «Не засыпать» работало с закрытой крышкой."
+          }
+        }
+      }
+    },
+    "Tilvero asks to remove its closed-lid permission.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero asks to remove its closed-lid permission."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero просит отозвать своё разрешение для закрытой крышки."
+          }
+        }
+      }
+    },
+    "Tilvero asks to restore normal sleep.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero asks to restore normal sleep."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero просит вернуть обычный сон."
+          }
+        }
+      }
+    },
+    "Keeps the Mac awake with the lid closed while Keep Awake runs. The first time, macOS asks for the administrator password to allow one command, pmset disablesleep, without a password. Nothing else is allowed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keeps the Mac awake with the lid closed while Keep Awake runs. The first time, macOS asks for the administrator password to allow one command, pmset disablesleep, without a password. Nothing else is allowed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Держит Mac бодрым при закрытой крышке, пока работает «Не засыпать». В первый раз macOS попросит пароль администратора, чтобы разрешить одну команду, pmset disablesleep, без пароля. Больше ничего не разрешается."
+          }
+        }
+      }
+    },
+    "Normal sleep returns when Keep Awake ends, when you quit Tilvero, before a sleep timer or charge sleep, and at the next launch if the app was killed. A closed Mac in a bag stays on and warm: use a hard, ventilated surface.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Normal sleep returns when Keep Awake ends, when you quit Tilvero, before a sleep timer or charge sleep, and at the next launch if the app was killed. A closed Mac in a bag stays on and warm: use a hard, ventilated surface."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обычный сон возвращается, когда «Не засыпать» заканчивается, при выходе из Tilvero, перед сном по таймеру или заряду и при следующем запуске, если приложение было закрыто аварийно. Закрытый Mac в сумке остаётся включённым и греется: используйте жёсткую поверхность с вентиляцией."
+          }
+        }
+      }
+    },
+    "Not verified on every Mac and macOS version.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not verified on every Mac and macOS version."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Работа проверена не на всех Mac и версиях macOS."
+          }
+        }
+      }
+    },
+    "Sleep is already disabled by another tool or setting. Tilvero will not change it.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep is already disabled by another tool or setting. Tilvero will not change it."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон уже отключён другой программой или настройкой. Tilvero её не изменит."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

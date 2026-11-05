@@ -55,3 +55,28 @@ Use separate bounded trials for ending the exact Awake owner, expiry with the li
 If restoration stays unknown, open the lid, stop the series and preserve the services/journal for diagnosis. Use Stop/Check restoration once rather than repeating ambiguous writes. If normal recovery cannot be confirmed, save work and use a normal Apple-menu restart, then read-only verification; reboot is not a successful restoration test. Do not clear global sleep settings or delete the recovery journal.
 
 Default tests, local ad-hoc integrity and a source ZIP satisfy none of those physical/signing gates. The helper-free Monitoring Preview distribution remains separate; see [compatibility](COMPATIBILITY.md), [testing](TESTING.md) and [releasing](RELEASING.md).
+
+## Ordinary builds: `pmset disablesleep` mode (build 38)
+
+Owner decision (2026-11-06): ordinary builds offer **With lid closed** under Keep Awake through the system
+`pmset disablesleep` override, as vorssaint-utils does (see `THIRD_PARTY_NOTICES.md`). This is separate from the
+gated clamshell-user-client trial above, which stays for lab/trial builds (`ClosedLidService`).
+
+- `LidSleepOverrideService` (+ `NativeLidSleepSystem`, the only code that runs `pmset`, `sudo`, `osascript`).
+- First use: one macOS administrator prompt installs `/etc/sudoers.d/tilvero-lid`, a rule for the user's uid that
+  allows exactly `/usr/bin/pmset disablesleep 1` and `... 0` without a password (validated with `visudo -c`).
+  The info popover offers **Remove permission…** (second prompt) while the mode is off.
+- The mode exists only while a Keep Awake session runs. A recovery marker (`lidSleepOverrideActive`) is written
+  before the override is set and cleared only after a confirmed `SleepDisabled 0`. An override that is already set
+  (another tool, the user's own `pmset`) or unreadable is never adopted.
+- Restore paths (passwordless, no prompt): Keep Awake ends or is replaced, the switch, quit/update preparation,
+  before a sleep-timer or sleep-at-charge request, and the next launch if the marker survived a crash. A failed
+  automatic restore shows **Restore sleep** (administrator prompt, explicit action only).
+- After a restore with the lid already closed, the sleep that closing it would have caused is requested (up to 10
+  tries, 0.5 s apart), only when `AppleClamshellState` and `AppleClamshellCausesSleep` are both true (never with an
+  external display). Quit waits for an operation in flight; a system-initiated logout does not block on a failed
+  restore (the marker restores sleep at the next launch).
+- The sudoers rule is written to `/etc/sudoers.d/tilvero-lid.tmp`, validated with `visudo -c`, then moved into place.
+- Known limits: a force-quit/crash leaves the override set until the next launch of Tilvero (a closed Mac in a bag
+  stays on and warm); global `SleepDisabled` may block manual Sleep while on (earlier finding); not physically
+  verified by an agent. Default tests use a fake system and never change a setting or prompt.

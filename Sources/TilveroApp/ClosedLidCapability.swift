@@ -10,6 +10,10 @@ import ClosedLidControl
     init(model: TilveroModel) { self.model = model; service = model.closedLid }
     private var ru: Bool { L10n.language == "ru" }
     var body: some View {
+        if service.isFixture || service.isLiveTrial { trialBody } else { LidSleepOverrideRow(model: model) }
+    }
+
+    private var trialBody: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 StudioText(ru ? "С закрытой крышкой" : "With lid closed", id: "awake.closedLid.heading")
@@ -57,5 +61,42 @@ import ClosedLidControl
         case .conflict: ru ? "Обнаружен конфликт · требуется проверка" : "Conflict detected · review required"
         case .retiredAfterBoot: ru ? "Предыдущая сессия завершена перезагрузкой" : "Previous session ended by reboot"
         }
+    }
+}
+
+/// Ordinary builds: the closed-lid switch backed by `LidSleepOverrideService` (`pmset disablesleep`).
+@MainActor struct LidSleepOverrideRow: View {
+    @ObservedObject var model: TilveroModel
+    @ObservedObject private var service: LidSleepOverrideService
+    init(model: TilveroModel) { self.model = model; service = model.lidSleep }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                StudioText(L10n.text("With lid closed"), id: "awake.closedLid.heading")
+                    .font(.system(size: 14, weight: .semibold)).fixedSize()
+                SectionInfoButton(title: L10n.text("With lid closed"), paragraphs: [
+                    L10n.text("Keeps the Mac awake with the lid closed while Keep Awake runs. The first time, macOS asks for the administrator password to allow one command, pmset disablesleep, without a password. Nothing else is allowed."),
+                    L10n.text("Normal sleep returns when Keep Awake ends, when you quit Tilvero, before a sleep timer or charge sleep, and at the next launch if the app was killed. A closed Mac in a bag stays on and warm: use a hard, ventilated surface."),
+                    L10n.text("Not verified on every Mac and macOS version."),
+                ], id: "closed-lid-info",
+                   action: service.ruleFilePresent && !service.isOn && !service.needsRecovery
+                    ? (L10n.text("Remove permission…"), { Task { await service.removePermission() } }) : nil)
+                Spacer(minLength: 8)
+                Toggle(L10n.text("With lid closed"), isOn: Binding(
+                    get: { service.isOn },
+                    set: { enabled in Task { await service.setEnabled(enabled) } }))
+                    .toggleStyle(.switch).controlSize(.regular).labelsHidden().fixedSize()
+                    .disabled(!service.isAvailable || service.busy || (!service.isOn && (!model.keepAwake.hasOwnedAssertion || service.needsRecovery)))
+                    .accessibilityIdentifier("closed-lid-master")
+            }
+            .frame(height: 32)
+            if let failure = service.failure {
+                Text(failure).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+            }
+            if service.needsRecovery {
+                Button(L10n.text("Restore sleep")) { Task { await service.restoreSleep() } }.font(.caption).disabled(service.busy)
+            }
+        }
+        .studioElement("awake.closedLid", kind: "container", label: "Closed-lid session controls")
     }
 }

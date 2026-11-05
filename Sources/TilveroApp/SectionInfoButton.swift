@@ -6,6 +6,7 @@ import SwiftUI
     let title: String
     let paragraphs: [String]
     let id: String
+    var action: (title: String, handler: () -> Void)?
     @State private var shown = false
 
     var body: some View {
@@ -22,6 +23,9 @@ import SwiftUI
                 Text(title).font(.headline)
                 ForEach(paragraphs, id: \.self) { paragraph in
                     Text(paragraph).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                if let action {
+                    Button(action.title) { shown = false; action.handler() }.padding(.top, 2)
                 }
             }
             .frame(width: 270, alignment: .leading).padding(14)

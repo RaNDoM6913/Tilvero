@@ -158,3 +158,15 @@ IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 
 ```
+
+## vorssaint-utils (design reference, GPL-3.0-or-later)
+
+Source: https://github.com/vorssaint/vorssaint-utils (commit 26d3c9e199eb3afc8f43ce8bd83210b5754421bd),
+Copyright (C) 2026 Vorssaint, licensed GPL-3.0-or-later (compatible with this project's GPL-3.0-only terms).
+
+`Sources/TilveroApp/LidSleepOverrideService.swift` follows the approach of its closed-lid Keep Awake
+(`KeepAwakeManager.swift`, `SudoersSupport.swift`, `ShellSupport.swift`): the `pmset disablesleep` override,
+a one-command sudoers rule granted by uid, proving the passwordless path by using it, a recovery marker written
+before the override is set, restore on end/quit/next launch and the bounded sleep request after a restore with
+the lid already closed. The code in this repository is written independently; the rule text pattern and the
+`SleepDisabled` output check are the same idea and are credited here.
