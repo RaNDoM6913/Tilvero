@@ -10,17 +10,21 @@ import ClosedLidControl
     init(model: TilveroModel) { self.model = model; service = model.closedLid }
     private var ru: Bool { L10n.language == "ru" }
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Toggle(ru ? "С закрытой крышкой" : "With lid closed", isOn: Binding(
-                get: { service.isOn },
-                set: { enabled in Task { await service.setEnabled(enabled, seconds: min(86_400, max(1, model.keepAwake.remainingSeconds))) } }))
-                .toggleStyle(.switch).controlSize(.small)
-                .disabled(!service.isAvailable || service.busy || (!service.isOn && (!model.keepAwake.hasOwnedAssertion || service.needsRecovery)))
-                .accessibilityIdentifier("closed-lid-master")
-                .frame(minHeight: minimumSwitchRowHeight)
-            Text(capabilityDescription)
-                .font(.caption2).foregroundStyle(.secondary)
-            if service.state.phase != .idle { Text(status).font(.caption).foregroundStyle(service.needsRecovery ? .orange : .secondary).accessibilityIdentifier("closed-lid-status") }
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                StudioText(ru ? "С закрытой крышкой" : "With lid closed", id: "awake.closedLid.heading")
+                    .font(.system(size: 14, weight: .semibold)).fixedSize()
+                SectionInfoButton(title: ru ? "С закрытой крышкой" : "With lid closed", paragraphs: [capabilityDescription, status], id: "closed-lid-info")
+                Spacer(minLength: 8)
+                Toggle(ru ? "С закрытой крышкой" : "With lid closed", isOn: Binding(
+                    get: { service.isOn },
+                    set: { enabled in Task { await service.setEnabled(enabled, seconds: min(86_400, max(1, model.keepAwake.remainingSeconds))) } }))
+                    .toggleStyle(.switch).controlSize(.regular).labelsHidden().fixedSize()
+                    .disabled(!service.isAvailable || service.busy || (!service.isOn && (!model.keepAwake.hasOwnedAssertion || service.needsRecovery)))
+                    .accessibilityIdentifier("closed-lid-master")
+            }
+            .frame(height: 32)
+            if service.needsRecovery { Text(status).font(.caption).foregroundStyle(.orange).accessibilityIdentifier("closed-lid-status") }
             if let failure = service.failure { Text(failure).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true) }
             if service.isLiveTrial {
                 HStack {
@@ -34,7 +38,6 @@ import ClosedLidControl
                 Button(ru ? "Проверить восстановление" : "Check restoration") { Task { await service.refresh() } }.font(.caption).disabled(service.busy)
             }
         }
-        .font(.caption).padding(.top, 4)
         .onAppear { service.bind(model.keepAwake) }
         .studioElement("awake.closedLid", kind: "container", label: "Closed-lid session controls")
     }

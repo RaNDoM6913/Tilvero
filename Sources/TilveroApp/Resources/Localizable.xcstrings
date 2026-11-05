@@ -15105,22 +15105,6 @@
         }
       }
     },
-    "Choose a charge level. The Mac sleeps once the battery drops to it.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Choose a charge level. The Mac sleeps once the battery drops to it. Levels at or above the current charge are unavailable."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Выберите уровень заряда — Mac уснёт, когда батарея разрядится до него. Уровни не ниже текущего заряда недоступны."
-          }
-        }
-      }
-    },
     "Sleep at charge cancelled.": {
       "localizations": {
         "en": {
@@ -15405,6 +15389,70 @@
           "stringUnit": {
             "state": "translated",
             "value": "Сон при заряде отменён через 24 часа."
+          }
+        }
+      }
+    },
+    "About": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "О функции"
+          }
+        }
+      }
+    },
+    "Keep awake until charge": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep awake until charge"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не засыпать до заряда"
+          }
+        }
+      }
+    },
+    "Keeps Mac awake until the charge drops to the level (up to 24 h), then stops holding it; the Mac sleeps as usual.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keeps Mac awake until the charge drops to the level (up to 24 h), then stops holding it; the Mac sleeps as usual."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не даёт Mac уснуть, пока заряд не снизится до уровня (не дольше 24 ч), затем перестаёт его удерживать — Mac засыпает как обычно."
+          }
+        }
+      }
+    },
+    "Levels at or above the current charge are unavailable. Cancelled by sleep or quitting Tilvero.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Levels at or above the current charge are unavailable. Cancelled by sleep or quitting Tilvero."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Уровни не ниже текущего заряда недоступны. Отменяется сном или выходом из Tilvero."
           }
         }
       }

@@ -277,17 +277,13 @@ enum SleepPillActionError: LocalizedError, Equatable {
                             .font(.caption).monospacedDigit().foregroundStyle(.secondary)
                     }
                 }
-            } else {
-                Text(L10n.text("Choose a time to start immediately.")).font(.caption).foregroundStyle(.secondary)
             }
-            if let message = error ?? service.message {
+            if let message = error ?? service.problemMessage {
                 Text(L10n.text(message)).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
             }
             if let diagnostic = service.diagnostic {
                 DisclosureGroup(L10n.text("Details")) { Text(L10n.text(diagnostic)).font(.caption).textSelection(.enabled) }.font(.caption)
             }
-            Text(L10n.text("Keeps Mac awake until the timer ends, then requests sleep."))
-                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             if !service.isAvailable {
                 Text(L10n.text("Sleep timer is unavailable in this build or simulation.")).font(.caption).foregroundStyle(.secondary)
             }
@@ -318,6 +314,10 @@ enum SleepPillActionError: LocalizedError, Equatable {
         return HStack(spacing: 6) {
             StudioText(L10n.text("Sleep timer"), id: "timer.heading")
                 .font(.system(size: 14, weight: .semibold)).fixedSize()
+            SectionInfoButton(title: L10n.text("Sleep timer"), paragraphs: [
+                L10n.text("Choose a time to start immediately."),
+                L10n.text("Keeps Mac awake until the timer ends, then requests sleep."),
+            ], id: "sleep-timer-info")
             Spacer(minLength: 8)
             Toggle(L10n.text("Sleep timer"), isOn: Binding(
                 get: { service.isActive },
@@ -399,22 +399,6 @@ enum SleepPillActionError: LocalizedError, Equatable {
     }
 }
 
-@MainActor struct AwakeSettingsDisclosure: View {
-    @ObservedObject var model: TilveroModel
-    @Binding var isExpanded: Bool
-
-    var body: some View {
-        DisclosureGroup(L10n.text("Settings"), isExpanded: $isExpanded) {
-            StudioText(L10n.text("The display can turn off. Closing the lid or choosing Sleep still works."), id: "awake.settings.explanation")
-                .font(.caption).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true).padding(.top, 4)
-            ClosedLidExplanationView(model: model)
-        }
-        .font(.system(size: 12)).frame(maxWidth: .infinity, alignment: .leading)
-        .studioElement("awake.settings", kind: "container", label: "Keep Awake settings")
-    }
-}
-
 @MainActor struct KeepAwakePillsPanel: View {
     @ObservedObject var model: TilveroModel
     @State private var wheelMode: SleepWheelMode?
@@ -426,7 +410,6 @@ enum SleepPillActionError: LocalizedError, Equatable {
     @State private var pending: PendingAction?
     @State private var consent: SleepPillConfirmation?
     @State private var confirms = false
-    @State private var settingsExpanded = false
     private var service: KeepAwakeService { model.keepAwake }
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 4)
     var body: some View {
@@ -446,14 +429,11 @@ enum SleepPillActionError: LocalizedError, Equatable {
                         .background { wheelAnchor(mode: .until) }
                 }
             }
-            HStack(alignment: .top, spacing: 12) {
-                AwakeSettingsDisclosure(model: model, isExpanded: $settingsExpanded)
-                if SleepPillActions.awakeSelection(model) == .custom {
-                    TimelineView(.periodic(from: .now, by: 1)) { _ in
-                        StudioText(KeepAwakePresentation.countdown(service.remainingSeconds), id: "awake.custom.countdown")
-                            .font(.system(size: 12, weight: .semibold)).monospacedDigit()
-                            .foregroundStyle(.secondary)
-                    }
+            if SleepPillActions.awakeSelection(model) == .custom {
+                TimelineView(.periodic(from: .now, by: 1)) { _ in
+                    StudioText(KeepAwakePresentation.countdown(service.remainingSeconds), id: "awake.custom.countdown")
+                        .font(.system(size: 12, weight: .semibold)).monospacedDigit()
+                        .foregroundStyle(.secondary)
                 }
             }
             if service.hasOwnedAssertion {
@@ -466,8 +446,6 @@ enum SleepPillActionError: LocalizedError, Equatable {
                             .font(.caption).foregroundStyle(service.isActive ? Color.secondary : Color.orange)
                     }
                 }
-            } else {
-                Text(L10n.text("Choose a time to start immediately.")).font(.caption).foregroundStyle(.secondary)
             }
             if let message = error ?? service.message {
                 Text(L10n.text(message)).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
@@ -475,6 +453,10 @@ enum SleepPillActionError: LocalizedError, Equatable {
             if !service.isAvailable {
                 Text(L10n.text("Keep Awake is unavailable in this build or simulation.")).font(.caption).foregroundStyle(.secondary)
             }
+            Divider().padding(.vertical, 2)
+            SleepAtChargePanel(model: model, mode: .keepAwake)
+            Divider().padding(.vertical, 2)
+            ClosedLidExplanationView(model: model)
         }
         .studioElement("awake.editor", kind: "container", label: "Keep Awake editor")
         .confirmationDialog(consent?.title ?? "", isPresented: $confirms, titleVisibility: .visible) {
@@ -495,6 +477,10 @@ enum SleepPillActionError: LocalizedError, Equatable {
         return HStack(spacing: 6) {
             StudioText(L10n.text("Keep Awake"), id: "awake.heading")
                 .font(.system(size: 14, weight: .semibold)).fixedSize()
+            SectionInfoButton(title: L10n.text("Keep Awake"), paragraphs: [
+                L10n.text("Choose a time to start immediately."),
+                L10n.text("The display can turn off. Closing the lid or choosing Sleep still works."),
+            ], id: "keep-awake-info")
             Spacer(minLength: 8)
             if service.isActive, let token {
                 extensionButton(15, token: token)
@@ -602,39 +588,54 @@ enum SleepPillActionError: LocalizedError, Equatable {
 /// "Sleep at charge" block under the sleep timer: a switch plus level pills. Picking a level arms it at once
 /// (like the timer's pills); the same pill again, or the switch, cancels it.
 @MainActor struct SleepAtChargePanel: View {
+    /// `.sleep`: stay awake until the level, then sleep (under the sleep timer). `.keepAwake`: stay awake until the
+    /// level, then only stop holding (under Keep Awake).
+    enum Mode { case sleep, keepAwake }
     @ObservedObject var model: TilveroModel
+    var mode: Mode = .sleep
     @State private var error: String?
-    private var service: SleepAtChargeService { model.sleepAtCharge }
+    private var service: SleepAtChargeService { mode == .sleep ? model.sleepAtCharge : model.keepAwakeUntilCharge }
+    private var prefix: String { mode == .sleep ? "charge-sleep" : "charge-awake" }
+    private var title: String { L10n.text(mode == .sleep ? "Sleep at charge" : "Keep awake until charge") }
+    private var choice: Int {
+        get { mode == .sleep ? model.sleepAtChargeChoice : model.keepAwakeUntilChargeChoice }
+    }
+    private func remember(_ target: Int) {
+        if mode == .sleep { model.sleepAtChargeChoice = target } else { model.keepAwakeUntilChargeChoice = target }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 6) {
-                StudioText(L10n.text("Sleep at charge"), id: "charge-sleep.heading")
+                StudioText(title, id: prefix + ".heading")
                     .font(.system(size: 14, weight: .semibold)).fixedSize()
+                SectionInfoButton(title: title, paragraphs: [
+                    L10n.text(mode == .sleep ? "Keeps Mac awake until the charge drops to the level (up to 24 h), then requests sleep."
+                                             : "Keeps Mac awake until the charge drops to the level (up to 24 h), then stops holding it; the Mac sleeps as usual."),
+                    L10n.text("Levels at or above the current charge are unavailable. Cancelled by sleep or quitting Tilvero."),
+                ], id: prefix + "-info")
                 Spacer(minLength: 8)
-                Toggle(L10n.text("Sleep at charge"), isOn: Binding(get: { service.isArmed }, set: setEnabled))
+                Toggle(title, isOn: Binding(get: { service.isArmed }, set: setEnabled))
                     .toggleStyle(.switch).controlSize(.regular).labelsHidden().fixedSize()
                     .disabled(!service.isArmed && !service.canChooseTarget)
-                    .accessibilityIdentifier("sleep-at-charge-master")
-                    .studioElement("charge-sleep.master", label: "Sleep at charge master switch")
+                    .accessibilityIdentifier(mode == .sleep ? "sleep-at-charge-master" : "keep-awake-until-charge-master")
+                    .studioElement(prefix + ".master", label: title + " master switch")
             }
             .frame(height: 32)
             HStack(spacing: 6) {
                 ForEach(SleepAtChargeService.targets, id: \.self) { target in
                     SleepAtChargePill(title: "\(target) %", selected: service.target == target,
-                                      enabled: service.target == target || canArm(target), id: "charge-sleep.preset.\(target)") {
+                                      enabled: service.target == target || canArm(target), id: prefix + ".preset.\(target)") {
                         choose(target)
                     }
                 }
             }
             status
-            Text(L10n.text("Keeps Mac awake until the charge drops to the level (up to 24 h), then requests sleep."))
-                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             if !service.isAvailable {
                 Text(L10n.text("Sleep at charge is unavailable in this build or simulation.")).font(.caption).foregroundStyle(.secondary)
             }
         }
-        .studioElement("charge-sleep.editor", kind: "container", label: "Sleep at charge editor")
+        .studioElement(prefix + ".editor", kind: "container", label: title + " editor")
     }
 
     @ViewBuilder private var status: some View {
@@ -646,11 +647,8 @@ enum SleepPillActionError: LocalizedError, Equatable {
                     Text(L10n.text("Waits until the Mac runs on battery power.")).font(.caption).foregroundStyle(.secondary)
                 }
             }
-        } else if let message = error ?? service.message {
+        } else if let message = error ?? service.problemMessage {
             Text(L10n.text(message)).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
-        } else {
-            Text(L10n.text("Choose a charge level. The Mac sleeps once the battery drops to it."))
-                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -659,7 +657,7 @@ enum SleepPillActionError: LocalizedError, Equatable {
     private func choose(_ target: Int) {
         error = nil
         if service.target == target { service.disarm(); return }
-        do { try service.arm(target: target); model.sleepAtChargeChoice = target }
+        do { try service.arm(target: target); remember(target) }
         catch { self.error = error.localizedDescription }
     }
 
@@ -667,7 +665,7 @@ enum SleepPillActionError: LocalizedError, Equatable {
         error = nil
         guard on else { service.disarm(); return }
         // The remembered level, or the highest one still below the present charge.
-        let choice = model.sleepAtChargeChoice
+        let choice = self.choice
         let target = canArm(choice) ? choice : SleepAtChargeService.targets.first(where: canArm)
         guard let target else { error = SleepAtChargeError.alreadyReached.localizedDescription; return }
         choose(target)

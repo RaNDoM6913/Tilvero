@@ -63,6 +63,16 @@ import PowerCore
         return record.minutes
     }
     var sessionID: UUID? { engine.sessionID }
+    /// Cancellation and progress notes are state, not trouble; only the rest is shown as a warning.
+    var problemMessage: String? {
+        guard let text = message, !Self.neutralMessages.contains(text) else { return nil }
+        return text
+    }
+    private static let neutralMessages: Set<String> = [
+        "Timer cancelled.", "Timer cancelled because the Mac went to sleep.", "Timer cancelled because the Mac woke from sleep.",
+        "Timer cancelled because this user session is no longer active.", "System sleep was observed.",
+        "Sleep requested. Waiting for system sleep.",
+    ]
     var isActive: Bool { phase.isActive || needsHoldRelease }
     var isEditable: Bool { phase.isEditable && !needsHoldRelease }
     var isWarning: Bool { phase == .warning }

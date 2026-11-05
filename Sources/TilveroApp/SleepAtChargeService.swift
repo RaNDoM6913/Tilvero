@@ -8,6 +8,8 @@ import Combine
 /// Mac straight back to sleep. It fires only from a fresh charge reading taken on battery power and changes no
 /// power setting (the request is the same explicit system sleep the sleep timer uses).
 @MainActor final class SleepAtChargeService: ObservableObject {
+    /// What happens at the level: force a system sleep (after safe preparation), or only stop holding the Mac awake.
+    enum EndAction { case sleep, release }
     static let targets = [50, 30, 20, 10, 5]
     static let maximumHold: TimeInterval = 24 * 3600
 
@@ -22,18 +24,31 @@ import Combine
     var prepare: @MainActor () async -> Bool
     private let driver: any SleepTimerTransport
     private let allowed: Bool
+    private let endAction: EndAction
     private let now: @MainActor () -> Date
     private var generation: UInt64 = 0
     private var armedAt: Date?
     @Published private(set) var isHoldingAwake = false
 
-    init(driver: any SleepTimerTransport, allowed: Bool = true, now: @escaping @MainActor () -> Date = { Date() },
+    init(driver: any SleepTimerTransport, allowed: Bool = true, endAction: EndAction = .sleep, now: @escaping @MainActor () -> Date = { Date() },
          prepare: @escaping @MainActor () async -> Bool = { true }) {
+        self.endAction = endAction
         self.driver = driver; self.allowed = allowed; self.prepare = prepare; self.now = now
         isHoldingAwake = driver.hasIdleHold
     }
 
     var isAvailable: Bool { allowed }
+    /// Neutral outcomes (cancelled, requested) are state, not trouble; only the rest is worth a warning line.
+    var problemMessage: String? {
+        guard let text = message, !Self.neutralMessages.contains(text) else { return nil }
+        return text
+    }
+    private static let neutralMessages: Set<String> = [
+        "Sleep at charge cancelled.", "Sleep at charge cancelled because the Mac went to sleep.",
+        "Sleep at charge cancelled because the Mac woke from sleep.",
+        "Sleep at charge cancelled because this user session is no longer active.",
+        "Preparing for sleep…", "Sleep requested at the chosen charge.",
+    ]
     var isArmed: Bool { target != nil }
     /// A target is offered only when it lies below the present charge; arming at or above it would sleep at once.
     func canArm(target candidate: Int) -> Bool {
@@ -96,6 +111,14 @@ import Combine
         guard let goal = target, !isRequesting, fresh, let percent, (0...100).contains(percent),
               externalPower == false, percent <= goal else { return }
         guard driver.isCurrentConsoleSession() else { sessionResigned(); return }
+        if endAction == .release {
+            // Reached: stop holding the Mac awake; it then sleeps by itself as usual.
+            generation &+= 1
+            target = nil
+            armedAt = nil
+            if !releaseHold() { message = "The awake hold could not be released. Try Cancel again." }
+            return
+        }
         let id = generation
         isRequesting = true
         message = "Preparing for sleep…"

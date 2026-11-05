@@ -189,10 +189,17 @@ final class TilveroModel: ObservableObject {
     let keepAwake: KeepAwakeService
     let sleepTimer: SleepTimerService
     let sleepAtCharge: SleepAtChargeService
+    /// "Keep awake until the charge drops to N %": the same mechanism, but at the level the hold is only released.
+    let keepAwakeUntilCharge: SleepAtChargeService
+    private var keepAwakeUntilChargeSubscription: AnyCancellable?
     /// Last chosen "sleep at charge" level (the switch re-arms it); arming itself is never persisted.
     var sleepAtChargeChoice: Int {
         get { let saved = preferences.integer(forKey: "sleepAtChargeTarget"); return SleepAtChargeService.targets.contains(saved) ? saved : 20 }
         set { preferences.set(newValue, forKey: "sleepAtChargeTarget"); objectWillChange.send() }
+    }
+    var keepAwakeUntilChargeChoice: Int {
+        get { let saved = preferences.integer(forKey: "keepAwakeUntilChargeTarget"); return SleepAtChargeService.targets.contains(saved) ? saved : 20 }
+        set { preferences.set(newValue, forKey: "keepAwakeUntilChargeTarget"); objectWillChange.send() }
     }
     private var sleepAtChargeSubscription: AnyCancellable?
     let closedLid: ClosedLidService
@@ -398,6 +405,7 @@ final class TilveroModel: ObservableObject {
         sleepTimer = sleepTimerService ?? SleepTimerService(driver: sleepTransport, allowed: !isDemo && !monitoring)
         // Its own idle hold, independent of the timer's (a real run gets a separate transport instance).
         sleepAtCharge = SleepAtChargeService(driver: sleepTimerTransport ?? NativeSleepTimerTransport(), allowed: !isDemo && !monitoring)
+        keepAwakeUntilCharge = SleepAtChargeService(driver: sleepTimerTransport ?? NativeSleepTimerTransport(), allowed: !isDemo && !monitoring, endAction: .release)
         closedLid = closedLidService ?? ClosedLidService(allowed: !isDemo && !monitoring)
         self.setupBundle = setupBundle
         let setupIdentity = try? ReleaseIdentity.current(bundle: setupBundle)
@@ -486,6 +494,7 @@ final class TilveroModel: ObservableObject {
             return await self.liveControl.prepareForRequestedSleep()
         }
         sleepAtChargeSubscription = sleepAtCharge.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
+        keepAwakeUntilChargeSubscription = keepAwakeUntilCharge.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
         awakeSubscription = keepAwake.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
         awakeMessageSubscription = keepAwake.$message.sink { [weak self] message in
             guard let self else { return }
@@ -608,7 +617,7 @@ final class TilveroModel: ObservableObject {
     func stop() {
         updates.stop()
         sleepTimer.stop()
-        sleepAtCharge.stop()
+        sleepAtCharge.stop(); keepAwakeUntilCharge.stop()
         processMonitorStopped = true; processRevision &+= 1; processSampler.reset(); processActivity = nil
         processHighlights.reset(); highCPUApplications = []
         try? keepAwake.stop()
@@ -616,7 +625,7 @@ final class TilveroModel: ObservableObject {
         pollingTask?.cancel(); pollingTask = nil; observer.stop(); try? store?.close()
     }
     func setSleeping(_ value: Bool) {
-        if value { sleepTimer.systemWillSleep(); sleepAtCharge.systemWillSleep() } else { sleepTimer.systemDidWake(); sleepAtCharge.systemDidWake() }
+        if value { sleepTimer.systemWillSleep(); sleepAtCharge.systemWillSleep(); keepAwakeUntilCharge.systemWillSleep() } else { sleepTimer.systemDidWake(); sleepAtCharge.systemDidWake(); keepAwakeUntilCharge.systemDidWake() }
         if value && sleeping { return }
         if !value && !sleeping && observedWake { return }
         lifecycleEpoch &+= 1
@@ -710,7 +719,10 @@ final class TilveroModel: ObservableObject {
             // `raw` is a reading taken just now; live IOKit readings carry freshness .unknown, only .stale is excluded.
             let observedFresh = raw.chargePercent.availability == .available && raw.chargePercent.freshness != .stale
             let observedPower = raw.isExternalPower.availability == .available && raw.isExternalPower.freshness != .stale ? raw.isExternalPower.value : nil
-            Task { await sleepAtCharge.observe(percent: observedPercent, fresh: observedFresh, externalPower: observedPower) }
+            Task {
+                await sleepAtCharge.observe(percent: observedPercent, fresh: observedFresh, externalPower: observedPower)
+                await keepAwakeUntilCharge.observe(percent: observedPercent, fresh: observedFresh, externalPower: observedPower)
+            }
             if !controlsAreSuspended { await liveControl.observe(snapshot) }
             if !controlsAreSuspended {
                 await nativeCharge.observeBattery(percent: raw.chargePercent.value,
@@ -860,7 +872,7 @@ final class TilveroModel: ObservableObject {
     func restoreAll() { runLive { guard try await $0.restoreAll() else { throw PrivilegeError.recoveryRequired } } }
     func prepareForTermination(systemInitiated: Bool = false) async -> Bool {
         guard await closedLid.prepareForTermination() else { return false }
-        sleepAtCharge.stop()   // releases its awake hold before any termination or update install
+        sleepAtCharge.stop(); keepAwakeUntilCharge.stop()   // release their awake holds before any termination or update install
         if systemInitiated { sleepTimer.stop() }
         else {
             if sleepTimer.needsHoldRelease { sleepTimer.cancel(); guard !sleepTimer.needsHoldRelease else { return false } }

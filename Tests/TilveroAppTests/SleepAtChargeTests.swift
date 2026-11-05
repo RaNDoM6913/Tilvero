@@ -190,7 +190,8 @@ import XCTest
             let saved = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
             UserDefaults.standard.setVolatileDomain(saved.merging(["language": language]) { _, v in v }, forName: UserDefaults.argumentDomain)
             defer { UserDefaults.standard.setVolatileDomain(saved, forName: UserDefaults.argumentDomain) }
-            let host = NSHostingController(rootView: QuickPanel(model: model, section: .awake).frame(width: 360)
+            for (section, name) in [(QuickPanelSection.awake, "sleep")] {
+            let host = NSHostingController(rootView: QuickPanel(model: model, section: section).frame(width: 360)
                 .background(Color(nsColor: .windowBackgroundColor)).environment(\.colorScheme, .dark)
                 .environment(\.controlActiveState, .key).environment(\.locale, L10n.locale))
             let size = host.sizeThatFits(in: NSSize(width: 360, height: 900))
@@ -205,9 +206,10 @@ import XCTest
                 let bitmap = try XCTUnwrap(host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds))
                 host.view.cacheDisplay(in: host.view.bounds, to: bitmap)
                 try? FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
-                try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(to: URL(fileURLWithPath: folder + "/look-charge-sleep-\(language).png"))
+                try XCTUnwrap(bitmap.representation(using: .png, properties: [:])).write(to: URL(fileURLWithPath: folder + "/look-charge-\(name)-\(language).png"))
             }
             window.orderOut(nil)
+            }
         }
     }
 }
