@@ -44,7 +44,8 @@ enum SleepWheelValue: Equatable {
                 StudioText(mode == .duration ? L10n.text("Custom duration") : L10n.text("Until"), id: "sleep.wheel.title")
                     .font(.system(size: 14, weight: .semibold))
                 if mode == .until {
-                    dayMenu
+                    StudioText(untilDateText, id: "sleep.wheel.date")
+                        .font(.system(size: 13)).monospacedDigit()
                     StudioText(untilTimeText, id: "sleep.wheel.time")
                         .font(.system(size: 13)).monospacedDigit()
                         .foregroundStyle(value(at: now) == nil ? Color.secondary : Color.primary)
@@ -89,6 +90,7 @@ enum SleepWheelValue: Equatable {
         .onAppear { withAnimation(reduceMotion ? nil : .easeOut(duration: 0.16)) { appeared = true } }
         .environment(\.calendar, calendar).environment(\.timeZone, calendar.timeZone)
         .environment(\.locale, L10n.locale)
+        .background { OutsideClickDismiss(onOutside: cancel) }
         .onChange(of: hours) { rollDay() }
         .onChange(of: minutes) { rollDay() }
         .onSubmit(commit).onExitCommand(perform: cancel)
@@ -152,38 +154,10 @@ enum SleepWheelValue: Equatable {
         return interval.isFinite && interval > 0 && interval <= 86_400 ? .until(target) : nil
     }
 
-    /// The end is always within 24 hours, so only today or tomorrow are valid: a native pull-down replaces the
-    /// editable date field, which grabbed keyboard focus the moment the picker opened.
-    private var dayMenu: some View {
-        let dayChoice = Binding<Int>(
-            get: { calendar.isDateInToday(selectedDay) ? 0 : 1 },
-            set: { offset in
-                guard let day = calendar.date(byAdding: .day, value: offset, to: Date()) else { return }
-                selectedDay = Self.concreteDate(day: day, hour: hours, minute: minutes, calendar: calendar) ?? day
-            })
-        return Menu {
-            Picker("", selection: dayChoice) {
-                Text(dayTitle(offset: 0)).tag(0)
-                Text(dayTitle(offset: 1)).tag(1)
-            }.pickerStyle(.inline).labelsHidden()
-        } label: {
-            HStack(spacing: 4) {
-                Text(selectedDay.formatted(.dateTime.day().month(.abbreviated).locale(L10n.locale)))
-                    .font(.system(size: 13)).monospacedDigit()
-                Image(systemName: "chevron.up.chevron.down").font(.system(size: 8, weight: .semibold)).foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 8).padding(.vertical, 3)
-            .background(RoundedRectangle(cornerRadius: 7).fill(Color.primary.opacity(0.09)))
-        }
-        .menuStyle(.button).menuIndicator(.hidden).buttonStyle(.plain).fixedSize()
-        .accessibilityLabel(L10n.language == "ru" ? "Дата окончания" : "End date")
-        .studioElement("sleep.wheel.date", label: "End date")
-    }
-
-    private func dayTitle(offset: Int) -> String {
-        let day = calendar.date(byAdding: .day, value: offset, to: Date()) ?? Date()
-        let name = offset == 0 ? (L10n.language == "ru" ? "Сегодня" : "Today") : (L10n.language == "ru" ? "Завтра" : "Tomorrow")
-        return name + ", " + day.formatted(.dateTime.day().month(.abbreviated).locale(L10n.locale))
+    /// The end is always within 24 hours, so exactly one day is valid for a chosen time of day (its next
+    /// occurrence). The day is therefore derived from the wheels and shown, never chosen separately.
+    private var untilDateText: String {
+        selectedDay.formatted(.dateTime.day().month(.abbreviated).locale(L10n.locale))
     }
 
     private var untilTimeText: String {
@@ -261,4 +235,41 @@ private struct WheelCapsuleButtonStyle: ButtonStyle {
             .opacity(isEnabled ? 1 : 0.4)
             .contentShape(Capsule())
     }
+}
+
+/// Closes a popover on any mouse press outside its window. The native transient behaviour was not reliably
+/// triggered for the Keep Awake presentation, and an open picker must never linger after the user clicks away.
+private struct OutsideClickDismiss: NSViewRepresentable {
+    let onOutside: () -> Void
+    func makeNSView(context: Context) -> OutsideClickView { OutsideClickView() }
+    func updateNSView(_ view: OutsideClickView, context: Context) { view.onOutside = onOutside }
+}
+
+@MainActor final class OutsideClickView: NSView {
+    var onOutside: () -> Void = {}
+    private var local: Any?
+    private var global: Any?
+    private let mask: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        removeMonitors()
+        guard window != nil else { return }
+        local = NSEvent.addLocalMonitorForEvents(matching: mask) { [weak self] event in
+            if let self, let window = self.window, event.window !== window { self.fire() }
+            return event
+        }
+        global = NSEvent.addGlobalMonitorForEvents(matching: mask) { [weak self] _ in
+            Task { @MainActor in self?.fire() }
+        }
+    }
+    private func fire() { DispatchQueue.main.async { [weak self] in self?.onOutside() } }
+    private func removeMonitors() {
+        if let local { NSEvent.removeMonitor(local) }
+        if let global { NSEvent.removeMonitor(global) }
+        local = nil; global = nil
+    }
+    isolated deinit { removeMonitors() }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    override func isAccessibilityElement() -> Bool { false }
 }

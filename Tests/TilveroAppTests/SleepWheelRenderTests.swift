@@ -44,4 +44,27 @@ import XCTest
         }
         window.orderOut(nil)
     }
+
+    func testPressOutsideThePickerWindowCancelsIt() async throws {
+        var cancelled = 0
+        let picker = SleepWheelPicker(mode: .until, initialMinutes: 30, initialDate: Date().addingTimeInterval(7200),
+                                      onCommit: { _ in }, onCancel: { cancelled += 1 })
+        let host = NSHostingController(rootView: picker)
+        let window = NSWindow(contentViewController: host)
+        window.setContentSize(NSSize(width: 244, height: 220)); window.orderFront(nil)
+        let other = NSWindow(contentRect: NSRect(x: 600, y: 600, width: 100, height: 100), styleMask: [.titled], backing: .buffered, defer: false)
+        other.orderFront(nil)
+        try await Task.sleep(for: .milliseconds(100))
+        let inside = try XCTUnwrap(NSEvent.mouseEvent(with: .leftMouseDown, location: NSPoint(x: 20, y: 20), modifierFlags: [], timestamp: 0,
+            windowNumber: window.windowNumber, context: nil, eventNumber: 1, clickCount: 1, pressure: 1))
+        NSApp.sendEvent(inside)
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertEqual(cancelled, 0, "A press inside the picker must not cancel it.")
+        let outside = try XCTUnwrap(NSEvent.mouseEvent(with: .leftMouseDown, location: NSPoint(x: 20, y: 20), modifierFlags: [], timestamp: 0,
+            windowNumber: other.windowNumber, context: nil, eventNumber: 2, clickCount: 1, pressure: 1))
+        NSApp.sendEvent(outside)
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertEqual(cancelled, 1, "A press in another window dismisses the picker.")
+        window.orderOut(nil); other.orderOut(nil)
+    }
 }
