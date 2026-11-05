@@ -282,7 +282,7 @@ enum SleepPillActionError: LocalizedError, Equatable {
                 Text(L10n.text(message)).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
             }
             if let diagnostic = service.diagnostic {
-                DisclosureGroup(L10n.text("Details")) { Text(diagnostic).font(.caption).textSelection(.enabled) }.font(.caption)
+                DisclosureGroup(L10n.text("Details")) { Text(L10n.text(diagnostic)).font(.caption).textSelection(.enabled) }.font(.caption)
             }
             Text(L10n.text("Keeps Mac awake until the timer ends, then requests sleep."))
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)

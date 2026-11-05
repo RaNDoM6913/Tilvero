@@ -35,12 +35,13 @@ import CoreData
         let fixture = try Fixture(); defer { fixture.cleanup() }
         let provider = MacBatteryProvider(identitySalt: "salt")
         let queue = NormalizedSnapshotQueue(provider: provider, percents: [80, 77])
+        // The wake read may be deferred as a possibly pre-sleep value; the model reads again after the settle window.
         let model = TilveroModel(isDemo: false, preferences: fixture.preferences, historyURL: fixture.url,
-                                 snapshotProvider: { await queue.read() })
+                                 postWakeSettleSeconds: 0.2, snapshotProvider: { await queue.read() })
         defer { model.stop() }
         await model.refresh()
         model.setSleeping(true); model.setSleeping(false)
-        let deadline = Date().addingTimeInterval(5)
+        let deadline = Date().addingTimeInterval(10)
         while model.sleepSessions.first?.phase != .closed && Date() < deadline { try await Task.sleep(nanoseconds: 10_000_000) }
         let session = try XCTUnwrap(model.sleepSessions.first)
         XCTAssertEqual(session.phase, .closed, "Live-shaped IOPS readings (unknown freshness) must complete sleep rows.")

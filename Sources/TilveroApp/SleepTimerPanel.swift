@@ -136,7 +136,7 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
                 Text(message).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             if let diagnostic = service.diagnostic {
-                DisclosureGroup(L10n.text("Details")) { Text(diagnostic).font(.caption).textSelection(.enabled) }
+                DisclosureGroup(L10n.text("Details")) { Text(L10n.text(diagnostic)).font(.caption).textSelection(.enabled) }
                     .font(.caption)
             }
             if !service.isAvailable {
@@ -164,11 +164,11 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
     private var choices: some View {
         HStack(spacing: 6) {
             ForEach([15, 30, 60], id: \.self) { minutes in
-                choice("\(minutes) " + L10n.text("min"), id: "timer.preset.\(minutes)", selected: service.isActive && !model.sleepTimerUsesCustom && SleepTimerInput.minutes(model.sleepTimerMinutes) == minutes) {
+                choice("\(minutes) " + L10n.text("min"), id: "timer.preset.\(minutes)", selected: service.isActive ? SleepPillActions.timerSelection(model) == .preset(minutes) : (!model.sleepTimerUsesCustom && SleepTimerInput.minutes(model.sleepTimerMinutes) == minutes)) {
                     select(minutes: minutes, custom: false)
                 }
             }
-            choice(L10n.text("Custom timer time"), id: "timer.custom", selected: model.sleepTimerUsesCustom) {
+            choice(L10n.text("Custom timer time"), id: "timer.custom", selected: service.isActive ? SleepPillActions.timerSelection(model) == .custom : model.sleepTimerUsesCustom) {
                 model.sleepTimerUsesCustom = true; error = nil; customFocused = true
             }
         }.disabled(!model.canSelectSleepTimerDuration)

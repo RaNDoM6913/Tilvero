@@ -102,6 +102,25 @@ import Carbon
         XCTAssertEqual(service.phase, .accepted)
         service.systemDidWake(); model.stop()
     }
+    func testTimerStartFailureRetainsKeepAwake() throws {
+        let suite = "SleepAwakeToTimerFail-\(UUID())", prefs = UserDefaults(suiteName: suite)!
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        let awake = AwakeFixture(), driver = IntegrationSleepDriver()
+        let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"),
+            keepAwakeTransport: awake, sleepTimerTransport: driver)
+        try model.startKeepAwakeDraft()
+        XCTAssertTrue(model.keepAwake.hasOwnedAssertion)
+        driver.acquireFails = true
+        XCTAssertThrowsError(try model.startSleepTimer(replacingAwake: true))
+        XCTAssertFalse(model.sleepTimer.isActive)
+        XCTAssertTrue(model.keepAwake.hasOwnedAssertion, "A failed timer start must not also end Keep Awake.")
+        driver.acquireFails = false
+        try model.startSleepTimer(replacingAwake: true)
+        XCTAssertTrue(model.sleepTimer.isActive)
+        XCTAssertFalse(model.keepAwake.hasOwnedAssertion)
+        model.stop()
+    }
     func testOppositeModesRequireConfirmationAndFailedAwakeAcquisitionRetainsTimer() throws {
         let suite = "SleepModes-\(UUID())", prefs = UserDefaults(suiteName: suite)!
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -136,7 +155,11 @@ import Carbon
     var requests = 0
     var hasIdleHold = false
     var holdSeconds: Int?
-    func acquireIdleHold(seconds: Int) { hasIdleHold = true; holdSeconds = seconds }
+    var acquireFails = false
+    func acquireIdleHold(seconds: Int) throws {
+        if acquireFails { throw NSError(domain: "HoldFixture", code: 2) }
+        hasIdleHold = true; holdSeconds = seconds
+    }
     func extendIdleHold() {}
     func replaceIdleHold(seconds: Int) { hasIdleHold = true; holdSeconds = seconds }
     var releaseFails = false
@@ -155,5 +178,12 @@ private actor IntegrationSnapshotGate {
     func wait() async -> BatterySnapshot { await withCheckedContinuation { continuation = $0 } }
     func finish() {
         continuation?.resume(returning: .unavailable(reason: "Fixture only")); continuation = nil
+    }
+}
+
+@MainActor final class SleepTimerWarningAttentionTests: XCTestCase {
+    func testFailedExtendCancellationKeepsWarningPanelVisibleForAttention() {
+        XCTAssertTrue(SleepTimerWarningController.attentionMessages.contains("Sleep timer cancelled because its awake hold could not be extended."))
+        XCTAssertTrue(SleepTimerWarningController.attentionMessages.contains("Sleep timer cancelled because safe preparation could not be confirmed."))
     }
 }

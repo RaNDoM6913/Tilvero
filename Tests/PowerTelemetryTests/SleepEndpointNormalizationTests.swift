@@ -33,7 +33,7 @@ final class SleepEndpointNormalizationTests: XCTestCase {
         let pending = try XCTUnwrap(tracker.accept(.willSleep(stamp: stamp(10), latestEndpoint: before)).first)
         XCTAssertEqual(pending.before?.chargePercent, 80)
         XCTAssertEqual(tracker.accept(.didWake(stamp: stamp(600), epoch: 2)).first?.phase, .awaitingReading)
-        let after = try XCTUnwrap(SleepBatteryEndpoint(snapshot: snapshot(percent: 77, at: 601), stamp: stamp(601)))
+        let after = try XCTUnwrap(SleepBatteryEndpoint(snapshot: snapshot(percent: 77, at: 606), stamp: stamp(606)))
         let closed = try XCTUnwrap(tracker.accept(.freshReading(endpoint: after, epoch: 2)).first)
         XCTAssertEqual(closed.phase, .closed)
         XCTAssertTrue(closed.issues.isEmpty)
@@ -45,7 +45,7 @@ final class SleepEndpointNormalizationTests: XCTestCase {
 
     func testNormalizedACReadingsReportExternalPower() throws {
         let before = try XCTUnwrap(SleepBatteryEndpoint(snapshot: snapshot(percent: 80, at: 0, state: "AC Power", charging: true), stamp: stamp(1)))
-        let after = try XCTUnwrap(SleepBatteryEndpoint(snapshot: snapshot(percent: 85, at: 600, state: "AC Power", charging: true), stamp: stamp(600)))
+        let after = try XCTUnwrap(SleepBatteryEndpoint(snapshot: snapshot(percent: 85, at: 606, state: "AC Power", charging: true), stamp: stamp(606)))
         var tracker = SleepSessionTracker()
         _ = tracker.accept(.willSleep(stamp: stamp(10), latestEndpoint: before))
         _ = tracker.accept(.didWake(stamp: stamp(599), epoch: 1))
@@ -75,7 +75,7 @@ final class SleepEndpointNormalizationTests: XCTestCase {
         var tracker = SleepSessionTracker()
         _ = tracker.accept(.willSleep(stamp: stamp(10), latestEndpoint: before))
         _ = tracker.accept(.didWake(stamp: stamp(600), epoch: 2))
-        let after = try XCTUnwrap(SleepBatteryEndpoint(snapshot: snapshot(percent: 77, at: 601), stamp: stamp(601)))
+        let after = try XCTUnwrap(SleepBatteryEndpoint(snapshot: snapshot(percent: 77, at: 606), stamp: stamp(606)))
         XCTAssertTrue(tracker.accept(.freshReading(endpoint: after, epoch: 1)).isEmpty, "A pre-wake epoch cannot close the record.")
         let expired = try XCTUnwrap(tracker.accept(.expire(stamp: stamp(661))).first)
         XCTAssertEqual(expired.phase, .incomplete)
@@ -84,9 +84,28 @@ final class SleepEndpointNormalizationTests: XCTestCase {
         var other = SleepSessionTracker()
         _ = other.accept(.willSleep(stamp: stamp(10), latestEndpoint: before))
         _ = other.accept(.didWake(stamp: stamp(600), epoch: 3))
-        let swapped = try XCTUnwrap(SleepBatteryEndpoint(snapshot: snapshot(percent: 77, at: 601, serial: "S2"), stamp: stamp(601)))
+        let swapped = try XCTUnwrap(SleepBatteryEndpoint(snapshot: snapshot(percent: 77, at: 606, serial: "S2"), stamp: stamp(606)))
         let changed = try XCTUnwrap(other.accept(.freshReading(endpoint: swapped, epoch: 3)).first)
         XCTAssertTrue(changed.issues.contains(.batteryIdentityChanged))
         XCTAssertNil(changed.chargeChangePercentagePoints)
+    }
+
+    func testPostWakeIOPSReadingWithinSettleWindowIsDeferred() throws {
+        let before = try XCTUnwrap(SleepBatteryEndpoint(snapshot: snapshot(percent: 80, at: 0), stamp: stamp(1)))
+        var tracker = SleepSessionTracker()
+        _ = tracker.accept(.willSleep(stamp: stamp(10), latestEndpoint: before))
+        _ = tracker.accept(.didWake(stamp: stamp(600), epoch: 1))
+        let early = try XCTUnwrap(SleepBatteryEndpoint(snapshot: snapshot(percent: 80, at: 601), stamp: stamp(601)))
+        XCTAssertTrue(tracker.accept(.freshReading(endpoint: early, epoch: 1)).isEmpty,
+                      "IOPowerSources has no sample time: a read 1 s after wake may still be the pre-sleep value.")
+        XCTAssertEqual(tracker.pending?.phase, .awaitingReading)
+        let settled = try XCTUnwrap(SleepBatteryEndpoint(snapshot: snapshot(percent: 77, at: 630), stamp: stamp(630)))
+        let closed = try XCTUnwrap(tracker.accept(.freshReading(endpoint: settled, epoch: 1)).first)
+        XCTAssertEqual(closed.phase, .closed)
+        XCTAssertEqual(closed.chargeChangePercentagePoints, 3)
+        var immediate = SleepSessionTracker(postWakeSettleSeconds: 0)
+        _ = immediate.accept(.willSleep(stamp: stamp(10), latestEndpoint: before))
+        _ = immediate.accept(.didWake(stamp: stamp(600), epoch: 1))
+        XCTAssertEqual(immediate.accept(.freshReading(endpoint: early, epoch: 1)).first?.phase, .closed)
     }
 }

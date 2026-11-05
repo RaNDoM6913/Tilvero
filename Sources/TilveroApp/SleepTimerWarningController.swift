@@ -7,6 +7,11 @@ import PowerCore
 @MainActor final class SleepTimerWarningController {
     private let service: SleepTimerService
     private var subscription: AnyCancellable?
+    /// Cancellations the user must see: the warning panel stays up (with Dismiss) instead of vanishing like a success.
+    static let attentionMessages: Set<String> = [
+        "Sleep timer cancelled because safe preparation could not be confirmed.",
+        "Sleep timer cancelled because its awake hold could not be extended.",
+    ]
     private var panel: NSPanel?
     private var displayObserver: NSObjectProtocol?
     private var announcementKey: String?
@@ -22,7 +27,7 @@ import PowerCore
     func refreshPresentation() { if panel?.isVisible == true { update(announce: false) } }
     private func update(announce: Bool = true) {
         guard service.isWarning || service.needsHoldRelease || [.failed, .unconfirmed, .expired].contains(service.phase)
-                || service.message == "Sleep timer cancelled because safe preparation could not be confirmed." else {
+                || Self.attentionMessages.contains(service.message ?? "") else {
             panel?.orderOut(nil); announcementKey = nil; return
         }
         if panel == nil {

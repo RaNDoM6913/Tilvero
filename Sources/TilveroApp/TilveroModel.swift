@@ -211,8 +211,14 @@ final class TilveroModel: ObservableObject {
               sleepTimer.canStart || sleepTimer.isEditable else { throw SleepTimerInputError.invalid }
         if keepAwake.hasOwnedAssertion {
             guard replacingAwake else { throw SleepTimerInputError.conflictingMode }
-            try keepAwake.stop()
-            guard !keepAwake.hasOwnedAssertion else { throw SleepTimerInputError.conflictingMode }
+            // Make before break: a failed timer start must not also end the running Keep Awake.
+            try sleepTimer.selectDuration(minutes: minutes)
+            sleepTimerMinutes = String(minutes)
+            do {
+                try keepAwake.stop()
+                guard !keepAwake.hasOwnedAssertion else { throw SleepTimerInputError.conflictingMode }
+            } catch { sleepTimer.cancel(); throw error }
+            return
         }
         try sleepTimer.selectDuration(minutes: minutes)
         sleepTimerMinutes = String(minutes)
@@ -307,7 +313,8 @@ final class TilveroModel: ObservableObject {
     private var queuedWakeRefresh = false
     private var observedWake = false
     private let sleepRunID = UUID()
-    private var sleepTracker = SleepSessionTracker()
+    private let postWakeSettleSeconds: Double
+    private var sleepTracker: SleepSessionTracker
     private var lastRawSleepEndpoint: SleepBatteryEndpoint?
     private let sleepActivityProvider: @Sendable () async -> SleepAssertionSnapshot
     private var sleeping = false
@@ -324,6 +331,7 @@ final class TilveroModel: ObservableObject {
 
     init(isDemo: Bool, launchPolicy: AppLaunchPolicy = .current(), preferences: UserDefaults = .standard,
          historyURL: URL? = nil,
+         postWakeSettleSeconds: Double = 5,
          snapshotProvider: (@Sendable () async -> BatterySnapshot)? = nil,
          sleepActivityProvider: (@Sendable () async -> SleepAssertionSnapshot)? = nil,
          systemChargeLimitProvider: (@Sendable () async -> SystemChargeLimitObservation)? = nil,
@@ -361,6 +369,8 @@ final class TilveroModel: ObservableObject {
         self.launchPolicy = launchPolicy
         self.processActivityProvider = processActivityProvider ?? { await ProcessActivityProvider().read() }
         self.preferences = preferences
+        self.postWakeSettleSeconds = postWakeSettleSeconds
+        self.sleepTracker = SleepSessionTracker(postWakeSettleSeconds: postWakeSettleSeconds)
         self.sideEffects = sideEffects ?? .native
         let savedSleepMinutes = preferences.integer(forKey: "sleepTimerMinutes")
         let initialSleepMinutes = (1...1440).contains(savedSleepMinutes) ? savedSleepMinutes : 30
@@ -602,6 +612,16 @@ final class TilveroModel: ObservableObject {
             if !isDemo && historyEnabled { saveSleepChanges(sleepTracker.accept(.didWake(stamp: sleepStamp(), epoch: lifecycleEpoch))) }
             queuedWakeRefresh = true
             Task { await refresh() }
+            if !isDemo && historyEnabled {
+                // The first wake read may be deferred as a possibly pre-sleep value; read once more after the settle window.
+                let epoch = lifecycleEpoch
+                Task { [weak self] in
+                    guard let self else { return }
+                    try? await Task.sleep(for: .seconds(self.postWakeSettleSeconds + 3))
+                    guard epoch == self.lifecycleEpoch, !self.sleeping, self.sleepTracker.pending?.phase == .awaitingReading else { return }
+                    await self.refresh()
+                }
+            }
         }
     }
     func refreshProcessActivity(force: Bool = false) async {
@@ -981,7 +1001,7 @@ final class TilveroModel: ObservableObject {
     private func resetSleepObservation(reason: SleepInterruptionReason, persist: Bool) {
         lifecycleEpoch &+= 1
         if persist && !isDemo { saveSleepChanges(sleepTracker.accept(.interrupted(reason: reason, stamp: sleepStamp()))) }
-        sleepTracker = SleepSessionTracker(); lastRawSleepEndpoint = nil; queuedWakeRefresh = false; observedWake = false
+        sleepTracker = SleepSessionTracker(postWakeSettleSeconds: postWakeSettleSeconds); lastRawSleepEndpoint = nil; queuedWakeRefresh = false; observedWake = false
     }
     func refreshSystemChargeLimit() async {
         guard !isDemo, !sleeping, !isReadingSystemChargeLimit else { return }
