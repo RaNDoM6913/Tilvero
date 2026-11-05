@@ -165,6 +165,31 @@ import CoreData
         XCTAssertEqual(try store.summary().estimatedChargedWh, 0)
         XCTAssertNotNil(try store.catalogReadings().first { $0.id == "085" }?.value)
     }
+    func testOlderSamplesCanBeReadWithoutTheirCatalogAndSummaryAndCatalogCacheStayEquivalent() throws {
+        let store = try BatteryHistoryStore(url: nil)
+        let date = Date()
+        for index in 0..<4 {
+            try store.record(sample(at: date.addingTimeInterval(Double(index) * 60), uptime: 100 + Double(index) * 60, identity: "a", charge: 80 - Double(index), power: 1))
+        }
+        let full = try store.samples()
+        XCTAssertFalse(full.last?.readings.isEmpty ?? true)
+        let light = try store.samples(readingsSince: date.addingTimeInterval(3600))
+        XCTAssertEqual(light.map(\.id), full.map(\.id))
+        XCTAssertEqual(light.map(\.chargePercent), full.map(\.chargePercent))
+        XCTAssertTrue(light.allSatisfy { $0.readings.isEmpty }, "Samples older than readingsSince carry scalars only.")
+        let mixed = try store.samples(readingsSince: date.addingTimeInterval(120))
+        XCTAssertTrue(mixed[0].readings.isEmpty && !(mixed.last?.readings.isEmpty ?? true))
+        let uncached = try store.catalogReadings(at: date.addingTimeInterval(300))
+        let cached = try store.catalogReadings(at: date.addingTimeInterval(301), summaryMaxAge: 600)
+        XCTAssertEqual(cached.map(\.id), uncached.map(\.id))
+        XCTAssertEqual(cached.first { $0.id == "083" }?.value, uncached.first { $0.id == "083" }?.value)
+        // A reused summary is not refreshed by a new record until it expires or is invalidated.
+        try store.record(sample(at: date.addingTimeInterval(400), uptime: 500, identity: "a", charge: 70, power: 1))
+        let stale = try store.catalogReadings(at: date.addingTimeInterval(402), summaryMaxAge: 600)
+        XCTAssertEqual(stale.first { $0.id == "086" }?.value, cached.first { $0.id == "086" }?.value)
+        let fresh = try store.catalogReadings(at: date.addingTimeInterval(402))
+        XCTAssertNotEqual(fresh.first { $0.id == "086" }?.value, stale.first { $0.id == "086" }?.value)
+    }
     private func sample(at date: Date, uptime: TimeInterval, identity: String, charge: Double, power: Double? = nil) -> BatterySnapshot {
         let fields = [CatalogReading(definition: BatteryCatalog.definition("011"), value: .decimal(charge), source: "fixture", collectedAt: date, freshness: .fresh),
             CatalogReading(definition: BatteryCatalog.definition("038"), value: power.map(CatalogValue.decimal), source: "fixture", collectedAt: date, provenance: .measured, freshness: .fresh)]

@@ -105,6 +105,8 @@ final class TilveroModel: ObservableObject {
     @Published private(set) var storeError: String?
     @Published private(set) var history: [HistorySample] = []
     @Published private(set) var historySummary: HistorySummary?
+    private var lastFullHistoryReload: Date?
+    private var lastHistorySummary: Date?
     @Published private(set) var sleepSessions: [SleepSessionRecord] = []
     @Published private(set) var processActivity: ProcessActivitySnapshot?
     @Published private(set) var highCPUApplications: [ProcessActivityRow] = []
@@ -696,7 +698,7 @@ final class TilveroModel: ObservableObject {
                         let age = snapshot.monotonicTime.flatMap { current in previous.monotonicTime.map { current - $0 } } ?? snapshot.collectedAt.timeIntervalSince(previous.collectedAt)
                         return age >= 60 || age < 0
                     }) ?? true {
-                        try store?.record(snapshot); lastPersisted = snapshot; reloadHistory()
+                        try store?.record(snapshot); lastPersisted = snapshot; reloadHistory(incremental: true)
                         let capacity = try? store?.weeklyCapacity(for: raw)
                         if weeklyCapacity != capacity { weeklyCapacity = capacity }
                     }
@@ -955,8 +957,27 @@ final class TilveroModel: ObservableObject {
         await refreshSimulation()
     }
     private func persistArbiter() { if let data = try? JSONEncoder().encode(arbiter) { preferences.set(data, forKey: isDemo ? "demoArbiter" : "arbiter") } }
-    func reloadHistory() {
-        do { history = try store?.samples(since: Date().addingTimeInterval(-7 * 86400)) ?? []; historySummary = try store?.summary() }
+    /// A full reload decodes the whole week; the regular minute record only appends the new samples.
+    /// Older samples keep scalars only (the per-metric charts read the catalog of the last hour).
+    func reloadHistory(incremental: Bool = false) {
+        let now = Date()
+        do {
+            let weekStart = now.addingTimeInterval(-7 * 86400)
+            if incremental, let last = history.last, let lastFull = lastFullHistoryReload, now.timeIntervalSince(lastFull) < 1800 {
+                let seen = Set(history.suffix(8).map(\.id))
+                let fresh = try store?.samples(since: last.collectedAt, readingsSince: now.addingTimeInterval(-3 * 3600)) ?? []
+                let appended = fresh.filter { !seen.contains($0.id) && $0.collectedAt >= last.collectedAt }
+                if !appended.isEmpty {
+                    history = history.filter { $0.collectedAt >= weekStart } + appended
+                }
+                if let lastSummary = lastHistorySummary, now.timeIntervalSince(lastSummary) < 300 { return }
+            } else {
+                history = try store?.samples(since: weekStart, readingsSince: now.addingTimeInterval(-3 * 3600)) ?? []
+                lastFullHistoryReload = now
+            }
+            historySummary = try store?.summary()
+            lastHistorySummary = now
+        }
         catch { storeError = String(describing: error) }
     }
     private func configureRetention() {

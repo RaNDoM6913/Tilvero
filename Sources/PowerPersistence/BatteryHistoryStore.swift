@@ -167,12 +167,16 @@ import PowerCore
         } catch { context.rollback(); throw clean(error) }
     }
 
-    public func samples(since: Date? = nil, limit: Int = 20000) throws -> [HistorySample] {
+    /// `readingsSince` keeps the full catalog only for samples at or after that date; older ones carry scalars only.
+    public func samples(since: Date? = nil, limit: Int = 20000, readingsSince: Date? = nil) throws -> [HistorySample] {
         try ensureOpen()
         do {
             let request = request(kind: "sample", ascending: false, limit: min(100000, max(1, limit)))
             if let since { request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [request.predicate!, NSPredicate(format: "atDate >= %@", since as NSDate)]) }
-            return try context.fetch(request).reversed().map { try decode(HistorySample.self, object: $0) }
+            return try context.fetch(request).reversed().map { object in
+                let light = readingsSince.map { cutoff in (object.value(forKey: "atDate") as? Date).map { $0 < cutoff } ?? false } ?? false
+                return try decode(HistorySample.self, object: object, light: light)
+            }
         } catch { throw clean(error) }
     }
     /// Uses the existing private record identity, across launch and sleep segments.
@@ -319,7 +323,7 @@ import PowerCore
             kind == "charging" ? sample.isCharging : kind == "externalPower" ? sample.isExternalPower : sample.isExternalPower.map { !$0 }
         }
         for object in try records(kind: "sample", ascending: true, limit: configuration.maximumSamples) {
-            let sample = try decode(HistorySample.self, object: object)
+            let sample = try decode(HistorySample.self, object: object, light: true)
             if start == nil { start = sample.observedFrom }
             count += sample.aggregateCount; covered += sample.coveredSeconds
             hasQualifiedEnergy = hasQualifiedEnergy || sample.chargedWh != nil || sample.dischargedWh != nil
@@ -477,20 +481,22 @@ import PowerCore
         let data = try JSONEncoder().encode(value)
         object.setValue(try (data as NSData).compressed(using: .lzfse) as Data, forKey: "payload")
     }
-    private func decode<T: Decodable>(_ type: T.Type, object: NSManagedObject) throws -> T {
+    private func decode<T: Decodable>(_ type: T.Type, object: NSManagedObject, light: Bool = false) throws -> T {
         guard let payload = object.value(forKey: "payload") as? Data, payload.count <= 2_000_000 else { throw HistoryStoreError.corruptRecord }
         do {
             let data = try (payload as NSData).decompressed(using: .lzfse) as Data
             guard data.count <= 8_000_000 else { throw HistoryStoreError.corruptRecord }
+            let decoder = JSONDecoder()
+            if light { decoder.userInfo[.skipHistoryReadings] = true }
             if type == HistorySample.self,
                var legacy = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                legacy["energyEvidenceVersion"] as? Int != 1 {
                 // Early payloads encoded absence as zero. Retain their measurements,
                 // but never upgrade unsupported energy totals into evidence.
                 legacy.removeValue(forKey: "chargedWh"); legacy.removeValue(forKey: "dischargedWh")
-                return try JSONDecoder().decode(type, from: JSONSerialization.data(withJSONObject: legacy))
+                return try decoder.decode(type, from: JSONSerialization.data(withJSONObject: legacy))
             }
-            return try JSONDecoder().decode(type, from: data)
+            return try decoder.decode(type, from: data)
         } catch { throw HistoryStoreError.corruptRecord }
     }
     private func maintain(referenceDate: Date) throws {

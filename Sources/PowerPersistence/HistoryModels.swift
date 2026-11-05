@@ -52,6 +52,46 @@ public struct HistorySample: Identifiable, Codable, Sendable, Equatable {
     public let chargedWh: Double?
     public let dischargedWh: Double?
     public let externalPowerSeconds: Double
+
+    enum CodingKeys: String, CodingKey {
+        case id, collectedAt, monotonicTime, timeZoneOffsetSeconds, segmentID, chargePercent, temperatureCelsius
+        case batteryPowerWatts, capacityRetentionPercent, cycleCount, isCharging, isExternalPower, isAggregate
+        case aggregateCount, readings, observedFrom, coveredSeconds, energyEvidenceVersion, chargedWh, dischargedWh
+        case externalPowerSeconds
+    }
+}
+
+public extension CodingUserInfoKey {
+    /// Set to `true` on a decoder to skip the 115-entry catalog of each stored sample (`readings` becomes empty).
+    /// Summaries and long charts need only the scalar fields; decoding every reading dominated the app's CPU use.
+    static let skipHistoryReadings = CodingUserInfoKey(rawValue: "tilvero.skipHistoryReadings")!
+}
+
+extension HistorySample {
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        collectedAt = try c.decode(Date.self, forKey: .collectedAt)
+        monotonicTime = try c.decodeIfPresent(TimeInterval.self, forKey: .monotonicTime)
+        timeZoneOffsetSeconds = try c.decode(Int.self, forKey: .timeZoneOffsetSeconds)
+        segmentID = try c.decode(UUID.self, forKey: .segmentID)
+        chargePercent = try c.decodeIfPresent(Double.self, forKey: .chargePercent)
+        temperatureCelsius = try c.decodeIfPresent(Double.self, forKey: .temperatureCelsius)
+        batteryPowerWatts = try c.decodeIfPresent(Double.self, forKey: .batteryPowerWatts)
+        capacityRetentionPercent = try c.decodeIfPresent(Double.self, forKey: .capacityRetentionPercent)
+        cycleCount = try c.decodeIfPresent(Int.self, forKey: .cycleCount)
+        isCharging = try c.decodeIfPresent(Bool.self, forKey: .isCharging)
+        isExternalPower = try c.decodeIfPresent(Bool.self, forKey: .isExternalPower)
+        isAggregate = try c.decode(Bool.self, forKey: .isAggregate)
+        aggregateCount = try c.decode(Int.self, forKey: .aggregateCount)
+        readings = decoder.userInfo[.skipHistoryReadings] as? Bool == true ? [] : try c.decode([CatalogReading].self, forKey: .readings)
+        observedFrom = try c.decode(Date.self, forKey: .observedFrom)
+        coveredSeconds = try c.decode(Double.self, forKey: .coveredSeconds)
+        energyEvidenceVersion = try c.decodeIfPresent(Int.self, forKey: .energyEvidenceVersion)
+        chargedWh = try c.decodeIfPresent(Double.self, forKey: .chargedWh)
+        dischargedWh = try c.decodeIfPresent(Double.self, forKey: .dischargedWh)
+        externalPowerSeconds = try c.decode(Double.self, forKey: .externalPowerSeconds)
+    }
 }
 /// A private-history projection. Battery identity is never part of this value.
 public struct WeeklyCapacity: Codable, Sendable, Equatable {
