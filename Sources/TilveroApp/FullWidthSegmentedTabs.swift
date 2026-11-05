@@ -17,6 +17,8 @@ import SwiftUI
         let control = FullWidthControl(frame: .zero)
         control.segmentCount = labels.count
         control.segmentStyle = .automatic
+        // The capsule pill is the selection cue; the system focus ring around the whole control looked like a stray frame.
+        control.focusRingType = .none
         control.trackingMode = .selectOne
         control.segmentDistribution = .fillEqually
         control.controlSize = .regular
@@ -90,7 +92,6 @@ import SwiftUI
 
         override func mouseDown(with event: NSEvent) {
             guard isEnabled, segmentCount > 0 else { return }
-            window?.makeFirstResponder(self)
             isDragging = true
             moveIndicator(to: clamped(fraction(for: event)), animated: true)
         }

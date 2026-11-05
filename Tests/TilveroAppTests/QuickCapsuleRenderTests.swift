@@ -59,6 +59,7 @@ import XCTest
         try await Task.sleep(for: .milliseconds(150))
         func all(_ v: NSView) -> [NSView] { [v] + v.subviews.flatMap(all) }
         let control = try XCTUnwrap(all(host.view).compactMap { $0 as? NSSegmentedControl }.first)
+        XCTAssertEqual(control.focusRingType, NSFocusRingType.none, "No focus frame around the tabs.")
         func point(_ fraction: CGFloat) -> NSPoint {
             control.convert(NSPoint(x: (fraction + 0.5) * control.bounds.width / CGFloat(control.segmentCount), y: control.bounds.midY), to: nil)
         }
@@ -79,6 +80,7 @@ import XCTest
         control.mouseDragged(with: try event(.leftMouseDragged, 3, number: 3))
         control.mouseUp(with: try event(.leftMouseUp, 3, number: 4))
         XCTAssertEqual(section, QuickPanelSection.allCases[3], "Releasing over the last tab selects it.")
+        XCTAssertFalse(window.firstResponder === control, "Pressing a tab must not take keyboard focus (no focus block).")
         control.mouseDown(with: try event(.leftMouseDown, 1, number: 5))
         control.mouseUp(with: try event(.leftMouseUp, 1, number: 6))
         XCTAssertEqual(section, QuickPanelSection.allCases[1], "A plain click selects the clicked tab.")
