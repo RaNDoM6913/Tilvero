@@ -199,15 +199,15 @@ enum SleepPillActionError: LocalizedError, Equatable {
                 if let countdown {
                     StudioText(countdown, id: id + ".countdown")
                         .font(.system(size: 13, weight: .semibold, design: .rounded)).monospacedDigit()
+                        .foregroundStyle(Color.white)
                 } else {
                     StudioText(title, id: captionID)
-                        .font(.system(size: 12, weight: .medium)).foregroundStyle(Color.primary)
+                        .font(.system(size: 12, weight: .medium)).foregroundStyle(selected ? Color.white : Color.primary)
                 }
             }
             .lineLimit(1).minimumScaleFactor(0.8)
             .frame(maxWidth: .infinity, minHeight: 26).padding(.vertical, 5)
-            .background(selected ? Color.accentColor.opacity(0.14) : Color.primary.opacity(0.035), in: Capsule())
-            .overlay(Capsule().strokeBorder(selected ? Color.accentColor.opacity(0.5) : Color.primary.opacity(0.09)))
+            .background(selected ? Color.accentColor : Color.primary.opacity(0.07), in: Capsule())
             .contentShape(Capsule())
         }
         .buttonStyle(.plain).accessibilityAddTraits(selected ? [.isSelected] : [])
