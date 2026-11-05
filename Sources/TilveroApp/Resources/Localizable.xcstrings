@@ -15110,13 +15110,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Choose a charge level. The Mac sleeps once the battery drops to it."
+            "value": "Choose a charge level. The Mac sleeps once the battery drops to it. Levels at or above the current charge are unavailable."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Выберите уровень заряда — Mac уснёт, когда батарея разрядится до него."
+            "value": "Выберите уровень заряда — Mac уснёт, когда батарея разрядится до него. Уровни не ниже текущего заряда недоступны."
           }
         }
       }

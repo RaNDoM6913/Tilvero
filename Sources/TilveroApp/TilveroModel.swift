@@ -706,8 +706,9 @@ final class TilveroModel: ObservableObject {
             snapshot = raw.retainingPreviousReadings(snapshot)
             // Detached: the safe preparation before a sleep request must not hold this refresh open.
             let observedPercent = raw.chargePercent.value
-            let observedFresh = raw.chargePercent.availability == .available && raw.chargePercent.freshness == .fresh
-            let observedPower = raw.isExternalPower.availability == .available && raw.isExternalPower.freshness == .fresh ? raw.isExternalPower.value : nil
+            // `raw` is a reading taken just now; live IOKit readings carry freshness .unknown, only .stale is excluded.
+            let observedFresh = raw.chargePercent.availability == .available && raw.chargePercent.freshness != .stale
+            let observedPower = raw.isExternalPower.availability == .available && raw.isExternalPower.freshness != .stale ? raw.isExternalPower.value : nil
             Task { await sleepAtCharge.observe(percent: observedPercent, fresh: observedFresh, externalPower: observedPower) }
             if !controlsAreSuspended { await liveControl.observe(snapshot) }
             if !controlsAreSuspended {
