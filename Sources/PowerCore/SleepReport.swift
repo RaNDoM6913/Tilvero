@@ -26,7 +26,7 @@ public struct SleepBatteryEndpoint: Codable, Sendable, Equatable {
     public init?(snapshot: BatterySnapshot, stamp: SleepObservationStamp) {
         guard !snapshot.isDemo, stamp.isValid,
               let reading = snapshot.catalog.first(where: { $0.id == "011" }),
-              reading.availability == .available, reading.freshness == .fresh,
+              reading.isCurrentObservation(at: stamp.wallDate),
               let percent = reading.value?.doubleValue, percent.isFinite, (0...100).contains(percent),
               reading.monotonicAgeSeconds.map({ $0 <= 60 && $0 >= 0 && $0.isFinite }) ?? true else { return nil }
         let age = stamp.wallDate.timeIntervalSince(reading.collectedAt)
@@ -34,8 +34,8 @@ public struct SleepBatteryEndpoint: Codable, Sendable, Equatable {
               reading.sourceSampleAt.map({ $0.timeIntervalSince(reading.collectedAt) <= 1 && $0.timeIntervalSince1970.isFinite
                   && stamp.wallDate.timeIntervalSince($0) <= 60 }) ?? true else { return nil }
         func boolean(_ id: String) -> Bool? {
-            guard let field = snapshot.catalog.first(where: { $0.id == id }), field.availability == .available,
-                  field.freshness == .fresh, abs(field.collectedAt.timeIntervalSince(reading.collectedAt)) <= 60,
+            guard let field = snapshot.catalog.first(where: { $0.id == id }), field.isCurrentObservation(at: stamp.wallDate),
+                  abs(field.collectedAt.timeIntervalSince(reading.collectedAt)) <= 60,
                   case .boolean(let value)? = field.value else { return nil }
             return value
         }

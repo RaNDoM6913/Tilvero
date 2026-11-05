@@ -48,9 +48,26 @@ final class SleepReportTests: XCTestCase {
         XCTAssertEqual(expired?.phase, .incomplete)
         XCTAssertTrue(expired?.issues.contains(.postReadingMissing) == true)
     }
+    func testAppObservedIOPSCatalogRowsBecomeEndpoint() throws {
+        func row(_ id: String, _ value: CatalogValue, _ key: String, at: Double = 0) -> CatalogReading {
+            CatalogReading(definition: BatteryCatalog.definition(id), value: value, source: "IOPowerSources", keyPath: key,
+                           collectedAt: date.addingTimeInterval(at))
+        }
+        func snapshot(powerAt: Double = 0) -> BatterySnapshot {
+            BatterySnapshot(collectedAt: date, catalog: [row("011", .decimal(80), "Current Capacity/Max Capacity"),
+                row("013", .boolean(false), "Is Charging"), row("015", .boolean(false), "Power Source State", at: powerAt)],
+                batteryIdentityToken: "salted")
+        }
+        let endpoint = try XCTUnwrap(SleepBatteryEndpoint(snapshot: snapshot(), stamp: stamp(1)))
+        XCTAssertEqual(endpoint.chargePercent, 80); XCTAssertEqual(endpoint.isExternalPower, false)
+        XCTAssertEqual(endpoint.isCharging, false); XCTAssertNil(endpoint.sourceSampleAt)
+        XCTAssertNil(SleepBatteryEndpoint(snapshot: snapshot(), stamp: stamp(61)))
+        let stalePower = try XCTUnwrap(SleepBatteryEndpoint(snapshot: snapshot(powerAt: -61), stamp: stamp(1)))
+        XCTAssertNil(stalePower.isExternalPower, "A power row collected more than 60 s from the charge row is dropped.")
+    }
     func testStaleDemoOutOfRangeAndFutureProviderReadingsAreRejected() {
         XCTAssertNil(endpoint(1, freshness: .stale))
-        XCTAssertNil(endpoint(1, freshness: .unknown))
+        XCTAssertNil(endpoint(1, freshness: .unknown), "Unknown freshness without the exact IOPowerSources key path is not admitted.")
         XCTAssertNil(endpoint(1, demo: true))
         XCTAssertNil(endpoint(1, charge: 101))
         XCTAssertNil(endpoint(1, age: -10))

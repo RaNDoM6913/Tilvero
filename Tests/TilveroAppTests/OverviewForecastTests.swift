@@ -1,7 +1,32 @@
 import XCTest
 @testable import TilveroApp
+import PowerCore
+import PowerTelemetry
 
 final class OverviewForecastTests: XCTestCase {
+    func testNormalizedSnapshotQualifiesForecastInputs() {
+        let provider = MacBatteryProvider(identitySalt: "salt")
+        let now = Date()
+        func normalized(_ state: String) -> BatterySnapshot {
+            provider.normalize(powerSource: ["Current Capacity": 80, "Max Capacity": 100, "Is Charging": false, "Power Source State": state],
+                               registry: ["Serial": "S1"], at: now, uptime: 1000)
+        }
+        let battery = DischargeForecast.currentInputs(normalized("Battery Power"))
+        XCTAssertEqual(battery.percent, 80); XCTAssertTrue(battery.fresh, "Live IOPS rows have unknown source freshness but are app-observed.")
+        XCTAssertTrue(battery.onBattery)
+        XCTAssertFalse(DischargeForecast.currentInputs(normalized("AC Power")).onBattery)
+        XCTAssertFalse(DischargeForecast.currentInputs(normalized("unexpected")).onBattery)
+        let retained = provider.normalize(powerSource: nil, registry: ["Serial": "S1"], at: now.addingTimeInterval(5), uptime: 1005)
+            .retainingPreviousReadings(normalized("Battery Power"))
+        XCTAssertFalse(DischargeForecast.currentInputs(retained).fresh, "A retained display value is not a current observation.")
+        let fixture = BatterySnapshot(chargePercent: .init(value: 80, source: "fixture", collectedAt: now, freshness: .unknown),
+                                      isExternalPower: .init(value: false, source: "fixture", collectedAt: now, freshness: .unknown), collectedAt: now)
+        let unknown = DischargeForecast.currentInputs(fixture)
+        XCTAssertFalse(unknown.fresh); XCTAssertFalse(unknown.onBattery)
+        let fresh = BatterySnapshot(chargePercent: .init(value: 80, source: "fixture", collectedAt: now),
+                                    isExternalPower: .init(value: false, source: "fixture", collectedAt: now), collectedAt: now)
+        XCTAssertTrue(DischargeForecast.currentInputs(fresh).fresh); XCTAssertTrue(DischargeForecast.currentInputs(fresh).onBattery)
+    }
     func testQualifiedContinuousDischargeProducesAnUncertainRange() throws {
         let now = Date()
         let samples = (0...15).map { index in

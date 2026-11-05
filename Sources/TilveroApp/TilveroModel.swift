@@ -484,13 +484,11 @@ final class TilveroModel: ObservableObject {
     }
     var dischargeForecast: DischargeForecast.Estimate? {
         guard !isDemo else { return nil }
+        let current = DischargeForecast.currentInputs(snapshot)
         return DischargeForecast.estimate(history.map {
             .init(date: $0.collectedAt, percent: $0.chargePercent, segment: $0.segmentID.uuidString,
                   externalPower: $0.isExternalPower, charging: $0.isCharging, monotonic: $0.monotonicTime, aggregate: $0.isAggregate)
-        }, currentPercent: snapshot.chargePercent.value,
-        currentFresh: snapshot.chargePercent.availability == .available && snapshot.chargePercent.freshness == .fresh,
-        onBattery: snapshot.isExternalPower.availability == .available && snapshot.isExternalPower.freshness == .fresh && snapshot.isExternalPower.value == false,
-        now: snapshot.collectedAt)
+        }, currentPercent: current.percent, currentFresh: current.fresh, onBattery: current.onBattery, now: snapshot.collectedAt)
     }
     var chargeText: String {
         guard snapshot.chargePercent.availability == .available || snapshot.chargePercent.freshness == .stale else { return "—" }
