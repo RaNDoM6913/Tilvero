@@ -22,6 +22,7 @@ struct QuickPanel: View {
     var maximumHeight: CGFloat = 700
     var onSizeChange: ((CGSize) -> Void)?
     @State var section: QuickPanelSection = .overview
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         QuickPanelViewport(maximumHeight: maximumHeight) { content }
@@ -31,6 +32,10 @@ struct QuickPanel: View {
         .studioScope("page." + section.rawValue)
         .onGeometryChange(for: CGSize.self) { $0.size } action: { onSizeChange?($0) }
     }
+
+    /// Smooth cross-fade with a barely perceptible scale; the panel height follows the same curve.
+    static let pageAnimation = Animation.smooth(duration: 0.34)
+    static let pageTransition = AnyTransition.opacity.combined(with: .scale(scale: 0.985, anchor: .top))
 
     private var content: some View {
         VStack(alignment: .leading, spacing: studioPresentation.spacing(14)) {
@@ -45,12 +50,13 @@ struct QuickPanel: View {
                 .studioElement("quick.tabs", label: "Quick menu destinations")
             Group {
                 switch section {
-                case .overview: overview
-                case .charge: charge
-                case .modes: modes
-                case .awake: SleepControlsPanel(model: model, compact: true).id(model.language)
+                case .overview: overview.transition(Self.pageTransition)
+                case .charge: charge.transition(Self.pageTransition)
+                case .modes: modes.transition(Self.pageTransition)
+                case .awake: SleepControlsPanel(model: model, compact: true).id(model.language).transition(Self.pageTransition)
                 }
             }
+            .animation(reduceMotion ? nil : Self.pageAnimation, value: section)
             if let notice = contextualNotice {
                 Text(notice).font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
