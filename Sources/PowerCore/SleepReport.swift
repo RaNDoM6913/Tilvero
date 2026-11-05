@@ -156,7 +156,7 @@ public struct SleepSessionTracker: Sendable {
     /// IOPowerSources gives no sample time, so a read taken immediately after wake may still be the
     /// pre-sleep value. Such readings are ignored until this many seconds after wake; the next poll closes the record.
     public let postWakeSettleSeconds: Double
-    public init(postWakeSettleSeconds: Double = 5) { self.postWakeSettleSeconds = max(0, postWakeSettleSeconds) }
+    public init(postWakeSettleSeconds: Double = 5) { self.postWakeSettleSeconds = min(max(0, postWakeSettleSeconds), 30) }
     public mutating func accept(_ event: SleepObservationEvent) -> [SleepSessionRecord] {
         switch event {
         case .willSleep(let stamp, let endpoint):

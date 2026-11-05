@@ -12,6 +12,10 @@ import PowerCore
         "Sleep timer cancelled because safe preparation could not be confirmed.",
         "Sleep timer cancelled because its awake hold could not be extended.",
     ]
+    static func isVisible(for service: SleepTimerService) -> Bool {
+        service.isWarning || service.needsHoldRelease || [.failed, .unconfirmed, .expired].contains(service.phase)
+            || attentionMessages.contains(service.message ?? "")
+    }
     private var panel: NSPanel?
     private var displayObserver: NSObjectProtocol?
     private var announcementKey: String?
@@ -26,8 +30,7 @@ import PowerCore
     }
     func refreshPresentation() { if panel?.isVisible == true { update(announce: false) } }
     private func update(announce: Bool = true) {
-        guard service.isWarning || service.needsHoldRelease || [.failed, .unconfirmed, .expired].contains(service.phase)
-                || Self.attentionMessages.contains(service.message ?? "") else {
+        guard Self.isVisible(for: service) else {
             panel?.orderOut(nil); announcementKey = nil; return
         }
         if panel == nil {

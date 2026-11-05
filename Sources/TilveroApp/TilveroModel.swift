@@ -615,10 +615,12 @@ final class TilveroModel: ObservableObject {
             if !isDemo && historyEnabled {
                 // The first wake read may be deferred as a possibly pre-sleep value; read once more after the settle window.
                 let epoch = lifecycleEpoch
+                let delay = postWakeSettleSeconds + 3
                 Task { [weak self] in
-                    guard let self else { return }
-                    try? await Task.sleep(for: .seconds(self.postWakeSettleSeconds + 3))
-                    guard epoch == self.lifecycleEpoch, !self.sleeping, self.sleepTracker.pending?.phase == .awaitingReading else { return }
+                    try? await Task.sleep(for: .seconds(delay))
+                    guard let self, epoch == self.lifecycleEpoch, !self.sleeping,
+                          self.sleepTracker.pending?.phase == .awaitingReading else { return }
+                    self.queuedWakeRefresh = true   // coalesce with a read already in flight instead of being dropped
                     await self.refresh()
                 }
             }

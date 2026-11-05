@@ -160,7 +160,8 @@ import Carbon
         if acquireFails { throw NSError(domain: "HoldFixture", code: 2) }
         hasIdleHold = true; holdSeconds = seconds
     }
-    func extendIdleHold() {}
+    var extendFails = false
+    func extendIdleHold() throws { if extendFails { throw NSError(domain: "HoldFixture", code: 3) } }
     func replaceIdleHold(seconds: Int) { hasIdleHold = true; holdSeconds = seconds }
     var releaseFails = false
     func releaseIdleHold() throws {
@@ -182,8 +183,16 @@ private actor IntegrationSnapshotGate {
 }
 
 @MainActor final class SleepTimerWarningAttentionTests: XCTestCase {
-    func testFailedExtendCancellationKeepsWarningPanelVisibleForAttention() {
-        XCTAssertTrue(SleepTimerWarningController.attentionMessages.contains("Sleep timer cancelled because its awake hold could not be extended."))
-        XCTAssertTrue(SleepTimerWarningController.attentionMessages.contains("Sleep timer cancelled because safe preparation could not be confirmed."))
+    func testFailedExtendCancellationKeepsWarningPanelVisibleForAttention() throws {
+        let driver = IntegrationSleepDriver()
+        let service = SleepTimerService(driver: driver, sleeper: { _ in try await Task.sleep(for: .seconds(3600)) })
+        try service.start(minutes: 30)
+        XCTAssertFalse(SleepTimerWarningController.isVisible(for: service), "A healthy timer far from its deadline shows no panel.")
+        driver.extendFails = true
+        XCTAssertThrowsError(try service.extend())
+        XCTAssertFalse(service.isActive)
+        XCTAssertTrue(SleepTimerWarningController.isVisible(for: service),
+                      "A cancelled timer after a failed +15 must not silently hide the warning panel.")
+        service.cancel()
     }
 }
