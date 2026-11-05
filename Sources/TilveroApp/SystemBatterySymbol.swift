@@ -20,7 +20,7 @@ import AppKit
     /// contact. Keep its exact native silhouette, including antialiasing, while
     /// clipping continuous measured fill. Numerals and the small adapter cue are
     /// composed by the caller because SF Symbols does not supply percentage text.
-    static func makeFilled(level: Int?, density: Int, contactOpacity: CGFloat = 0.45, bodyExtension: Int = 0, contactInset: CGFloat = 0) -> NSImage? {
+    static func makeFilled(level: Int?, density: Int, contactOpacity: CGFloat = 0.45, trackOpacity: CGFloat = 0.2, bodyExtension: Int = 0, contactInset: CGFloat = 0) -> NSImage? {
         let scale = min(8, max(1, density))
         let layers: FilledLayers
         if let cached = filledCache[scale] { layers = cached }
@@ -58,7 +58,7 @@ import AppKit
             let i = y * layers.width + sourceX
             let body = CGFloat(x) < layers.contactBoundary + CGFloat(extra)
             let coverage = level == nil ? 0 : min(1, max(0, edge - CGFloat(x)))
-            let opacity: CGFloat = body ? 0.2 + 0.8 * coverage : contactOpacity
+            let opacity: CGFloat = body ? trackOpacity + (1 - trackOpacity) * coverage : contactOpacity
             let offset = y * rep.bytesPerRow + x * 4
             data[offset] = 0; data[offset + 1] = 0; data[offset + 2] = 0
             let alpha: CGFloat

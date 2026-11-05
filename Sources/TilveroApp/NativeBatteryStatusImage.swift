@@ -138,7 +138,7 @@ enum NativeBatteryStatusImage {
         // The native 100 reference fits smaller public system numerals into the
         // same body. Preserve the measured 0...99 typography independently.
         let pointSize: CGFloat = compactFullCharge ? (size == .system ? 9.25 : 10.25) : (size == .system ? 10 : 11)
-        return NSFont.systemFont(ofSize: pointSize, weight: compactFullCharge ? .medium : .regular)
+        return NSFont.systemFont(ofSize: pointSize, weight: .medium)
     }
 
     private static let modernTwoDigitCapacity: [MenuBarTextSize: CGFloat] =
@@ -159,8 +159,15 @@ enum NativeBatteryStatusImage {
     private static var modernContactOpacity: CGFloat {
         // The owner's dark- and light-ink references have different secondary
         // contact coverage. Resolve it at draw time, like the numeral cutouts.
-        NSAppearance.currentDrawing().bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? 0.45 : 0.8
+        isDarkInk ? 0.55 : 0.8
     }
+
+    private static var isDarkInk: Bool { NSAppearance.currentDrawing().bestMatch(from: [.aqua, .darkAqua]) == .darkAqua }
+
+    /// White ink on a dark menu bar: the native unfilled track is about half as bright as the fill and the
+    /// numeral/bolt are cut clean through both, so they read dark on the fill and on the track alike.
+    private static var modernTrackOpacity: CGFloat { isDarkInk ? 0.5 : 0.2 }
+    private static var modernCutoutOperation: NSCompositingOperation { isDarkInk ? .destinationOut : .xor }
 
     private static var modernCutoutOpacity: CGFloat {
         // The supplied dark-ink reference uses secondary numeral/cue coverage;
@@ -173,7 +180,7 @@ enum NativeBatteryStatusImage {
         let extra = CGFloat(bodyExtension)
         let compactFullCharge = style == .inside && level == 100
         let density = max(1, min(8, Int((NSGraphicsContext.current?.cgContext.ctm.a ?? 2).magnitude.rounded())))
-        if let native = SystemBatterySymbol.makeFilled(level: level, density: density, contactOpacity: modernContactOpacity, bodyExtension: bodyExtension, contactInset: 0.5) {
+        if let native = SystemBatterySymbol.makeFilled(level: level, density: density, contactOpacity: modernContactOpacity, trackOpacity: modernTrackOpacity, bodyExtension: bodyExtension, contactInset: 0.5) {
             let offset = floor(1.5 * CGFloat(density)) / CGFloat(density)
             native.draw(at: NSPoint(x: -offset, y: -3), from: .zero, operation: .sourceOver, fraction: 1)
         } else {
@@ -196,7 +203,7 @@ enum NativeBatteryStatusImage {
             let centreX: CGFloat = style == .inside || level == nil ? (compactFullCharge ? 21 : 19.5) + extra : 12.5
             let centreY: CGFloat = compactFullCharge ? 9 : 9.25
             marker.draw(at: NSPoint(x: centreX - marker.size.width / 2, y: centreY - marker.size.height / 2),
-                        from: .zero, operation: .xor, fraction: modernCutoutOpacity)
+                        from: .zero, operation: modernCutoutOperation, fraction: modernCutoutOpacity)
         }
     }
 
@@ -216,7 +223,7 @@ enum NativeBatteryStatusImage {
             return true
         }
         image.draw(at: NSPoint(x: point.x - dimensions.width / 2, y: point.y - dimensions.height / 2),
-                   from: .zero, operation: .xor, fraction: modernCutoutOpacity)
+                   from: .zero, operation: modernCutoutOperation, fraction: modernCutoutOpacity)
     }
 
     private static func drawFallbackNormal(level: Int?, externalPower: Bool) {
