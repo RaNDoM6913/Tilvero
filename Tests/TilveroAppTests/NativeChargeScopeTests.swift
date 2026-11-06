@@ -16,15 +16,17 @@ import PowerCore
             historyURL: f.root.appendingPathComponent("preview.sqlite"),
             snapshotProvider: { .unavailable(reason: "Scoped mode preview fixture") }, nativeCharge: f.service)
         defer { model.stop() }
-        for target in [80, 85, 100] {
+        for target in [100] {
             let plan = ModePlan(mode: .economy, chargeTarget: target, lowPower: false, displayIdleMinutes: nil, brightnessPercent: nil)
             XCTAssertEqual(model.modePreview(plan).first { $0.action == .charge }?.status, .excluded)
             model.setDraft(target)
             XCTAssertFalse(model.canApply)
         }
-        let allowed = ModePlan(mode: .economy, chargeTarget: 95, lowPower: false, displayIdleMinutes: nil, brightnessPercent: nil)
-        XCTAssertEqual(model.modePreview(allowed).first { $0.action == .charge }?.status, .available)
-        await f.assertWrites(["limit95", "limit90"])
+        for target in [80, 85, 95] {
+            let allowed = ModePlan(mode: .economy, chargeTarget: target, lowPower: false, displayIdleMinutes: nil, brightnessPercent: nil)
+            XCTAssertEqual(model.modePreview(allowed).first { $0.action == .charge }?.status, .available, "\(target)")
+        }
+        await f.assertWrites(["limit80", "limit85", "limit95", "limit90"])
     }
 
     func testSuccessfulQualificationPreservesExactHistoricalProofBeforeReplacingIt() async throws {
@@ -44,7 +46,7 @@ import PowerCore
         XCTAssertEqual(historyMode?.intValue, 0o700)
         XCTAssertEqual(archiveMode?.intValue, 0o600)
         XCTAssertEqual(liveMode?.intValue, 0o400, "Publishing must not broaden the old proof's mode")
-        await f.assertWrites(["limit95", "limit90"])
+        await f.assertWrites(["limit80", "limit85", "limit95", "limit90"])
     }
 
     func testProofArchiveFailurePreservesOldLiveBytesAndDoesNotClaimNewAdmission() async throws {
@@ -71,7 +73,7 @@ import PowerCore
             XCTAssertFalse(f.service.hasOwnedSettings, "The physical fixture baseline was already restored")
             XCTAssertEqual(f.service.observed?.configuration.target, 90)
             XCTAssertNotNil(f.service.message)
-            await f.assertWrites(["limit95", "limit90"], obstruction)
+            await f.assertWrites(["limit80", "limit85", "limit95", "limit90"], obstruction)
         }
     }
 
@@ -90,7 +92,7 @@ import PowerCore
             XCTAssertEqual(try FileManager.default.attributesOfItem(atPath: f.admission.path)[.type] as? FileAttributeType, attributes[.type] as? FileAttributeType)
             XCTAssertFalse(f.service.admitted)
             XCTAssertFalse(FileManager.default.fileExists(atPath: f.proofHistory.path))
-            await f.assertWrites(["limit95", "limit90"])
+            await f.assertWrites(["limit80", "limit85", "limit95", "limit90"])
         }
     }
 
@@ -104,33 +106,35 @@ import PowerCore
         await f.assertWrites([])
     }
 
-    func testQualificationUsesOnlyPersistentPairAndLoadsExactScope() async throws {
+    func testQualificationUsesOnlyThePersistentTargetsAndLoadsExactScope() async throws {
         let f = ScopeFixture(); defer { f.cleanup() }
         XCTAssertFalse(f.service.admitted)
         XCTAssertTrue(f.service.authorizedPersistentTargets.isEmpty)
         await f.service.refresh()
         XCTAssertTrue(f.service.canRequestQualification)
         try await f.service.qualify()
-        await f.assertWrites(["limit95", "limit90"])
+        await f.assertWrites(["limit80", "limit85", "limit95", "limit90"])
         XCTAssertTrue(f.service.admitted)
-        XCTAssertEqual(f.service.authorizedPersistentTargets, [90, 95])
+        XCTAssertEqual(f.service.authorizedPersistentTargets, [80, 85, 90, 95])
         XCTAssertTrue(f.service.canApplyTarget(95))
+        XCTAssertTrue(f.service.canApplyTarget(80))
+        XCTAssertTrue(f.service.canApplyTarget(85))
         XCTAssertFalse(f.service.canApplyTarget(100))
         XCTAssertFalse(f.service.hasOwnedSettings)
         let scope = try XCTUnwrap(NativeChargeAdmission.loadScope(from: f.admission, environment: "scope-fixture"))
         let reopened = f.makeService(scope: scope)
         await reopened.refresh()
-        XCTAssertEqual(reopened.authorizedPersistentTargets, [90, 95])
-        for target in [80, 85, 100] {
+        XCTAssertEqual(reopened.authorizedPersistentTargets, [80, 85, 90, 95])
+        for target in [100] {
             do { try await reopened.apply(target, batteryPercent: 50, batteryFresh: true); XCTFail("Unqualified target \(target)") }
             catch NativeChargeServiceError.unqualifiedTarget {} catch { XCTFail("Wrong error: \(error)") }
         }
         do { try await reopened.chargeToFullOnce(batteryPercent: 50, batteryFresh: true); XCTFail("No full once capability") } catch {}
-        await f.assertWrites(["limit95", "limit90"])
+        await f.assertWrites(["limit80", "limit85", "limit95", "limit90"])
     }
 
     func testQualificationPreflightRejectsUnknownDisabledWrongBaselineAndUnsafeBatteryWithoutFilesOrWrites() async throws {
-        for mode in ["unknown", "disabled", "baseline100", "baseline85", "policy", "offered", "stale", "battery89", "battery100", "batteryStale", "batteryMissing"] {
+        for mode in ["unknown", "disabled", "baseline100", "policy", "offered", "stale", "battery80", "battery89", "battery100", "batteryStale", "batteryMissing"] {
             let f = ScopeFixture(mode: mode); defer { f.cleanup() }
             await f.service.refresh()
             do { try await f.service.qualify(); XCTFail("Must reject \(mode)") } catch {}
@@ -147,17 +151,17 @@ import PowerCore
         try FileManager.default.createDirectory(at: f.root, withIntermediateDirectories: true)
         let old = Data("historical-v1-proof".utf8); try old.write(to: f.admission)
         do { try await f.service.qualify(); XCTFail("Unknown postwrite must stop") } catch {}
-        await f.assertWrites(["limit95"])
+        await f.assertWrites(["limit80"])
         XCTAssertTrue(f.service.recoveryRequired)
         XCTAssertFalse(f.service.admitted)
         XCTAssertEqual(try Data(contentsOf: f.admission), old)
         XCTAssertFalse(FileManager.default.fileExists(atPath: f.proofHistory.path))
         let saved = try JSONDecoder().decode(NativeChargeJournal.self, from: Data(contentsOf: f.journal))
         XCTAssertEqual(saved.version, 2)
-        XCTAssertEqual(saved.expectedMutation?.target, 95)
+        XCTAssertEqual(saved.expectedMutation?.target, 80)
         XCTAssertTrue(saved.hasWritten)
         _ = try? await f.service.restore(batteryPercent: 50, batteryFresh: true)
-        await f.assertWrites(["limit95"])
+        await f.assertWrites(["limit80"])
     }
 
     func testInterruptedScopedJournalCanOnlyRecoverWithoutProof() async throws {
@@ -172,7 +176,7 @@ import PowerCore
         do { try await reopened.apply(90, batteryPercent: 50, batteryFresh: true); XCTFail("Recovery is not normal admission") } catch {}
         let restored = try await reopened.restore(batteryPercent: 50, batteryFresh: true)
         XCTAssertTrue(restored)
-        await f.assertWrites(["limit95", "limit90"])
+        await f.assertWrites(["limit80", "limit90"])
         XCTAssertFalse(FileManager.default.fileExists(atPath: f.admission.path))
     }
 
@@ -184,7 +188,7 @@ import PowerCore
             await f.client.setMode(mode)
             let reopened = f.makeService()
             _ = try? await reopened.restore(batteryPercent: 50, batteryFresh: true)
-            await f.assertWrites(["limit95"], mode)
+            await f.assertWrites(["limit80"], mode)
             XCTAssertEqual(try Data(contentsOf: f.journal), bytes, mode)
         }
     }
@@ -194,7 +198,7 @@ import PowerCore
         try await f.service.qualify()
         let valid = try Data(contentsOf: f.admission)
         XCTAssertFalse(NativeChargeAdmission.load(from: f.admission, environment: "changed-env"))
-        for change in ["version", "semantic", "scope", "empty", "disabled", "policy", "obc", "chronology", "before", "offered"] {
+        for change in ["version", "semantic", "scope", "empty", "disabled", "policy", "obc", "chronology", "before", "offered", "stageOrder", "stageMissing"] {
             var json = try XCTUnwrap(JSONSerialization.jsonObject(with: valid) as? [String: Any])
             switch change {
             case "version": json["version"] = 1
@@ -202,14 +206,16 @@ import PowerCore
             case "scope": json["authorizedPersistentTargets"] = [80, 85, 90, 95, 100]
             case "empty": json["authorizedPersistentTargets"] = []
             case "disabled", "obc":
-                var changed = json["changed"] as! [String: Any]
-                var config = changed["configuration"] as! [String: Any]
+                var stages = json["stages"] as! [[String: Any]]
+                var config = stages[0]["configuration"] as! [String: Any]
                 config[change == "disabled" ? "enabled" : "optimizedCharging"] = false
-                changed["configuration"] = config; json["changed"] = changed
+                stages[0]["configuration"] = config; json["stages"] = stages
             case "policy":
-                var changed = json["changed"] as! [String: Any]; changed["registeredManualLimit"] = 90; json["changed"] = changed
+                var stages = json["stages"] as! [[String: Any]]; stages[0]["registeredManualLimit"] = 90; json["stages"] = stages
             case "chronology": json["completedAt"] = 0
             case "before": json.removeValue(forKey: "before")
+            case "stageOrder": json["stages"] = (json["stages"] as! [[String: Any]]).reversed() as [[String: Any]]
+            case "stageMissing": json["stages"] = Array((json["stages"] as! [[String: Any]]).dropFirst())
             default: json["offeredTargets"] = [95, 90]
             }
             try JSONSerialization.data(withJSONObject: json).write(to: f.admission)
@@ -221,13 +227,13 @@ import PowerCore
         let f = ScopeFixture(); defer { f.cleanup() }
         try await f.service.qualify()
         let scope = try XCTUnwrap(NativeChargeAdmission.loadScope(from: f.admission, environment: "scope-fixture"))
-        for mode in ["disabled", "baseline100", "baseline85", "obc", "unknown"] {
+        for mode in ["disabled", "baseline100", "obc", "unknown"] {   // 85 is a verified persistent target now
             await f.client.setMode(mode)
             let scoped = f.makeService(scope: scope)
             await scoped.refresh()
             do { try await scoped.apply(95, batteryPercent: 50, batteryFresh: true); XCTFail("Unverified baseline: \(mode)") } catch {}
             XCTAssertFalse(scoped.hasOwnedSettings)
-            await f.assertWrites(["limit95", "limit90"])
+            await f.assertWrites(["limit80", "limit85", "limit95", "limit90"])
         }
     }
 
@@ -244,7 +250,7 @@ import PowerCore
     func testUnknownAfterRestorationWritePreservesExpected90InsteadOfReclassifying95() async throws {
         let f = ScopeFixture(mode: "restoreUnknown"); defer { f.cleanup() }
         do { try await f.service.qualify(); XCTFail("Final readback is unknown") } catch {}
-        await f.assertWrites(["limit95", "limit90"])
+        await f.assertWrites(["limit80", "limit85", "limit95", "limit90"])
         let saved = try JSONDecoder().decode(NativeChargeJournal.self, from: Data(contentsOf: f.journal))
         XCTAssertEqual(saved.expectedMutation?.target, 90)
         XCTAssertEqual(saved.lastVerified.target, 95)
@@ -264,7 +270,7 @@ import PowerCore
         await f.client.setMode("battery91")
         try await service.apply(90, batteryPercent: 50, batteryFresh: true)
         XCTAssertEqual(service.pendingTarget, 90)
-        await f.assertWrites(["limit95", "limit90", "limit95"])
+        await f.assertWrites(["limit80", "limit85", "limit95", "limit90", "limit95"])
         await f.client.setMode("")
         await service.observeBattery(percent: nil, fresh: false)
         XCTAssertNil(service.pendingTarget)
@@ -272,7 +278,20 @@ import PowerCore
         let restored = try await service.restore(batteryPercent: nil, batteryFresh: false)
         XCTAssertTrue(restored)
         XCTAssertFalse(service.hasOwnedSettings)
-        await f.assertWrites(["limit95", "limit90", "limit95", "limit90"])
+        await f.assertWrites(["limit80", "limit85", "limit95", "limit90", "limit95", "limit90"])
+    }
+
+    func testQualificationFromAnotherPersistentBaselineRestoresThatBaseline() async throws {
+        let f = ScopeFixture(initialTarget: 85); defer { f.cleanup() }
+        await f.service.refresh()
+        XCTAssertTrue(f.service.canRequestQualification)
+        try await f.service.qualify()
+        await f.assertWrites(["limit80", "limit90", "limit95", "limit85"])
+        XCTAssertTrue(f.service.admitted)
+        XCTAssertEqual(f.service.authorizedPersistentTargets, [80, 85, 90, 95])
+        XCTAssertEqual(f.service.observed?.configuration.target, 85, "The user's own setting is what comes back.")
+        XCTAssertFalse(f.service.hasOwnedSettings)
+        XCTAssertNotNil(NativeChargeAdmission.loadScope(from: f.admission, environment: "scope-fixture"))
     }
 
     func testProductionScopeRejectsLegacyJournalAndPreservesItsBytes() async throws {
@@ -295,8 +314,8 @@ import PowerCore
     var journal: URL { root.appendingPathComponent("session.json") }
     var admission: URL { root.appendingPathComponent("admission.json") }
     var proofHistory: URL { root.appendingPathComponent("native-charge-proof-history", isDirectory: true) }
-    init(mode: String = "") {
-        let transport = ScopeTransport(mode: mode); client = transport
+    init(mode: String = "", initialTarget: Int = 90) {
+        let transport = ScopeTransport(mode: mode, initialTarget: initialTarget); client = transport
         service = NativeChargeService(client: transport, journalURL: root.appendingPathComponent("session.json"), verificationAttempts: 1,
             environment: "scope-fixture", batteryProvider: { await transport.battery() }, admissionURL: root.appendingPathComponent("admission.json"))
     }
@@ -315,20 +334,20 @@ import PowerCore
 private actor ScopeTransport: NativeChargeTransport {
     var writes: [String] = []
     private var mode: String
-    private var target = 90
+    private var target: Int
     private var batteryReads = 0
     private var reads = 0
-    init(mode: String) { self.mode = mode }
+    init(mode: String, initialTarget: Int = 90) { self.mode = mode; target = initialTarget }
     func setMode(_ value: String) { mode = value }
     func battery() -> ChargeObservation {
         batteryReads += 1
-        return .init(percent: mode == "risingBefore95" && batteryReads >= 2 ? 89 : mode == "battery91" ? 91 : mode == "batteryMissing" ? nil : mode == "battery89" ? 89 : mode == "battery100" ? 100 : 60,
+        return .init(percent: mode == "risingBefore95" && batteryReads >= 2 ? 89 : mode == "battery91" ? 91 : mode == "batteryMissing" ? nil : mode == "battery89" ? 89 : mode == "battery80" ? 80 : mode == "battery100" ? 100 : 60,
               externalPower: true, fresh: mode != "batteryStale")
     }
     func read() throws -> NativeChargeSnapshot {
         reads += 1
         if mode == "unknown" || (mode == "postUnknown" && !writes.isEmpty)
-            || (mode == "unknownBefore95" && reads >= 2) || (mode == "restoreUnknown" && writes.count >= 2) {
+            || (mode == "unknownBefore95" && reads >= 2) || (mode == "restoreUnknown" && writes.count >= 4) {
             throw NativeChargeReadFailure(supportedTargets: [80,85,90,95,100], currentTarget: 100, rawManualState: 3, diagnosticStoredTarget: 90)!
         }
         let target = mode == "baseline100" ? 100 : mode == "baseline85" || (mode == "externalBefore95" && reads >= 2) ? 85 : target

@@ -5,9 +5,10 @@ import ChargeBackends
 /// Evidence for a finite persistent-setting contract, never physical cutoff,
 /// temporary overrides, helper authorization, or every offered target.
 struct NativeChargeAdmission: Codable {
-    static let version = 2
-    static let semanticContract = "PowerUI-v2-persistent-pair90-95"
-    static let persistentPair = [90, 95]
+    static let version = 3
+    static let semanticContract = "PowerUI-v3-persistent-80-85-90-95"
+    /// The finite persistent targets a local validation exercises (every one written, read back and restored).
+    static let persistentTargets = [80, 85, 90, 95]
 
     struct Scope: Equatable, Sendable {
         let environment: String
@@ -17,7 +18,7 @@ struct NativeChargeAdmission: Codable {
         // Only a fully validated proof can construct production authority.
         fileprivate init(environment: String, optimizedCharging: Bool) {
             self.environment = environment; semanticContract = NativeChargeAdmission.semanticContract
-            authorizedPersistentTargets = NativeChargeAdmission.persistentPair
+            authorizedPersistentTargets = NativeChargeAdmission.persistentTargets
             self.optimizedCharging = optimizedCharging
         }
     }
@@ -29,7 +30,8 @@ struct NativeChargeAdmission: Codable {
     let offeredTargets: [Int]
     let baseline: NativeChargeConfiguration
     let before: NativeChargeSnapshot
-    let changed: NativeChargeSnapshot
+    /// One verified snapshot for every persistent target other than the baseline, in ascending target order.
+    let stages: [NativeChargeSnapshot]
     let restored: NativeChargeSnapshot
     let completedAt: Date
 
@@ -44,7 +46,7 @@ struct NativeChargeAdmission: Codable {
     static func validOfferedTargets(_ targets: [Int]) -> Bool {
         (1...21).contains(targets.count) && targets.allSatisfy { (80...100).contains($0) }
             && zip(targets, targets.dropFirst()).allSatisfy { $0 < $1 }
-            && persistentPair.allSatisfy(targets.contains)
+            && persistentTargets.allSatisfy(targets.contains)
     }
 
     static func isPersistent(_ value: NativeChargeSnapshot, target: Int, optimizedCharging: Bool) -> Bool {
@@ -59,17 +61,20 @@ struct NativeChargeAdmission: Codable {
 
     static func validatedScope(_ value: Self, environment: String) -> Scope? {
         guard value.version == version, value.environment == environment, !environment.isEmpty, environment != "unavailable",
-              value.semanticContract == semanticContract, value.authorizedPersistentTargets == persistentPair,
+              value.semanticContract == semanticContract, value.authorizedPersistentTargets == persistentTargets,
               validOfferedTargets(value.offeredTargets),
               value.offeredTargets == value.before.supportedTargets,
-              value.offeredTargets == value.changed.supportedTargets,
+              value.stages.allSatisfy({ $0.supportedTargets == value.offeredTargets }),
               value.offeredTargets == value.restored.supportedTargets,
               value.baseline == value.before.configuration,
-              isPersistent(value.before, target: 90, optimizedCharging: value.baseline.optimizedCharging),
-              isPersistent(value.changed, target: 95, optimizedCharging: value.baseline.optimizedCharging),
-              isPersistent(value.restored, target: 90, optimizedCharging: value.baseline.optimizedCharging),
-              value.before.collectedAt <= value.changed.collectedAt,
-              value.changed.collectedAt <= value.restored.collectedAt,
+              persistentTargets.contains(value.baseline.target),
+              isPersistent(value.before, target: value.baseline.target, optimizedCharging: value.baseline.optimizedCharging),
+              value.stages.map({ $0.configuration.target }) == persistentTargets.filter({ $0 != value.baseline.target }),
+              value.stages.allSatisfy({ isPersistent($0, target: $0.configuration.target, optimizedCharging: value.baseline.optimizedCharging) }),
+              isPersistent(value.restored, target: value.baseline.target, optimizedCharging: value.baseline.optimizedCharging),
+              value.before.collectedAt <= (value.stages.first?.collectedAt ?? value.restored.collectedAt),
+              zip(value.stages, value.stages.dropFirst()).allSatisfy({ $0.collectedAt <= $1.collectedAt }),
+              (value.stages.last?.collectedAt ?? value.before.collectedAt) <= value.restored.collectedAt,
               value.restored.collectedAt <= value.completedAt,
               value.completedAt.timeIntervalSinceNow <= 5,
               value.before.collectedAt.timeIntervalSinceReferenceDate.isFinite,
