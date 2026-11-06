@@ -72,7 +72,10 @@ enum NativeBatteryStatusImage {
         let validLevel = ReadingPresentation.validLevel(level)
         let modernExtension = appearance == .macOS27 && inside ? modernBodyExtension(textSize: textSize) : 0
         let batteryWidth: CGFloat = appearance == .macOS27 ? 29 + CGFloat(modernExtension) : inside ? 35 : 27
-        let canvas = NSSize(width: batteryWidth + (awake == .off ? 0 : 10), height: 18)
+        // macOS 27 body: a confirmed Keep Awake session turns only the measured fill blue; no badge, the plain canvas.
+        // The macOS 26 outline keeps its cup badge and whole-icon blue.
+        let tintedAwake = awake == .active && appearance == .macOS27
+        let canvas = NSSize(width: batteryWidth + (awake == .off || tintedAwake ? 0 : 10), height: 18)
         let factor = CGFloat(MenuBarSizing.validatedIconScale(Double(scale)))
         let size = NSSize(width: canvas.width * factor, height: canvas.height * factor)
         let level = validLevel
@@ -94,8 +97,12 @@ enum NativeBatteryStatusImage {
             } else {
                 drawNormal(level: level, externalPower: externalPower)
             }
-            if awake != .off { drawAwakeBadge(awake, x: batteryWidth + 1) }
-            if awake == .active && !highlighted {
+            if awake != .off && !tintedAwake { drawAwakeBadge(awake, x: batteryWidth + 1) }
+            if tintedAwake && !highlighted {
+                (isDarkInk ? NSColor.white : NSColor.black).setFill()
+                NSRect(origin: .zero, size: canvas).fill(using: .sourceIn)
+                if let region = redRegion { NSColor.systemBlue.setFill(); region.fill(using: .sourceAtop) }
+            } else if awake == .active && !tintedAwake && !highlighted {
                 // Tint the existing alpha mask; measured fill and numeral/bolt
                 // cutouts remain identical to the native template presentation.
                 NSColor.systemBlue.setFill()
@@ -113,6 +120,7 @@ enum NativeBatteryStatusImage {
             return true
         }
         image.isTemplate = (awake != .active && !lowFill) || highlighted
+        if tintedAwake && !highlighted { image.isTemplate = false }
         return image
     }
 

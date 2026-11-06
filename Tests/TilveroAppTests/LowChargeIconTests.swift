@@ -69,3 +69,34 @@ import XCTest
         }
     }
 }
+
+extension LowChargeIconTests {
+    func testKeepAwakeColoursOnlyTheFillAndAddsNoBadgeOnTheModernBody() throws {
+        let plain = NativeBatteryStatusImage.make(level: 64, style: .inside, externalPower: false, appearance: .macOS27, redWhenLow: true)
+        let awake = NativeBatteryStatusImage.make(level: 64, style: .inside, externalPower: false, awake: .active, appearance: .macOS27, redWhenLow: true)
+        XCTAssertEqual(awake.size.width, plain.size.width, "No cup badge: the canvas keeps the plain battery width.")
+        XCTAssertFalse(awake.isTemplate)
+        func bluePixels(_ image: NSImage, dark: Bool) -> Int {
+            let rep = bitmap(image, dark: dark, background: dark ? .black : .white)
+            var count = 0
+            for y in 0..<rep.pixelsHigh { for x in 0..<rep.pixelsWide {
+                guard let c = rep.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { continue }
+                if c.blueComponent > 0.8 && c.redComponent < 0.35 { count += 1 }
+            } }
+            return count
+        }
+        XCTAssertGreaterThan(bluePixels(awake, dark: true), 40, "The measured fill is blue.")
+        XCTAssertGreaterThan(bluePixels(awake, dark: false), 40)
+        XCTAssertEqual(bluePixels(plain, dark: true), 0)
+        // The macOS 26 outline body keeps its badge.
+        let legacy = NativeBatteryStatusImage.make(level: 64, style: .inside, externalPower: false, awake: .active, appearance: .macOS26)
+        let legacyPlain = NativeBatteryStatusImage.make(level: 64, style: .inside, externalPower: false, appearance: .macOS26)
+        XCTAssertGreaterThan(legacy.size.width, legacyPlain.size.width)
+        // Low charge on battery: the fill is red even while Keep Awake runs (a warning outranks the session cue).
+        let low = NativeBatteryStatusImage.make(level: 12, style: .inside, externalPower: false, awake: .active, appearance: .macOS27, redWhenLow: true)
+        XCTAssertEqual(bluePixels(low, dark: true), 0)
+        XCTAssertGreaterThan(redPixels(bitmap(low, dark: true, background: .black)), 10)
+        // Pressed: the system's inverted template, no colours.
+        XCTAssertTrue(NativeBatteryStatusImage.make(level: 64, style: .inside, externalPower: false, awake: .active, highlighted: true, appearance: .macOS27).isTemplate)
+    }
+}
