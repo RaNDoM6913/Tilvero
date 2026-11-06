@@ -109,4 +109,46 @@ import XCTest
         XCTAssertTrue(control.isPillSliding, "A layout pass in the middle of the slide must not cancel it.")
         window.orderOut(nil)
     }
+
+    /// Press, move and release over the tabs: the pill follows the pointer without selecting, then springs to the nearest tab.
+    func testDraggingThePillFollowsThePointerAndSelectsTheNearestTabOnRelease() async throws {
+        var section = QuickPanelSection.overview
+        let tabs = QuickPanelTabs(selection: Binding(get: { section }, set: { section = $0 }))
+        let host = NSHostingController(rootView: tabs.frame(width: 360).padding(20).background(Color(nsColor: .windowBackgroundColor)))
+        let window = NSWindow(contentViewController: host)
+        window.setContentSize(NSSize(width: 400, height: 76)); window.orderFront(nil); host.view.layoutSubtreeIfNeeded()
+        try await Task.sleep(for: .milliseconds(150))
+        func all(_ v: NSView) -> [NSView] { [v] + v.subviews.flatMap(all) }
+        let control = try XCTUnwrap(all(host.view).compactMap { $0 as? FullWidthSegmentedTabs.FullWidthControl }.first)
+        let width = control.bounds.width / 4
+        func event(_ type: NSEvent.EventType, fraction: CGFloat, number: Int) throws -> NSEvent {
+            let point = control.convert(NSPoint(x: fraction * width, y: control.bounds.midY), to: nil)
+            return try XCTUnwrap(NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                windowNumber: window.windowNumber, context: nil, eventNumber: number, clickCount: 1, pressure: 1))
+        }
+        // Grab the selected pill at the centre of tab 0 and drag to 2.6 tabs.
+        window.sendEvent(try event(.leftMouseDown, fraction: 0.5, number: 1))
+        window.sendEvent(try event(.leftMouseDragged, fraction: 1.5, number: 2))
+        XCTAssertEqual(control.pillTargetFrame.midX, width * 1.5, accuracy: 1, "The pill follows the pointer one to one.")
+        window.sendEvent(try event(.leftMouseDragged, fraction: 2.6, number: 3))
+        XCTAssertEqual(control.pillTargetFrame.midX, width * 2.6, accuracy: 1)
+        XCTAssertEqual(section, .overview, "Nothing is selected while dragging.")
+        window.sendEvent(try event(.leftMouseDragged, fraction: 9, number: 4))
+        XCTAssertEqual(control.pillTargetFrame.midX, width * 3.5, accuracy: 1, "The pill stays inside the control.")
+        window.sendEvent(try event(.leftMouseDragged, fraction: 2.6, number: 5))
+        window.sendEvent(try event(.leftMouseUp, fraction: 2.6, number: 6))
+        XCTAssertEqual(section, QuickPanelSection.allCases[2], "Released over tab 2 (nearest to the pill): it is selected.")
+        XCTAssertEqual(control.pillTargetFrame.midX, width * 2.5, accuracy: 1)
+        XCTAssertTrue(control.isPillSliding, "The release settles with a spring.")
+        XCTAssertFalse(window.firstResponder === control)
+        // Drag away and back to the same tab: no selection change, the pill springs back.
+        try await Task.sleep(for: .milliseconds(600))   // let the previous spring finish
+        window.sendEvent(try event(.leftMouseDown, fraction: 2.5, number: 7))
+        window.sendEvent(try event(.leftMouseDragged, fraction: 2.9, number: 8))
+        window.sendEvent(try event(.leftMouseUp, fraction: 2.9, number: 9))
+        XCTAssertEqual(section, QuickPanelSection.allCases[2])
+        XCTAssertEqual(control.pillTargetFrame.midX, width * 2.5, accuracy: 1)
+        XCTAssertTrue(control.isPillSliding, "Dropping on the same tab springs back from the release point.")
+        window.orderOut(nil)
+    }
 }

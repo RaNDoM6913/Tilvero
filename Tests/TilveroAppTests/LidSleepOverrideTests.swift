@@ -241,4 +241,28 @@ private final class FakeLidSystem: LidSleepSystem, @unchecked Sendable {
         XCTAssertFalse(NativeLidSleepSystem.sleepDisabled(inPmsetOutput: "sleep 10\n"))
         XCTAssertEqual(NativeLidSleepSystem.appleScriptLiteral(#"a "quoted" \ path"#), #""a \"quoted\" \\ path""#)
     }
+
+    /// The model path behind the row's switch: with no Keep Awake session, starting one and then the lid mode works,
+    /// and ending Keep Awake restores sleep through the bound service. All system calls go to the fake.
+    func testLidModeStartedFromTheRowFollowsTheKeepAwakeSessionInTheModel() async throws {
+        let system = FakeLidSystem()
+        let suite = "LidModel-\(UUID())", prefs = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        prefs.set(false, forKey: "historyEnabled")
+        let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"),
+                                 snapshotProvider: { .unavailable(reason: "fixture") },
+                                 keepAwakeTransport: AwakeFixture(), lidSleepSystem: system)
+        defer { model.stop() }
+        XCTAssertFalse(model.keepAwake.hasOwnedAssertion)
+        try SleepPillActions.setAwakeEnabled(model, enabled: true, token: nil)
+        XCTAssertTrue(model.keepAwake.hasOwnedAssertion)
+        await model.lidSleep.setEnabled(true)
+        XCTAssertTrue(model.lidSleep.isOn)
+        XCTAssertTrue(system.sleepDisabled)
+        try model.keepAwake.stop()
+        for _ in 0..<100 where model.lidSleep.isOn { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertFalse(model.lidSleep.isOn, "Ending Keep Awake ends the lid mode.")
+        XCTAssertFalse(system.sleepDisabled)
+    }
 }

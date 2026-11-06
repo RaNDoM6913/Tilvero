@@ -124,13 +124,46 @@ import SwiftUI
             guard bounds.contains(point) else { return nil }
             return min(segmentCount - 1, max(0, Int(point.x / (bounds.width / CGFloat(segmentCount)))))
         }
+        // Dragging: the pill follows the pointer one-to-one (layer position set directly, nothing is redrawn) and on
+        // release springs to the segment nearest to its centre. A press without movement is a plain click.
+        private var dragStartX: CGFloat?
+        private var dragStartCenter: CGFloat = 0
+        private var isDraggingPill = false
+        private func pillCenter(forIndex index: Int) -> CGFloat { (CGFloat(index) + 0.5) * segmentWidth }
         override func mouseDown(with event: NSEvent) {
             guard isEnabled else { return }
             pressedSegment = segment(at: event)
+            dragStartX = convert(event.locationInWindow, from: nil).x
+            dragStartCenter = pillLayer.presentation()?.position.x ?? pillCenter(forIndex: max(0, selectedSegment))
+            isDraggingPill = false
+        }
+        override func mouseDragged(with event: NSEvent) {
+            guard isEnabled, let startX = dragStartX, segmentCount > 0 else { return }
+            let x = convert(event.locationInWindow, from: nil).x
+            if !isDraggingPill {
+                guard abs(x - startX) > 3 else { return }
+                isDraggingPill = true
+                pillLayer.removeAnimation(forKey: "slide"); pillMask.removeAnimation(forKey: "slide")
+            }
+            let center = min(max(dragStartCenter + (x - startX), pillCenter(forIndex: 0)), pillCenter(forIndex: segmentCount - 1))
+            CATransaction.begin(); CATransaction.setDisableActions(true)
+            pillLayer.position.x = center; pillMask.position.x = center
+            CATransaction.commit()
         }
         override func mouseUp(with event: NSEvent) {
-            defer { pressedSegment = nil }
-            guard isEnabled, let pressed = pressedSegment, segment(at: event) == pressed else { return }
+            defer { pressedSegment = nil; dragStartX = nil; isDraggingPill = false }
+            guard isEnabled else { return }
+            if isDraggingPill {
+                let center = pillLayer.position.x
+                let target = min(segmentCount - 1, max(0, Int((center / max(1, segmentWidth)).rounded(.down))))
+                let changed = target != selectedSegment
+                // A changed selection animates from the dragged position through its didSet; dropping back on the
+                // same segment springs back from where the pill was released.
+                if changed { selectedSegment = target } else { updateGeometry(animated: true, forceFromCurrent: true) }
+                if changed { _ = sendAction(action, to: self.target) }
+                return
+            }
+            guard let pressed = pressedSegment, segment(at: event) == pressed else { return }
             if selectedSegment != pressed { selectedSegment = pressed }
             _ = sendAction(action, to: target)
         }
@@ -212,7 +245,7 @@ import SwiftUI
         var isPillSliding: Bool { pillLayer.animation(forKey: "slide") != nil }
         var pillTargetFrame: CGRect { pillLayer.frame }
 
-        private func updateGeometry(animated: Bool) {
+        private func updateGeometry(animated: Bool, forceFromCurrent: Bool = false) {
             guard segmentCount > 0, bounds.width > 0 else { return }
             let sizeChanged = laidOutSize != bounds.size
             rebuildLabelLayersIfNeeded()
@@ -230,14 +263,17 @@ import SwiftUI
             let target = max(0, selectedSegment)
             let rect = pillFrame(forIndex: target)
             let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-            let shouldAnimate = animated && !reduceMotion && !sizeChanged && lastPillIndex != nil && lastPillIndex != target
-            let fromX = pillLayer.presentation()?.position.x
+            let shouldAnimate = animated && !reduceMotion && !sizeChanged && lastPillIndex != nil && (lastPillIndex != target || forceFromCurrent)
+            let fromX = isDraggingPill ? pillLayer.position.x : pillLayer.presentation()?.position.x
+            // A layout pass during a drag (a SwiftUI update, a resize) must not pull the pill from under the pointer.
+            let holdingForDrag = isDraggingPill && !animated
             for layer in [pillLayer, pillMask] {
                 layer.bounds = CGRect(origin: .zero, size: rect.size)
                 layer.cornerRadius = rect.height / 2
-                layer.position = CGPoint(x: rect.midX, y: rect.midY)
+                if !holdingForDrag { layer.position = CGPoint(x: rect.midX, y: rect.midY) }
             }
             CATransaction.commit()
+            if holdingForDrag { laidOutSize = bounds.size; return }
             if shouldAnimate, let fromX {
                 // Retargets from the on-screen position, so an interrupted slide continues instead of jumping.
                 for layer in [pillLayer, pillMask] {

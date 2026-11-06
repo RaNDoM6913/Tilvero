@@ -69,6 +69,16 @@ import ClosedLidControl
     @ObservedObject var model: TilveroModel
     @ObservedObject private var service: LidSleepOverrideService
     init(model: TilveroModel) { self.model = model; service = model.lidSleep }
+    /// The lid mode lives inside a Keep Awake session. Switching it on without one starts Keep Awake with the saved
+    /// choice first (the same as its own switch), instead of leaving the control dead.
+    private func turn(_ enabled: Bool) async {
+        if enabled, !model.keepAwake.hasOwnedAssertion {
+            do { try SleepPillActions.setAwakeEnabled(model, enabled: true, token: nil) }
+            catch { service.report(L10n.text("Start Keep Awake first.")); return }
+        }
+        await service.setEnabled(enabled)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
@@ -84,9 +94,9 @@ import ClosedLidControl
                 Spacer(minLength: 8)
                 Toggle(L10n.text("With lid closed"), isOn: Binding(
                     get: { service.isOn },
-                    set: { enabled in Task { await service.setEnabled(enabled) } }))
+                    set: { enabled in Task { await turn(enabled) } }))
                     .toggleStyle(.switch).controlSize(.regular).labelsHidden().fixedSize()
-                    .disabled(!service.isAvailable || service.busy || (!service.isOn && (!model.keepAwake.hasOwnedAssertion || service.needsRecovery)))
+                    .disabled(!service.isAvailable || service.busy || (!service.isOn && (service.needsRecovery || !SleepPillActions.canChooseAwake(model) && !model.keepAwake.hasOwnedAssertion)))
                     .accessibilityIdentifier("closed-lid-master")
             }
             .frame(height: 32)

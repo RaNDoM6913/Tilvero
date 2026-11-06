@@ -59,6 +59,8 @@ protocol LidSleepSystem: Sendable {
     }
 
     var isAvailable: Bool { allowed }
+    /// A message from the row itself (for example, Keep Awake could not be started).
+    func report(_ text: String) { failure = text }
     var canEnable: Bool { allowed && !busy && !needsRecovery && !isOn && awakeIsActive() }
 
     /// The lid mode belongs to one Keep Awake session: when that session ends or is replaced, the override ends.
