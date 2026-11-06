@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (c) 2026 RaNDoM6913
+
 """Disposable Git/source fixtures; signing and build boundaries are always injected."""
 import importlib.util
 import json

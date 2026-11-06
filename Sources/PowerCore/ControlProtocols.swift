@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2026 RaNDoM6913
+
 /// Typed extension points only. This starter intentionally contains no control backend.
 public enum ChargeControlRequest: Sendable, Equatable {
     case setCeiling(percent: Int)

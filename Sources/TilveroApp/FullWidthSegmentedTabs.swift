@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2026 RaNDoM6913
+
 import AppKit
 import SwiftUI
 
@@ -334,3 +337,4 @@ final class CapsuleSegmentedCell: NSSegmentedCell {
     override func drawSegment(_ segment: Int, inFrame frame: NSRect, with controlView: NSView) {}
     override func drawFocusRingMask(withFrame cellFrame: NSRect, in controlView: NSView) {}
 }
+// tlv-origin:e5b337bfedf1e921

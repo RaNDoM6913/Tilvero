@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2026 RaNDoM6913
+
 import Foundation
 import Combine
 
@@ -167,3 +170,4 @@ enum SleepAtChargeError: LocalizedError {
         }
     }
 }
+// tlv-origin:c0cb3ac78460a24d

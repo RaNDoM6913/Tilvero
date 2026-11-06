@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (c) 2026 RaNDoM6913
+
 """Prepare unsigned metadata or validate an owner-signed Monitoring feed locally.
 
 No network publication, private-key access, key generation or signing occurs.

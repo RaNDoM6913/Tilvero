@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2026 RaNDoM6913
+
 // Original AppKit rendering of the TilveroEnergyMark geometry; no external art/fonts.
 import AppKit
 let destination = CommandLine.arguments[1]

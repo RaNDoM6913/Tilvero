@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2026 RaNDoM6913
+
 import AppKit
 import SwiftUI
 import PowerCore
@@ -375,3 +378,4 @@ private struct QuickFrameClock: NSViewRepresentable {
 extension View {
     fileprivate func quickPageArea(_ motion: QuickPanelPageMotion) -> some View { modifier(QuickPageAreaModifier(motion: motion)) }
 }
+// tlv-origin:3d006ddad068f1f7

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2026 RaNDoM6913
+
 /// Read-only setup facts supplied by the owning services. This model has no host,
 /// preference, clock, permission or hardware access and cannot perform an action.
 struct SetupReadinessInputs: Equatable, Sendable {

@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (c) 2026 RaNDoM6913
+
 """Read-only process CPU/RSS sampling; no elevated permissions or power settings."""
 import argparse, csv, subprocess, time, json
 from pathlib import Path

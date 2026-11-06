@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2026 RaNDoM6913
+
 import Foundation
 
 enum UpdateChannel: String, CaseIterable, Codable, Sendable { case stable, beta }

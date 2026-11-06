@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (c) 2026 RaNDoM6913
+
 """Prepare a source-bound isolated lid trial; build/sign only with explicit opt-in.
 
 Never installs, launches, registers services or changes power settings. Run from

@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (c) 2026 RaNDoM6913
+
 """Configure/validate sealed Sparkle policy; never create keys or publish updates."""
 import argparse
 import base64

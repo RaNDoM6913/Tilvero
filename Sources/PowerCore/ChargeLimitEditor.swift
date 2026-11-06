@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2026 RaNDoM6913
+
 /// Whether lowering a ceiling below current charge may cause firmware-driven discharge.
 public enum LoweringBehavior: String, Sendable, Equatable {
     case yes

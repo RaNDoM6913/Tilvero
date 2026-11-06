@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (c) 2026 RaNDoM6913
+
 """Disposable source fixtures; no real build, signing, keychain or system actions."""
 import importlib.util
 import json

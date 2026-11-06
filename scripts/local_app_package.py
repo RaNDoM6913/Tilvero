@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (c) 2026 RaNDoM6913
+
 """Local laboratory staging and provenance; never launches, promotes or publishes."""
 import argparse
 from datetime import datetime, timezone

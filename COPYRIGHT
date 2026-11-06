@@ -9,3 +9,8 @@ under the GNU General Public License, version 3 only. See LICENSE.
 
 Third-party material retains its respective copyright and license notices.
 See THIRD_PARTY_NOTICES.md and Helper/THIRD_PARTY_NOTICES.md.
+
+Provenance: the authorship and date of this work are recorded in the public git
+history of https://github.com/RaNDoM6913/Tilvero. Releases from v0.3.0 onward are
+tagged with signed tags; their checksums are published in SHA256SUMS. Copying
+this source without keeping its license and copyright notices breaches the GPL.
