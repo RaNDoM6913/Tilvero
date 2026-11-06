@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.0-beta.1 — Sleep and Charge Source Preview — 2026-11-06
+
+- Quick menu: tabs and sleep pills are one capsule control with a sliding accent pill (click or drag), cross-faded pages and one spring for page height and popover size. The menu no longer switches Spaces or raises the details window when it opens.
+- Sleep: **Sleep at charge** (sleep once the battery falls to a chosen level) and **Keep awake until charge**, next to the Sleep Timer. Only one of Keep Awake, Sleep Timer, Sleep at charge and Keep awake until charge can run at a time. Compact Until picker with cyclic wheels.
+- Keep Awake can also hold the Mac awake with the lid closed (`pmset disablesleep`, through a one-time administrator approval). It never starts Keep Awake by itself.
+- Menu bar icon: Keep Awake fills the battery with a configurable colour (blue by default); the fill turns red at 20 % or less.
+- Charge: the quick Charge page uses the native macOS charge limit with a slider for 80, 85, 90, 95 and 100 %; letting go applies it. It works on battery power after a one-time validation on a charger (battery below 80 %). The page does not change height while the limit is applied.
+- Optional keyboard-backlight row in the quick menu (hidden by default).
+- History is decoded as scalars only, so refreshes no longer cause multi-second main-thread work.
+- Overview shows capacity retention; sleep endpoints and the discharge forecast accept app-observed IOPowerSources readings.
+
+This beta contains source for Apple silicon with macOS 26.0+ and full Xcode; it
+includes no app or DMG. The charge limit was exercised on one Mac (macOS 27.2);
+its validation and the closed-lid override still need your own device check.
+Automatic installation remains gated.
+
 ## 0.2.0 — Source Preview — 2026-11-04
 
 - Refined the sidebar and menu bar battery indicator, and shared the native full-width segmented controls between the app and Lab.

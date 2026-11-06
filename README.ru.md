@@ -1,8 +1,8 @@
 ![Tilvero — батарея, питание и активность. Swift 6, macOS 26+, Apple silicon. Предварительная версия в исходниках.](.github/assets/cover.png)
 
 <p align="center">
-  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.2.0"><img src="https://img.shields.io/badge/source-preview-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Предварительная версия в исходниках" height="28"></a>
-  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.2.0"><img src="https://img.shields.io/github/downloads/RaNDoM6913/Tilvero/v0.2.0/Tilvero-0.2.0-source.zip?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B&amp;label=source+downloads&amp;displayAssetName=false" alt="Скачивания ZIP исходников v0.2.0" height="28"></a>
+  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.3.0-beta.1"><img src="https://img.shields.io/badge/source-preview-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Предварительная версия в исходниках" height="28"></a>
+  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.3.0-beta.1"><img src="https://img.shields.io/github/downloads/RaNDoM6913/Tilvero/v0.3.0-beta.1/Tilvero-0.3.0-beta.1-source.zip?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B&amp;label=source+downloads&amp;displayAssetName=false" alt="Скачивания ZIP исходников v0.3.0-beta.1" height="28"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Лицензия GPL-3.0-only" height="28"></a>
   <a href="https://github.com/RaNDoM6913/Tilvero/stargazers"><img src="https://img.shields.io/github/stars/RaNDoM6913/Tilvero?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B&amp;label=stars" alt="Звёзды GitHub" height="28"></a>
 </p>
@@ -13,10 +13,10 @@ Tilvero показывает состояние батареи и питания
 в удобном нативном окне. Следите за зарядкой, изучайте состояние батареи
 и изменения со временем. Без аккаунта и облачного сервиса.
 
-**Исходники Tilvero 0.2.0 для разработчиков.**
+**Исходники Tilvero 0.3.0-beta.1 для разработчиков.**
 Управление сном и ограниченное испытание закрытой крышки включены в исходники; физическая работа с закрытой крышкой ещё не квалифицирована.
-[Получить исходники](https://github.com/RaNDoM6913/Tilvero/releases/download/v0.2.0/Tilvero-0.2.0-source.zip)
-· [Описание выпуска и контрольные суммы](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.2.0)
+[Получить исходники](https://github.com/RaNDoM6913/Tilvero/releases/download/v0.3.0-beta.1/Tilvero-0.3.0-beta.1-source.zip)
+· [Описание выпуска и контрольные суммы](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.3.0-beta.1)
 · [Сборка и запуск](#сборка-и-запуск) · [План развития](ROADMAP.md)
 
 Подписанная и нотарифицированная версия для Mac готовится. Планируемый DMG
@@ -62,7 +62,7 @@ Tilvero показывает состояние батареи и питания
 macOS SDK и Swift 6. Отдельные Command Line Tools не являются проверенным путём сборки.
 
 ```sh
-git clone --branch v0.2.0 https://github.com/RaNDoM6913/Tilvero.git
+git clone --branch v0.3.0-beta.1 https://github.com/RaNDoM6913/Tilvero.git
 cd Tilvero
 bash scripts/test.sh
 bash scripts/build-local-app.sh
