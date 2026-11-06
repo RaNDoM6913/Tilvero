@@ -15873,18 +15873,18 @@
         }
       }
     },
-    "Connect the charger: macOS confirms the limit only while the Mac is plugged in.": {
+    "Connect the charger for the one-time validation. After that the limit works on battery power too.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Connect the charger: macOS confirms the limit only while the Mac is plugged in."
+            "value": "Connect the charger for the one-time validation. After that the limit works on battery power too."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Подключите зарядку: macOS подтверждает лимит, только когда Mac подключён к питанию."
+            "value": "Подключите зарядку для разовой проверки. После неё лимит работает и от батареи."
           }
         }
       }

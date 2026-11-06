@@ -223,7 +223,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
               admissionURL != nil, environment != "unavailable", batteryProvider != nil,
               let value = observed, value.isFresh else { return false }
         return NativeChargeAdmission.persistentTargets.contains(value.configuration.target)
-            && NativeChargeAdmission.isPersistent(value, target: value.configuration.target, optimizedCharging: value.configuration.optimizedCharging)
+            && NativeChargeAdmission.isPersistent(value, target: value.configuration.target, optimizedCharging: value.configuration.optimizedCharging, strict: true)
     }
     func needsApply(target: Int) -> Bool {
         guard canApplyTarget(target) else { return false }
@@ -313,7 +313,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
         let baseline = try await readNative(); observed = baseline
         let battery = await batteryProvider()
         guard baseline.isFresh, NativeChargeAdmission.persistentTargets.contains(baseline.configuration.target),
-              NativeChargeAdmission.isPersistent(baseline, target: baseline.configuration.target, optimizedCharging: baseline.configuration.optimizedCharging) else {
+              NativeChargeAdmission.isPersistent(baseline, target: baseline.configuration.target, optimizedCharging: baseline.configuration.optimizedCharging, strict: true) else {
             throw NativeChargeServiceError.readbackMismatch
         }
         // Every other persistent target is written in ascending order. A target at or below the battery level would
@@ -342,7 +342,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
                     try await self.setNativeLimit(target, transaction: transaction)
                 }
                 let changed = try await verify(target: target, enabled: target != NativeChargeAdmission.unlimitedTarget)
-                guard NativeChargeAdmission.isPersistent(changed, target: target, optimizedCharging: baseline.configuration.optimizedCharging),
+                guard NativeChargeAdmission.isPersistent(changed, target: target, optimizedCharging: baseline.configuration.optimizedCharging, strict: true),
                       changed.supportedTargets == baseline.supportedTargets else { throw NativeChargeServiceError.readbackMismatch }
                 journal?.lastVerified = changed.configuration; journal?.phase = .owned; journal?.plannedTarget = nil
                 try saveJournal()
@@ -351,7 +351,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
             stagesComplete = true
             let after = await batteryProvider()
             guard try await restoreInternal(batteryPercent: after.percent, batteryFresh: after.fresh), let restored = observed,
-                  NativeChargeAdmission.isPersistent(restored, target: baseline.configuration.target, optimizedCharging: baseline.configuration.optimizedCharging),
+                  NativeChargeAdmission.isPersistent(restored, target: baseline.configuration.target, optimizedCharging: baseline.configuration.optimizedCharging, strict: true),
                   restored.supportedTargets == baseline.supportedTargets else { throw NativeChargeServiceError.recoveryRequired }
             let proof = NativeChargeAdmission(version: NativeChargeAdmission.version, environment: environment,
                 semanticContract: NativeChargeAdmission.semanticContract, authorizedPersistentTargets: NativeChargeAdmission.persistentTargets,
@@ -822,7 +822,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
             throw NativeChargeServiceError.readbackMismatch
         }
         if scoped {
-            guard NativeChargeAdmission.isPersistent(after, target: expected.target, optimizedCharging: saved.baseline.optimizedCharging),
+            guard NativeChargeAdmission.isPersistent(after, target: expected.target, optimizedCharging: saved.baseline.optimizedCharging, strict: isQualifying),
                   after.supportedTargets == saved.baselineSnapshot?.supportedTargets else { throw NativeChargeServiceError.readbackMismatch }
         }
         // Setter return and the first fresh matching configuration are separate
@@ -935,7 +935,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
             let value = try await readNative(); observed = value
             if value.isFresh && value.configuration.target == target && (enabled.map { $0 == value.configuration.enabled } ?? true) && value.policyMatches {
                 if let saved = journal, saved.version == 2 {
-                    guard NativeChargeAdmission.isPersistent(value, target: target, optimizedCharging: saved.baseline.optimizedCharging),
+                    guard NativeChargeAdmission.isPersistent(value, target: target, optimizedCharging: saved.baseline.optimizedCharging, strict: isQualifying),
                           value.supportedTargets == saved.baselineSnapshot?.supportedTargets else { throw NativeChargeServiceError.readbackMismatch }
                 }
                 return value

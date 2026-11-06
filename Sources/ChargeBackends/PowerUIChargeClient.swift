@@ -1,6 +1,8 @@
 import Foundation
 import PowerUIBridge
 import PowerCore
+import IOKit.ps
+import IOKit.pwr_mgt
 
 public struct NativeChargeConfiguration: Codable, Equatable, Sendable {
     public let enabled: Bool
@@ -18,12 +20,36 @@ public struct NativeChargeSnapshot: Codable, Equatable, Sendable {
     public let registeredManualLimit: Int?
     public let policyReadbackAvailable: Bool
     public let collectedAt: Date
-    public init(configuration: NativeChargeConfiguration, supportedTargets: [Int], registeredManualLimit: Int?, policyReadbackAvailable: Bool = true, collectedAt: Date = Date()) {
+    /// False when the Mac ran on battery power at the read: macOS then lists no manual limit in `pmset -g battlimit`
+    /// even though the setting is stored (measured on macOS 27.2), so an absent registration is expected, not a fault.
+    public let registrationExpected: Bool
+    public init(configuration: NativeChargeConfiguration, supportedTargets: [Int], registeredManualLimit: Int?, policyReadbackAvailable: Bool = true,
+                collectedAt: Date = Date(), registrationExpected: Bool = true) {
         self.configuration = configuration; self.supportedTargets = supportedTargets
         self.registeredManualLimit = registeredManualLimit; self.policyReadbackAvailable = policyReadbackAvailable; self.collectedAt = collectedAt
+        self.registrationExpected = registrationExpected
+    }
+    private enum CodingKeys: String, CodingKey {
+        case configuration, supportedTargets, registeredManualLimit, policyReadbackAvailable, collectedAt, registrationExpected
+    }
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        configuration = try c.decode(NativeChargeConfiguration.self, forKey: .configuration)
+        supportedTargets = try c.decode([Int].self, forKey: .supportedTargets)
+        registeredManualLimit = try c.decodeIfPresent(Int.self, forKey: .registeredManualLimit)
+        policyReadbackAvailable = try c.decode(Bool.self, forKey: .policyReadbackAvailable)
+        collectedAt = try c.decode(Date.self, forKey: .collectedAt)
+        registrationExpected = try c.decodeIfPresent(Bool.self, forKey: .registrationExpected) ?? true
     }
     public var isFresh: Bool { let age = Date().timeIntervalSince(collectedAt); return age >= -5 && age <= 65 }
+    /// The registry agrees with the stored setting, or (on battery power only) lists nothing at all.
     public var policyMatches: Bool {
+        guard policyReadbackAvailable else { return false }
+        if registeredManualLimit == nil, !registrationExpected { return true }
+        return configuration.enabled ? registeredManualLimit == configuration.target : registeredManualLimit == nil
+    }
+    /// Registry agreement with no battery-power allowance: what validation evidence requires.
+    public var registryAgrees: Bool {
         policyReadbackAvailable && (configuration.enabled ? registeredManualLimit == configuration.target : registeredManualLimit == nil)
     }
 }
@@ -105,6 +131,11 @@ public actor PowerUIChargeClient: NativeChargeTransport {
               value.decimalValue == NSNumber(value: exact).decimalValue else { return nil }
         return exact
     }
+    /// True while the Mac is powered by an adapter (IOKit power source type), the only time macOS registers the limit.
+    static func runsOnExternalPower() -> Bool {
+        guard let type = IOPSGetProvidingPowerSourceType(nil)?.takeRetainedValue() as String? else { return true }
+        return type == kIOPMACPowerKey
+    }
     public func read() async throws -> NativeChargeSnapshot {
         let value = try autoreleasepool {
             var error: NSError?
@@ -119,7 +150,8 @@ public actor PowerUIChargeClient: NativeChargeTransport {
         let limits = try? SystemChargeLimitParser.parse(BoundedProcess.read(executable: "/usr/bin/pmset", arguments: ["-g", "battlimit"]))
         return .init(configuration: .init(enabled: enabled, target: target, optimizedCharging: optimized), supportedTargets: targets,
                      registeredManualLimit: limits?.manualLimit,
-                     policyReadbackAvailable: limits != nil && limits?.manualLimitIsConflicting == false)
+                     policyReadbackAvailable: limits != nil && limits?.manualLimitIsConflicting == false,
+                     registrationExpected: Self.runsOnExternalPower())
     }
     public func setLimit(_ target: Int) async throws {
         guard (80...100).contains(target) else { throw PolicyError.unsupportedTarget }

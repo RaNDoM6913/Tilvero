@@ -310,6 +310,33 @@ import PowerCore
         XCTAssertFalse(service.recoveryRequired)
     }
 
+    func testOnBatteryPowerTheValidatedLimitStillWorksButValidationNeedsTheRegistry() async throws {
+        // Validation evidence is strict: with no registry entry (battery power) it is refused without a write.
+        let unplugged = ScopeFixture(mode: "battery"); defer { unplugged.cleanup() }
+        await unplugged.service.refresh()
+        XCTAssertFalse(unplugged.service.canRequestQualification)
+        do { try await unplugged.service.qualify(); XCTFail("Strict evidence needs the registry") } catch {}
+        await unplugged.assertWrites([])
+        XCTAssertFalse(unplugged.service.admitted)
+
+        // Validated on AC, then used on battery power: the stored setting is read back and trusted.
+        let f = ScopeFixture(); defer { f.cleanup() }
+        try await f.service.qualify()
+        let scope = try XCTUnwrap(NativeChargeAdmission.loadScope(from: f.admission, environment: "scope-fixture"))
+        await f.client.setMode("battery")
+        let service = f.makeService(scope: scope)
+        await service.refresh()
+        XCTAssertTrue(service.isAvailable, "Policy matches: no registry entry is expected on battery power")
+        XCTAssertTrue(service.canApplyTarget(85))
+        try await service.apply(85, batteryPercent: 50, batteryFresh: true)
+        XCTAssertEqual(service.observed?.configuration, .init(enabled: true, target: 85, optimizedCharging: true))
+        XCTAssertTrue(service.hasOwnedSettings)
+        let restored = try await service.restore(batteryPercent: 50, batteryFresh: true)
+        XCTAssertTrue(restored)
+        XCTAssertEqual(service.observed?.configuration.target, 90)
+        await f.assertWrites(["limit80", "limit85", "limit95", "limit100", "limit90", "limit85", "limit90"])
+    }
+
     func testProductionScopeRejectsLegacyJournalAndPreservesItsBytes() async throws {
         let f = ScopeFixture(); defer { f.cleanup() }
         try FileManager.default.createDirectory(at: f.root, withIntermediateDirectories: true)
@@ -368,11 +395,12 @@ private actor ScopeTransport: NativeChargeTransport {
         }
         let target = mode == "baseline100" ? 100 : mode == "baseline85" || (mode == "externalBefore95" && reads >= 2) ? 85 : target
         // macOS stores 100 as "limit off": disabled, no registered manual limit (mode "baseline100" is an inconsistent enabled 100).
+        let battery = mode == "battery"   // macOS on battery power: the setting is stored, nothing is registered
         let off = target == 100 && mode != "baseline100"
         return .init(configuration: .init(enabled: mode != "disabled" && !off, target: target, optimizedCharging: mode != "obc"),
               supportedTargets: mode == "offered" ? [80,85,90,100] : [80,85,90,95,100],
-              registeredManualLimit: mode == "disabled" || mode == "policy" || off ? nil : target,
-              collectedAt: mode == "stale" ? Date().addingTimeInterval(-100) : Date())
+              registeredManualLimit: mode == "disabled" || mode == "policy" || off || battery ? nil : target,
+              collectedAt: mode == "stale" ? Date().addingTimeInterval(-100) : Date(), registrationExpected: !battery)
     }
     func setLimit(_ target: Int) { writes.append("limit\(target)"); self.target = target }
     func setEnabled(_ enabled: Bool) { writes.append(enabled ? "enable" : "disable") }

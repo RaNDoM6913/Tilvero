@@ -55,13 +55,17 @@ struct NativeChargeAdmission: Codable {
             && persistentTargets.allSatisfy(targets.contains)
     }
 
-    static func isPersistent(_ value: NativeChargeSnapshot, target: Int, optimizedCharging: Bool) -> Bool {
+    /// A complete persistent state at `target`. By default a missing registry entry on battery power is accepted
+    /// (`policyMatches`); validation evidence passes `strict: true` and then needs the registry to agree.
+    static func isPersistent(_ value: NativeChargeSnapshot, target: Int, optimizedCharging: Bool, strict: Bool = false) -> Bool {
+        let registryOK = strict ? value.registryAgrees : value.policyMatches
         if target == unlimitedTarget {
             return value.configuration == .init(enabled: false, target: unlimitedTarget, optimizedCharging: optimizedCharging)
-                && value.policyMatches && value.registeredManualLimit == nil && validOfferedTargets(value.supportedTargets)
+                && registryOK && value.registeredManualLimit == nil && validOfferedTargets(value.supportedTargets)
         }
         return value.configuration == .init(enabled: true, target: target, optimizedCharging: optimizedCharging)
-            && value.policyMatches && value.registeredManualLimit == target && validOfferedTargets(value.supportedTargets)
+            && registryOK && (value.registeredManualLimit == target || (!strict && value.registeredManualLimit == nil && !value.registrationExpected))
+            && validOfferedTargets(value.supportedTargets)
     }
 
     static func loadScope(from url: URL, environment: String) -> Scope? {
@@ -78,10 +82,10 @@ struct NativeChargeAdmission: Codable {
               value.offeredTargets == value.restored.supportedTargets,
               value.baseline == value.before.configuration,
               persistentTargets.contains(value.baseline.target),
-              isPersistent(value.before, target: value.baseline.target, optimizedCharging: value.baseline.optimizedCharging),
+              isPersistent(value.before, target: value.baseline.target, optimizedCharging: value.baseline.optimizedCharging, strict: true),
               value.stages.map({ $0.configuration.target }) == persistentTargets.filter({ $0 != value.baseline.target }),
-              value.stages.allSatisfy({ isPersistent($0, target: $0.configuration.target, optimizedCharging: value.baseline.optimizedCharging) }),
-              isPersistent(value.restored, target: value.baseline.target, optimizedCharging: value.baseline.optimizedCharging),
+              value.stages.allSatisfy({ isPersistent($0, target: $0.configuration.target, optimizedCharging: value.baseline.optimizedCharging, strict: true) }),
+              isPersistent(value.restored, target: value.baseline.target, optimizedCharging: value.baseline.optimizedCharging, strict: true),
               value.before.collectedAt <= (value.stages.first?.collectedAt ?? value.restored.collectedAt),
               zip(value.stages, value.stages.dropFirst()).allSatisfy({ $0.collectedAt <= $1.collectedAt }),
               (value.stages.last?.collectedAt ?? value.before.collectedAt) <= value.restored.collectedAt,

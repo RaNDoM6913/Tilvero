@@ -13,34 +13,11 @@ private actor RenderChargeTransport: NativeChargeTransport {
     func setEnabled(_ enabled: Bool) { XCTFail("Rendering never writes") }
 }
 
-/// macOS on battery power: the limit is set (90) but no manual limit is registered, so the policy cannot be confirmed.
-private actor UnregisteredChargeTransport: NativeChargeTransport {
-    func read() -> NativeChargeSnapshot {
-        .init(configuration: .init(enabled: true, target: 90, optimizedCharging: true), supportedTargets: [80, 85, 90, 95, 100], registeredManualLimit: nil)
-    }
-    func setLimit(_ target: Int) { XCTFail("Never writes") }
-    func setEnabled(_ enabled: Bool) { XCTFail("Never writes") }
-}
-
 @MainActor final class QuickChargeRenderTests: XCTestCase {
-    func testOnBatteryTheChargePageTellsToConnectTheCharger() async throws {
-        let suite = "ChargeBattery-\(UUID())", prefs = try XCTUnwrap(UserDefaults(suiteName: suite))
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
-        prefs.set(false, forKey: "historyEnabled")
-        let native = NativeChargeService(client: UnregisteredChargeTransport(), journalURL: root.appendingPathComponent("native.json"), admitted: false)
-        let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"),
-                                 snapshotProvider: { BatterySnapshot(chargePercent: .init(value: 75, source: "fixture", freshness: .unknown),
-                                                                    isExternalPower: .init(value: false, source: "fixture", freshness: .unknown)) },
-                                 nativeCharge: native)
-        defer { model.stop() }
-        await model.quickPanelWillOpen()
-        await model.refresh()
-        let state = model.nativeCharge.presentation()
-        XCTAssertEqual(state.attention, .policyUnconfirmed, "Battery power: the limit is set but not registered")
-        XCTAssertTrue(QuickNativeChargePanel.needsPowerHint(attention: state.attention, onBattery: true))
-        XCTAssertFalse(QuickNativeChargePanel.needsPowerHint(attention: state.attention, onBattery: false), "Plugged in: a real problem keeps its own text")
-        XCTAssertFalse(QuickNativeChargePanel.needsPowerHint(attention: .none, onBattery: true))
+    func testValidationNeedsPowerButAnAdmittedLimitDoesNot() {
+        XCTAssertTrue(QuickNativeChargePanel.needsPowerForValidation(admitted: false, onBattery: true))
+        XCTAssertFalse(QuickNativeChargePanel.needsPowerForValidation(admitted: false, onBattery: false))
+        XCTAssertFalse(QuickNativeChargePanel.needsPowerForValidation(admitted: true, onBattery: true), "Once validated, the limit works on battery power")
     }
 
     private func model(admitted: Bool, prefs: UserDefaults, root: URL) async -> TilveroModel {

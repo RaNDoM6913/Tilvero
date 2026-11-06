@@ -118,13 +118,16 @@ import ChargeBackends
                 .help(L10n.text("Validation writes 80%, 85%, 95% and 100% in turn and restores your setting, after a confirmed persistent baseline and a battery level below 80%."))
                 .accessibilityIdentifier("action.validate-native-control")
                 .studioElement("action.validate-native-control", label: "Validate 80–100%")
+                if Self.needsPowerForValidation(admitted: model.nativeCharge.admitted, onBattery: onBattery) {
+                    Text(L10n.text("Connect the charger for the one-time validation. After that the limit works on battery power too."))
+                        .font(.system(size: 13)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
     }
-    /// An unconfirmed policy on battery power is the Mac simply not being plugged in (no manual limit is registered then).
-    static func needsPowerHint(attention: NativeChargePresentation.Attention, onBattery: Bool) -> Bool {
-        attention == .policyUnconfirmed && onBattery
-    }
+    /// Validation needs macOS's own registry entry, which exists only while the Mac is plugged in; the limit itself
+    /// works on battery power too once validated.
+    static func needsPowerForValidation(admitted: Bool, onBattery: Bool) -> Bool { !admitted && onBattery }
     private var onBattery: Bool {
         model.snapshot.isExternalPower.availability == .available && model.snapshot.isExternalPower.value == false
     }
@@ -148,11 +151,7 @@ import ChargeBackends
                 }
             }
         }
-        if Self.needsPowerHint(attention: state.attention, onBattery: onBattery) {
-            // macOS registers the manual limit only while the Mac is plugged in; say what to do instead of "unconfirmed".
-            StudioText(L10n.text("Connect the charger: macOS confirms the limit only while the Mac is plugged in."), id: "native.needsPower")
-                .font(.system(size: 13)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-        } else if let status = NativeChargeStatusPanel(model: model, compact: true).statusText(state) {
+        if let status = NativeChargeStatusPanel(model: model, compact: true).statusText(state) {
             StudioText(L10n.text(status), id: "native.status").font(.caption)
                 .foregroundStyle(state.requiresGlobalAttention ? .orange : .secondary)
                 .fixedSize(horizontal: false, vertical: true)
