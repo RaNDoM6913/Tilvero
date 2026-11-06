@@ -4,6 +4,7 @@ import PowerCore
 import PowerPrivileged
 import ChargeBackends
 import FanBackends
+import Security
 
 /// The app can replace its transport in fixture tests; production always constructs
 /// HelperClient, whose immutable signing requirements are checked in both directions.
@@ -25,6 +26,16 @@ private final class SignedHelperRegistration: LiveHelperRegistrationDriving {
     private let trust: HelperTrustConfiguration?
     init(trust: HelperTrustConfiguration?) { self.trust = trust }
     var state: HelperInstallationState { service.state }
+    var bundledHelperMatchesTrust: Bool {
+        guard let trust else { return false }
+        let executable = Bundle.main.bundleURL.appendingPathComponent("Contents/Library/HelperTools/TilveroHelper")
+        var code: SecStaticCode?, requirement: SecRequirement?
+        guard SecStaticCodeCreateWithPath(executable as CFURL, [], &code) == errSecSuccess, let code,
+              SecRequirementCreateWithString(trust.helperRequirement as CFString, [], &requirement) == errSecSuccess,
+              let requirement else { return false }
+        let flags = SecCSFlags(rawValue: kSecCSCheckAllArchitectures | kSecCSStrictValidate)
+        return SecStaticCodeCheckValidity(code, flags, requirement) == errSecSuccess
+    }
     func register() async throws {
         guard let trust else { throw PrivilegeError.missingTrust }
         try await service.register(trust: trust)
@@ -115,13 +126,47 @@ enum LiveControlError: Error, LocalizedError, Equatable {
         trustVerified && !isBusy && !terminating && !unregistering && registrationState != .enabled && registrationState != .requiresApproval
         && capabilities.contains { $0.readiness == .available }
     }
+
+    var setupFanAvailability: SetupAvailability {
+        let readiness = capability("smc-standard-fan")?.readiness
+        if readiness == .unavailable, fanObservation?.descriptors.isEmpty == true { return .unsupported }
+        if readiness == .available, fanObservation?.descriptors.isEmpty != false { return .unknown }
+        return SetupRuntime.availability(readiness)
+    }
+
+    var setupPowerAvailability: SetupAvailability {
+        SetupRuntime.availability(capability("pmset-lowpowermode")?.readiness)
+    }
+
+    /// Reads ServiceManagement directly without reconnecting or mutating helper state.
+    func readSetupHelper() -> SetupHelperInputs {
+        guard !monitoringOnly else { return SetupHelperInputs() }
+        let state = registration.state
+        let sameTeam = trustVerified && (registration as? SignedHelperRegistration)?.bundledHelperMatchesTrust == true
+        let path = Bundle.main.bundleURL.standardizedFileURL.path
+        let installed = path.hasPrefix("/Applications/") && path.hasSuffix(".app")
+        let needsRestoration = recoveryRequired || hasOwnedSettings
+        let allowed = sameTeam && installed && state == .notRegistered && !isBusy && !transportBusy
+            && !terminating && !unregistering && !needsRestoration
+            && (setupFanAvailability == .available || setupPowerAvailability == .available)
+        return SetupHelperInputs(sameTeamTrustVerified: sameTeam, installedInApplications: installed,
+            registration: SetupRuntime.registration(state), connected: connected && state == .enabled && !terminating,
+            canRequestRegistration: allowed, restorationRequired: needsRestoration)
+    }
+
+    func registerSetupHelper() async throws {
+        guard readSetupHelper().canRequestRegistration else { throw LiveControlError.notQualified }
+        registrationState = registration.state
+        guard registrationState == .notRegistered else { throw LiveControlError.notQualified }
+        try await registerHelper()
+    }
     var hasOwnedSettings: Bool { !ownedResources.isEmpty }
     private var hasActiveFanPolicy: Bool { fanState.requested != .systemAuto && (fanState.phase == .acquiring || fanState.phase == .managed) }
     var needsExplicitReapply: Bool { requestedIntent != nil && !activatedIntent }
     private var usable: Bool { trustVerified && connected && registrationState == .enabled && !recoveryRequired && !terminating && !unregistering }
 
-    convenience init(preferences: UserDefaults = .standard) {
-        let monitoringOnly = Bundle.main.object(forInfoDictionaryKey: "TilveroReleaseMode") as? String == "monitoring"
+    convenience init(preferences: UserDefaults = .standard, launchPolicy: AppLaunchPolicy = .current()) {
+        let monitoringOnly = launchPolicy.monitoringOnly
         let trust: HelperTrustConfiguration?
         do {
             guard !monitoringOnly else { throw PrivilegeError.missingTrust }
@@ -160,9 +205,9 @@ enum LiveControlError: Error, LocalizedError, Equatable {
         capabilities = result.capabilities; fanObservation = result.fanObservation; loweringBehavior = result.loweringBehavior
         if monitoringOnly {
             capabilities = capabilities.map { ControlCapability(backend: $0.backend, readiness: .unavailable,
-                reason: "Monitoring Preview does not enroll or use privileged services.") }
+                reason: "Unavailable") }
             registrationState = .unavailable
-            message = "Monitoring Preview: hardware controls and helper enrollment are unavailable."
+            message = nil // The application shows one launch-session reason in Diagnostics.
             return
         }
         registrationState = registration.state
@@ -197,11 +242,13 @@ enum LiveControlError: Error, LocalizedError, Equatable {
     }
 
     func submit(_ request: ChargeControlRequest) async throws {
+        guard !monitoringOnly else { throw LiveControlError.notQualified }
         guard !isBusy else { throw LiveControlError.busy }
         isBusy = true; defer { isBusy = false }
         do { try await submitCharge(request) } catch { report(error); throw error }
     }
     func cancelPending() async throws {
+        guard !monitoringOnly else { throw LiveControlError.notQualified }
         guard !isBusy else { throw LiveControlError.busy }
         guard var engine else { throw LiveControlError.unavailable }
         isBusy = true; defer { isBusy = false }
@@ -262,6 +309,18 @@ enum LiveControlError: Error, LocalizedError, Equatable {
     func prepareForSleep() async -> Bool {
         do { let restored = try await restoreAll(); stopHeartbeat(); return restored }
         catch { stopHeartbeat(); return false }
+    }
+    /// A requested sleep can still fail or be cancelled. Do not stop heartbeat
+    /// speculatively. Successful restoration already clears ownership/heartbeat;
+    /// a rejected sleep then leaves the controls safely system managed.
+    func prepareForRequestedSleep() async -> Bool {
+        guard !monitoringOnly else { return false }
+        guard !isBusy, !transportBusy, !terminating else { return false }
+        guard hasOwnedSettings || hasActiveFanPolicy || recoveryRequired || activatedIntent else { return true }
+        do {
+            guard try await restoreAll() else { return false }
+            return !hasOwnedSettings && !hasActiveFanPolicy && !recoveryRequired
+        } catch { return false }
     }
     func registerHelper() async throws {
         guard canRegister else { throw LiveControlError.notQualified }
@@ -375,7 +434,7 @@ enum LiveControlError: Error, LocalizedError, Equatable {
         }
     }
     private func connect() async throws {
-        guard trustVerified, registration.state == .enabled else { throw LiveControlError.unavailable }
+        guard !monitoringOnly, trustVerified, registration.state == .enabled else { throw LiveControlError.unavailable }
         if transport == nil { transport = try makeTransport() }
         guard let transport, !transportBusy else { throw LiveControlError.busy }
         transportBusy = true
@@ -393,7 +452,7 @@ enum LiveControlError: Error, LocalizedError, Equatable {
         return try await transport.submit(command)
     }
     private func performMutation(_ command: HelperCommand) async throws -> HelperReply {
-        guard command.isMutation else { throw LiveControlError.unavailable }
+        guard !monitoringOnly, command.isMutation else { throw LiveControlError.unavailable }
         do {
             let reply = try await send(command); try ingest(reply, command: command); return reply
         } catch {

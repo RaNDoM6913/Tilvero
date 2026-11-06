@@ -4,10 +4,10 @@ import PowerCore
 import UniformTypeIdentifiers
 
 enum SettingsPage: String, CaseIterable, Identifiable {
-    case general, quickPanel, history
+    case general, quickPanel, history, updates, setup
     var id: String { rawValue }
     var title: String {
-        switch self { case .general: "General"; case .quickPanel: "Quick panel"; case .history: "History" }
+        switch self { case .general: "General"; case .quickPanel: "Quick panel"; case .history: "History"; case .updates: "Updates"; case .setup: "Setup" }
     }
 }
 
@@ -18,16 +18,16 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     var body: some View {
         ViewThatFits(in: .horizontal) {
             HStack(alignment: .top, spacing: 24) {
-                ProductSurface { controls }.frame(minWidth: 300, idealWidth: 340, maxWidth: .infinity)
+                ProductSurface(studioID: "quick.builder") { controls }.frame(minWidth: 300, idealWidth: 340, maxWidth: .infinity)
                 preview.frame(width: 360)
             }
-            VStack(alignment: .leading, spacing: 20) { ProductSurface { controls }; preview.frame(width: 360) }
+            VStack(alignment: .leading, spacing: 20) { ProductSurface(studioID: "quick.builder") { controls }; preview.frame(width: 360) }
         }
     }
     private var controls: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(L10n.text("Quick panel builder")).font(.title3).bold().fixedSize(horizontal: false, vertical: true)
-            Text(L10n.text("Drag blocks to reorder. Switch off the ones you do not need."))
+            StudioText(L10n.text("Quick panel builder"), id: "builder.title").font(.title3).bold().fixedSize(horizontal: false, vertical: true)
+            StudioText(L10n.text("Drag blocks to reorder. Switch off the ones you do not need."), id: "builder.subtitle")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             VStack(spacing: 6) {
                 ForEach(model.overviewPreferences.order) { item in
@@ -35,24 +35,25 @@ enum SettingsPage: String, CaseIterable, Identifiable {
                         OverviewDragHandle(title: L10n.text(item.title), begin: { drag.begin(item).payload }, end: {
                             drag.end(); dropTarget = nil
                         }).frame(width: 20, height: 30)
-                        Label(L10n.text(item.title), systemImage: item.symbol)
+                        Label { StudioText(L10n.text(item.title), id: "builder.block." + item.rawValue + ".title") } icon: { Image(systemName: item.symbol) }
                         Spacer(minLength: 8)
                         Button { model.overviewPreferences.move(item, by: -1) } label: { Image(systemName: "chevron.up") }
-                            .accessibilityLabel(L10n.text("Move up") + ": " + L10n.text(item.title))
+                            .accessibilityLabel(L10n.text("Move up") + ": " + L10n.text(item.title)).studioElement("builder.block." + item.rawValue + ".up", label: "Move up: " + item.title)
                             .disabled(model.overviewPreferences.order.first == item)
                         Button { model.overviewPreferences.move(item, by: 1) } label: { Image(systemName: "chevron.down") }
-                            .accessibilityLabel(L10n.text("Move down") + ": " + L10n.text(item.title))
+                            .accessibilityLabel(L10n.text("Move down") + ": " + L10n.text(item.title)).studioElement("builder.block." + item.rawValue + ".down", label: "Move down: " + item.title)
                             .disabled(model.overviewPreferences.order.last == item)
                         Toggle(L10n.text(item.title), isOn: Binding(get: { !model.overviewPreferences.hidden.contains(item) }, set: {
                             if $0 { model.overviewPreferences.hidden.remove(item) } else { model.overviewPreferences.hidden.insert(item) }
-                        })).labelsHidden().toggleStyle(.switch).controlSize(.small)
+                        })).labelsHidden().toggleStyle(.switch).controlSize(.small).studioElement("builder.block." + item.rawValue + ".enabled", label: "Show block: " + item.title)
                     }.buttonStyle(.borderless).padding(.horizontal, 10).padding(.vertical, 5)
                         .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(dropTarget == item ? 0.12 : 0.04)))
                         .contentShape(Rectangle())
+                        .studioElement("builder.block." + item.rawValue + ".row", kind: "container", label: item.title)
                         .onDrop(of: [UTType.text], delegate: OverviewBlockDropDelegate(model: model, target: item, drag: $drag, dropTarget: $dropTarget))
                 }
             }
-            Button(L10n.text("Restore layout defaults")) { model.overviewPreferences = .init() }
+            StudioActionButton(L10n.text("Restore layout defaults"), id: "builder.reset") { model.overviewPreferences = .init() }
         }
     }
     private var preview: some View {
@@ -77,6 +78,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
 @MainActor struct PassiveQuickPanelPreview: View {
     @ObservedObject var model: TilveroModel
     @State var section: QuickPanelSection = .overview
+    @State private var sleepPage: SleepPage = .timer
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
@@ -88,6 +90,12 @@ enum SettingsPage: String, CaseIterable, Identifiable {
             Picker(L10n.text("Battery menu"), selection: $section) {
                 ForEach(QuickPanelSection.allCases) { Text($0.title).tag($0) }
             }.pickerStyle(.segmented).labelsHidden()
+            if section == .awake {
+                Picker(L10n.text("Sleep"), selection: $sleepPage) {
+                    Text(L10n.text("Sleep timer")).tag(SleepPage.timer)
+                    Text(L10n.text("Keep Awake")).tag(SleepPage.awake)
+                }.pickerStyle(.segmented).labelsHidden()
+            }
             VStack(alignment: .leading, spacing: 12) {
                 switch section {
                 case .overview:
@@ -105,11 +113,14 @@ enum SettingsPage: String, CaseIterable, Identifiable {
                     }
                     if model.snapshot.chargePercent.freshness == .stale { Text(L10n.text("Stale")).font(.caption).foregroundStyle(.orange) }
                     Divider()
+                    if model.sleepTimer.isActive { SleepTimerActiveRow(model: model).disabled(true) }
                     if model.keepAwake.hasOwnedAssertion { passiveSession }
                     OverviewMetricsPanel(model: model)
                 case .charge: charge
                 case .modes: modes
-                case .awake: awake
+                case .awake:
+                    if sleepPage == .timer { SleepTimerPanel(model: model, compact: true).disabled(true) }
+                    else { awake }
                 }
             }.allowsHitTesting(false)
             Divider()

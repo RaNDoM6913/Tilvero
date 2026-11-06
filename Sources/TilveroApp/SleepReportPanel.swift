@@ -17,7 +17,7 @@ struct SleepReportPanel: View {
         VStack(alignment: .leading, spacing: 20) {
             if model.isDemo {
                 introduction
-                ProductSurface {
+                ProductSurface(studioID: "sleep.reports.status") {
                     Label(L10n.text("Sleep reports are not collected in Simulation."), systemImage: "testtube.2")
                 }
             } else {

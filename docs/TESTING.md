@@ -16,11 +16,15 @@ The scripts select the installed full Xcode toolchain for their own process. The
 - Process sampling, missing coverage, PID reuse, search, ranking and display limits.
 - Local history, gaps, retention, identity pairing, sleep records and failed-store recovery.
 - Native presentation and layout contracts, localization and passive previews.
+- Sleep Timer/Awake mode consent, confirmed preset identity, failed holds/releases, stale session actions, civil-time validation and native popover completion.
+- Lid-only controller authority, journal/replay/lease recovery, independent guardian and explicit fixture/live admission boundaries.
 - Release tooling: committed-source admission, private-path rejection, source identity, checksums and tamper rejection.
 
-Default automated tests use fixtures for controls. They do not qualify physical charge cutoff, battery discharge, real fan control, privileged enrollment or recovery under every OS failure.
+Default automated tests use fixtures for controls. They do not qualify physical charge cutoff, battery discharge, real fan control, privileged enrollment, closed-lid operation or recovery under every OS failure. Closed-lid tests inject all writers; a real signed trial requires the separate [device and restoration checks](CLOSED_LID.md).
 
-The development baseline for the first source preview passed 362 Swift tests and both local app build routes. The source-release integration passed 45 Python release-tool tests, including 12 source-preview contract tests. These are local code/fixture results, not Developer ID, notarization, downloaded-install or hardware-support claims.
+The Sleep-controls source milestone passed **557 Swift tests and 61 Python release-tool tests**, plus SwiftPM Release and Xcode Debug app builds. All 13 prototype migration tests passed. The prior first-source-preview baseline passed 362 Swift tests and 45 Python release-tool tests.
+
+An earlier complete run failed 8 migration-journal read/reopen operations with `EPERM` for `completeFileProtectionUnlessOpen`. A standalone Foundation probe reproduced the failure without Tilvero code. Later, fresh protected-file roundtrips and the same previously failing synthetic files reopened/read successfully with unchanged Class B protection and `0600` permissions; the full unchanged-source suite then passed. No protection/permission/entitlement change, test skip or migration bypass was used. The exact external authentication/system transition remains unknown. Verify authenticated host protection availability when reproducing this class of failure rather than weakening file protection. These are local code/fixture results, not Developer ID, notarization, downloaded-install or hardware-support claims.
 
 ## Source preview verification
 

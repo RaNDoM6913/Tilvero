@@ -1,5 +1,6 @@
 // swift-tools-version: 6.0
 import PackageDescription
+import Foundation
 
 let package = Package(
     name: "Tilvero",
@@ -15,9 +16,12 @@ let package = Package(
         .library(name: "KeyboardBackends", targets: ["KeyboardBackends"]),
         .library(name: "PowerSimulator", targets: ["PowerSimulator"]),
         .library(name: "PowerPrivileged", targets: ["PowerPrivileged"]),
+        .library(name: "ClosedLidControl", targets: ["ClosedLidControl"]),
+        .executable(name: "TilveroLidHelper", targets: ["TilveroLidHelper"]),
         .executable(name: "TilveroApp", targets: ["TilveroApp"]),
         .executable(name: "TilveroHelper", targets: ["TilveroHelper"])
     ],
+    dependencies: [.package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.10.1")],
     targets: [
         .target(name: "PowerCore"),
         .target(
@@ -33,16 +37,23 @@ let package = Package(
         .target(name: "KeyboardBackends", dependencies: ["PowerUIBridge"]),
         .target(name: "PowerSimulator", dependencies: ["PowerCore"]),
         .target(name: "PowerPrivileged", dependencies: ["PowerCore", "ChargeBackends", "FanBackends"], linkerSettings: [.linkedFramework("Security"), .linkedFramework("ServiceManagement")]),
+        .target(name: "ClosedLidControl", dependencies: ["PowerPrivileged"],
+                linkerSettings: [.linkedFramework("IOKit"), .linkedFramework("Security"),
+                                 .linkedFramework("SystemConfiguration"), .linkedFramework("CoreGraphics")]),
+        .executableTarget(name: "TilveroLidHelper", dependencies: ["ClosedLidControl", "PowerPrivileged"],
+            linkerSettings: [.unsafeFlags(["-Xlinker", "-sectcreate", "-Xlinker", "__TEXT", "-Xlinker", "__info_plist", "-Xlinker",
+                URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("Config/TilveroLidHelper-Info.plist").path])]),
         .executableTarget(name: "TilveroHelper", dependencies: ["PowerPrivileged"], path: "Helper", exclude: ["THIRD_PARTY_NOTICES.md", "README.md"]),
         .executableTarget(
             name: "TilveroApp",
-            dependencies: ["PowerCore", "PowerTelemetry", "PowerPersistence", "PowerDiagnostics", "PowerSimulator", "PowerPrivileged", "ChargeBackends", "FanBackends", "KeyboardBackends"],
+            dependencies: ["PowerCore", "PowerTelemetry", "PowerPersistence", "PowerDiagnostics", "PowerSimulator", "PowerPrivileged", "ChargeBackends", "FanBackends", "KeyboardBackends", "ClosedLidControl", .product(name: "Sparkle", package: "Sparkle")],
             resources: [.copy("Resources/Localizable.xcstrings"), .copy("Resources/BatteryAssembly.png"),
                         .copy("Resources/AdapterIllustration.png"), .copy("Resources/MacIllustration.png"),
                         .copy("Resources/RestIllustration.png"), .copy("Resources/OverviewMacIllustration.png")],
             linkerSettings: [
                 .linkedFramework("AppKit", .when(platforms: [.macOS])),
-                .linkedFramework("SwiftUI", .when(platforms: [.macOS]))
+                .linkedFramework("SwiftUI", .when(platforms: [.macOS])),
+                .unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])
             ]
         ),
         .testTarget(name: "PowerCoreTests", dependencies: ["PowerCore"]),
@@ -51,7 +62,8 @@ let package = Package(
         .testTarget(name: "PowerControlTests", dependencies: ["PowerCore", "PowerSimulator", "ChargeBackends", "FanBackends"]),
         .testTarget(name: "KeyboardBackendsTests", dependencies: ["KeyboardBackends"]),
         .testTarget(name: "PowerPrivilegedTests", dependencies: ["PowerPrivileged"]),
-        .testTarget(name: "TilveroAppTests", dependencies: ["TilveroApp"])
+        .testTarget(name: "ClosedLidControlTests", dependencies: ["ClosedLidControl"]),
+        .testTarget(name: "TilveroAppTests", dependencies: ["TilveroApp", "ClosedLidControl"])
     ],
     swiftLanguageModes: [.v6]
 )

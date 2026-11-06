@@ -5,6 +5,57 @@ import CoreData
 @testable import PowerPersistence
 
 @MainActor final class HistoryTests: XCTestCase {
+    func testWeeklyCapacityWeightsDaysAndFreezesAcrossReopen() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let url = folder.appendingPathComponent("history.sqlite")
+        let now = Date(timeIntervalSince1970: 1_795_435_200)
+        let day = TimeInterval(86400)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        func observation(_ offset: TimeInterval, _ value: Double?, identity: String? = "weekly-fixture-a",
+                         freshness: TelemetryFreshness = .fresh) -> BatterySnapshot {
+            let at = now.addingTimeInterval(offset)
+            let field = CatalogReading(definition: BatteryCatalog.definition("026"), value: value.map(CatalogValue.decimal),
+                                       source: "fixture", collectedAt: at, provenance: .estimated, freshness: freshness)
+            return BatterySnapshot(chargePercent: .init(value: 80, source: "fixture", collectedAt: at),
+                                   collectedAt: at, catalog: [field], batteryIdentityToken: identity)
+        }
+
+        let initial = try BatteryHistoryStore(url: url)
+        try initial.record(observation(-8 * day, 60))
+        try initial.record(observation(-3 * day, 99, identity: "weekly-fixture-b"))
+        for minute in 0..<20 { try initial.record(observation(-2 * day + Double(minute) * 60, 104)) }
+        try initial.record(observation(-day, 84))
+        try initial.record(observation(-20, 50, freshness: .stale))
+        try initial.record(observation(-10, 94))
+        let reading = observation(0, 70)
+        let first = try XCTUnwrap(initial.weeklyCapacity(for: reading, at: now, calendar: calendar))
+        XCTAssertEqual(first.percent, 94, "Median of three daily medians, without weighting the most-sampled day")
+        XCTAssertEqual(first.observedDays, 3)
+        XCTAssertEqual(first.firstObservedAt, now.addingTimeInterval(-2 * day))
+        XCTAssertEqual(first.lastObservedAt, now.addingTimeInterval(-10))
+        XCTAssertEqual(first.nextEligibleAt, now.addingTimeInterval(7 * day))
+        XCTAssertNil(try initial.weeklyCapacity(for: observation(0, 99, identity: nil), at: now, calendar: calendar))
+        XCTAssertNil(try initial.weeklyCapacity(for: observation(0, 99, identity: "unseen"), at: now, calendar: calendar))
+        try initial.close()
+
+        let reopened = try BatteryHistoryStore(url: url)
+        let later = observation(day, 79)
+        try reopened.record(later)
+        XCTAssertEqual(try reopened.weeklyCapacity(for: later, at: later.collectedAt, calendar: calendar), first)
+        let end = observation(7 * day, 90)
+        try reopened.record(end)
+        let second = try XCTUnwrap(reopened.weeklyCapacity(for: end, at: end.collectedAt, calendar: calendar))
+        XCTAssertEqual(second.percent, 84.5)
+        XCTAssertEqual(second.observedDays, 2)
+        XCTAssertEqual(second.publishedAt, end.collectedAt)
+        XCTAssertFalse(String(decoding: try reopened.exportJSON(), as: UTF8.self).contains("weekly-fixture"))
+        try reopened.erase()
+        XCTAssertNil(try reopened.weeklyCapacity(for: end, at: end.collectedAt, calendar: calendar))
+        try reopened.close()
+    }
+
     func testSimulationNeverEntersHistory() throws {
         let store = try BatteryHistoryStore(url: nil)
         XCTAssertThrowsError(try store.record(.demo()))
@@ -113,6 +164,31 @@ import CoreData
         try store.record(sample(at: date.addingTimeInterval(180), uptime: 280, identity: "a", charge: 80, power: 0))
         XCTAssertEqual(try store.summary().estimatedChargedWh, 0)
         XCTAssertNotNil(try store.catalogReadings().first { $0.id == "085" }?.value)
+    }
+    func testOlderSamplesCanBeReadWithoutTheirCatalogAndSummaryAndCatalogCacheStayEquivalent() throws {
+        let store = try BatteryHistoryStore(url: nil)
+        let date = Date()
+        for index in 0..<4 {
+            try store.record(sample(at: date.addingTimeInterval(Double(index) * 60), uptime: 100 + Double(index) * 60, identity: "a", charge: 80 - Double(index), power: 1))
+        }
+        let full = try store.samples()
+        XCTAssertFalse(full.last?.readings.isEmpty ?? true)
+        let light = try store.samples(readingsSince: date.addingTimeInterval(3600))
+        XCTAssertEqual(light.map(\.id), full.map(\.id))
+        XCTAssertEqual(light.map(\.chargePercent), full.map(\.chargePercent))
+        XCTAssertTrue(light.allSatisfy { $0.readings.isEmpty }, "Samples older than readingsSince carry scalars only.")
+        let mixed = try store.samples(readingsSince: date.addingTimeInterval(120))
+        XCTAssertTrue(mixed[0].readings.isEmpty && !(mixed.last?.readings.isEmpty ?? true))
+        let uncached = try store.catalogReadings(at: date.addingTimeInterval(300))
+        let cached = try store.catalogReadings(at: date.addingTimeInterval(301), summaryMaxAge: 600)
+        XCTAssertEqual(cached.map(\.id), uncached.map(\.id))
+        XCTAssertEqual(cached.first { $0.id == "083" }?.value, uncached.first { $0.id == "083" }?.value)
+        // A reused summary is not refreshed by a new record until it expires or is invalidated.
+        try store.record(sample(at: date.addingTimeInterval(400), uptime: 500, identity: "a", charge: 70, power: 1))
+        let stale = try store.catalogReadings(at: date.addingTimeInterval(402), summaryMaxAge: 600)
+        XCTAssertEqual(stale.first { $0.id == "086" }?.value, cached.first { $0.id == "086" }?.value)
+        let fresh = try store.catalogReadings(at: date.addingTimeInterval(402))
+        XCTAssertNotEqual(fresh.first { $0.id == "086" }?.value, stale.first { $0.id == "086" }?.value)
     }
     private func sample(at date: Date, uptime: TimeInterval, identity: String, charge: Double, power: Double? = nil) -> BatterySnapshot {
         let fields = [CatalogReading(definition: BatteryCatalog.definition("011"), value: .decimal(charge), source: "fixture", collectedAt: date, freshness: .fresh),

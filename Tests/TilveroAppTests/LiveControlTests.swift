@@ -6,6 +6,52 @@ import PowerCore
 import PowerPrivileged
 
 @MainActor final class LiveControlTests: XCTestCase {
+    func testMonitoringReturnToSystemCannotEraseSavedIntent() async throws {
+        let fixture = makeFixture(monitoringOnly: true, savedIntent: .ceiling(80))
+        defer { cleanup(fixture.preferences) }
+        let saved = fixture.preferences.data(forKey: "liveRequestedChargeIntent")
+        await fixture.service.start()
+        do { try await fixture.service.submit(.returnToSystemControl); XCTFail("Monitoring cannot mutate saved control intent") } catch {}
+        XCTAssertEqual(fixture.preferences.data(forKey: "liveRequestedChargeIntent"), saved)
+        let commands = await fixture.transport.commands
+        XCTAssertTrue(commands.isEmpty)
+    }
+    func testRequestedSleepPreservesUnactivatedSavedIntentWithoutHelperMutation() async {
+        let fixture = makeFixture(savedIntent: .ceiling(80))
+        defer { cleanup(fixture.preferences) }
+        await fixture.service.start()
+        let before = await fixture.transport.commands
+        let ready = await fixture.service.prepareForRequestedSleep()
+        XCTAssertTrue(ready)
+        XCTAssertEqual(fixture.service.requestedIntent, .ceiling(80))
+        let after = await fixture.transport.commands
+        XCTAssertEqual(before, after)
+    }
+    func testRequestedSleepClearsActivatedPendingIntentBeforeLaterObservation() async throws {
+        let fixture = makeFixture()
+        defer { cleanup(fixture.preferences) }
+        await fixture.service.start(); await fixture.service.observe(snapshot(98))
+        try await fixture.service.submit(.setCeiling(percent: 80))
+        XCTAssertEqual(fixture.service.chargeState.pendingTarget, 80)
+        let ready = await fixture.service.prepareForRequestedSleep()
+        XCTAssertTrue(ready)
+        XCTAssertNil(fixture.service.requestedIntent)
+        let count = await fixture.transport.commands.count
+        await fixture.service.observe(snapshot(70))
+        let later = await fixture.transport.commands.dropFirst(count)
+        XCTAssertFalse(later.contains { $0.isMutation })
+        XCTAssertFalse(fixture.service.hasOwnedSettings)
+    }
+    func testRequestedSleepRestorationFailurePreservesOwnershipAndRefusesReadiness() async {
+        let fixture = makeFixture(owned: [.charging])
+        defer { cleanup(fixture.preferences) }
+        await fixture.service.start()
+        await fixture.transport.setRestoreFailure(true)
+        let ready = await fixture.service.prepareForRequestedSleep()
+        XCTAssertFalse(ready)
+        XCTAssertTrue(fixture.service.hasOwnedSettings)
+        XCTAssertTrue(fixture.service.recoveryRequired)
+    }
     func testUntrustedMonitoringNeverConnectsEnrollsOrClaimsControl() async throws {
         let fixture = makeFixture(trusted: false, registrationState: .notRegistered)
         await fixture.service.start(); await fixture.service.start()

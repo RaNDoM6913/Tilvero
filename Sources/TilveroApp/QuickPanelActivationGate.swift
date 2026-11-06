@@ -13,3 +13,12 @@ struct QuickPanelActivationGate {
     }
     mutating func cancel() { isWaiting = false }
 }
+
+/// Whether presenting the quick panel may skip activating the application.
+enum QuickPanelActivationPolicy {
+    /// Activating raises the app's windows and switches to the Space that holds them. When the details window is
+    /// visible on another Space, show the panel without activating so the current desktop stays put.
+    static func avoidsActivation(applicationIsActive: Bool, detailsWindowOnAnotherSpace: Bool) -> Bool {
+        !applicationIsActive && detailsWindowOnAnotherSpace
+    }
+}

@@ -1,6 +1,8 @@
 import Foundation
 import PowerUIBridge
 import PowerCore
+import IOKit.ps
+import IOKit.pwr_mgt
 
 public struct NativeChargeConfiguration: Codable, Equatable, Sendable {
     public let enabled: Bool
@@ -18,12 +20,36 @@ public struct NativeChargeSnapshot: Codable, Equatable, Sendable {
     public let registeredManualLimit: Int?
     public let policyReadbackAvailable: Bool
     public let collectedAt: Date
-    public init(configuration: NativeChargeConfiguration, supportedTargets: [Int], registeredManualLimit: Int?, policyReadbackAvailable: Bool = true, collectedAt: Date = Date()) {
+    /// False when the Mac ran on battery power at the read: macOS then lists no manual limit in `pmset -g battlimit`
+    /// even though the setting is stored (measured on macOS 27.2), so an absent registration is expected, not a fault.
+    public let registrationExpected: Bool
+    public init(configuration: NativeChargeConfiguration, supportedTargets: [Int], registeredManualLimit: Int?, policyReadbackAvailable: Bool = true,
+                collectedAt: Date = Date(), registrationExpected: Bool = true) {
         self.configuration = configuration; self.supportedTargets = supportedTargets
         self.registeredManualLimit = registeredManualLimit; self.policyReadbackAvailable = policyReadbackAvailable; self.collectedAt = collectedAt
+        self.registrationExpected = registrationExpected
+    }
+    private enum CodingKeys: String, CodingKey {
+        case configuration, supportedTargets, registeredManualLimit, policyReadbackAvailable, collectedAt, registrationExpected
+    }
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        configuration = try c.decode(NativeChargeConfiguration.self, forKey: .configuration)
+        supportedTargets = try c.decode([Int].self, forKey: .supportedTargets)
+        registeredManualLimit = try c.decodeIfPresent(Int.self, forKey: .registeredManualLimit)
+        policyReadbackAvailable = try c.decode(Bool.self, forKey: .policyReadbackAvailable)
+        collectedAt = try c.decode(Date.self, forKey: .collectedAt)
+        registrationExpected = try c.decodeIfPresent(Bool.self, forKey: .registrationExpected) ?? true
     }
     public var isFresh: Bool { let age = Date().timeIntervalSince(collectedAt); return age >= -5 && age <= 65 }
+    /// The registry agrees with the stored setting, or (on battery power only) lists nothing at all.
     public var policyMatches: Bool {
+        guard policyReadbackAvailable else { return false }
+        if registeredManualLimit == nil, !registrationExpected { return true }
+        return configuration.enabled ? registeredManualLimit == configuration.target : registeredManualLimit == nil
+    }
+    /// Registry agreement with no battery-power allowance: what validation evidence requires.
+    public var registryAgrees: Bool {
         policyReadbackAvailable && (configuration.enabled ? registeredManualLimit == configuration.target : registeredManualLimit == nil)
     }
 }
@@ -33,15 +59,88 @@ public protocol NativeChargeTransport: Sendable {
     func setEnabled(_ enabled: Bool) async throws
 }
 
+/// Read-only observations from a failed complete-state read. These values never
+/// describe a writable configuration or a restorable charging baseline.
+public struct NativeChargeReadFailure: Error, LocalizedError, Sendable {
+    public let supportedTargets: [Int]
+    public let currentTarget: Int?
+    public let rawManualState: UInt64?
+    public let diagnosticStoredTarget: Int?
+    /// Reader time only; the diagnostic source's own freshness is unknown.
+    public let collectedAt: Date
+    public static let currentTargetSource = "PowerUI.getMCLLimitWithError"
+    public static let diagnosticStoredTargetSource = "PowerUI.powerLogStatus.chargeLimitTargetSoC"
+    public static let diagnosticStoredTargetFreshness = "unknown"
+
+    public init?(supportedTargets: [Int], currentTarget: Int? = nil, rawManualState: UInt64? = nil,
+                 diagnosticStoredTarget: Int? = nil, collectedAt: Date = Date()) {
+        guard (1...21).contains(supportedTargets.count),
+              supportedTargets.allSatisfy({ (80...100).contains($0) }),
+              zip(supportedTargets, supportedTargets.dropFirst()).allSatisfy({ $0 < $1 }),
+              currentTarget.map({ supportedTargets.contains($0) }) ?? true,
+              diagnosticStoredTarget.map({ supportedTargets.contains($0) }) ?? true else { return nil }
+        self.supportedTargets = supportedTargets
+        self.currentTarget = currentTarget; self.rawManualState = rawManualState
+        self.diagnosticStoredTarget = diagnosticStoredTarget; self.collectedAt = collectedAt
+    }
+    /// Freshness applies only to an independently validated current reading.
+    /// It never establishes freshness of the optional diagnostic source.
+    public func isFresh(at now: Date = Date()) -> Bool {
+        let age = now.timeIntervalSince(collectedAt)
+        return currentTarget != nil && age >= -5 && age <= 65
+    }
+    public var errorDescription: String? {
+        "macOS returned an unrecognized charging state. Apply remains unavailable until the native state is confirmed."
+    }
+}
+
 /// Actor serialization keeps user-space calls off the UI thread and prevents
 /// a second mutation while a slow XPC operation is still in flight.
 public actor PowerUIChargeClient: NativeChargeTransport {
     public init() {}
+    nonisolated static func readError(_ error: NSError) -> any Error {
+        guard error.domain == "Tilvero.NativeCharge", error.code == 5,
+              let raw = error.userInfo["supportedTargets"] as? [NSNumber],
+              (1...21).contains(raw.count) else { return error }
+        var targets: [Int] = []
+        for value in raw {
+            let number = value.doubleValue
+            guard CFGetTypeID(value) != CFBooleanGetTypeID(), number.isFinite,
+                  (80...100).contains(number), number.rounded(.towardZero) == number else { return error }
+            targets.append(Int(number))
+        }
+        return NativeChargeReadFailure(supportedTargets: targets,
+            currentTarget: optionalTarget(error.userInfo["currentTarget"], supportedTargets: targets),
+            rawManualState: optionalUnsignedInteger(error.userInfo["rawManualState"]),
+            diagnosticStoredTarget: optionalTarget(error.userInfo["diagnosticStoredTarget"], supportedTargets: targets)) ?? error
+    }
+    private nonisolated static func optionalTarget(_ metadata: Any?, supportedTargets: [Int]) -> Int? {
+        guard let value = metadata as? NSNumber, CFGetTypeID(value) != CFBooleanGetTypeID() else { return nil }
+        let number = value.doubleValue
+        guard number.isFinite, let target = Int(exactly: number), supportedTargets.contains(target),
+              value.decimalValue == Decimal(target) else { return nil }
+        return target
+    }
+    private nonisolated static func optionalUnsignedInteger(_ metadata: Any?) -> UInt64? {
+        guard let value = metadata as? NSNumber, CFGetTypeID(value) != CFBooleanGetTypeID() else { return nil }
+        // Preserve the complete UInt64 domain before considering floating point.
+        // A Double representation of UInt64.max rounds up beyond that domain.
+        if let exact = UInt64(value.stringValue), value.decimalValue == NSNumber(value: exact).decimalValue { return exact }
+        let number = value.doubleValue
+        guard number.isFinite, let exact = UInt64(exactly: number),
+              value.decimalValue == NSNumber(value: exact).decimalValue else { return nil }
+        return exact
+    }
+    /// True while the Mac is powered by an adapter (IOKit power source type), the only time macOS registers the limit.
+    static func runsOnExternalPower() -> Bool {
+        guard let type = IOPSGetProvidingPowerSourceType(nil)?.takeRetainedValue() as String? else { return true }
+        return type == kIOPMACPowerKey
+    }
     public func read() async throws -> NativeChargeSnapshot {
         let value = try autoreleasepool {
             var error: NSError?
             let value = TVNativeChargeRead(&error)
-            if let error { throw error }
+            if let error { throw Self.readError(error) }
             return value
         }
         guard let raw = value, let enabled = raw["enabled"] as? Bool, let target = raw["target"] as? Int,
@@ -51,7 +150,8 @@ public actor PowerUIChargeClient: NativeChargeTransport {
         let limits = try? SystemChargeLimitParser.parse(BoundedProcess.read(executable: "/usr/bin/pmset", arguments: ["-g", "battlimit"]))
         return .init(configuration: .init(enabled: enabled, target: target, optimizedCharging: optimized), supportedTargets: targets,
                      registeredManualLimit: limits?.manualLimit,
-                     policyReadbackAvailable: limits != nil && limits?.manualLimitIsConflicting == false)
+                     policyReadbackAvailable: limits != nil && limits?.manualLimitIsConflicting == false,
+                     registrationExpected: Self.runsOnExternalPower())
     }
     public func setLimit(_ target: Int) async throws {
         guard (80...100).contains(target) else { throw PolicyError.unsupportedTarget }

@@ -10,8 +10,8 @@ final class SleepReportTests: XCTestCase {
     private func endpoint(_ seconds: Double, charge: Int = 80, identity: String? = "salted", external: Bool? = false,
                           age: Double = 0, freshness: TelemetryFreshness = .fresh, demo: Bool = false) -> SleepBatteryEndpoint? {
         let at = date.addingTimeInterval(seconds - age)
-        return SleepBatteryEndpoint(snapshot: BatterySnapshot(chargePercent: .init(value: charge, source: "IOPowerSources", collectedAt: at, freshness: freshness),
-            isExternalPower: .init(value: external, source: "IOPowerSources", collectedAt: at), collectedAt: at,
+        return SleepBatteryEndpoint(snapshot: BatterySnapshot(chargePercent: .init(value: charge, source: "fixture", collectedAt: at, freshness: freshness),
+            isExternalPower: .init(value: external, source: "fixture", collectedAt: at), collectedAt: at,
             isDemo: demo, batteryIdentityToken: identity), stamp: stamp(seconds))
     }
     func testExplicitlyOldSourceSampleCannotBecomeFreshEndpoint() {
@@ -48,9 +48,26 @@ final class SleepReportTests: XCTestCase {
         XCTAssertEqual(expired?.phase, .incomplete)
         XCTAssertTrue(expired?.issues.contains(.postReadingMissing) == true)
     }
+    func testAppObservedIOPSCatalogRowsBecomeEndpoint() throws {
+        func row(_ id: String, _ value: CatalogValue, _ key: String, at: Double = 0) -> CatalogReading {
+            CatalogReading(definition: BatteryCatalog.definition(id), value: value, source: "IOPowerSources", keyPath: key,
+                           collectedAt: date.addingTimeInterval(at))
+        }
+        func snapshot(powerAt: Double = 0) -> BatterySnapshot {
+            BatterySnapshot(collectedAt: date, catalog: [row("011", .decimal(80), "Current Capacity/Max Capacity"),
+                row("013", .boolean(false), "Is Charging"), row("015", .boolean(false), "Power Source State", at: powerAt)],
+                batteryIdentityToken: "salted")
+        }
+        let endpoint = try XCTUnwrap(SleepBatteryEndpoint(snapshot: snapshot(), stamp: stamp(1)))
+        XCTAssertEqual(endpoint.chargePercent, 80); XCTAssertEqual(endpoint.isExternalPower, false)
+        XCTAssertEqual(endpoint.isCharging, false); XCTAssertNil(endpoint.sourceSampleAt)
+        XCTAssertNil(SleepBatteryEndpoint(snapshot: snapshot(), stamp: stamp(61)))
+        let stalePower = try XCTUnwrap(SleepBatteryEndpoint(snapshot: snapshot(powerAt: -61), stamp: stamp(1)))
+        XCTAssertNil(stalePower.isExternalPower, "A power row collected more than 60 s from the charge row is dropped.")
+    }
     func testStaleDemoOutOfRangeAndFutureProviderReadingsAreRejected() {
         XCTAssertNil(endpoint(1, freshness: .stale))
-        XCTAssertNil(endpoint(1, freshness: .unknown))
+        XCTAssertNil(endpoint(1, freshness: .unknown), "Unknown freshness without the exact IOPowerSources key path is not admitted.")
         XCTAssertNil(endpoint(1, demo: true))
         XCTAssertNil(endpoint(1, charge: 101))
         XCTAssertNil(endpoint(1, age: -10))
@@ -102,7 +119,7 @@ final class SleepReportTests: XCTestCase {
         _ = tracker.accept(.willSleep(stamp: stamp(10), latestEndpoint: endpoint(10)))
         _ = tracker.accept(.didWake(stamp: stamp(610, wall: -100), epoch: 1))
         // Endpoint clock stamps independently retain valid arithmetic despite wall chronology change.
-        let raw = BatterySnapshot(chargePercent: .init(value: 78, source: "IOPowerSources", collectedAt: date.addingTimeInterval(-99)),
+        let raw = BatterySnapshot(chargePercent: .init(value: 78, source: "fixture", collectedAt: date.addingTimeInterval(-99)),
                                   collectedAt: date.addingTimeInterval(-99), batteryIdentityToken: "salted")
         let endpoint = try XCTUnwrap(SleepBatteryEndpoint(snapshot: raw, stamp: stamp(611, wall: -99)))
         let record = try XCTUnwrap(tracker.accept(.freshReading(endpoint: endpoint, epoch: 1)).first)
@@ -112,7 +129,7 @@ final class SleepReportTests: XCTestCase {
         XCTAssertNil(record.measurementIntervalSeconds)
     }
     func testRetainedFailedCollectionAndCrossRunReadAreNotEndpoints() throws {
-        let valid = BatterySnapshot(chargePercent: .init(value: 81, source: "IOPowerSources", collectedAt: date),
+        let valid = BatterySnapshot(chargePercent: .init(value: 81, source: "fixture", collectedAt: date),
                                     collectedAt: date, monotonicTime: 100, batteryIdentityToken: "salted")
         let retained = BatterySnapshot(collectedAt: date.addingTimeInterval(1), monotonicTime: 101).retainingPreviousReadings(valid)
         XCTAssertNil(SleepBatteryEndpoint(snapshot: retained, stamp: stamp(1)))

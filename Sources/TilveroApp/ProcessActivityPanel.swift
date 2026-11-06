@@ -154,7 +154,7 @@ struct SustainedCPUActivity {
                     }
                     ForEach(compactRows) { row in
                         HStack(alignment: .firstTextBaseline) {
-                            Text(row.name).lineLimit(1).truncationMode(.middle)
+                            StudioText(row.name, id: "activity.row." + row.id + ".name").lineLimit(1).truncationMode(.middle)
                             Spacer(minLength: 8)
                             Text(number(row.cpuPercent ?? 0, places: 1) + "% CPU").monospacedDigit()
                         }.font(.caption).accessibilityElement(children: .combine)
@@ -166,7 +166,7 @@ struct SustainedCPUActivity {
     private var detailedContent: some View {
         VStack(alignment: .leading, spacing: 18) {
             if model.isDemo {
-                ProductSurface {
+                ProductSurface(studioID: "activity.status") {
                     Label(L10n.text("Process activity is unavailable in simulation."), systemImage: "testtube.2")
                         .foregroundStyle(.secondary)
                 }
@@ -215,7 +215,7 @@ struct SustainedCPUActivity {
                         .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true).padding(.top, 6)
                 }
             } else {
-                ProductSurface {
+                ProductSurface(studioID: "activity.status") {
                     Label(L10n.text("Waiting for process observations."), systemImage: "clock")
                         .foregroundStyle(.secondary)
                 }
@@ -229,7 +229,7 @@ struct SustainedCPUActivity {
             Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)
             TextField(L10n.text("Search applications or processes"), text: $search).textFieldStyle(.plain)
                 .disableAutocorrection(true)
-                .accessibilityIdentifier("process-activity-search")
+                .accessibilityIdentifier("process-activity-search").studioElement("process-activity-search", label: "process-activity-search")
                 .onChange(of: search) { _, value in
                     if !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { scope = .all }
                 }
@@ -260,7 +260,7 @@ struct SustainedCPUActivity {
             }
         }.pickerStyle(.segmented).labelsHidden().frame(width: 150)
             .accessibilityLabel(L10n.text("List scope"))
-            .accessibilityIdentifier("process-activity-scope")
+            .accessibilityIdentifier("process-activity-scope").studioElement("process-activity-scope", label: "process-activity-scope")
     }
 
     private var sortControl: some View {
@@ -269,7 +269,7 @@ struct SustainedCPUActivity {
                 Text(L10n.text(value.title)).tag(value)
             }
         }.pickerStyle(.menu).fixedSize()
-            .accessibilityIdentifier("process-activity-sort")
+            .accessibilityIdentifier("process-activity-sort").studioElement("process-activity-sort", label: "process-activity-sort")
     }
 
     private var loadControl: some View {
@@ -278,7 +278,7 @@ struct SustainedCPUActivity {
                 Text(L10n.text(value.title)).tag(value)
             }
         }.pickerStyle(.menu).fixedSize()
-            .accessibilityIdentifier("process-activity-load")
+            .accessibilityIdentifier("process-activity-load").studioElement("process-activity-load", label: "process-activity-load")
     }
 
     private func collectionCoverage(_ snapshot: ProcessActivitySnapshot) -> some View {
@@ -325,7 +325,7 @@ struct SustainedCPUActivity {
                     .frame(width: 38, height: 38)
                     .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 9)).accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(row.name).font(.system(size: 14, weight: .medium)).fixedSize(horizontal: false, vertical: true)
+                    StudioText(row.name, id: "activity.row." + row.id + ".name").font(.system(size: 14, weight: .medium)).fixedSize(horizontal: false, vertical: true)
                     Text(L10n.text("Processes") + ": \(row.processCount)").font(.caption).foregroundStyle(.secondary)
                     if row.energyProcessCount < row.processCount || row.cpuProcessCount < row.processCount {
                         Text(L10n.text("Partial process coverage")).font(.caption).foregroundStyle(.secondary)

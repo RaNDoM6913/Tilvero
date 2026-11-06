@@ -17,6 +17,11 @@ import PowerCore
     private var writesSinceMaintenance = 0
     private var summaryCache: HistorySummary?
     private var seriesCache: [String: (count: Int, latest: Double)] = [:]
+    private var weeklyCapacityMiss: (identity: String, start: Date)?
+    /// First cycle count of a segment; decoding the whole sample history per refresh was the app's main CPU cost.
+    private var cycleBaseline: (segment: UUID, initial: Int?, checkedSequence: Int64)?
+    private var catalogSummary: (summary: HistorySummary, at: Date)?
+    private static let weeklyCapacityKind = "weekly-capacity-v1"
     public let url: URL?
     public var retentionDays: Int { configuration.retentionDays }
 
@@ -162,14 +167,84 @@ import PowerCore
         } catch { context.rollback(); throw clean(error) }
     }
 
-    public func samples(since: Date? = nil, limit: Int = 20000) throws -> [HistorySample] {
+    /// `readingsSince` keeps the full catalog only for samples at or after that date; older ones carry scalars only.
+    public func samples(since: Date? = nil, limit: Int = 20000, readingsSince: Date? = nil) throws -> [HistorySample] {
         try ensureOpen()
         do {
             let request = request(kind: "sample", ascending: false, limit: min(100000, max(1, limit)))
             if let since { request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [request.predicate!, NSPredicate(format: "atDate >= %@", since as NSDate)]) }
-            return try context.fetch(request).reversed().map { try decode(HistorySample.self, object: $0) }
+            return try context.fetch(request).reversed().map { object in
+                let light = readingsSince.map { cutoff in (object.value(forKey: "atDate") as? Date).map { $0 < cutoff } ?? false } ?? false
+                return try decode(HistorySample.self, object: object, light: light)
+            }
         } catch { throw clean(error) }
     }
+    /// Uses the existing private record identity, across launch and sleep segments.
+    /// Only the frozen aggregate leaves the store, with no token or raw telemetry.
+    public func weeklyCapacity(for snapshot: BatterySnapshot, at now: Date = Date(),
+                               calendar: Calendar = .current) throws -> WeeklyCapacity? {
+        try ensureOpen()
+        guard !snapshot.isDemo, let identity = snapshot.batteryIdentityToken, !identity.isEmpty,
+              let start = calendar.date(byAdding: .day, value: -6, to: calendar.startOfDay(for: now)) else { return nil }
+
+        let publications = try records(kind: Self.weeklyCapacityKind, ascending: false, limit: 0)
+        if let saved = publications.first, saved.value(forKey: "identityToken") as? String == identity {
+            let result = try decode(WeeklyCapacity.self, object: saved)
+            guard result.percent.isFinite, result.percent > 0, (1...7).contains(result.observedDays),
+                  result.firstObservedAt <= result.lastObservedAt, result.lastObservedAt <= result.publishedAt else {
+                throw HistoryStoreError.corruptRecord
+            }
+            guard result.publishedAt <= now else { return nil }
+            if now < result.nextEligibleAt { return result }
+        }
+
+        if weeklyCapacityMiss?.identity == identity, weeklyCapacityMiss?.start == start,
+           Self.capacityEstimate(snapshot.catalog.first { $0.id == "026" }) == nil { return nil }
+
+        let candidates = request(kind: "sample", ascending: true, limit: 0)
+        candidates.predicate = NSPredicate(format: "kind == %@ AND identityToken == %@ AND atDate >= %@ AND atDate <= %@",
+                                            "sample", identity, start as NSDate, now as NSDate)
+        var byDay: [Date: [Double]] = [:]
+        var first: Date?, last: Date?
+        for object in try context.fetch(candidates) {
+            let sample = try decode(HistorySample.self, object: object)
+            guard !sample.isAggregate,
+                  let estimate = Self.capacityEstimate(sample.readings.first { $0.id == "026" }) else { continue }
+            byDay[calendar.startOfDay(for: sample.collectedAt), default: []].append(estimate)
+            first = min(first ?? sample.collectedAt, sample.collectedAt)
+            last = max(last ?? sample.collectedAt, sample.collectedAt)
+        }
+        guard let first, let last else { weeklyCapacityMiss = (identity, start); return nil }
+        let result = WeeklyCapacity(percent: Self.median(byDay.values.map(Self.median)), observedDays: byDay.count,
+                                    firstObservedAt: first, lastObservedAt: last, publishedAt: now)
+        let previousSequence = sequence
+        do {
+            for publication in publications { context.delete(publication) }
+            try insert(result, kind: Self.weeklyCapacityKind, at: now, identity: identity)
+            try context.save()
+            weeklyCapacityMiss = nil
+            return result
+        } catch {
+            context.rollback(); sequence = previousSequence
+            throw clean(error)
+        }
+    }
+
+    nonisolated private static func capacityEstimate(_ reading: CatalogReading?) -> Double? {
+        guard let reading, reading.availability == .available, reading.freshness != .stale,
+              reading.provenance == .estimated, let value = reading.value?.doubleValue,
+              value.isFinite, value > 0 else { return nil }
+        return value
+    }
+
+    nonisolated private static func median(_ observations: [Double]) -> Double {
+        let sorted = observations.sorted()
+        let middle = sorted.count / 2
+        return sorted.count.isMultiple(of: 2)
+            ? sorted[middle - 1] / 2 + sorted[middle] / 2
+            : sorted[middle]
+    }
+
     private struct SleepPayload: Codable { let version: Int; let record: SleepSessionRecord }
 
     /// Updates one stable observation row. Assertions and process details never enter this payload.
@@ -248,7 +323,7 @@ import PowerCore
             kind == "charging" ? sample.isCharging : kind == "externalPower" ? sample.isExternalPower : sample.isExternalPower.map { !$0 }
         }
         for object in try records(kind: "sample", ascending: true, limit: configuration.maximumSamples) {
-            let sample = try decode(HistorySample.self, object: object)
+            let sample = try decode(HistorySample.self, object: object, light: true)
             if start == nil { start = sample.observedFrom }
             count += sample.aggregateCount; covered += sample.coveredSeconds
             hasQualifiedEnergy = hasQualifiedEnergy || sample.chargedWh != nil || sample.dischargedWh != nil
@@ -302,7 +377,8 @@ import PowerCore
             for object in try records(kind: nil, ascending: true, limit: 200000) { context.delete(object) }
             try context.save()
             latest = nil; latestIdentity = nil; pendingGap = nil; needsLaunchBoundary = true; sequence = 0
-            summaryCache = nil; seriesCache = [:]
+            summaryCache = nil; seriesCache = [:]; cycleBaseline = nil; catalogSummary = nil
+            weeklyCapacityMiss = nil
         } catch { context.rollback(); throw clean(error) }
     }
     public func close() throws {
@@ -343,8 +419,15 @@ import PowerCore
         }
         return Data((rows.joined(separator: "\n") + "\n").utf8)
     }
-    public func catalogReadings(at date: Date = Date()) throws -> [CatalogReading] {
-        let summary = try summary()
+    /// `summaryMaxAge` lets a frequent caller reuse a recent summary: rebuilding it decodes every stored sample.
+    public func catalogReadings(at date: Date = Date(), summaryMaxAge: TimeInterval = 0) throws -> [CatalogReading] {
+        let summary: HistorySummary
+        if summaryMaxAge > 0, let cached = catalogSummary, date >= cached.at, date.timeIntervalSince(cached.at) < summaryMaxAge {
+            summary = cached.summary
+        } else {
+            summary = try self.summary()
+            catalogSummary = (summary, date)
+        }
         func reading(_ id: String, _ value: CatalogValue?, reason: String? = nil, provenance: TelemetryProvenance = .recorded) -> CatalogReading {
             CatalogReading(definition: BatteryCatalog.definition(id), value: value, source: "PowerPersistence", keyPath: "localHistory/\(id)", collectedAt: date, provenance: provenance, freshness: .fresh, reason: reason)
         }
@@ -358,13 +441,18 @@ import PowerCore
                 reason: series == nil ? "No qualified values have been recorded for this series." : "Retained points include labelled aggregates and explicit segment boundaries."))
         }
         if let last = latest, let final = last.cycleCount {
-            let first = try records(kind: "sample", ascending: true, limit: configuration.maximumSamples).first { object in
-                guard let sample = try? decode(HistorySample.self, object: object) else { return false }
-                return sample.segmentID == last.segmentID && sample.cycleCount != nil
+            let initial: Int?
+            if let cached = cycleBaseline, cached.segment == last.segmentID, cached.initial != nil || cached.checkedSequence == sequence {
+                initial = cached.initial
+            } else {
+                let first = try records(kind: "sample", ascending: true, limit: configuration.maximumSamples).first { object in
+                    guard let sample = try? decode(HistorySample.self, object: object) else { return false }
+                    return sample.segmentID == last.segmentID && sample.cycleCount != nil
+                }
+                initial = try first.flatMap { try decode(HistorySample.self, object: $0).cycleCount }
+                cycleBaseline = (last.segmentID, initial, sequence)
             }
-            if let first, let initial = try decode(HistorySample.self, object: first).cycleCount, final >= initial {
-                fields.append(reading("082", .integer(Int64(final - initial))))
-            }
+            if let initial, final >= initial { fields.append(reading("082", .integer(Int64(final - initial)))) }
         }
         let sessions = summary.sessions
         if let session = sessions.last(where: { $0.kind == "externalPower" && $0.endedAt == nil && $0.originalStartKnown }) { fields.append(reading("072", .date(session.observedFrom))) }
@@ -393,20 +481,22 @@ import PowerCore
         let data = try JSONEncoder().encode(value)
         object.setValue(try (data as NSData).compressed(using: .lzfse) as Data, forKey: "payload")
     }
-    private func decode<T: Decodable>(_ type: T.Type, object: NSManagedObject) throws -> T {
+    private func decode<T: Decodable>(_ type: T.Type, object: NSManagedObject, light: Bool = false) throws -> T {
         guard let payload = object.value(forKey: "payload") as? Data, payload.count <= 2_000_000 else { throw HistoryStoreError.corruptRecord }
         do {
             let data = try (payload as NSData).decompressed(using: .lzfse) as Data
             guard data.count <= 8_000_000 else { throw HistoryStoreError.corruptRecord }
+            let decoder = JSONDecoder()
+            if light { decoder.userInfo[.skipHistoryReadings] = true }
             if type == HistorySample.self,
                var legacy = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                legacy["energyEvidenceVersion"] as? Int != 1 {
                 // Early payloads encoded absence as zero. Retain their measurements,
                 // but never upgrade unsupported energy totals into evidence.
                 legacy.removeValue(forKey: "chargedWh"); legacy.removeValue(forKey: "dischargedWh")
-                return try JSONDecoder().decode(type, from: JSONSerialization.data(withJSONObject: legacy))
+                return try decoder.decode(type, from: JSONSerialization.data(withJSONObject: legacy))
             }
-            return try JSONDecoder().decode(type, from: data)
+            return try decoder.decode(type, from: data)
         } catch { throw HistoryStoreError.corruptRecord }
     }
     private func maintain(referenceDate: Date) throws {
@@ -460,7 +550,7 @@ import PowerCore
             let gaps = try records(kind: "gap", ascending: false, limit: 200000)
             for object in gaps.dropFirst(1000) { context.delete(object) }
             try context.save()
-            summaryCache = nil
+            summaryCache = nil; cycleBaseline = nil; catalogSummary = nil
         } catch { context.rollback(); throw clean(error) }
     }
     private static func redactedReading(_ reading: CatalogReading) -> CatalogReading {

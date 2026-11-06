@@ -12,20 +12,23 @@ enum ProductMotion {
 struct ProductSurface<Content: View>: View {
     var title: String? = nil
     var symbol: String? = nil
+    var studioID: String? = nil
     @ViewBuilder var content: () -> Content
+    @Environment(\.studioPresentation) private var studioPresentation
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: studioPresentation.spacing(14)) {
             if let title {
                 HStack(spacing: 8) {
                     if let symbol { Image(systemName: symbol).foregroundStyle(Color.accentColor) }
-                    Text(L10n.text(title)).font(.system(size: 13, weight: .semibold))
+                    StudioText(L10n.text(title), id: "surface.title." + studioSemanticID(title)).font(.system(size: 13, weight: .semibold))
                 }
             }
             content().font(.system(size: 12))
         }
         .frame(maxWidth: .infinity, alignment: .leading).padding(16)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: 11))
-        .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(.primary.opacity(0.07)))
+        .background(studioPresentation.surface, in: RoundedRectangle(cornerRadius: studioPresentation.radius(11)))
+        .overlay(RoundedRectangle(cornerRadius: studioPresentation.radius(11)).strokeBorder(.primary.opacity(0.07)))
+        .studioElement("surface." + (studioID ?? studioSemanticID(title ?? symbol ?? "content")), kind: "container", label: title ?? "Content surface")
     }
 }
 
@@ -34,8 +37,8 @@ struct ProductSectionHeading: View {
     var subtitle: String? = nil
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(L10n.text(title)).font(.system(size: 13, weight: .semibold))
-            if let subtitle { Text(L10n.text(subtitle)).font(.callout).foregroundStyle(.secondary) }
+            StudioText(L10n.text(title), id: "section.title." + studioSemanticID(title)).font(.system(size: 13, weight: .semibold))
+            if let subtitle { StudioText(L10n.text(subtitle), id: "section.subtitle." + studioSemanticID(title)).font(.callout).foregroundStyle(.secondary) }
         }.fixedSize(horizontal: false, vertical: true)
     }
 }
@@ -64,8 +67,8 @@ struct ProductSectionHeading: View {
     }
     private var information: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(L10n.text(title)).font(.title2.weight(.medium))
-            Text(L10n.text(subtitle)).font(.callout).foregroundStyle(.secondary)
+            StudioText(L10n.text(title), id: "intro.title." + studioSemanticID(title)).font(.title2.weight(.medium))
+            StudioText(L10n.text(subtitle), id: "intro.subtitle." + studioSemanticID(title)).font(.callout).foregroundStyle(.secondary)
         }.frame(maxWidth: .infinity, alignment: .leading).fixedSize(horizontal: false, vertical: true)
     }
 }
@@ -76,10 +79,10 @@ struct ProductMetric: View {
     var detail: String? = nil
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            Text(value).font(.system(size: value.rangeOfCharacter(from: .decimalDigits) == nil ? 22 : 28, weight: .medium, design: .rounded)).monospacedDigit()
+            StudioText(value, id: "metric.value." + studioSemanticID(title)).font(.system(size: value.rangeOfCharacter(from: .decimalDigits) == nil ? 22 : 28, weight: .medium, design: .rounded)).monospacedDigit()
                 .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
-            Text(L10n.text(title)).font(.system(size: 12)).foregroundStyle(.secondary)
-            if let detail { Text(detail).font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+            StudioText(L10n.text(title), id: "metric.title." + studioSemanticID(title)).font(.system(size: 12)).foregroundStyle(.secondary)
+            if let detail { StudioText(detail, id: "metric.detail." + studioSemanticID(title)).font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
 }
@@ -90,12 +93,13 @@ struct ProductChargeTrack: View {
     var stale = false
     var animate = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.studioPresentation) private var studioPresentation
     var body: some View {
         if let level, (0...100).contains(level) {
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.primary.opacity(0.07))
-                    Capsule().fill(stale ? Color.secondary : Color.green)
+                    Capsule().fill(stale ? Color.secondary : studioPresentation.accent)
                         .frame(width: geometry.size.width * CGFloat(level) / 100)
                 }
             }.frame(height: 6)

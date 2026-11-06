@@ -98,6 +98,7 @@ struct EnergySchematicCaption: View {
 }
 
 @MainActor struct BatteryEnergyHeading: View {
+    @Environment(\.studioPresentation) private var studioPresentation
     @ObservedObject var model: TilveroModel
     private var state: EnergyVisualSnapshot { .init(model.snapshot) }
     var body: some View {
@@ -143,10 +144,10 @@ struct EnergySchematicCaption: View {
     }
     private var charge: some View {
         VStack(spacing: 5) {
-            Text(model.chargeText).font(.system(size: 44, weight: .semibold)).monospacedDigit()
-                .foregroundStyle(state.levelIsStale || state.level == nil ? Color.secondary : Color.green)
+            StudioText(model.chargeText, id: "battery.hero.charge").font(.system(size: 44, weight: .semibold)).monospacedDigit()
+                .foregroundStyle(state.levelIsStale || state.level == nil ? Color.secondary : studioPresentation.accent)
             HStack(spacing: 5) {
-                Text(model.chargingStateText).font(.callout).foregroundStyle(.secondary)
+                StudioText(model.chargingStateText, id: "battery.hero.status").font(.callout).foregroundStyle(.secondary)
                     .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
                 if let reading = model.snapshot.catalog.first(where: { $0.id == "011" }) {
                     ReadingInfoButton(reading: reading, fahrenheit: model.fahrenheit)
@@ -201,6 +202,7 @@ struct PowerHeadlineReading {
 }
 
 @MainActor struct PowerConnectionHeading: View {
+    @Environment(\.studioPresentation) private var studioPresentation
     @ObservedObject var model: TilveroModel
     private var state: EnergyVisualSnapshot { .init(model.snapshot) }
     var body: some View {
@@ -236,10 +238,10 @@ struct PowerHeadlineReading {
     private var source: some View {
         let reading = model.snapshot.catalog.first { $0.id == "016" }
         return VStack(alignment: .leading, spacing: 7) {
-            Text(reading.map { CatalogDataPresentation.value($0, reveal: false, fahrenheit: model.fahrenheit) } ?? "—")
+            StudioText(reading.map { CatalogDataPresentation.value($0, reveal: false, fahrenheit: model.fahrenheit) } ?? "—", id: "power.source.value")
                 .font(.system(size: 23, weight: .medium)).fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 5) {
-                Text(L10n.text("Reported power source")).font(.callout).foregroundStyle(.secondary)
+                StudioText(L10n.text("Reported power source"), id: "power.source.title").font(.callout).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 if let reading { ReadingInfoButton(reading: reading, fahrenheit: model.fahrenheit) }
             }
@@ -256,9 +258,9 @@ struct PowerHeadlineReading {
     private var nativeLimit: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 5) {
-                Text(L10n.text("macOS charge limit")).font(.headline)
-                Text(limitText ?? L10n.text("Unavailable")).font(.headline)
-                    .foregroundStyle(limitText == nil ? Color.secondary : Color.green)
+                StudioText(L10n.text("macOS charge limit"), id: "power.nativeLimit.title").font(.headline)
+                StudioText(limitText ?? L10n.text("Unavailable"), id: "power.nativeLimit.value").font(.headline)
+                    .foregroundStyle(limitText == nil ? Color.secondary : studioPresentation.accent)
             }
             if let setting = model.nativeCharge.nativeSetting, setting.isFresh {
                 Text(L10n.text(setting.configuration.optimizedCharging ? "Optimized charging enabled" : "Optimized charging disabled"))

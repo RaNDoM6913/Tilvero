@@ -223,12 +223,14 @@ struct ReadingInfoPresentation {
         .onKeyPress(.return) { showingInfo = true; return .handled }
         .accessibilityLabel(L10n.text("Reading details") + ": " + presentation.title)
         .accessibilityIdentifier("reading-info-" + reading.id)
+        .studioElement("catalog." + reading.id + ".info", label: "Reading details: " + presentation.title)
         .help(L10n.text("Reading details"))
         .popover(isPresented: $showingInfo, arrowEdge: .trailing) {
             ReadingInfoPopover(presentation: presentation) {
                 technicalDetailsRequested = true
                 showingInfo = false
             }
+            .studioSubpresentation("reading." + reading.id + ".popover")
         }
         .onChange(of: showingInfo) { _, visible in
             if !visible {
@@ -244,6 +246,7 @@ struct ReadingInfoPresentation {
         }
         .sheet(isPresented: $showingTechnicalDetails, onDismiss: { buttonFocused = true }) {
             ReadingTechnicalDetails(presentation: presentation)
+                .studioSubpresentation("reading." + reading.id + ".details")
         }
     }
 }
@@ -253,10 +256,10 @@ struct ReadingInfoPresentation {
     let showTechnicalDetails: () -> Void
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(presentation.title).font(.headline).fixedSize(horizontal: false, vertical: true)
-            Text(presentation.value).font(.title2).monospacedDigit().textSelection(.enabled)
+            StudioText(presentation.title, id: "readingDetails." + presentation.reading.id + ".title").font(.headline).fixedSize(horizontal: false, vertical: true)
+            StudioText(presentation.value, id: "readingDetails." + presentation.reading.id + ".value").font(.title2).monospacedDigit().textSelection(.enabled)
                 .lineLimit(3).fixedSize(horizontal: false, vertical: true)
-            Text(presentation.explanation).fixedSize(horizontal: false, vertical: true)
+            StudioText(presentation.explanation, id: "readingDetails." + presentation.reading.id + ".explanation").fixedSize(horizontal: false, vertical: true)
             if !presentation.qualifications.isEmpty {
                 Text(presentation.qualifications.joined(separator: " · ")).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -278,14 +281,14 @@ struct ReadingInfoPresentation {
     @Environment(\.dismiss) private var dismiss
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(presentation.title).font(.title2).fixedSize(horizontal: false, vertical: true)
+            StudioText(presentation.title, id: "readingDetails." + presentation.reading.id + ".title").font(.title2).fixedSize(horizontal: false, vertical: true)
             Text(L10n.text("Technical details")).font(.headline).foregroundStyle(.secondary)
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     ForEach(presentation.technicalFields) { field in
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(field.label).font(.headline)
-                            Text(field.value).frame(maxWidth: .infinity, alignment: .leading)
+                            StudioText(field.label, id: "readingTechnical." + presentation.reading.id + "." + studioSemanticID(field.label) + ".label").font(.headline)
+                            StudioText(field.value, id: "readingTechnical." + presentation.reading.id + "." + studioSemanticID(field.label) + ".value").frame(maxWidth: .infinity, alignment: .leading)
                                 .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
                         }
                     }
@@ -293,7 +296,7 @@ struct ReadingInfoPresentation {
             }
             HStack {
                 Spacer()
-                Button(L10n.text("Done")) { dismiss() }.keyboardShortcut(.defaultAction)
+                StudioActionButton(L10n.text("Done"), id: "action.done") { dismiss() }.keyboardShortcut(.defaultAction)
             }
         }.font(.body).padding(24).frame(width: 560, height: 560)
             .onExitCommand { dismiss() }
@@ -312,22 +315,23 @@ struct ReadingInfoPresentation {
     }
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Text(label).foregroundStyle(.secondary)
+            StudioText(label, id: "catalog." + reading.id + ".title").foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading).fixedSize(horizontal: false, vertical: true)
             VStack(alignment: .trailing, spacing: 3) {
-                Text(CatalogDataPresentation.conciseValue(reading, reveal: reveal, fahrenheit: fahrenheit))
+                StudioText(CatalogDataPresentation.conciseValue(reading, reveal: reveal, fahrenheit: fahrenheit), id: "catalog." + reading.id + ".value")
                     .monospacedDigit().textSelection(.enabled).lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
                     .foregroundStyle(reading.value == nil ? Color.secondary : Color.primary)
                 let qualifications = CatalogDataPresentation.qualifications(reading)
                 if !qualifications.isEmpty {
-                    Text(qualifications.joined(separator: " · "))
+                    StudioText(qualifications.joined(separator: " · "), id: "catalog." + reading.id + ".qualification")
                         .foregroundStyle(reading.freshness == .stale ? Color.orange : Color.secondary)
                         .font(.system(size: 11)).fixedSize(horizontal: false, vertical: true)
                 }
             }.fixedSize(horizontal: false, vertical: true)
             ReadingInfoButton(reading: reading, reveal: reveal, fahrenheit: fahrenheit)
         }.font(.system(size: 12)).padding(.vertical, 8)
+        .studioElement("catalog." + reading.id + ".row", kind: "container", label: label)
     }
 }
 
@@ -369,18 +373,18 @@ struct ReadingInfoPresentation {
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            Text(value)
+            StudioText(value, id: "summary." + id + ".value")
                 .font(.system(size: value.rangeOfCharacter(from: .decimalDigits) == nil ? 22 : 28, weight: .medium, design: .rounded))
                 .monospacedDigit().textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
             HStack(alignment: .firstTextBaseline, spacing: 3) {
-                Text(L10n.text(title)).font(.system(size: 12)).foregroundStyle(.secondary)
+                StudioText(L10n.text(title), id: "summary." + id + ".title").font(.system(size: 12)).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 if let reading { ReadingInfoButton(reading: reading, reveal: reveal, fahrenheit: model.fahrenheit) }
             }
             if let reading {
                 let quality = CatalogDataPresentation.qualifications(reading)
                 if !quality.isEmpty {
-                    Text(quality.joined(separator: " · "))
+                    StudioText(quality.joined(separator: " · "), id: "summary." + id + ".qualification")
                         .foregroundStyle(reading.freshness == .stale ? Color.orange : Color.secondary)
                         .font(.system(size: 11)).fixedSize(horizontal: false, vertical: true)
                 }
@@ -400,9 +404,9 @@ struct ReadingInfoPresentation {
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
             Picker(L10n.text("Battery section"), selection: $tab) {
-                ForEach(BatteryDataTab.allCases) { Text(L10n.text($0.title)).tag($0) }
-            }.pickerStyle(.segmented).labelsHidden().accessibilityIdentifier("battery-tabs")
-            batteryContent.id(tab).transition(.opacity)
+                ForEach(BatteryDataTab.allCases) { StudioText(L10n.text($0.title), id: "battery.tab." + $0.rawValue).tag($0) }
+            }.pickerStyle(.segmented).labelsHidden().accessibilityIdentifier("battery-tabs").studioElement("battery.tabs", label: "Battery subpages")
+            batteryContent.id(tab).transition(.opacity).studioScope("tab." + tab.rawValue)
         }.animation(ProductMotion.animation(reduceMotion: reduceMotion), value: tab)
     }
     @ViewBuilder private var batteryContent: some View {
@@ -480,8 +484,8 @@ struct ReadingInfoPresentation {
                 externalPower: model.snapshot.isExternalPower.availability == .available && model.snapshot.isExternalPower.freshness != .stale && model.snapshot.isExternalPower.value == true))
                 .resizable().interpolation(.high).frame(width: 64, height: 42).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 4) {
-                Text(model.chargeText).font(.system(size: 32, weight: .semibold, design: .rounded)).monospacedDigit()
-                Text(model.chargingStateText).font(.subheadline).foregroundStyle(.secondary)
+                StudioText(model.chargeText, id: "battery.charge.value").font(.system(size: 32, weight: .semibold, design: .rounded)).monospacedDigit()
+                StudioText(model.chargingStateText, id: "battery.charge.status").font(.subheadline).foregroundStyle(.secondary)
                 if model.snapshot.chargePercent.freshness == .stale { Text(L10n.text("Stale")).font(.caption).foregroundStyle(.orange) }
             }
             Spacer()
@@ -501,9 +505,9 @@ struct ReadingInfoPresentation {
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
             Picker(L10n.text("Power section"), selection: $tab) {
-                ForEach(PowerDataTab.allCases) { Text(L10n.text($0.title)).tag($0) }
-            }.pickerStyle(.segmented).labelsHidden().accessibilityIdentifier("power-tabs")
-            powerContent.id(tab).transition(.opacity)
+                ForEach(PowerDataTab.allCases) { StudioText(L10n.text($0.title), id: "power.tab." + $0.rawValue).tag($0) }
+            }.pickerStyle(.segmented).labelsHidden().accessibilityIdentifier("power-tabs").studioElement("power.tabs", label: "Power subpages")
+            powerContent.id(tab).transition(.opacity).studioScope("tab." + tab.rawValue)
         }.animation(ProductMotion.animation(reduceMotion: reduceMotion), value: tab)
     }
     @ViewBuilder private var powerContent: some View {
@@ -558,18 +562,19 @@ struct ReadingInfoPresentation {
                 ChargeLimitControl(model: model).padding(.top, 10)
                 if model.canShowChargeControls {
                     HStack {
-                        Button(L10n.text(model.isOneShotDemo ? "Cancel one-time charge" : "Charge to 100% once")) { model.toggleOneShotDemo() }.disabled(!model.canChargeToFullOnce)
-                        Button(L10n.text("Return to system control")) { model.releaseControl() }.disabled(!model.canReleaseCharge)
+                        StudioActionButton(L10n.text(model.isOneShotDemo ? "Cancel one-time charge" : "Charge to 100% once"), id: "charge.once") { model.toggleOneShotDemo() }.disabled(!model.canChargeToFullOnce)
+                        StudioActionButton(L10n.text("Return to system control"), id: "action.return-to-system-control") { model.releaseControl() }.disabled(!model.canReleaseCharge)
                     }.disabled(model.isApplying)
                 }
                 Label(L10n.text("Power mode") + ": " + L10n.text(ProcessInfo.processInfo.isLowPowerModeEnabled ? "Low Power" : "Automatic"), systemImage: "bolt.circle")
                 ProfilePanel(model: model)
             }.padding(.top, 12).padding(.bottom, 4)
         } label: {
-            Text(L10n.text("Charging controls & modes")).font(.callout.weight(.medium)).foregroundStyle(.primary)
+            StudioText(L10n.text("Charging controls & modes"), id: "power.controls.title").font(.callout.weight(.medium)).foregroundStyle(.primary)
         }
         .disclosureGroupStyle(ProductDisclosureStyle(headerInset: 12))
         .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 9))
+        .studioElement("power.controls", kind: "container", label: "Charging controls and modes")
         .animation(ProductMotion.animation(reduceMotion: reduceMotion), value: showControls)
     }
     private func section(_ title: String, _ ids: [String], titles: [String: String] = [:], includeUnavailable: Bool = true) -> some View {

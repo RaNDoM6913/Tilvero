@@ -2,6 +2,7 @@ import XCTest
 import Foundation
 @testable import TilveroApp
 import PowerCore
+import PowerTelemetry
 @testable import PowerPersistence
 import CoreData
 
@@ -28,6 +29,25 @@ import CoreData
         XCTAssertFalse(model.sleepSessions.contains { $0.after?.chargePercent == 80 })
         let reads = await queue.readCount
         XCTAssertEqual(reads, 2)
+    }
+
+    func testNormalizedProviderSnapshotsCompleteModelSleepSession() async throws {
+        let fixture = try Fixture(); defer { fixture.cleanup() }
+        let provider = MacBatteryProvider(identitySalt: "salt")
+        let queue = NormalizedSnapshotQueue(provider: provider, percents: [80, 77])
+        // The wake read may be deferred as a possibly pre-sleep value; the model reads again after the settle window.
+        let model = TilveroModel(isDemo: false, preferences: fixture.preferences, historyURL: fixture.url,
+                                 postWakeSettleSeconds: 0.2, snapshotProvider: { await queue.read() })
+        defer { model.stop() }
+        await model.refresh()
+        model.setSleeping(true); model.setSleeping(false)
+        let deadline = Date().addingTimeInterval(10)
+        while model.sleepSessions.first?.phase != .closed && Date() < deadline { try await Task.sleep(nanoseconds: 10_000_000) }
+        let session = try XCTUnwrap(model.sleepSessions.first)
+        XCTAssertEqual(session.phase, .closed, "Live-shaped IOPS readings (unknown freshness) must complete sleep rows.")
+        XCTAssertEqual(session.before?.chargePercent, 80)
+        XCTAssertEqual(session.after?.chargePercent, 77)
+        XCTAssertEqual(session.chargeChangePercentagePoints, 3)
     }
 
     func testRetainedDisplayChargeCannotFillMissingPostWakeReading() async throws {
@@ -161,5 +181,18 @@ private actor SleepSnapshotQueue {
             isCharging: .init(value: false, source: "fixture", collectedAt: now),
             isExternalPower: .init(value: false, source: "fixture", collectedAt: now),
             collectedAt: now, batteryIdentityToken: "fixture-battery")
+    }
+}
+
+private actor NormalizedSnapshotQueue {
+    private let provider: MacBatteryProvider
+    private let percents: [Int]
+    private var count = 0
+    init(provider: MacBatteryProvider, percents: [Int]) { self.provider = provider; self.percents = percents }
+    func read() -> BatterySnapshot {
+        let percent = percents[min(count, percents.count - 1)]; count += 1
+        return provider.normalize(powerSource: ["Current Capacity": percent, "Max Capacity": 100, "Is Charging": false,
+                                                "Power Source State": "Battery Power"],
+                                  registry: ["Serial": "S1"], at: Date(), uptime: ProcessInfo.processInfo.systemUptime)
     }
 }

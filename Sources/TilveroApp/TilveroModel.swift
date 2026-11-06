@@ -11,16 +11,102 @@ import PowerSimulator
 import PowerPrivileged
 import ChargeBackends
 
+/// Explicit ports for application actions that are not telemetry or owned control.
+/// Production retains the normal macOS implementation; isolated hosts supply all
+/// operations together. Setup login actions are a separate, explicit opt-in.
+@MainActor struct TilveroModelSideEffects {
+    var loginStatus: () -> String
+    var toggleLogin: () throws -> Void
+    var openBatterySettings: () -> Void
+    var rawCatalog: @Sendable () async -> [CatalogReading]
+    var setupLogin: SetupLoginPort? = nil
+
+    static var native: Self {
+        .init(loginStatus: {
+            switch SMAppService.mainApp.status {
+            case .enabled: "Enabled"
+            case .requiresApproval: "Requires approval in System Settings"
+            case .notRegistered: "Not enabled"
+            case .notFound: "Not available from this local build"
+            @unknown default: "Unknown"
+            }
+        }, toggleLogin: {
+            if SMAppService.mainApp.status == .enabled { try SMAppService.mainApp.unregister() }
+            else { try SMAppService.mainApp.register() }
+        }, openBatterySettings: {
+            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.battery")!)
+        }, rawCatalog: {
+            await Task.detached(priority: .utility) { MacBatteryProvider().readRawCatalog() }.value
+        })
+    }
+}
+
 @MainActor
 final class TilveroModel: ObservableObject {
+    let updates: UpdateCheckService
+    @Published private(set) var updatePreparationActive = false
+    private var updateExclusion: ControllerSessionLease?
+    private let updateLeaseDirectory: URL?
+    private let updateEvidence: () -> [UpdateEvidenceProbe.Result]
+    lazy var updateInstaller = SparkleUpdateInstaller(
+        readOnlyReadiness: { [weak self] in self?.updateReadiness.blockers ?? ["Update recovery status is unavailable."] },
+        prepareAfterExplicitConsent: { [weak self] in await self?.prepareForUpdateInstallation() ?? false },
+        releaseInstallationExclusion: { [weak self] in self?.releaseUpdateInstallation() },
+        diagnostics: { [weak self] in self?.openUpdateDiagnostics() })
+
+    func openUpdateDiagnostics() { selectedSection = .diagnostics; openDetails?() }
+
+    var updateReadiness: UpdateRecoverySnapshot {
+        var result = UpdateRecoverySnapshot()
+        result.nativeOwnership = nativeCharge.hasOwnedSettings || nativeCharge.pendingTarget != nil
+        result.nativeRecovery = nativeCharge.recoveryRequired || nativeCharge.restorationPending
+        result.helperOwnership = liveControl.hasOwnedSettings || liveControl.connected
+        result.helperRecovery = liveControl.recoveryRequired
+        result.lidOwnership = closedLid.isOn || closedLid.isLiveTrial || lidSleep.isOn
+        result.lidRecovery = closedLid.needsRecovery || lidSleep.needsRecovery
+        result.operationInFlight = isApplying || isReading || nativeCharge.isBusy || nativeCharge.isQualifying
+            || liveControl.isBusy || closedLid.busy || lidSleep.busy || keyboardBacklight.isBusy
+        result.sleepTransition = sleeping || sleepTimerBlocksControls || sleepTimer.needsHoldRelease
+        result.awakeActive = keepAwake.hasOwnedAssertion
+        result.timerActive = sleepTimer.isActive
+        let evidence = updateEvidence()
+        result.persistentEvidence = evidence.contains(.present)
+        result.environmentUnknown = evidence.contains(.unknown)
+        if updateExclusion == nil {
+            switch ControllerSessionLease.inspect(directory: updateLeaseDirectory) {
+            case .available: break
+            case .occupied: result.externalController = true
+            case .unknown: result.environmentUnknown = true
+            }
+        }
+        return result
+    }
+
+    /// Only the installer's explicit per-update choice invokes this. The first
+    /// supported profile has no hardware recovery authority: ownership defers it.
+    func prepareForUpdateInstallation() async -> Bool {
+        guard updates.identity.supportsInstallerProfile, launchPolicy.monitoringOnly,
+              !isDemo, updateReadiness.blockers.isEmpty else { return false }
+        do { if updateExclusion == nil { updateExclusion = try ControllerSessionLease.acquire(directory: updateLeaseDirectory) } }
+        catch { return false }
+        updatePreparationActive = true
+        guard updateReadiness.blockers.isEmpty else { releaseUpdateInstallation(); return false }
+        let restored = await prepareForTermination()
+        guard restored, updateReadiness.blockers.isEmpty else { releaseUpdateInstallation(); return false }
+        return true
+    }
+
+    func releaseUpdateInstallation() { updatePreparationActive = false; updateExclusion = nil }
     @Published private(set) var snapshot: BatterySnapshot
     @Published private(set) var control: SimulationControlSnapshot?
-    @Published var draftText = "80"
+    @Published var draftText = ""
     @Published private(set) var notice: String?
     @Published private(set) var isApplying = false
     @Published private(set) var storeError: String?
     @Published private(set) var history: [HistorySample] = []
     @Published private(set) var historySummary: HistorySummary?
+    private var lastFullHistoryReload: Date?
+    private var lastHistorySummary: Date?
     @Published private(set) var sleepSessions: [SleepSessionRecord] = []
     @Published private(set) var processActivity: ProcessActivitySnapshot?
     @Published private(set) var highCPUApplications: [ProcessActivityRow] = []
@@ -49,7 +135,9 @@ final class TilveroModel: ObservableObject {
     @Published var selectedMode: WorkMode = .economy
     @Published var language: String { didSet { preferences.set(language, forKey: "language"); onPresentationChange?() } }
     @Published var fahrenheit: Bool { didSet { preferences.set(fahrenheit, forKey: "fahrenheit") } }
+    @Published private(set) var weeklyCapacity: WeeklyCapacity?
     @Published var historyEnabled: Bool { didSet {
+        if !historyEnabled { weeklyCapacity = nil }
         preferences.set(historyEnabled, forKey: "historyEnabled")
         do { try store?.markGap(reason: .explicitBoundary) } catch { storeError = String(describing: error) }
         lastPersisted = nil
@@ -59,11 +147,39 @@ final class TilveroModel: ObservableObject {
     @Published var displayStyle: MenuBarDisplayStyle {
         didSet { preferences.set(displayStyle.rawValue, forKey: "menuBarDisplayStyle"); onPresentationChange?() }
     }
+    @Published var awakeIndicatorColor: AwakeIndicatorColor {
+        didSet { preferences.set(awakeIndicatorColor.rawValue, forKey: "awakeIndicatorColor"); onPresentationChange?() }
+    }
+    @Published var menuBarBatteryAppearance: MenuBarBatteryAppearance {
+        didSet { preferences.set(menuBarBatteryAppearance.rawValue, forKey: "menuBarBatteryAppearance"); onPresentationChange?() }
+    }
     @Published var menuBarTextSize: MenuBarTextSize {
         didSet { preferences.set(menuBarTextSize.rawValue, forKey: "menuBarTextSize"); onPresentationChange?() }
     }
     @Published private(set) var menuBarIconScale: Double
     @Published var loginStatus = "Not enabled"
+    @Published private(set) var hasReviewedSetup: Bool
+    let canShowSetup: Bool
+    private let setupBundle: Bundle
+    private let setupLogin: SetupLoginPort?
+    private let setupUsesNativeHost: Bool
+    lazy var setupCoordinator = SetupActionCoordinator(ports: .init(
+        readInputs: { [weak self] in self?.readSetupInputs() ?? SetupReadinessInputs(launchPolicy: .monitoringOnly) },
+        viewRequirements: { [weak self] in try self?.showSetupRequirements($0) },
+        openApprovalSettings: { [weak self] in try self?.openSetupApprovalSettings($0) },
+        registerHelper: { [weak self] in try await self?.registerSetupHelper() },
+        enableLogin: { [weak self] in try self?.enableSetupLogin() },
+        setHistoryEnabled: { [weak self] enabled in
+            guard let self, self.canShowSetup else { throw SetupRuntimeError.actionUnavailable }
+            if self.historyEnabled != enabled { self.historyEnabled = enabled }
+        },
+        requestNativeChargeValidation: { throw SetupRuntimeError.actionUnavailable }))
+
+    func markSetupReviewed() {
+        guard canShowSetup, !hasReviewedSetup else { return }
+        preferences.set(true, forKey: SetupRuntime.reviewedKey)
+        hasReviewedSetup = true
+    }
     @Published var demoPercent = 76.0
     @Published var demoExternal = true
     @Published var demoOverride = false
@@ -74,6 +190,88 @@ final class TilveroModel: ObservableObject {
     private var exportData: Data?
     private var exportType: UTType = .json
     let keepAwake: KeepAwakeService
+    let sleepTimer: SleepTimerService
+    let sleepAtCharge: SleepAtChargeService
+    /// "Keep awake until the charge drops to N %": the same mechanism, but at the level the hold is only released.
+    let keepAwakeUntilCharge: SleepAtChargeService
+    private var keepAwakeUntilChargeSubscription: AnyCancellable?
+    /// Last chosen "sleep at charge" level (the switch re-arms it); arming itself is never persisted.
+    var sleepAtChargeChoice: Int {
+        get { let saved = preferences.integer(forKey: "sleepAtChargeTarget"); return SleepAtChargeService.targets.contains(saved) ? saved : 20 }
+        set { preferences.set(newValue, forKey: "sleepAtChargeTarget"); objectWillChange.send() }
+    }
+    var keepAwakeUntilChargeChoice: Int {
+        get { let saved = preferences.integer(forKey: "keepAwakeUntilChargeTarget"); return SleepAtChargeService.targets.contains(saved) ? saved : 20 }
+        set { preferences.set(newValue, forKey: "keepAwakeUntilChargeTarget"); objectWillChange.send() }
+    }
+    private var sleepAtChargeSubscription: AnyCancellable?
+
+    /// The four modes that keep the Mac awake until some condition: only one may run at a time.
+    enum AwakeMode: String, CaseIterable {
+        case keepAwake, sleepTimer, sleepAtCharge, keepAwakeUntilCharge
+        var title: String {
+            switch self {
+            case .keepAwake: L10n.text("Keep Awake")
+            case .sleepTimer: L10n.text("Sleep timer")
+            case .sleepAtCharge: L10n.text("Sleep at charge")
+            case .keepAwakeUntilCharge: L10n.text("Keep awake until charge")
+            }
+        }
+    }
+    func isRunning(_ mode: AwakeMode) -> Bool {
+        switch mode {
+        case .keepAwake: keepAwake.hasOwnedAssertion
+        case .sleepTimer: sleepTimer.isActive
+        case .sleepAtCharge: sleepAtCharge.isArmed
+        case .keepAwakeUntilCharge: keepAwakeUntilCharge.isArmed
+        }
+    }
+    /// Title of a running mode other than `mode`, or nil when `mode` may start.
+    func awakeModeBlocker(for mode: AwakeMode) -> String? {
+        AwakeMode.allCases.first { $0 != mode && isRunning($0) }?.title
+    }
+    var chargeModeActive: Bool { sleepAtCharge.isArmed || keepAwakeUntilCharge.isArmed }
+    let closedLid: ClosedLidService
+    /// Ordinary builds: closed-lid Keep Awake through the `pmset disablesleep` override (trial/lab builds keep `closedLid`).
+    let lidSleep: LidSleepOverrideService
+    private var lidSleepSubscription: AnyCancellable?
+    private var sleepTimerSubscription: AnyCancellable?
+    @Published var selectedSleepPage: SleepPage = .timer
+    @Published var sleepTimerMinutes: String { didSet {
+        if let value = SleepTimerInput.minutes(sleepTimerMinutes) { preferences.set(value, forKey: "sleepTimerMinutes") }
+    } }
+    @Published var sleepTimerUsesCustom = false
+    var sleepTimerBlocksControls: Bool { sleepTimer.isActive && !sleepTimer.isEditable }
+    private var controlsAreSuspended: Bool { sleepTimerBlocksControls || updatePreparationActive }
+    var canStartSleepTimer: Bool {
+        sleepTimer.canStart && SleepTimerInput.minutes(sleepTimerMinutes) != nil
+            && !isApplying && !sleeping && !updatePreparationActive
+    }
+    var canSelectSleepTimerDuration: Bool {
+        !isApplying && !sleeping && !controlsAreSuspended && !chargeModeActive && (sleepTimer.canStart || sleepTimer.isEditable)
+    }
+    func startSleepTimer(replacingAwake: Bool = false) throws {
+        guard canStartSleepTimer, let minutes = SleepTimerInput.minutes(sleepTimerMinutes) else { throw SleepTimerInputError.invalid }
+        try selectSleepTimer(minutes: minutes, replacingAwake: replacingAwake)
+    }
+    func selectSleepTimer(minutes: Int, replacingAwake: Bool = false) throws {
+        guard (1...1440).contains(minutes), !isApplying, !sleeping, !controlsAreSuspended,
+              sleepTimer.canStart || sleepTimer.isEditable else { throw SleepTimerInputError.invalid }
+        if chargeModeActive { throw SleepTimerInputError.conflictingMode }
+        if keepAwake.hasOwnedAssertion {
+            guard replacingAwake else { throw SleepTimerInputError.conflictingMode }
+            // Make before break: a failed timer start must not also end the running Keep Awake.
+            try sleepTimer.selectDuration(minutes: minutes)
+            sleepTimerMinutes = String(minutes)
+            do {
+                try keepAwake.stop()
+                guard !keepAwake.hasOwnedAssertion else { throw SleepTimerInputError.conflictingMode }
+            } catch { sleepTimer.cancel(); throw error }
+            return
+        }
+        try sleepTimer.selectDuration(minutes: minutes)
+        sleepTimerMinutes = String(minutes)
+    }
     private var awakeSubscription: AnyCancellable?
     private var awakeMessageSubscription: AnyCancellable?
     private var lastAwakeFailureNotice: String?
@@ -122,8 +320,9 @@ final class TilveroModel: ObservableObject {
             keepAwakeDuration = duration
         }
     }
+    var sleepPillActionsAllowed: Bool { !sleeping && !isApplying && !controlsAreSuspended }
     var canStartKeepAwakeDraft: Bool {
-        guard keepAwake.isAvailable, !keepAwake.hasOwnedAssertion else { return false }
+        guard !updatePreparationActive, keepAwake.isAvailable, !keepAwake.hasOwnedAssertion, !chargeModeActive else { return false }
         switch keepAwakeDraft {
         case .duration:
             return !keepAwakeUsesCustomDuration || Int(keepAwakeCustomMinutes).flatMap(KeepAwakeDuration.init(rawValue:)) != nil
@@ -131,7 +330,9 @@ final class TilveroModel: ObservableObject {
         case .untilStopped: return true
         }
     }
-    func startKeepAwakeDraft() throws {
+    func startKeepAwakeDraft(replacingSleepTimer: Bool = false) throws {
+        guard !controlsAreSuspended, !chargeModeActive else { throw SleepTimerInputError.conflictingMode }
+        if sleepTimer.isActive && !replacingSleepTimer { throw SleepTimerInputError.conflictingMode }
         switch keepAwakeDraft {
         case .duration(let duration):
             if keepAwakeUsesCustomDuration {
@@ -141,6 +342,8 @@ final class TilveroModel: ObservableObject {
         case .until(let date): try keepAwake.start(until: date)
         case .untilStopped: try keepAwake.startUntilStopped()
         }
+        // Acquisition is synchronous and verified. A failed start retains the old timer.
+        if sleepTimer.isActive { sleepTimer.cancel() }
     }
     let nativeCharge: NativeChargeService
     let keyboardBacklight: KeyboardBacklightService
@@ -148,6 +351,7 @@ final class TilveroModel: ObservableObject {
     let liveControl: LiveControlService
     private var liveSubscription: AnyCancellable?
     let isDemo: Bool
+    let launchPolicy: AppLaunchPolicy
     var isPopoverVisible = false
     var isDetailVisible = false
     var openDetails: (@MainActor () -> Void)?
@@ -158,7 +362,8 @@ final class TilveroModel: ObservableObject {
     private var queuedWakeRefresh = false
     private var observedWake = false
     private let sleepRunID = UUID()
-    private var sleepTracker = SleepSessionTracker()
+    private let postWakeSettleSeconds: Double
+    private var sleepTracker: SleepSessionTracker
     private var lastRawSleepEndpoint: SleepBatteryEndpoint?
     private let sleepActivityProvider: @Sendable () async -> SleepAssertionSnapshot
     private var sleeping = false
@@ -170,43 +375,97 @@ final class TilveroModel: ObservableObject {
     private let observer = PowerSourceObserver()
     private var arbiter = ProfileArbiter()
     private let preferences: UserDefaults
+    private let sideEffects: TilveroModelSideEffects
     private var snapshotProvider: @Sendable () async -> BatterySnapshot
 
-    init(isDemo: Bool, preferences: UserDefaults = .standard,
+    init(isDemo: Bool, launchPolicy: AppLaunchPolicy = .current(), preferences: UserDefaults = .standard,
          historyURL: URL? = nil,
+         postWakeSettleSeconds: Double = 5,
          snapshotProvider: (@Sendable () async -> BatterySnapshot)? = nil,
          sleepActivityProvider: (@Sendable () async -> SleepAssertionSnapshot)? = nil,
          systemChargeLimitProvider: (@Sendable () async -> SystemChargeLimitObservation)? = nil,
          liveControl: LiveControlService? = nil,
+         nativeCharge: NativeChargeService? = nil,
          keepAwakeTransport: (any KeepAwakeTransport)? = nil,
+         keepAwakeService: KeepAwakeService? = nil,
          processActivityProvider: (@Sendable () async -> ProcessResourceCollection)? = nil,
-         keyboardBacklight: KeyboardBacklightService? = nil) {
+         keyboardBacklight: KeyboardBacklightService? = nil,
+         sleepTimerTransport: (any SleepTimerTransport)? = nil,
+         sleepTimerService: SleepTimerService? = nil,
+         closedLidService: ClosedLidService? = nil,
+         lidSleepSystem: (any LidSleepSystem)? = nil,
+         updateIdentity: UpdateIdentity? = nil,
+         updateEvidence: (() -> [UpdateEvidenceProbe.Result])? = nil,
+         updateLeaseDirectory: URL? = nil,
+         sideEffects: TilveroModelSideEffects? = nil,
+         setupBundle: Bundle = .main) {
+        updates = UpdateCheckService(identity: updateIdentity ?? .current(), defaults: preferences)
+        self.updateLeaseDirectory = updateLeaseDirectory
+        self.updateEvidence = updateEvidence ?? {
+            let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("Tilvero", isDirectory: true)
+            let paths = [root.appendingPathComponent("native-charge-session.json"),
+                         root.appendingPathComponent("Production/native-charge-session.json"),
+                         root.appendingPathComponent("Laboratory/native-charge-session.json"),
+                         root.appendingPathComponent("LidTrial/native-charge-session.json"),
+                         URL(fileURLWithPath: "/Library/Application Support/Tilvero"),
+                         URL(fileURLWithPath: "/Library/Application Support/TilveroClosedLidLab")]
+            return paths.map(UpdateEvidenceProbe.inspect)
+        }
         self.systemChargeLimitProvider = systemChargeLimitProvider ?? {
             await Task.detached(priority: .utility) { SystemChargeLimitObservation.read() }.value
         }
         self.isDemo = isDemo
+        self.launchPolicy = launchPolicy
         self.processActivityProvider = processActivityProvider ?? { await ProcessActivityProvider().read() }
         self.preferences = preferences
+        self.postWakeSettleSeconds = postWakeSettleSeconds
+        self.sleepTracker = SleepSessionTracker(postWakeSettleSeconds: postWakeSettleSeconds)
+        self.sideEffects = sideEffects ?? .native
+        let savedSleepMinutes = preferences.integer(forKey: "sleepTimerMinutes")
+        let initialSleepMinutes = (1...1440).contains(savedSleepMinutes) ? savedSleepMinutes : 30
+        sleepTimerMinutes = String(initialSleepMinutes)
+        sleepTimerUsesCustom = ![15, 30, 60].contains(initialSleepMinutes)
         let savedAwakeDuration = KeepAwakeDuration.load(preferences.object(forKey: "keepAwakeMinutes"))
         keepAwakeDraft = .duration(savedAwakeDuration)
         keepAwakeCustomMinutes = String(savedAwakeDuration.rawValue)
         keepAwakeUsesCustomDuration = !KeepAwakeDuration.allCases.contains(savedAwakeDuration)
-        let monitoring = Bundle.main.object(forInfoDictionaryKey: "TilveroReleaseMode") as? String == "monitoring"
+        let monitoring = launchPolicy.monitoringOnly
+        let hardwarePolicy = launchPolicy.ordinaryHardwarePolicy
         self.keyboardBacklight = keyboardBacklight ?? KeyboardBacklightService(
-            storage: UserDefaultsKeyboardBacklightStorage(defaults: preferences), allowed: !isDemo && !monitoring)
-        keepAwake = KeepAwakeService(driver: keepAwakeTransport ?? NativeKeepAwakeTransport(), allowed: !isDemo && !monitoring)
+            storage: UserDefaultsKeyboardBacklightStorage(defaults: preferences), allowed: !isDemo && !hardwarePolicy.monitoringOnly)
+        keepAwake = keepAwakeService ?? KeepAwakeService(driver: keepAwakeTransport ?? NativeKeepAwakeTransport(), allowed: !isDemo && !monitoring)
+        let sleepTransport = sleepTimerTransport ?? NativeSleepTimerTransport()
+        sleepTimer = sleepTimerService ?? SleepTimerService(driver: sleepTransport, allowed: !isDemo && !monitoring)
+        // Its own idle hold, independent of the timer's (a real run gets a separate transport instance).
+        sleepAtCharge = SleepAtChargeService(driver: sleepTimerTransport ?? NativeSleepTimerTransport(), allowed: !isDemo && !monitoring)
+        keepAwakeUntilCharge = SleepAtChargeService(driver: sleepTimerTransport ?? NativeSleepTimerTransport(), allowed: !isDemo && !monitoring, endAction: .release)
+        closedLid = closedLidService ?? ClosedLidService(allowed: !isDemo && !monitoring)
+        lidSleep = LidSleepOverrideService(system: lidSleepSystem ?? NativeLidSleepSystem(), defaults: preferences, allowed: !isDemo && !monitoring)
+        self.setupBundle = setupBundle
+        let setupIdentity = try? ReleaseIdentity.current(bundle: setupBundle)
+        canShowSetup = !isDemo && setupIdentity?.isLaboratory == false && !closedLid.isFixture && !closedLid.isLiveTrial
+        hasReviewedSetup = canShowSetup && preferences.bool(forKey: SetupRuntime.reviewedKey)
+        let ordinaryAppID = setupBundle.bundleIdentifier == ReleaseIdentity.prototypeBundleIdentifier
+            || setupBundle.bundleIdentifier == UpdateInstallConfiguration.productionBundleID
+        let nativeSetupHost = canShowSetup && sideEffects == nil && ordinaryAppID
+            && setupBundle.bundleURL.pathExtension == "app" && setupBundle.bundleURL == Bundle.main.bundleURL
+        setupUsesNativeHost = nativeSetupHost
+        setupLogin = sideEffects?.setupLogin ?? (nativeSetupHost ? .native : nil)
         modeLibrary = ModeLibrary.load(preferences.data(forKey: isDemo ? "demoModePlans.v1" : "modePlans.v1"))
         overviewPreferences = OverviewPreferences.load(preferences.data(forKey: "overviewPreferences.v1"))
         self.sleepActivityProvider = sleepActivityProvider ?? {
             await SleepActivityProvider().readSnapshot()
         }
-        self.liveControl = liveControl ?? LiveControlService(preferences: preferences)
-        if isDemo {
-            nativeCharge = NativeChargeService(client: PowerUIChargeClient(),
+        self.liveControl = liveControl ?? LiveControlService(preferences: preferences,
+            launchPolicy: isDemo ? .resolve(metadata: [:], arguments: ["--demo"]) : hardwarePolicy)
+        if let nativeCharge { self.nativeCharge = nativeCharge }
+        else if isDemo {
+            self.nativeCharge = NativeChargeService(client: PowerUIChargeClient(),
                 journalURL: FileManager.default.temporaryDirectory.appendingPathComponent("TilveroDemo-\(UUID().uuidString)/native-session.json"), monitoringOnly: true)
         } else {
             let storage = historyURL ?? (try? ReleaseIdentity.current().historyURL()) ?? FileManager.default.temporaryDirectory.appendingPathComponent("TilveroUnavailable/History.sqlite")
-            nativeCharge = NativeChargeService(historyURL: storage)
+            self.nativeCharge = NativeChargeService(historyURL: storage, launchPolicy: hardwarePolicy)
         }
         let identitySalt = preferences.string(forKey: "identitySalt") ?? UUID().uuidString
         preferences.set(identitySalt, forKey: "identitySalt")
@@ -219,7 +478,10 @@ final class TilveroModel: ObservableObject {
         retentionDays = preferences.object(forKey: "retentionDays") as? Int ?? 30
         menuBarTextSize = MenuBarTextSize(rawValue: preferences.string(forKey: "menuBarTextSize") ?? "") ?? .system
         menuBarIconScale = MenuBarSizing.validatedIconScale(preferences.object(forKey: "menuBarIconScale") as? Double ?? 1)
-        displayStyle = MenuBarDisplayStyle(rawValue: preferences.string(forKey: "menuBarDisplayStyle") ?? "") ?? .beside
+        let batteryAppearance = MenuBarBatteryAppearance.restored(preferences.string(forKey: "menuBarBatteryAppearance"))
+        menuBarBatteryAppearance = batteryAppearance
+        awakeIndicatorColor = AwakeIndicatorColor(rawValue: preferences.string(forKey: "awakeIndicatorColor") ?? "") ?? .blue
+        displayStyle = MenuBarDisplayStyle(rawValue: preferences.string(forKey: "menuBarDisplayStyle") ?? "") ?? batteryAppearance.defaultDisplayStyle
         if let data = preferences.data(forKey: isDemo ? "demoSchedule" : "schedule") { schedule = try? JSONDecoder().decode(ScheduleRule.self, from: data) }
         if let data = preferences.data(forKey: isDemo ? "demoArbiter" : "arbiter"), let saved = try? JSONDecoder().decode(ProfileArbiter.self, from: data) { arbiter = saved }
         if isDemo {
@@ -240,6 +502,42 @@ final class TilveroModel: ObservableObject {
         }
         selectedSection = InfoSection(rawValue: preferences.string(forKey: "lastSection") ?? "") ?? .overview
         updateLoginStatus()
+        closedLid.bind(keepAwake)
+        lidSleep.awakeIsActive = { [weak self] in self?.keepAwake.hasOwnedAssertion ?? false }
+        lidSleep.bind(keepAwake)
+        lidSleepSubscription = lidSleep.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
+        sleepTimer.prepare = { [weak self] in
+            guard let self else { return false }
+            guard await self.closedLid.prepareForTermination() else { return false }
+            guard await self.lidSleep.prepareForTermination() else { return false }   // a sleep request must not meet a set override
+            // An earlier observation may be suspended before a native auto-action.
+            // Let it finish before preparing; new auto-actions are already gated.
+            let readinessDeadline = ContinuousClock.now.advanced(by: .seconds(4))
+            while self.isReading || self.isApplying || self.nativeCharge.isBusy || self.nativeCharge.isQualifying || self.liveControl.isBusy {
+                guard self.sleepTimer.phase == .preparing, !self.sleeping,
+                      ContinuousClock.now < readinessDeadline, !Task.isCancelled else { return false }
+                do { try await Task.sleep(for: .milliseconds(50)) } catch { return false }
+            }
+            guard !self.sleeping, self.sleepTimer.phase == .preparing else { return false }
+            return await self.liveControl.prepareForRequestedSleep()
+        }
+        sleepTimerSubscription = sleepTimer.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
+        sleepAtCharge.prepare = { [weak self] in
+            guard let self else { return false }
+            guard await self.closedLid.prepareForTermination() else { return false }
+            guard await self.lidSleep.prepareForTermination() else { return false }
+            let readinessDeadline = ContinuousClock.now.advanced(by: .seconds(4))
+            while self.isApplying || self.nativeCharge.isBusy || self.nativeCharge.isQualifying || self.liveControl.isBusy {
+                guard !self.sleeping, ContinuousClock.now < readinessDeadline, !Task.isCancelled else { return false }
+                do { try await Task.sleep(for: .milliseconds(50)) } catch { return false }
+            }
+            guard !self.sleeping else { return false }
+            return await self.liveControl.prepareForRequestedSleep()
+        }
+        sleepAtCharge.blockedBy = { [weak self] in self?.awakeModeBlocker(for: .sleepAtCharge) }
+        keepAwakeUntilCharge.blockedBy = { [weak self] in self?.awakeModeBlocker(for: .keepAwakeUntilCharge) }
+        sleepAtChargeSubscription = sleepAtCharge.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
+        keepAwakeUntilChargeSubscription = keepAwakeUntilCharge.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
         awakeSubscription = keepAwake.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
         awakeMessageSubscription = keepAwake.$message.sink { [weak self] message in
             guard let self else { return }
@@ -249,13 +547,15 @@ final class TilveroModel: ObservableObject {
             else if self.notice == self.lastAwakeFailureNotice { self.notice = nil }
             self.lastAwakeFailureNotice = endedFailure
         }
-        nativeSubscription = nativeCharge.objectWillChange.sink { [weak self] in
+        nativeSubscription = self.nativeCharge.objectWillChange.sink { [weak self] in
             self?.objectWillChange.send()
         }
         liveSubscription = self.liveControl.objectWillChange.sink { [weak self] in
             self?.objectWillChange.send()
             self?.onPresentationChange?()
         }
+        if isDemo { draftText = "80" }
+        else if let target = self.nativeCharge.currentReportedTarget { draftText = String(target) }
     }
 
     var visibleOverviewMetrics: [OverviewMetric] {
@@ -270,13 +570,11 @@ final class TilveroModel: ObservableObject {
     }
     var dischargeForecast: DischargeForecast.Estimate? {
         guard !isDemo else { return nil }
+        let current = DischargeForecast.currentInputs(snapshot)
         return DischargeForecast.estimate(history.map {
             .init(date: $0.collectedAt, percent: $0.chargePercent, segment: $0.segmentID.uuidString,
                   externalPower: $0.isExternalPower, charging: $0.isCharging, monotonic: $0.monotonicTime, aggregate: $0.isAggregate)
-        }, currentPercent: snapshot.chargePercent.value,
-        currentFresh: snapshot.chargePercent.availability == .available && snapshot.chargePercent.freshness == .fresh,
-        onBattery: snapshot.isExternalPower.availability == .available && snapshot.isExternalPower.freshness == .fresh && snapshot.isExternalPower.value == false,
-        now: snapshot.collectedAt)
+        }, currentPercent: current.percent, currentFresh: current.fresh, onBattery: current.onBattery, now: snapshot.collectedAt)
     }
     var chargeText: String {
         guard snapshot.chargePercent.availability == .available || snapshot.chargePercent.freshness == .stale else { return "—" }
@@ -298,12 +596,12 @@ final class TilveroModel: ObservableObject {
     }
     var acceptedTargets: [Int] { isDemo ? control?.acceptedTargets ?? [] : nativeCharge.isMonitoringOnly ? [] : usesNativeCharge ? nativeCharge.acceptedTargets : liveControl.acceptedTargets }
     var canShowChargeControls: Bool { isDemo || !acceptedTargets.isEmpty }
-    var canApplyProfiles: Bool { isDemo || liveControl.capabilities.contains { $0.readiness == .available } }
+    var canApplyProfiles: Bool { !controlsAreSuspended && (isDemo || liveControl.capabilities.contains { $0.readiness == .available }) }
     var fanObservation: FanObservation? { liveControl.fanObservation }
     var fanDescriptors: [FanDescriptor] { isDemo ? control?.fanDescriptors ?? [] : fanObservation?.descriptors ?? [] }
     var fanRPM: [String: Int] { isDemo ? control?.fans.observedRPM ?? [:] : fanObservation?.actualRPM ?? [:] }
     var fanPhase: FanPhase { isDemo ? control?.fans.phase ?? .systemAuto : liveControl.fanState.phase }
-    var canControlFans: Bool { isDemo || liveControl.canFans }
+    var canControlFans: Bool { !controlsAreSuspended && (isDemo || liveControl.canFans) }
     var helperStatusText: String {
         switch liveControl.registrationState {
         case .notRegistered: L10n.text("Not enrolled")
@@ -314,11 +612,11 @@ final class TilveroModel: ObservableObject {
     }
     var draftTarget: Int? { ReadingPresentation.percentInput(draftText, acceptedTargets: acceptedTargets) }
     var isOneShotDemo: Bool { chargeState?.requested == .fullOnce }
-    var canEdit: Bool { (isDemo ? control != nil : usesNativeCharge || liveControl.canCharge) && !isApplying && !nativeCharge.isBusy && !nativeCharge.isQualifying && !liveControl.isBusy && !isOneShotDemo }
+    var canEdit: Bool { !controlsAreSuspended && (isDemo ? control != nil : usesNativeCharge || liveControl.canCharge) && !isApplying && !nativeCharge.isBusy && !nativeCharge.isQualifying && !liveControl.isBusy && !isOneShotDemo }
     var canPerformChargeActions: Bool { isDemo || (usesNativeCharge ? nativeCharge.canApply : liveControl.canCharge) }
     var canChargeToFullOnce: Bool { isDemo || (usesNativeCharge ? nativeCharge.canChargeToFullOnce : liveControl.canCharge) }
     var canReleaseCharge: Bool { isDemo || nativeCharge.hasOwnedSettings || nativeCharge.pendingTarget != nil || nativeCharge.recoveryRequired || liveControl.hasOwnedSettings }
-    var terminationRecoveryMessage: String? { keepAwake.message.map(L10n.text) ?? nativeCharge.message.map(L10n.text) ?? liveControl.message.map(L10n.text) }
+    var terminationRecoveryMessage: String? { keepAwake.message.map(L10n.text) ?? lidSleep.failure ?? nativeCharge.message.map(L10n.text) ?? liveControl.message.map(L10n.text) }
     var canApply: Bool {
         guard canEdit, let target = draftTarget else { return false }
         if !isDemo && usesNativeCharge && !nativeCharge.needsApply(target: target) { return false }
@@ -340,8 +638,10 @@ final class TilveroModel: ObservableObject {
     }
     var fanless: Bool { snapshot.catalog.first { $0.id == "001" }?.value?.stringValue == "Mac17,3" && !isDemo }
     func start() {
+        updates.start()
         processMonitorStopped = false
         guard pollingTask == nil else { return }
+        if !isDemo { Task { await lidSleep.recoverIfNeeded() } }
         if !isDemo { Task { await liveControl.start() }; observer.start { [weak self] in Task { await self?.refresh() } } }
         pollingTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
@@ -359,6 +659,9 @@ final class TilveroModel: ObservableObject {
         }
     }
     func stop() {
+        updates.stop()
+        sleepTimer.stop()
+        sleepAtCharge.stop(); keepAwakeUntilCharge.stop()
         processMonitorStopped = true; processRevision &+= 1; processSampler.reset(); processActivity = nil
         processHighlights.reset(); highCPUApplications = []
         try? keepAwake.stop()
@@ -366,6 +669,7 @@ final class TilveroModel: ObservableObject {
         pollingTask?.cancel(); pollingTask = nil; observer.stop(); try? store?.close()
     }
     func setSleeping(_ value: Bool) {
+        if value { sleepTimer.systemWillSleep(); sleepAtCharge.systemWillSleep(); keepAwakeUntilCharge.systemWillSleep() } else { sleepTimer.systemDidWake(); sleepAtCharge.systemDidWake(); keepAwakeUntilCharge.systemDidWake() }
         if value && sleeping { return }
         if !value && !sleeping && observedWake { return }
         lifecycleEpoch &+= 1
@@ -383,9 +687,22 @@ final class TilveroModel: ObservableObject {
         } else {
             observedWake = true
             try? keepAwake.reconcile()
+            Task { await lidSleep.reconcileAfterWake() }
             if !isDemo && historyEnabled { saveSleepChanges(sleepTracker.accept(.didWake(stamp: sleepStamp(), epoch: lifecycleEpoch))) }
             queuedWakeRefresh = true
             Task { await refresh() }
+            if !isDemo && historyEnabled {
+                // The first wake read may be deferred as a possibly pre-sleep value; read once more after the settle window.
+                let epoch = lifecycleEpoch
+                let delay = postWakeSettleSeconds + 3
+                Task { [weak self] in
+                    try? await Task.sleep(for: .seconds(delay))
+                    guard let self, epoch == self.lifecycleEpoch, !self.sleeping,
+                          self.sleepTracker.pending?.phase == .awaitingReading else { return }
+                    self.queuedWakeRefresh = true   // coalesce with a read already in flight instead of being dropped
+                    await self.refresh()
+                }
+            }
         }
     }
     func refreshProcessActivity(force: Bool = false) async {
@@ -401,6 +718,16 @@ final class TilveroModel: ObservableObject {
         highCPUApplications = processHighlights.accept(activity, monotonic: observed.monotonic)
         lastProcessRefreshUptime = ProcessInfo.processInfo.systemUptime
     }
+    /// A read-only display sample. The normal refresh owns history and control observations.
+    func readOverviewMetrics() async -> [CatalogReading]? {
+        guard !isDemo, !sleeping, isDetailVisible, selectedSection == .overview else { return nil }
+        let epoch = lifecycleEpoch
+        let sample = await snapshotProvider()
+        guard !Task.isCancelled, epoch == lifecycleEpoch, !sleeping, isDetailVisible,
+              selectedSection == .overview, sample.batteryIdentityToken == snapshot.batteryIdentityToken else { return nil }
+        return sample.catalog.filter { $0.id == "039" || $0.id == "054" }
+    }
+
     func refresh() async {
         try? keepAwake.reconcile()
         guard !isReading, !sleeping else { return }
@@ -420,6 +747,9 @@ final class TilveroModel: ObservableObject {
             // a sleep/wake/erase boundary cannot become the post-wake endpoint.
             guard readEpoch == lifecycleEpoch, !sleeping else { return }
             queuedWakeRefresh = false
+            if weeklyCapacity != nil && (raw.batteryIdentityToken == nil || raw.batteryIdentityToken != snapshot.batteryIdentityToken) {
+                weeklyCapacity = nil
+            }
             let previousPower = snapshot.isExternalPower.value
             if historyEnabled {
                 lastRawSleepEndpoint = SleepBatteryEndpoint(snapshot: raw, stamp: sleepStamp())
@@ -429,9 +759,20 @@ final class TilveroModel: ObservableObject {
                 saveSleepChanges(sleepTracker.accept(.expire(stamp: sleepStamp())))
             } else { lastRawSleepEndpoint = nil }
             snapshot = raw.retainingPreviousReadings(snapshot)
-            await liveControl.observe(snapshot)
-            await nativeCharge.observeBattery(percent: raw.chargePercent.value,
-                fresh: raw.chargePercent.availability == .available && raw.chargePercent.freshness == .fresh)
+            // Detached: the safe preparation before a sleep request must not hold this refresh open.
+            let observedPercent = raw.chargePercent.value
+            // `raw` is a reading taken just now; live IOKit readings carry freshness .unknown, only .stale is excluded.
+            let observedFresh = raw.chargePercent.availability == .available && raw.chargePercent.freshness != .stale
+            let observedPower = raw.isExternalPower.availability == .available && raw.isExternalPower.freshness != .stale ? raw.isExternalPower.value : nil
+            Task {
+                await sleepAtCharge.observe(percent: observedPercent, fresh: observedFresh, externalPower: observedPower)
+                await keepAwakeUntilCharge.observe(percent: observedPercent, fresh: observedFresh, externalPower: observedPower)
+            }
+            if !controlsAreSuspended { await liveControl.observe(snapshot) }
+            if !controlsAreSuspended {
+                await nativeCharge.observeBattery(percent: raw.chargePercent.value,
+                    fresh: raw.chargePercent.availability == .available && raw.chargePercent.freshness == .fresh)
+            }
             guard readEpoch == lifecycleEpoch, !sleeping else { return }
             if selectedSection == .sleep && previousPower != raw.isExternalPower.value {
                 Task { await refreshSleepActivity() }
@@ -443,9 +784,11 @@ final class TilveroModel: ObservableObject {
                         let age = snapshot.monotonicTime.flatMap { current in previous.monotonicTime.map { current - $0 } } ?? snapshot.collectedAt.timeIntervalSince(previous.collectedAt)
                         return age >= 60 || age < 0
                     }) ?? true {
-                        try store?.record(snapshot); lastPersisted = snapshot; reloadHistory()
+                        try store?.record(snapshot); lastPersisted = snapshot; reloadHistory(incremental: true)
+                        let capacity = try? store?.weeklyCapacity(for: raw)
+                        if weeklyCapacity != capacity { weeklyCapacity = capacity }
                     }
-                    if let rows = try store?.catalogReadings(at: snapshot.collectedAt) { snapshot = snapshot.replacingCatalog(rows) }
+                    if let rows = try store?.catalogReadings(at: snapshot.collectedAt, summaryMaxAge: 600) { snapshot = snapshot.replacingCatalog(rows) }
                     storeError = nil
                 }
                 catch { storeError = String(describing: error) }
@@ -475,6 +818,22 @@ final class TilveroModel: ObservableObject {
         onPresentationChange?()
     }
     func resetMenuBarSizing() { menuBarTextSize = .system; setMenuBarIconScale(1) }
+    /// Read-only: the quick panel's keyboard row exists only once the backlight has been read, and a view
+    /// modifier on an initially empty row never runs, so opening the panel refreshes it explicitly.
+    func quickPanelWillOpen() async {
+        async let keyboard: Void = keyboardBacklight.refresh()
+        // Discover the native charge interface (read-only) before the Charge tab is opened. Doing it only
+        // when that tab appears made its content grow and shrink three times, a visible vertical jump.
+        if !isDemo, !sleeping { lastNativeChargeRead = Date(); await nativeCharge.refresh() }
+        await keyboard
+    }
+    private var lastNativeChargeRead: Date?
+    /// For views that merely appear: skips the read when the panel opening (or an explicit refresh) just did it,
+    /// so the status rows do not flash a "reading" state and resize the open menu.
+    func refreshNativeChargeIfStale(maximumAge: TimeInterval = 30) async {
+        if let last = lastNativeChargeRead, Date().timeIntervalSince(last) < maximumAge { return }
+        await refreshNativeCharge()
+    }
     func quickPanelDidClose() {
         isPopoverVisible = false
         if !isDetailVisible || selectedSection != .charging { discardDraft() }
@@ -482,10 +841,11 @@ final class TilveroModel: ObservableObject {
     func discardDraft() {
         if !isDemo, case let .ceiling(target) = nativeCharge.requestedIntent { draftText = String(target) }
         else if !isDemo, let observed = nativeCharge.observed { draftText = String(observed.configuration.target) }
+        else if !isDemo, let reported = nativeCharge.currentReportedTarget { draftText = String(reported) }
         else if !isDemo, case let .ceiling(target) = liveControl.requestedIntent { draftText = String(target) }
         else if case let .ceiling(target) = chargeState?.requested { draftText = String(target) }
         else if let value = chargeState?.appliedTarget, acceptedTargets.contains(value) { draftText = String(value) }
-        else { draftText = acceptedTargets.first.map(String.init) ?? "" }
+        else { draftText = isDemo ? acceptedTargets.first.map(String.init) ?? "" : "" }
         draftDirty = false
     }
     func applyDemoTarget() { guard canApply, validateTypedDraft(), let target = draftTarget else { return }; perform(.setCeiling(percent: target)) }
@@ -513,12 +873,13 @@ final class TilveroModel: ObservableObject {
     }
     func refreshNativeCharge() async {
         guard !isDemo, !sleeping else { return }
+        lastNativeChargeRead = Date()
         await nativeCharge.refresh()
         if !draftDirty { discardDraft() }
     }
     func qualifyNativeCharge() { runNative { try await $0.qualify() } }
     private func runNative(_ action: @escaping @MainActor (NativeChargeService) async throws -> Void) {
-        guard !isDemo, !isApplying else { return }
+        guard !isDemo, !isApplying, !controlsAreSuspended else { return }
         isApplying = true; arbiter.recordManualAction(at: Date()); persistArbiter()
         Task {
             defer { isApplying = false }
@@ -530,7 +891,7 @@ final class TilveroModel: ObservableObject {
         }
     }
     private func runSimulation(_ action: @escaping @Sendable (SimulationController) async throws -> Void) {
-        guard isDemo, !isApplying, let simulator else { return }
+        guard isDemo, !updatePreparationActive, !isApplying, let simulator else { return }
         isApplying = true; arbiter.recordManualAction(at: Date()); persistArbiter()
         Task {
             defer { isApplying = false }
@@ -539,7 +900,7 @@ final class TilveroModel: ObservableObject {
         }
     }
     private func runLive(_ action: @escaping @MainActor (LiveControlService) async throws -> Void) {
-        guard !isDemo, !isApplying else { return }
+        guard !isDemo, !isApplying, !controlsAreSuspended else { return }
         isApplying = true; arbiter.recordManualAction(at: Date()); persistArbiter()
         Task {
             defer { isApplying = false }
@@ -554,7 +915,19 @@ final class TilveroModel: ObservableObject {
     func registerHelper() { runLive { try await $0.registerHelper() } }
     func removeHelper() { runLive { try await $0.unregisterHelper() } }
     func restoreAll() { runLive { guard try await $0.restoreAll() else { throw PrivilegeError.recoveryRequired } } }
-    func prepareForTermination() async -> Bool {
+    func prepareForTermination(systemInitiated: Bool = false) async -> Bool {
+        guard await closedLid.prepareForTermination() else { return false }
+        // A system-initiated logout or shutdown cannot wait: the recovery marker restores sleep at the next launch.
+        if !(await lidSleep.prepareForTermination()) {
+            if !systemInitiated { selectedSleepPage = .awake; return false }
+        }
+        sleepAtCharge.stop(); keepAwakeUntilCharge.stop()   // release their awake holds before any termination or update install
+        if systemInitiated { sleepTimer.stop() }
+        else {
+            if sleepTimer.needsHoldRelease { sleepTimer.cancel(); guard !sleepTimer.needsHoldRelease else { return false } }
+            guard !sleepTimerBlocksControls else { return false }; sleepTimer.cancel()
+            guard !sleepTimer.needsHoldRelease else { return false }
+        }
         do { try keepAwake.stop() } catch { return false }
         if isDemo { return true }
         guard !isApplying else { return false }
@@ -577,11 +950,12 @@ final class TilveroModel: ObservableObject {
         modeLibrary = updated
     }
     func modePreview(_ plan: ModePlan) -> [ModeActionRow] {
-        plan.preview(chargeTargets: acceptedTargets, chargeAvailable: isDemo || (usesNativeCharge && nativeCharge.canApply),
-                     restoreAvailable: isDemo || canReleaseCharge || liveControl.hasOwnedSettings || liveControl.recoveryRequired)
+        let targets = !isDemo && usesNativeCharge ? nativeCharge.authorizedPersistentTargets : acceptedTargets
+        return plan.preview(chargeTargets: targets, chargeAvailable: isDemo || (usesNativeCharge && nativeCharge.canApply),
+                            restoreAvailable: isDemo || canReleaseCharge || liveControl.hasOwnedSettings || liveControl.recoveryRequired)
     }
     func applyMode(_ mode: WorkMode) async {
-        guard !isApplying, !nativeCharge.isBusy, !nativeCharge.isQualifying, !liveControl.isBusy else { return }
+        guard !controlsAreSuspended, !isApplying, !nativeCharge.isBusy, !nativeCharge.isQualifying, !liveControl.isBusy else { return }
         notice = nil
         let plan = modeLibrary.plan(mode)
         var rows = modePreview(plan)
@@ -676,6 +1050,7 @@ final class TilveroModel: ObservableObject {
     }
     func removeSchedule() { schedule = nil; preferences.removeObject(forKey: isDemo ? "demoSchedule" : "schedule") }
     private func evaluateSchedule() async {
+        guard !controlsAreSuspended else { return }
         guard let schedule, let profile = arbiter.evaluate(schedule, now: Date()) else { return }
         persistArbiter()
         if !isDemo {
@@ -690,8 +1065,27 @@ final class TilveroModel: ObservableObject {
         await refreshSimulation()
     }
     private func persistArbiter() { if let data = try? JSONEncoder().encode(arbiter) { preferences.set(data, forKey: isDemo ? "demoArbiter" : "arbiter") } }
-    func reloadHistory() {
-        do { history = try store?.samples(since: Date().addingTimeInterval(-7 * 86400)) ?? []; historySummary = try store?.summary() }
+    /// A full reload decodes the whole week; the regular minute record only appends the new samples.
+    /// Older samples keep scalars only (the per-metric charts read the catalog of the last hour).
+    func reloadHistory(incremental: Bool = false) {
+        let now = Date()
+        do {
+            let weekStart = now.addingTimeInterval(-7 * 86400)
+            if incremental, let last = history.last, let lastFull = lastFullHistoryReload, now.timeIntervalSince(lastFull) < 1800 {
+                let seen = Set(history.suffix(8).map(\.id))
+                let fresh = try store?.samples(since: last.collectedAt, readingsSince: now.addingTimeInterval(-3 * 3600)) ?? []
+                let appended = fresh.filter { !seen.contains($0.id) && $0.collectedAt >= last.collectedAt }
+                if !appended.isEmpty {
+                    history = history.filter { $0.collectedAt >= weekStart } + appended
+                }
+                if let lastSummary = lastHistorySummary, now.timeIntervalSince(lastSummary) < 300 { return }
+            } else {
+                history = try store?.samples(since: weekStart, readingsSince: now.addingTimeInterval(-3 * 3600)) ?? []
+                lastFullHistoryReload = now
+            }
+            historySummary = try store?.summary()
+            lastHistorySummary = now
+        }
         catch { storeError = String(describing: error) }
     }
     private func configureRetention() {
@@ -700,7 +1094,10 @@ final class TilveroModel: ObservableObject {
     }
     func eraseHistory() {
         resetSleepObservation(reason: .historyErased, persist: false)
-        do { try store?.erase(); lastPersisted = nil; reloadHistory(); reloadSleepSessions() }
+        do {
+            try store?.erase(); lastPersisted = nil; weeklyCapacity = nil
+            reloadHistory(); reloadSleepSessions()
+        }
         catch { storeError = String(describing: error) }
     }
     private func sleepStamp() -> SleepObservationStamp {
@@ -735,7 +1132,7 @@ final class TilveroModel: ObservableObject {
     private func resetSleepObservation(reason: SleepInterruptionReason, persist: Bool) {
         lifecycleEpoch &+= 1
         if persist && !isDemo { saveSleepChanges(sleepTracker.accept(.interrupted(reason: reason, stamp: sleepStamp()))) }
-        sleepTracker = SleepSessionTracker(); lastRawSleepEndpoint = nil; queuedWakeRefresh = false; observedWake = false
+        sleepTracker = SleepSessionTracker(postWakeSettleSeconds: postWakeSettleSeconds); lastRawSleepEndpoint = nil; queuedWakeRefresh = false; observedWake = false
     }
     func refreshSystemChargeLimit() async {
         guard !isDemo, !sleeping, !isReadingSystemChargeLimit else { return }
@@ -758,7 +1155,7 @@ final class TilveroModel: ObservableObject {
     func inspectRawProperties() {
         guard !isDemo else { return }
         Task {
-            inspectedRaw = await Task.detached(priority: .utility) { MacBatteryProvider().readRawCatalog() }.value
+            inspectedRaw = await sideEffects.rawCatalog()
             snapshot = snapshot.replacingCatalog(inspectedRaw)
         }
     }
@@ -780,22 +1177,103 @@ final class TilveroModel: ObservableObject {
         catch { notice = String(describing: error) }
     }
     func updateLoginStatus() {
-        switch SMAppService.mainApp.status {
-        case .enabled: loginStatus = "Enabled"
-        case .requiresApproval: loginStatus = "Requires approval in System Settings"
-        case .notRegistered: loginStatus = "Not enabled"
-        case .notFound: loginStatus = "Not available from this local build"
-        @unknown default: loginStatus = "Unknown"
+        loginStatus = sideEffects.loginStatus()
+    }
+
+    private var setupControlsIdle: Bool {
+        let charge = nativeCharge.presentation()
+        return !controlsAreSuspended && !isApplying && !isReading && !sleeping && !sleepTimer.isActive && !sleepTimer.needsHoldRelease
+            && !keepAwake.hasOwnedAssertion && !closedLid.busy && !closedLid.isOn && !closedLid.needsRecovery && !lidSleep.isOn && !lidSleep.needsRecovery
+            && !nativeCharge.isBusy && !nativeCharge.isQualifying && !nativeCharge.hasOwnedSettings
+            && !nativeCharge.recoveryRequired && !nativeCharge.restorationPending && nativeCharge.pendingTarget == nil
+            && charge.pendingPurpose == nil && !charge.hasRecordedMutation && !charge.hasSavedAction
+            && !keyboardBacklight.isBusy && !liveControl.isBusy
+    }
+
+    private func readSetupInputs() -> SetupReadinessInputs {
+        var inputs = SetupReadinessInputs(launchPolicy: .monitoringOnly)
+        guard canShowSetup else { return inputs }
+        inputs.launchPolicy = SetupRuntime.launchPolicy(launchPolicy)
+        inputs.monitoring = snapshot.chargePercent.availability == .available ? .available : .unknown
+        inputs.hasReviewedSetup = hasReviewedSetup
+        inputs.historyEnabled = historyEnabled
+        inputs.login = setupLogin?.readStatus() ?? .unavailable
+
+        let persistent = nativeCharge.observed.map {
+            $0.isFresh && NativeChargeAdmission.isPersistent($0, target: $0.configuration.target,
+                optimizedCharging: $0.configuration.optimizedCharging)
+        } ?? false
+        let observedCapability = persistent || nativeCharge.incompleteObservation?.isFresh() == true
+        let discoveredCapability = liveControl.capabilities.first { $0.backend == "native-powerui" }?.readiness
+        inputs.nativeCharge = .init(availability: observedCapability ? .available : SetupRuntime.availability(discoveredCapability),
+            hasCompletePersistentState: persistent, currentOSQualified: nativeCharge.isAvailable
+                && !nativeCharge.recoveryRequired && !nativeCharge.restorationPending,
+            canSafelyRequestValidation: false) // The charging screen owns explicit qualification consent.
+        inputs.fanAvailability = liveControl.setupFanAvailability
+        inputs.helperPowerAvailability = liveControl.setupPowerAvailability
+        if setupUsesNativeHost {
+            inputs.helper = liveControl.readSetupHelper()
+            inputs.helper.canRequestRegistration = inputs.helper.canRequestRegistration && setupControlsIdle
         }
+        switch keyboardBacklight.availability {
+        case .available: inputs.keyboardBacklight = .available
+        case .unsupported: inputs.keyboardBacklight = .unsupported
+        case .unavailable: inputs.keyboardBacklight = .unavailable
+        case .unknown: inputs.keyboardBacklight = .unknown
+        }
+        inputs.keepAwake = keepAwake.isAvailable ? .available : .unavailable
+        inputs.sleepTimer = sleepTimer.isAvailable ? .available : .unavailable
+        inputs.closedLid.restorationRequired = closedLid.needsRecovery || lidSleep.needsRecovery
+        inputs.updates = SetupRuntime.updates(bundle: setupBundle,
+            eligiblePolicy: launchPolicy.monitoringOnly && updates.identity.supportsInstallerProfile) {
+                !updatePreparationActive && updateReadiness.blockers.isEmpty
+            }
+        return inputs
+    }
+
+    private func showSetupRequirements(_ feature: SetupFeature) throws {
+        guard canShowSetup else { throw SetupRuntimeError.actionUnavailable }
+        switch feature {
+        case .monitoring: selectedSection = .overview
+        case .nativeCharging: selectedSection = .charging
+        case .fans: selectedSection = .cooling
+        case .helperPowerModes, .keyboardBacklight: selectedSection = .diagnostics
+        case .keepAwake, .closedLid: selectedSleepPage = .awake; selectedSection = .sleep
+        case .sleepTimer: selectedSleepPage = .timer; selectedSection = .sleep
+        case .history: selectedSettingsPage = .history; selectedSection = .settings
+        case .launchAtLogin: selectedSettingsPage = .general; selectedSection = .settings
+        case .updateChecks, .updateInstallation: selectedSettingsPage = .updates; selectedSection = .settings
+        }
+    }
+
+    private func openSetupApprovalSettings(_ feature: SetupFeature) throws {
+        guard canShowSetup, let setupLogin else { throw SetupRuntimeError.actionUnavailable }
+        // Both the login item and ordinary helper use the same System Settings pane.
+        switch feature {
+        case .launchAtLogin, .fans, .helperPowerModes: setupLogin.openApprovalSettings()
+        default: throw SetupRuntimeError.actionUnavailable
+        }
+    }
+
+    private func registerSetupHelper() async throws {
+        guard setupUsesNativeHost, setupControlsIdle else { throw SetupRuntimeError.actionUnavailable }
+        isApplying = true
+        defer { isApplying = false }
+        try await liveControl.registerSetupHelper()
+    }
+
+    private func enableSetupLogin() throws {
+        guard canShowSetup, let setupLogin else { throw SetupRuntimeError.actionUnavailable }
+        defer { updateLoginStatus() }
+        try setupLogin.enable()
     }
     func toggleLogin() {
         do {
-            if SMAppService.mainApp.status == .enabled { try SMAppService.mainApp.unregister() }
-            else { try SMAppService.mainApp.register() }
+            try sideEffects.toggleLogin()
             updateLoginStatus()
         } catch { notice = String(describing: error); updateLoginStatus() }
     }
-    func openBatterySettings() { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.battery")!) }
+    func openBatterySettings() { sideEffects.openBatterySettings() }
 }
 
 private extension BatterySnapshot {

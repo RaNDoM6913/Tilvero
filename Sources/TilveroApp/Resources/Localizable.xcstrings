@@ -545,6 +545,22 @@
         }
       }
     },
+    "Battery appearance": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Battery appearance"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вид батареи"
+          }
+        }
+      }
+    },
     "Menu bar": {
       "localizations": {
         "en": {
@@ -6609,6 +6625,118 @@
         }
       }
     },
+    "Weekly capacity estimate": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weekly capacity estimate"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Недельная оценка ёмкости"
+          }
+        }
+      }
+    },
+    "Each day with a recorded estimate contributes one median. The overview updates at most once every seven days.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Each day with a recorded estimate contributes one median. The overview updates at most once every seven days."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для каждого дня с записанными оценками берётся одна медиана. Значение в обзоре обновляется не чаще раза в семь дней."
+          }
+        }
+      }
+    },
+    "Recorded days: %lld of 7": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recorded days: %lld of 7"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дней с записями: %lld из 7"
+          }
+        }
+      }
+    },
+    "Recorded from %@ to %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recorded from %@ to %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Записи с %@ по %@"
+          }
+        }
+      }
+    },
+    "Next update no earlier than %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next update no earlier than %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Следующее обновление не раньше %@"
+          }
+        }
+      }
+    },
+    "A recognized battery and a usable estimate recorded within seven days are required.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A recognized battery and a usable estimate recorded within seven days are required."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нужны распознанная батарея и хотя бы одна пригодная оценка, записанная за последние семь дней."
+          }
+        }
+      }
+    },
+    "Turn on local history to see a weekly estimate.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn on local history to see a weekly estimate."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Включите локальную историю, чтобы увидеть недельную оценку."
+          }
+        }
+      }
+    },
     "Capacity retention": {
       "localizations": {
         "en": {
@@ -8497,6 +8625,22 @@
         }
       }
     },
+    "Keyboard backlight brightness": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keyboard backlight brightness"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Яркость подсветки клавиатуры"
+          }
+        }
+      }
+    },
     "Keyboard backlight": {
       "localizations": {
         "en": {
@@ -9805,6 +9949,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Здесь доступны все поля каталога. Кнопка сведений открывает пояснение и технические данные."
+          }
+        }
+      }
+    },
+    "No measurements": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No measurements"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Без замеров"
+          }
+        }
+      }
+    },
+    "Dashed lines mark intervals without recorded measurements.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dashed lines mark intervals without recorded measurements."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пунктир отмечает интервалы без замеров."
           }
         }
       }
@@ -11565,6 +11741,4150 @@
           "stringUnit": {
             "state": "translated",
             "value": "Сохранённый сеанс зарядки требует проверки."
+          }
+        }
+      }
+    },
+    "Sleep": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон"
+          }
+        }
+      }
+    },
+    "Sleep timer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep timer"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Таймер сна"
+          }
+        }
+      }
+    },
+    "Reports": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reports"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отчёты"
+          }
+        }
+      }
+    },
+    "Keep Awake": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep Awake"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не засыпать"
+          }
+        }
+      }
+    },
+    "Enter 1–1440 minutes.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter 1–1440 minutes."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Введите от 1 до 1440 минут."
+          }
+        }
+      }
+    },
+    "Confirm switching the active sleep mode first.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirm switching the active sleep mode first."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сначала подтвердите переключение режима сна."
+          }
+        }
+      }
+    },
+    "Sleep at": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep at"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон в"
+          }
+        }
+      }
+    },
+    "Sleep in": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep in"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон через"
+          }
+        }
+      }
+    },
+    "tomorrow": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "tomorrow"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "завтра"
+          }
+        }
+      }
+    },
+    "Custom duration": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Custom duration"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Своё время"
+          }
+        }
+      }
+    },
+    "Custom duration…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Custom duration…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Своё время…"
+          }
+        }
+      }
+    },
+    "Sleep timer duration in minutes": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep timer duration in minutes"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Длительность таймера в минутах"
+          }
+        }
+      }
+    },
+    "Sleep after…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep after…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Уснуть через…"
+          }
+        }
+      }
+    },
+    "System sleep on a timer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System sleep on a timer"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Системный сон по таймеру"
+          }
+        }
+      }
+    },
+    "Start timer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start timer"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запустить таймер"
+          }
+        }
+      }
+    },
+    "Until Mac sleeps": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Until Mac sleeps"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "До сна Mac"
+          }
+        }
+      }
+    },
+    "Cancel timer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel timer"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отменить таймер"
+          }
+        }
+      }
+    },
+    "Cancel sleep": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel sleep"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отменить сон"
+          }
+        }
+      }
+    },
+    "Open Tilvero": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Tilvero"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть Tilvero"
+          }
+        }
+      }
+    },
+    "Open Sleep & drain…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Sleep & drain…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть «Сон и расход»…"
+          }
+        }
+      }
+    },
+    "Sleep timer & Keep Awake…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep timer & Keep Awake…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Таймер сна и «Не засыпать»…"
+          }
+        }
+      }
+    },
+    "Music and video do not extend the timer.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Music and video do not extend the timer."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Музыка и видео не продлевают таймер."
+          }
+        }
+      }
+    },
+    "Early sleep or quitting Tilvero cancels the timer.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Early sleep or quitting Tilvero cancels the timer."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ранний сон или выход из Tilvero отменяет таймер."
+          }
+        }
+      }
+    },
+    "How the timer works": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How the timer works"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Как работает таймер"
+          }
+        }
+      }
+    },
+    "Tilvero requests system sleep at the deadline. A quiet warning appears one minute before. Closing the window keeps the timer running. It never restarts after waking or reopening Tilvero. Playback position is managed by your player.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero requests system sleep at the deadline. A quiet warning appears one minute before. Closing the window keeps the timer running. It never restarts after waking or reopening Tilvero. Playback position is managed by your player."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "По окончании Tilvero запрашивает системный сон. За минуту появится тихое предупреждение. Закрытие окна не мешает таймеру. После пробуждения или перезапуска приложения таймер не возобновляется. Позицию воспроизведения сохраняет ваш плеер."
+          }
+        }
+      }
+    },
+    "Requests system sleep even while music or video is playing.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Requests system sleep even while music or video is playing."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запрашивает сон Mac, даже если играет музыка или видео."
+          }
+        }
+      }
+    },
+    "Quitting Tilvero cancels the timer.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitting Tilvero cancels the timer."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выход из Tilvero отменяет таймер."
+          }
+        }
+      }
+    },
+    "We’ll warn you one minute before.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "We’ll warn you one minute before."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Предупредим за 1 минуту."
+          }
+        }
+      }
+    },
+    "Sleep timer is unavailable in this build or simulation.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep timer is unavailable in this build or simulation."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Таймер сна недоступен в этой сборке или симуляции."
+          }
+        }
+      }
+    },
+    "End Keep Awake and start the sleep timer?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "End Keep Awake and start the sleep timer?"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Завершить «Не засыпать» и запустить таймер сна?"
+          }
+        }
+      }
+    },
+    "End Keep Awake and start": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "End Keep Awake and start"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Завершить «Не засыпать» и запустить"
+          }
+        }
+      }
+    },
+    "Cancel the sleep timer and start Keep Awake?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel the sleep timer and start Keep Awake?"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отменить таймер сна и включить «Не засыпать»?"
+          }
+        }
+      }
+    },
+    "Cancel timer and start Keep Awake": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel timer and start Keep Awake"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отменить таймер и включить «Не засыпать»"
+          }
+        }
+      }
+    },
+    "Maximum remaining duration is 24 hours.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maximum remaining duration is 24 hours."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Максимальное оставшееся время — 24 часа."
+          }
+        }
+      }
+    },
+    "A sleep timer cannot have more than 24 hours remaining.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A sleep timer cannot have more than 24 hours remaining."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оставшееся время таймера не может превышать 24 часа."
+          }
+        }
+      }
+    },
+    "This sleep timer can no longer be changed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This sleep timer can no longer be changed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Этот таймер сна больше нельзя изменить."
+          }
+        }
+      }
+    },
+    "Preparing for sleep…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparing for sleep…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подготовка ко сну…"
+          }
+        }
+      }
+    },
+    "Requesting sleep…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Requesting sleep…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запрашиваем сон…"
+          }
+        }
+      }
+    },
+    "Sleep requested; waiting for the system…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep requested; waiting for the system…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон запрошен; ожидаем систему…"
+          }
+        }
+      }
+    },
+    "Your Mac will sleep in one minute.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your Mac will sleep in one minute."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac уснёт через одну минуту."
+          }
+        }
+      }
+    },
+    "The sleep timer needs attention.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The sleep timer needs attention."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверьте таймер сна."
+          }
+        }
+      }
+    },
+    "Tilvero’s sleep timer is ending. Add time if you’re still watching.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero’s sleep timer is ending. Add time if you’re still watching."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сработал таймер Tilvero. Добавьте время, если ещё смотрите."
+          }
+        }
+      }
+    },
+    "Quitting cancels the sleep timer.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitting cancels the sleep timer."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выход отменит таймер сна."
+          }
+        }
+      }
+    },
+    "Keep Tilvero open": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep Tilvero open"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оставить Tilvero открытым"
+          }
+        }
+      }
+    },
+    "Quit and cancel timer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quit and cancel timer"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выйти и отменить таймер"
+          }
+        }
+      }
+    },
+    "The sleep timer requires the current console user.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The sleep timer requires the current console user."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Таймер сна доступен только текущему пользователю Mac."
+          }
+        }
+      }
+    },
+    "macOS rejected the sleep request.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS rejected the sleep request."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS отклонила запрос сна."
+          }
+        }
+      }
+    },
+    "Timer cancelled.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Timer cancelled."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Таймер отменён."
+          }
+        }
+      }
+    },
+    "System sleep was observed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System sleep was observed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Получено уведомление системы о переходе ко сну."
+          }
+        }
+      }
+    },
+    "Timer cancelled because the Mac went to sleep.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Timer cancelled because the Mac went to sleep."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Таймер отменён: Mac перешёл ко сну."
+          }
+        }
+      }
+    },
+    "Timer cancelled because the Mac woke from sleep.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Timer cancelled because the Mac woke from sleep."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Таймер отменён после пробуждения Mac."
+          }
+        }
+      }
+    },
+    "Timer cancelled because this user session is no longer active.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Timer cancelled because this user session is no longer active."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Таймер отменён: сеанс пользователя больше не активен."
+          }
+        }
+      }
+    },
+    "Sleep was requested; sleep could not be confirmed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep was requested; sleep could not be confirmed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон был запрошен, но переход ко сну подтвердить не удалось."
+          }
+        }
+      }
+    },
+    "Sleep timer cancelled because safe preparation could not be confirmed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep timer cancelled because safe preparation could not be confirmed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Таймер отменён: безопасную подготовку ко сну подтвердить не удалось."
+          }
+        }
+      }
+    },
+    "Sleep requested. Waiting for system sleep.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep requested. Waiting for system sleep."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон запрошен. Ожидаем перехода системы ко сну."
+          }
+        }
+      }
+    },
+    "macOS declined the sleep request. Timer ended.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS declined the sleep request. Timer ended."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS отклонила запрос сна. Таймер завершён."
+          }
+        }
+      }
+    },
+    "Sleep timer expired without running. Start it again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep timer expired without running. Start it again."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Таймер истёк без выполнения. Запустите его снова."
+          }
+        }
+      }
+    },
+    "Dismiss": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dismiss"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закрыть"
+          }
+        }
+      }
+    },
+    "A sleep request is being prepared or observed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A sleep request is being prepared or observed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выполняется подготовка или проверка запроса сна."
+          }
+        }
+      }
+    },
+    "Wait for it to finish, or cancel preparation from the timer.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wait for it to finish, or cancel preparation from the timer."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дождитесь завершения или отмените подготовку в таймере."
+          }
+        }
+      }
+    },
+    "Keeps your Mac awake until the timer ends.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keeps your Mac awake until the timer ends."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не даёт Mac уснуть до окончания таймера."
+          }
+        }
+      }
+    },
+    "Keeps Mac awake until the timer ends, then requests sleep.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keeps Mac awake until the timer ends, then requests sleep."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не даёт Mac уснуть до окончания таймера, затем запрашивает сон."
+          }
+        }
+      }
+    },
+    "Your Mac will not sleep from inactivity before the timer ends.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your Mac will not sleep from inactivity before the timer ends."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac не уснёт от бездействия до окончания таймера."
+          }
+        }
+      }
+    },
+    "The timer’s awake hold still needs to be released.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The timer’s awake hold still needs to be released."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нужно снять удержание бодрствования таймера."
+          }
+        }
+      }
+    },
+    "Release timer hold": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Release timer hold"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Снять удержание таймера"
+          }
+        }
+      }
+    },
+    "Tilvero prevents idle system sleep until the timer ends, then releases its hold and requests sleep. The display may turn off. Closing the lid, manual sleep and macOS safety actions still work. A quiet warning appears one minute before. Cancel or quit releases the hold. The timer never restarts after waking or reopening Tilvero.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero prevents idle system sleep until the timer ends, then releases its hold and requests sleep. The display may turn off. Closing the lid, manual sleep and macOS safety actions still work. A quiet warning appears one minute before. Cancel or quit releases the hold. The timer never restarts after waking or reopening Tilvero."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero не даёт Mac уснуть от бездействия до окончания таймера, затем снимает удержание и запрашивает сон. Экран может выключиться. Закрытие крышки, ручной сон и защитные действия macOS работают как обычно. За минуту появится тихое предупреждение. Отмена или выход снимают удержание. После пробуждения или перезапуска таймер не возобновляется."
+          }
+        }
+      }
+    },
+    "Sleep timer could not keep the Mac awake. Timer was not started.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep timer could not keep the Mac awake. Timer was not started."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось удержать Mac от сна. Таймер не запущен."
+          }
+        }
+      }
+    },
+    "Sleep timer cancelled because its awake hold could not be extended.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep timer cancelled because its awake hold could not be extended."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Таймер отменён: удержание бодрствования продлить не удалось."
+          }
+        }
+      }
+    },
+    "Timer ended. Its awake hold could not be released. Try Cancel again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Timer ended. Its awake hold could not be released. Try Cancel again."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Таймер завершён, но снять удержание бодрствования не удалось. Повторите отмену."
+          }
+        }
+      }
+    },
+    "Custom timer time": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Custom"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Своё"
+          }
+        }
+      }
+    },
+    "Press Return to apply the custom time.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Press Return to apply the custom time."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нажмите Enter, чтобы применить своё время."
+          }
+        }
+      }
+    },
+    "Choose a time to start immediately.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a time to start immediately."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выберите время — таймер запустится сразу."
+          }
+        }
+      }
+    },
+    "Sleep timer cancelled because its awake hold could not be updated.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep timer cancelled because its awake hold could not be updated."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Таймер отменён: изменить удержание бодрствования не удалось."
+          }
+        }
+      }
+    },
+    "This build runs a monitoring-only session.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This build runs a monitoring-only session."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эта сборка работает только в режиме наблюдения."
+          }
+        }
+      }
+    },
+    "Monitoring-only session was selected at launch.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monitoring-only session was selected at launch."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "При запуске выбран режим наблюдения."
+          }
+        }
+      }
+    },
+    "Another Tilvero is running. This session monitors only; reopen it after the other app quits to use controls.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Another Tilvero is running. This session monitors only; reopen it after the other app quits to use controls."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Уже работает другое приложение Tilvero. Сейчас доступно только наблюдение. Для управления закройте другое приложение и снова откройте это."
+          }
+        }
+      }
+    },
+    "Exclusive control is unavailable. This session monitors only; reopen it when the other controller has finished.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exclusive control is unavailable. This session monitors only; reopen it when the other controller has finished."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Исключительное управление недоступно. Сейчас доступно только наблюдение. Снова откройте приложение после завершения другого контроллера."
+          }
+        }
+      }
+    },
+    "Updates": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновления"
+          }
+        }
+      }
+    },
+    "Installed version": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installed version"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Установлена версия"
+          }
+        }
+      }
+    },
+    "Laboratory build": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Laboratory build"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Лабораторная сборка"
+          }
+        }
+      }
+    },
+    "Closed-lid trial build": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Closed-lid trial build"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тестовая сборка для закрытой крышки"
+          }
+        }
+      }
+    },
+    "Monitoring build": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monitoring build"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сборка для мониторинга"
+          }
+        }
+      }
+    },
+    "Manual update build": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manual update build"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сборка с ручным обновлением"
+          }
+        }
+      }
+    },
+    "Check for Updates…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check for Updates…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверить обновления…"
+          }
+        }
+      }
+    },
+    "Checking for updates…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking for updates…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверяем обновления…"
+          }
+        }
+      }
+    },
+    "Last successful check": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last successful check"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Последняя успешная проверка"
+          }
+        }
+      }
+    },
+    "Update preferences": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update preferences"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Настройки обновлений"
+          }
+        }
+      }
+    },
+    "Update channel": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update channel"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Канал обновлений"
+          }
+        }
+      }
+    },
+    "Stable releases": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stable releases"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Стабильные выпуски"
+          }
+        }
+      }
+    },
+    "Beta and stable releases": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beta and stable releases"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бета и стабильные выпуски"
+          }
+        }
+      }
+    },
+    "Check automatically": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check automatically"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверять автоматически"
+          }
+        }
+      }
+    },
+    "Checks run while Tilvero is open. Each installation needs your confirmation.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checks run while Tilvero is open. Each installation needs your confirmation."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверки выполняются, пока Tilvero открыт. Каждая установка требует вашего подтверждения."
+          }
+        }
+      }
+    },
+    "Checking contacts GitHub or the signed update feed. Battery readings and history are not sent.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking contacts GitHub or the signed update feed. Battery readings and history are not sent."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для проверки Tilvero обращается к GitHub или ленте подписанных обновлений. Показания батареи и история не передаются."
+          }
+        }
+      }
+    },
+    "Signed app updates have not been configured for this build.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signed app updates have not been configured for this build."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для этой сборки ещё не настроены подписанные обновления приложения."
+          }
+        }
+      }
+    },
+    "This build is updated manually from its matching source or trial package.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This build is updated manually from its matching source or trial package."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эта сборка обновляется вручную из соответствующих исходников или тестового пакета."
+          }
+        }
+      }
+    },
+    "Installation postponed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installation postponed"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Установка отложена"
+          }
+        }
+      }
+    },
+    "Open Diagnostics": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Diagnostics"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть диагностику"
+          }
+        }
+      }
+    },
+    "View Releases": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View Releases"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Все выпуски"
+          }
+        }
+      }
+    },
+    "Check published releases when you are ready.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check published releases when you are ready."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверьте опубликованные выпуски, когда будете готовы."
+          }
+        }
+      }
+    },
+    "Reading published release information…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading published release information…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Читаем сведения об опубликованных выпусках…"
+          }
+        }
+      }
+    },
+    "Update check cancelled.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update check cancelled."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверка обновлений отменена."
+          }
+        }
+      }
+    },
+    "Could not check for updates.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not check for updates."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось проверить обновления."
+          }
+        }
+      }
+    },
+    "Try Again": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try Again"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Повторить"
+          }
+        }
+      }
+    },
+    "Only source code has been published": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only source code has been published"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пока опубликованы только исходники"
+          }
+        }
+      }
+    },
+    "This release contains source code and requires Xcode. There is no app to install in this release.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This release contains source code and requires Xcode. There is no app to install in this release."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Этот выпуск содержит исходники для сборки в Xcode. Приложения для установки в нём нет."
+          }
+        }
+      }
+    },
+    "View Source Release": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View Source Release"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Посмотреть исходники"
+          }
+        }
+      }
+    },
+    "View Release": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View Release"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Посмотреть выпуск"
+          }
+        }
+      }
+    },
+    "Release Notes": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Release Notes"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Что нового"
+          }
+        }
+      }
+    },
+    "Install and Restart…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install and Restart…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Установить и перезапустить…"
+          }
+        }
+      }
+    },
+    "The signed updater confirms compatibility before offering an installation.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The signed updater confirms compatibility before offering an installation."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перед установкой подписанный модуль обновлений проверит совместимость."
+          }
+        }
+      }
+    },
+    "A Mac app release is available": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A Mac app release is available"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Доступен выпуск приложения для Mac"
+          }
+        }
+      }
+    },
+    "You have the latest app for this channel": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You have the latest app for this channel"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "У вас последняя версия приложения для этого канала"
+          }
+        }
+      }
+    },
+    "This build is updated manually": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This build is updated manually"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эта сборка обновляется вручную"
+          }
+        }
+      }
+    },
+    "No compatible app release was found": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No compatible app release was found"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Совместимый выпуск приложения не найден"
+          }
+        }
+      }
+    },
+    "The network is unavailable. Try again when you are connected.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The network is unavailable. Try again when you are connected."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нет подключения к сети. Повторите проверку после подключения."
+          }
+        }
+      }
+    },
+    "The update server did not respond in time.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The update server did not respond in time."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сервер обновлений не ответил вовремя."
+          }
+        }
+      }
+    },
+    "The update server is limiting requests. Please try again later.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The update server is limiting requests. Please try again later."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сервер ограничил число запросов. Повторите проверку позже."
+          }
+        }
+      }
+    },
+    "Release information could not be verified.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Release information could not be verified."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось проверить сведения о выпуске."
+          }
+        }
+      }
+    },
+    "Release information exceeded the allowed size.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Release information exceeded the allowed size."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сведения о выпуске превышают допустимый размер."
+          }
+        }
+      }
+    },
+    "The update server is unavailable. Please try again later.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The update server is unavailable. Please try again later."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сервер обновлений недоступен. Повторите проверку позже."
+          }
+        }
+      }
+    },
+    "Update recovery status is unavailable.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update recovery status is unavailable."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось определить состояние восстановления."
+          }
+        }
+      }
+    },
+    "Finish the current operation before installing.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finish the current operation before installing."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дождитесь завершения текущей операции перед установкой."
+          }
+        }
+      }
+    },
+    "Wait until sleep preparation or wake recovery has finished.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wait until sleep preparation or wake recovery has finished."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дождитесь завершения подготовки ко сну или восстановления после пробуждения."
+          }
+        }
+      }
+    },
+    "Review app-owned charging settings in Diagnostics.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review app-owned charging settings in Diagnostics."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверьте принадлежащие приложению настройки зарядки в диагностике."
+          }
+        }
+      }
+    },
+    "Review app-owned helper settings in Diagnostics.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review app-owned helper settings in Diagnostics."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверьте настройки служебного процесса в диагностике."
+          }
+        }
+      }
+    },
+    "Review the closed-lid session in Diagnostics.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review the closed-lid session in Diagnostics."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверьте сеанс с закрытой крышкой в диагностике."
+          }
+        }
+      }
+    },
+    "Saved control evidence needs manual review in Diagnostics.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved control evidence needs manual review in Diagnostics."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохранённые сведения об управлении требуют проверки в диагностике."
+          }
+        }
+      }
+    },
+    "Another controller is active. Keep this app open and try later.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Another controller is active. Keep this app open and try later."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Активно другое приложение управления. Оставьте Tilvero открытым и повторите позже."
+          }
+        }
+      }
+    },
+    "Control recovery status could not be verified.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Control recovery status could not be verified."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось подтвердить состояние восстановления управления."
+          }
+        }
+      }
+    },
+    "End Keep Awake.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "End Keep Awake."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Завершить «Не засыпать»."
+          }
+        }
+      }
+    },
+    "Cancel the sleep timer.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel the sleep timer."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отменить таймер сна."
+          }
+        }
+      }
+    },
+    "macOS returned an unrecognized charging state. Apply remains unavailable until the native state is confirmed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS returned an unrecognized charging state. Apply remains unavailable until the native state is confirmed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS вернула неизвестное состояние зарядки. Применение недоступно, пока состояние не подтверждено."
+          }
+        }
+      }
+    },
+    "Native control must be validated on this macOS version before Apply is available.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Native control must be validated on this macOS version before Apply is available."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для применения лимита нужна проверка нативного управления на текущей версии macOS."
+          }
+        }
+      }
+    },
+    "Unrecognized native charge state": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unrecognized native charge state"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Состояние зарядки не распознано"
+          }
+        }
+      }
+    },
+    "Current target reported by macOS": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Current target reported by macOS"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Текущая цель по данным macOS"
+          }
+        }
+      }
+    },
+    "Saved target reported by macOS": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved target reported by macOS"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохранённая цель по данным macOS"
+          }
+        }
+      }
+    },
+    "This diagnostic value is not a confirmed active limit; its source freshness is unknown.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This diagnostic value is not a confirmed active limit; its source freshness is unknown."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Диагностическое значение не подтверждает действующий лимит; актуальность исходных данных неизвестна."
+          }
+        }
+      }
+    },
+    "The return time is unavailable here. Check the charging mode in macOS settings.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The return time is unavailable here. Check the charging mode in macOS settings."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Время возврата здесь недоступно. Уточните режим зарядки в настройках macOS."
+          }
+        }
+      }
+    },
+    "Charging settings in macOS…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charging settings in macOS…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Настройки зарядки macOS…"
+          }
+        }
+      }
+    },
+    "The current target is readable. Safe control and restoration are not yet confirmed for this charging mode.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The current target is readable. Safe control and restoration are not yet confirmed for this charging mode."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Текущая цель читается. Для этого режима ещё не подтверждены безопасное управление и восстановление."
+          }
+        }
+      }
+    },
+    "New charge limit": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New charge limit"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Новый лимит"
+          }
+        }
+      }
+    },
+    "Choose": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выберите"
+          }
+        }
+      }
+    },
+    "Choose a new limit. No target has been selected.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a new limit. No target has been selected."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выберите новый лимит. Пока ничего не выбрано."
+          }
+        }
+      }
+    },
+    "The current macOS state is outside the verified persistent session. Its recovery journal was preserved without a write.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The current macOS state is outside the verified persistent session. Its recovery journal was preserved without a write."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Текущее состояние macOS выходит за рамки проверенного постоянного режима. Журнал восстановления сохранён, настройки не изменены."
+          }
+        }
+      }
+    },
+    "The verified persistent baseline is confirmed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The verified persistent baseline is confirmed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверенная исходная постоянная настройка подтверждена."
+          }
+        }
+      }
+    },
+    "Restoring the persistent baseline is waiting for natural discharge.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restoring the persistent baseline is waiting for natural discharge."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Восстановление исходной постоянной настройки ожидает естественного разряда."
+          }
+        }
+      }
+    },
+    "The original persistent macOS charge setting was verified as restored.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The original persistent macOS charge setting was verified as restored."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подтверждено восстановление исходной постоянной настройки зарядки macOS."
+          }
+        }
+      }
+    },
+    "The persistent baseline was restored, but the validation proof could not be saved safely. The previous proof was preserved.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The persistent baseline was restored, but the validation proof could not be saved safely. The previous proof was preserved."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Исходная постоянная настройка восстановлена, но результат проверки не удалось безопасно сохранить. Предыдущее подтверждение сохранено."
+          }
+        }
+      }
+    },
+    "Setup": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Setup"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Настройка"
+          }
+        }
+      }
+    },
+    "First-time setup": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "First-time setup"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Первоначальная настройка"
+          }
+        }
+      }
+    },
+    "You can monitor your Mac now and set up optional features whenever you need them.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can monitor your Mac now and set up optional features whenever you need them."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Наблюдение уже доступно. Дополнительные функции можно настроить позже."
+          }
+        }
+      }
+    },
+    "Monitoring and everyday tools": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monitoring and everyday tools"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Наблюдение и повседневные инструменты"
+          }
+        }
+      }
+    },
+    "Additional features": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Additional features"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дополнительные функции"
+          }
+        }
+      }
+    },
+    "Your choices": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your choices"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "По вашему выбору"
+          }
+        }
+      }
+    },
+    "Save battery history": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save battery history"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохранять историю батареи"
+          }
+        }
+      }
+    },
+    "Battery history is stored locally. You can change this choice later in History settings.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Battery history is stored locally. You can change this choice later in History settings."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "История батареи хранится локально. Этот выбор можно изменить в настройках истории."
+          }
+        }
+      }
+    },
+    "Checking setup status…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking setup status…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверка состояния функций…"
+          }
+        }
+      }
+    },
+    "Refresh setup status": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refresh setup status"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновить статус"
+          }
+        }
+      }
+    },
+    "Continue monitoring": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue monitoring"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Продолжить наблюдение"
+          }
+        }
+      }
+    },
+    "This action is no longer available. Check the updated status.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This action is no longer available. Check the updated status."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Действие больше недоступно. Посмотрите обновлённый статус."
+          }
+        }
+      }
+    },
+    "Another setup action is in progress.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Another setup action is in progress."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выполняется другое действие настройки."
+          }
+        }
+      }
+    },
+    "The setup action could not be completed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The setup action could not be completed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось завершить действие."
+          }
+        }
+      }
+    },
+    "Battery and power monitoring": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Battery and power monitoring"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Наблюдение за батареей и питанием"
+          }
+        }
+      }
+    },
+    "Fans": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fans"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вентиляторы"
+          }
+        }
+      }
+    },
+    "System power modes": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System power modes"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Системные режимы питания"
+          }
+        }
+      }
+    },
+    "Closed-lid operation": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Closed-lid operation"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Работа с закрытой крышкой"
+          }
+        }
+      }
+    },
+    "Battery history": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Battery history"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "История батареи"
+          }
+        }
+      }
+    },
+    "Check for new versions": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check for new versions"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверка новых версий"
+          }
+        }
+      }
+    },
+    "Install updates": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install updates"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Установка обновлений"
+          }
+        }
+      }
+    },
+    "Ready": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ready"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Готово"
+          }
+        }
+      }
+    },
+    "Optional": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Optional"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "По желанию"
+          }
+        }
+      }
+    },
+    "macOS approval needed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS approval needed"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нужно разрешение macOS"
+          }
+        }
+      }
+    },
+    "Needs verification": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Needs verification"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нужна проверка"
+          }
+        }
+      }
+    },
+    "Unsupported on this Mac": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unsupported on this Mac"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не поддерживается на этом Mac"
+          }
+        }
+      }
+    },
+    "Unavailable in this build": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unavailable in this build"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Недоступно в этой сборке"
+          }
+        }
+      }
+    },
+    "Battery and power readings do not require the system helper. Missing readings stay unavailable.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Battery and power readings do not require the system helper. Missing readings stay unavailable."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показания батареи и питания доступны без системного помощника. Отсутствующие показания отмечаются как недоступные."
+          }
+        }
+      }
+    },
+    "The charge control scope has been verified on this macOS version. See Charging for the supported targets.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The charge control scope has been verified on this macOS version. See Charging for the supported targets."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Управление зарядкой проверено на этой версии macOS. Поддерживаемые лимиты указаны в разделе «Зарядка»."
+          }
+        }
+      }
+    },
+    "macOS reports that launch at login is enabled.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS reports that launch at login is enabled."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS сообщает, что запуск при входе включён."
+          }
+        }
+      }
+    },
+    "This app can consider updates. Each update still has to pass its own checks.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This app can consider updates. Each update still has to pass its own checks."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Приложение готово принимать обновления. Каждое обновление проходит отдельную проверку."
+          }
+        }
+      }
+    },
+    "Available in this session.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Available in this session."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Доступно в текущем сеансе."
+          }
+        }
+      }
+    },
+    "You can skip this choice and change it later.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can skip this choice and change it later."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Этот выбор можно пропустить и изменить позже."
+          }
+        }
+      }
+    },
+    "The current status is unknown. Refresh to check again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The current status is unknown. Refresh to check again."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Текущий статус неизвестен. Обновите его для повторной проверки."
+          }
+        }
+      }
+    },
+    "This session is limited to monitoring.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This session is limited to monitoring."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В этом сеансе доступно только наблюдение."
+          }
+        }
+      }
+    },
+    "The current charging policy could not be confirmed. Check Charging for the latest readings and requirements.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The current charging policy could not be confirmed. Check Charging for the latest readings and requirements."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Действующий режим зарядки не удалось подтвердить. Свежие показания и требования указаны в разделе «Зарядка»."
+          }
+        }
+      }
+    },
+    "Charge control needs a separate verification on this macOS version, including restoration of the previous setting.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charge control needs a separate verification on this macOS version, including restoration of the previous setting."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для управления зарядкой на этой версии macOS нужна отдельная проверка с восстановлением предыдущей настройки."
+          }
+        }
+      }
+    },
+    "This Mac does not support the feature.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This Mac does not support the feature."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Этот Mac не поддерживает функцию."
+          }
+        }
+      }
+    },
+    "This feature is currently unavailable. Refresh to check again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This feature is currently unavailable. Refresh to check again."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Функция сейчас недоступна. Обновите статус для повторной проверки."
+          }
+        }
+      }
+    },
+    "This feature needs a compatibility and restoration check before it can be used.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This feature needs a compatibility and restoration check before it can be used."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перед использованием функции нужно проверить совместимость и восстановление настроек."
+          }
+        }
+      }
+    },
+    "This feature needs an app and system helper with verified signatures from the same team.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This feature needs an app and system helper with verified signatures from the same team."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для этой функции нужны проверенные подписи приложения и системного помощника от одной команды разработчиков."
+          }
+        }
+      }
+    },
+    "Install Tilvero in Applications before connecting the system helper.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install Tilvero in Applications before connecting the system helper."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Установите Tilvero в папку «Программы», прежде чем подключать системного помощника."
+          }
+        }
+      }
+    },
+    "You can connect the system helper for supported controls. macOS may ask you to approve it.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can connect the system helper for supported controls. macOS may ask you to approve it."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для поддерживаемых функций можно подключить системного помощника. macOS может запросить подтверждение."
+          }
+        }
+      }
+    },
+    "Approve this feature in System Settings, then refresh its status.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Approve this feature in System Settings, then refresh its status."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешите функцию в системных настройках и обновите её статус."
+          }
+        }
+      }
+    },
+    "macOS reports that approval was denied. You can review this choice in System Settings.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS reports that approval was denied. You can review this choice in System Settings."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS сообщает об отказе в разрешении. Этот выбор можно проверить в системных настройках."
+          }
+        }
+      }
+    },
+    "macOS reports that the helper is enabled. Its connection to Tilvero is still unverified.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS reports that the helper is enabled. Its connection to Tilvero is still unverified."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS сообщает, что помощник включён. Его подключение к Tilvero ещё не подтверждено."
+          }
+        }
+      }
+    },
+    "Restore the previous settings before enabling this feature.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore the previous settings before enabling this feature."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перед включением функции восстановите предыдущие настройки."
+          }
+        }
+      }
+    },
+    "Closed-lid operation requires a dedicated build and a verified recovery procedure.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Closed-lid operation requires a dedicated build and a verified recovery procedure."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для работы с закрытой крышкой нужны специальная сборка и проверенная процедура восстановления."
+          }
+        }
+      }
+    },
+    "Installing updates requires a signed distribution build and a verified update feed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installing updates requires a signed distribution build and a verified update feed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для установки обновлений нужны подписанная релизная сборка и проверенный источник обновлений."
+          }
+        }
+      }
+    },
+    "This copy of Tilvero cannot install updates.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This copy of Tilvero cannot install updates."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эта копия Tilvero не может устанавливать обновления."
+          }
+        }
+      }
+    },
+    "Update installation is available only when controls are idle and recovery is complete.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update installation is available only when controls are idle and recovery is complete."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновление можно установить после завершения всех операций управления и восстановления."
+          }
+        }
+      }
+    },
+    "Open Charging in Tilvero": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Charging in Tilvero"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть раздел «Зарядка»"
+          }
+        }
+      }
+    },
+    "View requirements…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View requirements…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Посмотреть требования…"
+          }
+        }
+      }
+    },
+    "Open System Settings…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open System Settings…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть системные настройки…"
+          }
+        }
+      }
+    },
+    "Enable launch at login": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enable launch at login"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Включить запуск при входе"
+          }
+        }
+      }
+    },
+    "Sleep at charge": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep at charge"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон при заряде"
+          }
+        }
+      }
+    },
+    "Sleep at charge cancelled.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep at charge cancelled."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон при заряде отменён."
+          }
+        }
+      }
+    },
+    "Sleep at charge cancelled because the Mac went to sleep.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep at charge cancelled because the Mac went to sleep."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон при заряде отменён: Mac уснул."
+          }
+        }
+      }
+    },
+    "Sleep at charge cancelled because the Mac woke from sleep.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep at charge cancelled because the Mac woke from sleep."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон при заряде отменён: Mac проснулся."
+          }
+        }
+      }
+    },
+    "Sleep at charge cancelled because this user session is no longer active.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep at charge cancelled because this user session is no longer active."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон при заряде отменён: сеанс пользователя неактивен."
+          }
+        }
+      }
+    },
+    "Sleep at charge cancelled because safe preparation could not be confirmed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep at charge cancelled because safe preparation could not be confirmed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон при заряде отменён: не удалось подтвердить безопасную подготовку."
+          }
+        }
+      }
+    },
+    "Sleep requested at the chosen charge.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep requested at the chosen charge."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Заряд достиг выбранного уровня — Mac засыпает."
+          }
+        }
+      }
+    },
+    "macOS declined the sleep request.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS declined the sleep request."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS отклонила запрос на сон."
+          }
+        }
+      }
+    },
+    "Sleep at charge is unavailable in this build or simulation.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep at charge is unavailable in this build or simulation."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон при заряде недоступен в этой сборке или в симуляции."
+          }
+        }
+      }
+    },
+    "Choose a charge between 1 and 99 %.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a charge between 1 and 99 %."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выберите заряд от 1 до 99 %."
+          }
+        }
+      }
+    },
+    "The charge level is not known yet.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The charge level is not known yet."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Уровень заряда пока неизвестен."
+          }
+        }
+      }
+    },
+    "The battery is already at or below that level.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The battery is already at or below that level."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Батарея уже на этом уровне или ниже."
+          }
+        }
+      }
+    },
+    "Sleeps at": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleeps at"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Уснёт при"
+          }
+        }
+      }
+    },
+    "now": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "now"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "сейчас"
+          }
+        }
+      }
+    },
+    "Waits until the Mac runs on battery power.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waits until the Mac runs on battery power."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сработает, когда Mac будет работать от батареи."
+          }
+        }
+      }
+    },
+    "Keeps Mac awake until the charge drops to the level (up to 24 h), then requests sleep.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keeps Mac awake until the charge drops to the level (up to 24 h), then requests sleep."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не даёт Mac уснуть, пока заряд не снизится до уровня (не дольше 24 ч), затем запрашивает сон."
+          }
+        }
+      }
+    },
+    "Sleep at charge could not keep the Mac awake. It was not started.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep at charge could not keep the Mac awake. It was not started."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон при заряде не смог удержать Mac бодрым и не был запущен."
+          }
+        }
+      }
+    },
+    "The awake hold could not be released. Try Cancel again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The awake hold could not be released. Try Cancel again."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удержание не удалось снять. Нажмите «Отмена» ещё раз."
+          }
+        }
+      }
+    },
+    "Sleep at charge cancelled after 24 hours.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep at charge cancelled after 24 hours."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон при заряде отменён через 24 часа."
+          }
+        }
+      }
+    },
+    "About": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "О функции"
+          }
+        }
+      }
+    },
+    "Keep awake until charge": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep awake until charge"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не засыпать до заряда"
+          }
+        }
+      }
+    },
+    "Keeps Mac awake until the charge drops to the level (up to 24 h), then stops holding it; the Mac sleeps as usual.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keeps Mac awake until the charge drops to the level (up to 24 h), then stops holding it; the Mac sleeps as usual."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не даёт Mac уснуть, пока заряд не снизится до уровня (не дольше 24 ч), затем перестаёт его удерживать — Mac засыпает как обычно."
+          }
+        }
+      }
+    },
+    "Levels at or above the current charge are unavailable. Cancelled by sleep or quitting Tilvero.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Levels at or above the current charge are unavailable. Cancelled by sleep or quitting Tilvero."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Уровни не ниже текущего заряда недоступны. Отменяется сном или выходом из Tilvero."
+          }
+        }
+      }
+    },
+    "With lid closed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "With lid closed"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "С закрытой крышкой"
+          }
+        }
+      }
+    },
+    "The permission was not granted. The lid mode stays off.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The permission was not granted. The lid mode stays off."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешение не выдано. Режим с закрытой крышкой остаётся выключенным."
+          }
+        }
+      }
+    },
+    "macOS did not enable the lid mode.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS did not enable the lid mode."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS не включила режим закрытой крышки."
+          }
+        }
+      }
+    },
+    "Normal sleep could not be restored. Use Restore sleep.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Normal sleep could not be restored. Use Restore sleep."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось вернуть обычный сон. Нажмите «Вернуть сон»."
+          }
+        }
+      }
+    },
+    "Restore sleep": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore sleep"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вернуть сон"
+          }
+        }
+      }
+    },
+    "Remove permission…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove permission…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отозвать разрешение…"
+          }
+        }
+      }
+    },
+    "Tilvero asks to allow one command, pmset disablesleep, without a password, so Keep Awake can work with the lid closed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero asks to allow one command, pmset disablesleep, without a password, so Keep Awake can work with the lid closed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero просит разрешить одну команду, pmset disablesleep, без пароля, чтобы «Не засыпать» работало с закрытой крышкой."
+          }
+        }
+      }
+    },
+    "Tilvero asks to remove its closed-lid permission.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero asks to remove its closed-lid permission."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero просит отозвать своё разрешение для закрытой крышки."
+          }
+        }
+      }
+    },
+    "Tilvero asks to restore normal sleep.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero asks to restore normal sleep."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero просит вернуть обычный сон."
+          }
+        }
+      }
+    },
+    "Normal sleep returns when Keep Awake ends, when you quit Tilvero, before a sleep timer or charge sleep, and at the next launch if the app was killed. A closed Mac in a bag stays on and warm: use a hard, ventilated surface.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Normal sleep returns when Keep Awake ends, when you quit Tilvero, before a sleep timer or charge sleep, and at the next launch if the app was killed. A closed Mac in a bag stays on and warm: use a hard, ventilated surface."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обычный сон возвращается, когда «Не засыпать» заканчивается, при выходе из Tilvero, перед сном по таймеру или заряду и при следующем запуске, если приложение было закрыто аварийно. Закрытый Mac в сумке остаётся включённым и греется: используйте жёсткую поверхность с вентиляцией."
+          }
+        }
+      }
+    },
+    "Not verified on every Mac and macOS version.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not verified on every Mac and macOS version."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Работа проверена не на всех Mac и версиях macOS."
+          }
+        }
+      }
+    },
+    "Sleep is already disabled by another tool or setting. Tilvero will not change it.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep is already disabled by another tool or setting. Tilvero will not change it."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон уже отключён другой программой или настройкой. Tilvero её не изменит."
+          }
+        }
+      }
+    },
+    "An option for Keep Awake: with it on, a Keep Awake session also continues with the lid closed. It never starts Keep Awake by itself. The first time, macOS asks for the administrator password to allow one command, pmset disablesleep, without a password. Nothing else is allowed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An option for Keep Awake: with it on, a Keep Awake session also continues with the lid closed. It never starts Keep Awake by itself. The first time, macOS asks for the administrator password to allow one command, pmset disablesleep, without a password. Nothing else is allowed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Опция для «Не засыпать»: когда она включена, сеанс «Не засыпать» продолжается и при закрытой крышке. Сама она «Не засыпать» не запускает. В первый раз macOS попросит пароль администратора, чтобы разрешить одну команду, pmset disablesleep, без пароля. Больше ничего не разрешается."
+          }
+        }
+      }
+    },
+    "The permission is missing. Switch With lid closed off and on again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The permission is missing. Switch With lid closed off and on again."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешение пропало. Выключите и снова включите «С закрытой крышкой»."
+          }
+        }
+      }
+    },
+    "Keep Awake color": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep Awake color"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Цвет «Не засыпать»"
+          }
+        }
+      }
+    },
+    "Blue": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blue"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Синий"
+          }
+        }
+      }
+    },
+    "Teal": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teal"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бирюзовый"
+          }
+        }
+      }
+    },
+    "Green": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Green"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Зелёный"
+          }
+        }
+      }
+    },
+    "Orange": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Orange"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оранжевый"
+          }
+        }
+      }
+    },
+    "Pink": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pink"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Розовый"
+          }
+        }
+      }
+    },
+    "Purple": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Purple"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Фиолетовый"
+          }
+        }
+      }
+    },
+    "Another sleep or Keep Awake mode is running. Turn it off first.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Another sleep or Keep Awake mode is running. Turn it off first."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Уже работает другой режим сна или «Не засыпать». Сначала выключите его."
+          }
+        }
+      }
+    },
+    "Turn off first": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn off first"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сначала выключите"
+          }
+        }
+      }
+    },
+    "Validation requires a confirmed persistent baseline and a fresh battery level below 80%. No setting was written.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Validation requires a confirmed persistent baseline and a fresh battery level below 80%. No setting was written."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для проверки нужна подтверждённая постоянная настройка и свежий уровень заряда ниже 80 %. Ничего не записано."
+          }
+        }
+      }
+    },
+    "A level below the current charge takes effect when the battery discharges to it.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A level below the current charge takes effect when the battery discharges to it."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Уровень ниже текущего заряда начнёт действовать, когда батарея разрядится до него."
+          }
+        }
+      }
+    },
+    "Validate 80–100%…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Validate 80–100%…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверить 80–100 %…"
+          }
+        }
+      }
+    },
+    "Validation writes 80%, 85%, 95% and 100% in turn and restores your setting, after a confirmed persistent baseline and a battery level below 80%.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Validation writes 80%, 85%, 95% and 100% in turn and restores your setting, after a confirmed persistent baseline and a battery level below 80%."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверка по очереди ставит 80, 85, 95 и 100 % и возвращает вашу настройку; нужна подтверждённая постоянная настройка и заряд ниже 80 %."
+          }
+        }
+      }
+    },
+    "Verified persistent limits: 80%, 85%, 90%, 95% and 100%. Other targets and one-time full charging need separate validation.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verified persistent limits: 80%, 85%, 90%, 95% and 100%. Other targets and one-time full charging need separate validation."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверены постоянные лимиты 80, 85, 90, 95 и 100 %. Другие цели и однократная полная зарядка требуют отдельной проверки."
+          }
+        }
+      }
+    },
+    "This charge target has not completed local validation. Only the verified persistent 80%, 85%, 90%, 95% and 100% targets are authorized.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This charge target has not completed local validation. Only the verified persistent 80%, 85%, 90%, 95% and 100% targets are authorized."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эта цель заряда не прошла локальную проверку. Разрешены только проверенные цели 80, 85, 90, 95 и 100 %."
+          }
+        }
+      }
+    },
+    "Persistent 80%, 85%, 90%, 95% and 100% settings and restoration passed on this Mac. Other targets and physical cutoff remain unqualified.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Persistent 80%, 85%, 90%, 95% and 100% settings and restoration passed on this Mac. Other targets and physical cutoff remain unqualified."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Постоянные настройки 80, 85, 90, 95 и 100 % и возврат прошли проверку на этом Mac. Другие цели и физическая остановка зарядки не проверены."
+          }
+        }
+      }
+    },
+    "The same limit as macOS Battery settings: charging stops at the chosen level. Letting go of the slider applies it.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The same limit as macOS Battery settings: charging stops at the chosen level. Letting go of the slider applies it."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тот же лимит, что в настройках macOS «Аккумулятор»: зарядка останавливается на выбранном уровне. Лимит применяется, когда вы отпускаете ползунок."
+          }
+        }
+      }
+    },
+    "100% means no limit. Verified levels: 80%, 85%, 90%, 95% and 100%.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "100% means no limit. Verified levels: 80%, 85%, 90%, 95% and 100%."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "100 % означает «без лимита». Проверены уровни 80, 85, 90, 95 и 100 %."
+          }
+        }
+      }
+    },
+    "Connect the charger for the one-time validation. After that the limit works on battery power too.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect the charger for the one-time validation. After that the limit works on battery power too."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подключите зарядку для разовой проверки. После неё лимит работает и от батареи."
           }
         }
       }

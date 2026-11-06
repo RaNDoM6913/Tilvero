@@ -51,8 +51,29 @@ enum InfoSection: String, CaseIterable, Identifiable {
 
 @MainActor
 struct BatteryInfoView: View {
+    @Environment(\.studioPresentation) private var studioPresentation
     @ObservedObject var model: TilveroModel
+    #if TILVERO_LAB_STUDIO
+    @Environment(\.studioCaptureRoute) private var studioCaptureRoute
+    #endif
+    private var presentedSection: InfoSection {
+        #if TILVERO_LAB_STUDIO
+        studioCaptureRoute?.section ?? model.selectedSection
+        #else
+        model.selectedSection
+        #endif
+    }
+    private var presentedSleepPage: SleepPage {
+        #if TILVERO_LAB_STUDIO
+        studioCaptureRoute?.sleepPage ?? model.selectedSleepPage
+        #else
+        model.selectedSleepPage
+        #endif
+    }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private var showingSetup: Bool {
+        presentedSection == .settings && model.canShowSetup && model.selectedSettingsPage == .setup
+    }
     @State private var search = ""
     @State private var showUnavailable = true
     @State private var reveal = false
@@ -60,69 +81,76 @@ struct BatteryInfoView: View {
     private var query: String { CatalogDataGroup.normalizedSearch(search) }
     var body: some View {
         HStack(spacing: 0) {
-            sidebar.frame(width: 190)
+            sidebar.frame(width: 182)
             ZStack(alignment: .topLeading) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
+                VStack(alignment: .leading, spacing: studioPresentation.spacing(presentedSection == .sleep ? 18 : 22)) {
                     HStack(alignment: .firstTextBaseline) {
-                        Text(model.selectedSection.title).font(.system(size: 24, weight: .semibold))
+                        StudioText(presentedSection.title, id: "page.title").font(.system(size: 24, weight: .semibold))
                         Spacer(minLength: 8)
-                        Button { Task { await model.refresh(); if model.selectedSection == .sleep { await model.refreshSleepActivity() } } } label: { Image(systemName: "arrow.clockwise") }
+                        if !showingSetup && (presentedSection != .sleep || presentedSleepPage == .reports) {
+                        Button { Task { await model.refresh(); if presentedSection == .sleep { await model.refreshSleepActivity() } } } label: { Image(systemName: "arrow.clockwise") }
                             .accessibilityLabel(L10n.text("Refresh"))
+                            .studioElement("page.refresh", label: "Refresh readings")
+                        }
                     }
                     if model.isDemo {
                         Label(L10n.text("Simulation only — your Mac settings are unchanged."), systemImage: "testtube.2")
                             .font(.system(size: 11)).foregroundStyle(.secondary)
                     }
-                    if model.selectedSection == .overview && model.keepAwake.hasOwnedAssertion { KeepAwakeActivePanel(service: model.keepAwake) }
+                    if presentedSection == .overview && model.keepAwake.hasOwnedAssertion { KeepAwakeActivePanel(service: model.keepAwake) }
+                    if presentedSection == .overview && model.sleepTimer.isActive { SleepTimerActiveRow(model: model) }
                     if !model.isDemo { nativeChargingAttention }
                     if model.liveControl.hasOwnedSettings || model.liveControl.recoveryRequired || (!model.usesNativeCharge && model.pendingTarget != nil) {
-                        ProductSurface(title: "Privileged controls") {
+                        ProductSurface(title: "Privileged controls", studioID: "global.privilegedControls") {
                             if !model.usesNativeCharge { Text(model.effectiveLimitText) }
                             if model.liveControl.recoveryRequired {
                                 Label(L10n.text("App-owned settings require restoration"), systemImage: "exclamationmark.triangle")
                                     .foregroundStyle(.orange)
                             }
                             if let message = model.liveControl.message { Text(L10n.text(message)).font(.system(size: 12)) }
-                            Button(L10n.text("Restore original settings")) { model.restoreAll() }
+                            StudioActionButton(L10n.text("Restore original settings"), id: "recovery-banner.restore-original-settings") { model.restoreAll() }
                         }
                     }
                     sectionContent
                     if let error = model.storeError { Label(L10n.text("Data store error") + ": " + error, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange) }
                     if let notice = model.notice { Text(notice).font(.caption).foregroundStyle(.secondary) }
-                    if model.selectedSection != .overview {
+                    if presentedSection != .overview && (presentedSection != .sleep || presentedSleepPage == .reports) {
                         Text("\(L10n.text("Last collection")): \(model.snapshot.collectedAt.formatted(.dateTime.locale(L10n.locale)))")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }.padding(.horizontal, 24).padding(.top, 25).padding(.bottom, 24).frame(maxWidth: .infinity, alignment: .topLeading)
-            }.background(Color.white)
-                .id(model.selectedSection).transition(.opacity)
-            }.animation(ProductMotion.animation(reduceMotion: reduceMotion), value: model.selectedSection)
+            }.background(studioPresentation.canvas)
+                .id(presentedSection).transition(.opacity)
+            }.animation(ProductMotion.animation(reduceMotion: reduceMotion), value: presentedSection)
         }.frame(minWidth: 760, minHeight: 540)
-            .background(Color.white).foregroundStyle(Color.black.opacity(0.9))
+            .background(studioPresentation.canvas).foregroundStyle(studioPresentation.foreground)
             .font(.system(size: 13))
-            .tint(.green)
-            .accentColor(.green)
+            .tint(studioPresentation.accent)
+            .accentColor(studioPresentation.accent)
             .disclosureGroupStyle(ProductDisclosureStyle())
-            .environment(\.colorScheme, .light)
+            .studioMainScheme()
             .environment(\.locale, L10n.locale)
             .id(model.language)
+            .studioElement("application", kind: "container", label: "Application canvas")
+            .studioScope("page." + presentedSection.rawValue)
             .sheet(isPresented: Binding(get: { model.exportPreview != nil }, set: { if !$0 { model.exportPreview = nil } })) {
                 VStack(alignment: .leading, spacing: 14) {
-                    Text(L10n.text("Export preview")).font(.title2)
-                    Text(L10n.text("Serials and private identifiers are excluded.")).foregroundStyle(.secondary)
+                    StudioText(L10n.text("Export preview"), id: "export.title").font(.title2)
+                    StudioText(L10n.text("Serials and private identifiers are excluded."), id: "export.privacy").foregroundStyle(.secondary)
                     ScrollView { Text(model.exportPreview ?? "").font(.system(.caption, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }
-                    HStack { Button(L10n.text("Cancel")) { model.exportPreview = nil }; Spacer(); Button(L10n.text("Save…")) { model.saveExport() }.buttonStyle(.borderedProminent) }
+                    HStack { StudioActionButton(L10n.text("Cancel"), id: "action.cancel") { model.exportPreview = nil }; Spacer(); StudioActionButton(L10n.text("Save…"), id: "action.save") { model.saveExport() }.buttonStyle(.borderedProminent) }
                 }.padding(24).frame(width: 620, height: 470)
+                    .studioSubpresentation("export")
             }
     }
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 7) {
-                Text(AppIdentity.displayName).font(.system(size: 18, weight: .semibold))
-                TilveroEnergyMark().stroke(Color.green, style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                    .frame(width: 27, height: 15).accessibilityHidden(true)
-            }.padding(.horizontal, 14).padding(.top, 27).padding(.bottom, 22)
+                StudioText(AppIdentity.displayName, id: "sidebar.brand").font(.system(size: 24, weight: .semibold))
+                TilveroEnergyMark().stroke(studioPresentation.accent, style: StrokeStyle(lineWidth: 2.6, lineCap: .round))
+                    .frame(width: 36, height: 20).accessibilityHidden(true)
+            }.padding(.horizontal, 14).padding(.top, 22).padding(.bottom, 6)
             ForEach(InfoSection.allCases) { item in
                 if item == .history {
                     Text(L10n.text("Analytics")).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
@@ -136,22 +164,23 @@ struct BatteryInfoView: View {
                 Label(L10n.text("Simulation"), systemImage: "testtube.2")
                     .font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary).padding(14)
             }
-        }.frame(maxHeight: .infinity).background(Color(red: 0.95, green: 0.95, blue: 0.95))
+        }.frame(maxHeight: .infinity).background(studioPresentation.sidebar)
+        .studioElement("sidebar", kind: "container", label: "Navigation sidebar")
     }
     private func sidebarItem(_ item: InfoSection) -> some View {
-        let selected = model.selectedSection == item
+        let selected = presentedSection == item
         let needsAttention = item == .diagnostics && !model.isDemo
             && model.nativeCharge.presentation().requiresGlobalAttention
         return Button { model.selectedSection = item } label: {
             HStack(spacing: 9) {
                 Image(systemName: item.symbol).font(.system(size: 14)).frame(width: 18).accessibilityHidden(true)
-                Text(item.title).font(.system(size: 12)).lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                StudioText(item.title, id: "sidebar.title." + item.rawValue).font(.system(size: 12)).lineLimit(2).fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
                 if needsAttention {
                     Image(systemName: "circle.fill").font(.system(size: 6)).foregroundStyle(.orange)
                         .accessibilityHidden(true)
                 }
-            }.padding(.horizontal, 10).padding(.vertical, 9)
+            }.padding(.leading, 10).padding(.trailing, 8).padding(.vertical, 9)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color.black.opacity(selected ? 0.065 : 0), in: RoundedRectangle(cornerRadius: 7))
                 .contentShape(RoundedRectangle(cornerRadius: 7))
@@ -160,10 +189,11 @@ struct BatteryInfoView: View {
             .accessibilityAddTraits(selected ? [.isSelected] : [])
             .accessibilityRemoveTraits(selected ? [] : [.isSelected])
             .padding(.horizontal, 7).padding(.vertical, 1)
+            .studioElement("sidebar.destination." + item.rawValue, label: item.title)
     }
     @ViewBuilder private var nativeChargingAttention: some View {
         let state = model.nativeCharge.presentation()
-        if state.showsAttentionBanner && model.selectedSection != .diagnostics {
+        if state.showsAttentionBanner && presentedSection != .diagnostics {
             HStack(alignment: .center, spacing: 10) {
                 Image(systemName: "info.circle").foregroundStyle(nativeAttentionColor(state.attention)).accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 3) {
@@ -177,7 +207,7 @@ struct BatteryInfoView: View {
                         Text(L10n.text("Pending") + " \(target)%").font(.system(size: 11)).foregroundStyle(.secondary)
                     }
                 }.frame(maxWidth: .infinity, alignment: .leading)
-                Button(L10n.text("Details")) { model.selectedSection = .diagnostics }
+                StudioActionButton(L10n.text("Details"), id: "native-attention.details") { model.selectedSection = .diagnostics }
             }.padding(10).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 9))
         }
     }
@@ -212,23 +242,32 @@ struct BatteryInfoView: View {
     }
     private var measurementOptions: some View {
         HStack(spacing: 16) {
-            Toggle(L10n.text("Show unavailable fields"), isOn: $showUnavailable).toggleStyle(.checkbox)
-            if [.battery, .charging, .diagnostics].contains(model.selectedSection) {
-                Toggle(L10n.text("Reveal identifiers"), isOn: $reveal).toggleStyle(.checkbox)
+            Toggle(L10n.text("Show unavailable fields"), isOn: $showUnavailable).toggleStyle(.checkbox).studioElement("catalog.showUnavailable", label: "Show unavailable fields")
+            if [.battery, .charging, .diagnostics].contains(presentedSection) {
+                Toggle(L10n.text("Reveal identifiers"), isOn: $reveal).toggleStyle(.checkbox).studioElement("catalog.revealIdentifiers", label: "Reveal identifiers")
             }
         }
     }
     @ViewBuilder private var sectionContent: some View {
-        switch model.selectedSection {
+        switch presentedSection {
         case .overview:
             OverviewDashboard(model: model)
+                .id(ObjectIdentifier(model))
             if model.isDemo { SimulationPanel(model: model) }
         case .activity:
             ProcessActivityPanel(model: model)
         case .battery:
+            #if TILVERO_LAB_STUDIO
+            BatteryDataPanel(model: model, showUnavailable: showUnavailable, reveal: reveal, options: AnyView(measurementOptions), tab: studioCaptureRoute?.batteryTab ?? .overview)
+            #else
             BatteryDataPanel(model: model, showUnavailable: showUnavailable, reveal: reveal, options: AnyView(measurementOptions))
+            #endif
         case .charging:
+            #if TILVERO_LAB_STUDIO
+            PowerDataPanel(model: model, showUnavailable: showUnavailable, reveal: reveal, options: AnyView(measurementOptions), tab: studioCaptureRoute?.powerTab ?? .flow)
+            #else
             PowerDataPanel(model: model, showUnavailable: showUnavailable, reveal: reveal, options: AnyView(measurementOptions))
+            #endif
         case .cooling:
             CoolingPanel(model: model, showUnavailable: showUnavailable)
             if !model.fanless {
@@ -236,8 +275,12 @@ struct BatteryInfoView: View {
                 DataReadingSection(title: "Fan observations", readings: CatalogDataGroup.filtered(readings(["087", "088", "089", "090", "091", "092", "093"]), search: "", showUnavailable: showUnavailable), fahrenheit: model.fahrenheit)
             }
         case .history: HistoryPanel(model: model)
-        case .sleep: SleepReportPanel(model: model)
+        case .sleep: SleepControlsPanel(model: model)
         case .diagnostics:
+            if let reason = model.launchPolicy.monitoringReasonKey {
+                Text(L10n.text(reason)).font(.callout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             HStack(alignment: .top, spacing: 14) {
                 Image(systemName: "shield.lefthalf.filled").font(.system(size: 29)).foregroundStyle(.green).accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 4) {
@@ -257,10 +300,12 @@ struct BatteryInfoView: View {
             ProductSurface(title: "Privileged controls", symbol: "shield") {
                 Label(L10n.text(model.liveControl.hasOwnedSettings ? "App-owned settings require restoration" : "No active helper session"), systemImage: "shield")
                 Text("\(L10n.text("Helper")): \(model.helperStatusText)")
-                Text(L10n.text(model.liveControl.message ?? "Signing and hardware validation required")).font(.callout).foregroundStyle(.secondary)
-                if model.liveControl.canRegister { Button(L10n.text("Enable supported controls")) { model.registerHelper() } }
-                if model.liveControl.hasOwnedSettings || model.liveControl.recoveryRequired { Button(L10n.text("Restore original settings")) { model.restoreAll() } }
-                if model.liveControl.registrationState == .enabled { Button(L10n.text("Disable helper after restoration")) { model.removeHelper() } }
+                if !model.launchPolicy.monitoringOnly {
+                    Text(L10n.text(model.liveControl.message ?? "Signing and hardware validation required")).font(.callout).foregroundStyle(.secondary)
+                }
+                if model.liveControl.canRegister { StudioActionButton(L10n.text("Enable supported controls"), id: "action.enable-supported-controls") { model.registerHelper() } }
+                if model.liveControl.hasOwnedSettings || model.liveControl.recoveryRequired { StudioActionButton(L10n.text("Restore original settings"), id: "diagnostics.helper.restore-original-settings") { model.restoreAll() } }
+                if model.liveControl.registrationState == .enabled { StudioActionButton(L10n.text("Disable helper after restoration"), id: "action.disable-helper-after-restoration") { model.removeHelper() } }
             }
             ProductSurface(title: "Diagnostics", symbol: "doc.text.magnifyingglass") {
                 Text(L10n.text("Running copy") + ": " + Bundle.main.bundleURL.path)
@@ -289,8 +334,8 @@ struct BatteryInfoView: View {
         case .settings: SettingsPanel(model: model)
         }
     }
-    private var diagnosticExport: some View { Button(L10n.text("Export diagnostics…")) { model.prepareExport(diagnostics: true) } }
-    private var diagnosticInventory: some View { Button(L10n.text("Read property inventory")) { model.inspectRawProperties() } }
+    private var diagnosticExport: some View { StudioActionButton(L10n.text("Export diagnostics…"), id: "action.export-diagnostics") { model.prepareExport(diagnostics: true) } }
+    private var diagnosticInventory: some View { StudioActionButton(L10n.text("Read property inventory"), id: "action.read-property-inventory") { model.inspectRawProperties() } }
     private func readings(_ ids: [String]) -> [CatalogReading] { model.snapshot.catalog.filter { ids.contains($0.id) } }
     @ViewBuilder private func catalogRows(_ rows: [CatalogReading]) -> some View {
         let visible = CatalogDataGroup.filtered(rows, search: search, showUnavailable: showUnavailable)
@@ -367,8 +412,8 @@ private struct HistoryPanel: View {
                     }
                 }
                 HStack {
-                    Button(L10n.text("Export JSON…")) { model.prepareExport() }
-                    Button(L10n.text("Export CSV…")) { model.prepareExport(csv: true) }
+                    StudioActionButton(L10n.text("Export JSON…"), id: "action.export-json") { model.prepareExport() }
+                    StudioActionButton(L10n.text("Export CSV…"), id: "action.export-csv") { model.prepareExport(csv: true) }
                 }
             }
         }
@@ -391,79 +436,127 @@ private struct HistoryPanel: View {
 @MainActor
 private struct SettingsPanel: View {
     @ObservedObject var model: TilveroModel
+    #if TILVERO_LAB_STUDIO
+    @Environment(\.studioCaptureRoute) private var studioCaptureRoute
+    #endif
+    private var settingsPages: [SettingsPage] {
+        SettingsPage.allCases.filter { $0 != .setup || model.canShowSetup }
+    }
+    private var presentedSettingsPage: SettingsPage {
+        #if TILVERO_LAB_STUDIO
+        let requested = studioCaptureRoute?.settingsPage ?? model.selectedSettingsPage
+        #else
+        let requested = model.selectedSettingsPage
+        #endif
+        return settingsPages.contains(requested) ? requested : .general
+    }
+    private var pageSelection: Binding<SettingsPage> {
+        #if TILVERO_LAB_STUDIO
+        if studioCaptureRoute != nil { return .constant(presentedSettingsPage) }
+        #endif
+        return Binding(get: { presentedSettingsPage }, set: { model.selectedSettingsPage = $0 })
+    }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var confirmErase = false
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Picker(L10n.text("Settings section"), selection: $model.selectedSettingsPage) {
-                ForEach(SettingsPage.allCases) { Text(L10n.text($0.title)).tag($0) }
-            }.pickerStyle(.segmented).labelsHidden().id(L10n.language)
+            Picker(L10n.text("Settings section"), selection: pageSelection) {
+                ForEach(settingsPages) { StudioText(L10n.text($0.title), id: "settings.tab." + $0.rawValue).tag($0) }
+            }.pickerStyle(.segmented).labelsHidden().id(L10n.language).studioElement("settings.tabs", label: "Settings subpages")
             Group {
-                switch model.selectedSettingsPage {
+                switch presentedSettingsPage {
                 case .general: general
                 case .quickPanel: QuickPanelBuilder(model: model)
                 case .history: historySettings
+                case .updates: UpdatesPanel(service: model.updates, installer: model.updateInstaller,
+                                           diagnostics: model.openUpdateDiagnostics)
+                case .setup: FirstSetupPanel(model: model)
                 }
-            }.id(model.selectedSettingsPage).transition(.opacity)
-                .animation(ProductMotion.animation(reduceMotion: reduceMotion), value: model.selectedSettingsPage)
+            }.id(presentedSettingsPage).transition(.opacity).studioScope("tab." + presentedSettingsPage.rawValue)
+                .animation(ProductMotion.animation(reduceMotion: reduceMotion), value: presentedSettingsPage)
         }.alert(L10n.text("Erase history"), isPresented: $confirmErase) {
-            Button(L10n.text("Cancel"), role: .cancel) {}
-            Button(L10n.text("Erase history"), role: .destructive) { model.eraseHistory() }
+            StudioActionButton(L10n.text("Cancel"), id: "action.cancel", role: .cancel) {}
+            StudioActionButton(L10n.text("Erase history"), id: "action.erase-history", role: .destructive) { model.eraseHistory() }
         } message: { Text(L10n.text("Delete local measurements? This does not change charging or cooling settings.")) }
     }
     private var general: some View {
         VStack(alignment: .leading, spacing: 20) {
             ProductSurface(title: "Menu bar") {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(L10n.text("Menu bar"))
+                    StudioText(L10n.text("Battery appearance"), id: "settings.batteryAppearance.title")
                     Spacer()
-                    Picker(L10n.text("Menu bar"), selection: $model.displayStyle) { ForEach(MenuBarDisplayStyle.allCases) { Text($0.title).tag($0) } }
+                    Picker(L10n.text("Battery appearance"), selection: $model.menuBarBatteryAppearance) {
+                        ForEach(MenuBarBatteryAppearance.allCases) { Text($0.title).tag($0) }
+                    }.labelsHidden().frame(width: 220).studioElement("settings.batteryAppearance", label: "Battery appearance")
+                }
+                Divider()
+                HStack(alignment: .center) {
+                    StudioText(L10n.text("Keep Awake color"), id: "settings.awakeColor.title")
+                    Spacer()
+                    HStack(spacing: 8) {
+                        ForEach(AwakeIndicatorColor.allCases) { option in
+                            Button { model.awakeIndicatorColor = option } label: {
+                                Circle().fill(Color(nsColor: option.nsColor)).frame(width: 18, height: 18)
+                                    .overlay(Circle().strokeBorder(Color.primary.opacity(model.awakeIndicatorColor == option ? 0.9 : 0.12), lineWidth: model.awakeIndicatorColor == option ? 2 : 1))
+                                    .padding(2)
+                            }
+                            .buttonStyle(.plain).focusEffectDisabled()
+                            .accessibilityLabel(option.title).accessibilityAddTraits(model.awakeIndicatorColor == option ? [.isSelected] : [])
+                            .help(option.title)
+                        }
+                    }.studioElement("settings.awakeColor", label: "Keep Awake indicator color")
+                }
+                Divider()
+                HStack(alignment: .firstTextBaseline) {
+                    StudioText(L10n.text("Menu bar"), id: "settings.menuBar.title")
+                    Spacer()
+                    Picker(L10n.text("Menu bar"), selection: $model.displayStyle) { ForEach(MenuBarDisplayStyle.allCases) { Text($0.title).tag($0) } }.studioElement("settings.displayStyle", label: "Menu bar display style")
                         .labelsHidden().frame(width: 220)
                 }
                 Divider()
                 HStack(alignment: .firstTextBaseline) {
-                    Text(L10n.text("Percentage size"))
+                    StudioText(L10n.text("Percentage size"), id: "settings.percentageSize.title")
                     Spacer()
                     Picker(L10n.text("Percentage size"), selection: $model.menuBarTextSize) {
                         ForEach(MenuBarTextSize.allCases) { Text($0.title).tag($0) }
                     }.labelsHidden().frame(width: 220).disabled(model.displayStyle == .iconOnly)
                 }
                 HStack {
-                    Text(L10n.text("Icon scale"))
+                    StudioText(L10n.text("Icon scale"), id: "settings.iconScale.title")
                     Slider(value: Binding(get: { model.menuBarIconScale }, set: model.setMenuBarIconScale), in: 0.85...1.15, step: 0.05)
-                        .frame(minWidth: 80, maxWidth: 220).accessibilityLabel(L10n.text("Icon scale"))
+                        .frame(minWidth: 80, maxWidth: 220).accessibilityLabel(L10n.text("Icon scale")).studioElement("settings.iconScale", label: "Menu bar icon scale")
                     Text("\(Int((model.menuBarIconScale * 100).rounded()))%").monospacedDigit().frame(width: 42, alignment: .trailing)
                 }
-                Button(L10n.text("Reset size")) { model.resetMenuBarSizing() }
+                StudioActionButton(L10n.text("Reset size"), id: "action.reset-size") { model.resetMenuBarSizing() }
             }
             ProductSurface(title: "App preferences") {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(L10n.text("Language"))
+                    StudioText(L10n.text("Language"), id: "settings.language.title")
                     Spacer()
-                    Picker(L10n.text("Language"), selection: $model.language) { Text(L10n.text("System language")).tag("system"); Text("Русский").tag("ru"); Text("English").tag("en") }
+                    Picker(L10n.text("Language"), selection: $model.language) { Text(L10n.text("System language")).tag("system"); Text("Русский").tag("ru"); Text("English").tag("en") }.studioElement("settings.language", label: "Language")
                         .labelsHidden().frame(width: 220)
                 }
                 Divider()
                 HStack(alignment: .firstTextBaseline) {
-                    Text(L10n.text("Temperature units"))
+                    StudioText(L10n.text("Temperature units"), id: "settings.temperatureUnits.title")
                     Spacer()
-                    Picker(L10n.text("Temperature units"), selection: $model.fahrenheit) { Text("°C").tag(false); Text("°F").tag(true) }
+                    Picker(L10n.text("Temperature units"), selection: $model.fahrenheit) { Text("°C").tag(false); Text("°F").tag(true) }.studioElement("settings.temperature", label: "Temperature units")
                         .labelsHidden().frame(width: 220)
                 }
                 Divider()
                 HStack(alignment: .firstTextBaseline) {
-                    Text(L10n.text("Launch at login"))
+                    StudioText(L10n.text("Launch at login"), id: "settings.login.title")
                     Spacer()
                     VStack(alignment: .trailing, spacing: 5) {
                         Text(L10n.text(model.loginStatus)).font(.caption).foregroundStyle(.secondary)
-                        Button(L10n.text(model.loginStatus == "Enabled" ? "Disable" : "Enable")) { model.toggleLogin() }
+                        StudioActionButton(L10n.text(model.loginStatus == "Enabled" ? "Disable" : "Enable"), id: "settings.login") { model.toggleLogin() }
                             .disabled(model.isDemo || model.loginStatus == "Not available from this local build")
                     }
                 }
             }
             KeyboardBacklightPanel(service: model.keyboardBacklight)
-            ProductSurface { KeepAwakePanel(model: model) }
-            Button(L10n.text("Customize quick panel…")) { model.selectedSettingsPage = .quickPanel }
+            StudioActionButton(L10n.text("Sleep timer & Keep Awake…"), id: "action.sleep-timer-keep-awake") { model.selectedSleepPage = .awake; model.selectedSection = .sleep }
+            StudioActionButton(L10n.text("Customize quick panel…"), id: "action.customize-quick-panel") { model.selectedSettingsPage = .quickPanel }
         }.frame(maxWidth: 760, alignment: .leading)
     }
     private var historySettings: some View {
@@ -475,7 +568,7 @@ private struct SettingsPanel: View {
                     Text(L10n.text("Minute samples use the selected period. Hourly aggregates are kept for 12 months.")).font(.caption).foregroundStyle(.secondary)
                     Text(L10n.text("Sleep reports use the selected detailed-history period.")).font(.caption).foregroundStyle(.secondary)
                     Divider()
-                    Button(L10n.text("Erase history…"), role: .destructive) { confirmErase = true }.disabled(model.isDemo)
+                    StudioActionButton(L10n.text("Erase history…"), id: "action.erase-history", role: .destructive) { confirmErase = true }.disabled(model.isDemo)
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }
             ProductSurface(title: "Recovery & uninstall", symbol: "arrow.counterclockwise") {
@@ -501,10 +594,10 @@ struct ProfilePanel: View {
                 DatePicker(L10n.text("Scheduled preparation"), selection: $model.scheduleDate, in: Date()..., displayedComponents: [.date, .hourAndMinute])
                 Text(L10n.text("A schedule does not wake the Mac. Missed actions are skipped; a newer manual action takes precedence.")).font(.caption).foregroundStyle(.secondary)
                 HStack {
-                    Button(L10n.text("Save schedule")) { model.saveSchedule() }
+                    StudioActionButton(L10n.text("Save schedule"), id: "action.save-schedule") { model.saveSchedule() }
                     if let schedule = model.schedule {
                         Text("\(L10n.text("Scheduled")): \(schedule.fireDate.formatted())").font(.caption)
-                        Button(L10n.text("Remove schedule")) { model.removeSchedule() }
+                        StudioActionButton(L10n.text("Remove schedule"), id: "action.remove-schedule") { model.removeSchedule() }
                     }
                 }
             }.padding(12).frame(maxWidth: .infinity, alignment: .leading)
@@ -521,7 +614,7 @@ private struct SimulationPanel: View {
                 HStack { Text(L10n.text("Battery level")); Slider(value: $model.demoPercent, in: 0...100, step: 1); Text("\(Int(model.demoPercent))%") }
                 Toggle(L10n.text("Adapter connected"), isOn: $model.demoExternal)
                 Toggle(L10n.text("System charging override"), isOn: $model.demoOverride)
-                Button(L10n.text("Refresh")) { Task { await model.refresh() } }
+                StudioActionButton(L10n.text("Refresh"), id: "action.refresh") { Task { await model.refresh() } }
             }.padding(12)
         }
     }
@@ -543,18 +636,18 @@ private struct FanControlPanel: View {
                     }
                     Text(model.fanPhase == .systemAuto ? L10n.text("System Auto") : model.fanPhase.rawValue)
                 }
-                Slider(value: $rpm, in: minimum...maximum, step: 1).accessibilityLabel(L10n.text("Manual RPM"))
+                Slider(value: $rpm, in: minimum...maximum, step: 1).accessibilityLabel(L10n.text("Manual RPM")).studioElement("fan.rpm", label: "Manual fan RPM")
                 HStack {
                     Text("\(Int(rpm)) RPM").monospacedDigit()
-                    Button(L10n.text("Manual RPM")) { model.setFanPolicy(.manual(Dictionary(uniqueKeysWithValues: model.fanDescriptors.map { ($0.id, Int(rpm)) }))) }
-                    Button(L10n.text("Timed boost")) { model.setFanPolicy(.boost(rpm: Int(rpm), seconds: 60)) }
-                    Button(L10n.text("System Auto")) { model.setFanPolicy(.systemAuto) }
+                    StudioActionButton(L10n.text("Manual RPM"), id: "action.manual-rpm") { model.setFanPolicy(.manual(Dictionary(uniqueKeysWithValues: model.fanDescriptors.map { ($0.id, Int(rpm)) }))) }
+                    StudioActionButton(L10n.text("Timed boost"), id: "action.timed-boost") { model.setFanPolicy(.boost(rpm: Int(rpm), seconds: 60)) }
+                    StudioActionButton(L10n.text("System Auto"), id: "action.system-auto") { model.setFanPolicy(.systemAuto) }
                 }.disabled(model.isApplying || !model.canControlFans)
                 HStack {
-                    Button(L10n.text("Temperature curve")) {
+                    StudioActionButton(L10n.text("Temperature curve"), id: "action.temperature-curve") {
                         if let curve = try? FanCurve(points: [.init(celsius: 35, rpm: Int(minimum)), .init(celsius: 65, rpm: Int((minimum + maximum) / 2)), .init(celsius: 90, rpm: Int(maximum))]) { model.setFanPolicy(.curve(curve)) }
                     }.disabled(!model.canControlFans || (!model.isDemo && model.fanObservation?.sensorFresh != true))
-                    if model.isDemo { Button(L10n.text("Advance 60 seconds")) { model.advanceSimulation() } }
+                    if model.isDemo { StudioActionButton(L10n.text("Advance 60 seconds"), id: "action.advance-60-seconds") { model.advanceSimulation() } }
                 }
             }.padding(12)
         }

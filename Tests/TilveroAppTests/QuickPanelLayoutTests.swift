@@ -77,8 +77,7 @@ final class QuickPanelLayoutTests: XCTestCase {
         fixture.model.setDraft(80)
         fixture.model.applyDemoTarget()
         for _ in 0..<100 where fixture.model.isApplying { await Task.yield() }
-        try await Task.sleep(for: .milliseconds(30))
-        host.view.layoutSubtreeIfNeeded()
+        try await settle(host)
         XCTAssertGreaterThan(host.preferredContentSize.height, initialHeight,
                              "The existing host must expand for a pending target without replacing its editor.")
         XCTAssertFalse(reports.isEmpty, "The popover owner must receive a size change after content updates.")
@@ -86,6 +85,34 @@ final class QuickPanelLayoutTests: XCTestCase {
         XCTAssertLessThanOrEqual(host.preferredContentSize.height, 240)
         host.updateMaximumHeight(900)
         XCTAssertGreaterThan(host.preferredContentSize.height, 240)
+    }
+
+    func testScreenCapKeepsTheSelectedSleepPageInTheSameContentTree() async throws {
+        let fixture = try Fixture(isDemo: true)
+        defer { fixture.cleanUp() }
+        let host = QuickPanelHostingController(model: fixture.model, maximumHeight: 900, section: .awake)
+        let window = NSWindow(contentViewController: host)
+        defer { window.orderOut(nil) }
+        host.onSizeChange = { window.setContentSize($0) }
+        window.setContentSize(host.preferredContentSize)
+        try await Task.sleep(for: .milliseconds(50))
+        host.view.layoutSubtreeIfNeeded()
+        let tabs = try XCTUnwrap(descendants(of: host.view).compactMap { $0 as? NSSegmentedControl }.first { $0.segmentCount == 2 })
+        tabs.selectedSegment = 1
+        XCTAssertTrue(tabs.sendAction(tabs.action, to: tabs.target))
+        try await Task.sleep(for: .milliseconds(50))
+        host.view.layoutSubtreeIfNeeded()
+        XCTAssertEqual(tabs.selectedSegment, 1)
+
+        host.updateMaximumHeight(240)
+        try await Task.sleep(for: .milliseconds(50))
+        host.view.layoutSubtreeIfNeeded()
+        let cappedTabs = try XCTUnwrap(descendants(of: host.view).compactMap { $0 as? NSSegmentedControl }.first { $0.segmentCount == 2 })
+        XCTAssertTrue(cappedTabs === tabs, "Introducing scrolling must not replace the active Sleep editor or its local disclosure state.")
+        XCTAssertEqual(cappedTabs.selectedSegment, 1, "The viewport cap must preserve the selected Awake page.")
+        XCTAssertLessThanOrEqual(host.preferredContentSize.height, 240)
+        XCTAssertFalse(fixture.model.keepAwake.hasOwnedAssertion)
+        XCTAssertFalse(fixture.model.sleepTimer.isActive)
     }
 
     func testRussianChargeAndModesFitWidthWithoutUnboundedHeight() async throws {
@@ -110,6 +137,7 @@ final class QuickPanelLayoutTests: XCTestCase {
         let fixture = try Fixture(isDemo: true)
         defer { fixture.cleanUp() }
         await fixture.model.refresh()
+        fixture.model.setDraft(90)
         var openedDetails = false
         fixture.model.openDetails = { openedDetails = true }
         let host = QuickPanelHostingController(model: fixture.model, maximumHeight: 900)
@@ -124,13 +152,39 @@ final class QuickPanelLayoutTests: XCTestCase {
         XCTAssertEqual(segments.segmentCount, 4)
         segments.selectedSegment = 1
         _ = segments.sendAction(segments.action, to: segments.target)
-        try await Task.sleep(for: .milliseconds(30))
-        host.view.layoutSubtreeIfNeeded()
+        try await settle(host)
         XCTAssertNotEqual(host.preferredContentSize.height, oldHeight)
         XCTAssertNotNil(reported, "A tab change must resize the existing popover.")
-        XCTAssertTrue(descendants(of: host.view).compactMap { $0 as? NSSlider }.count > 0,
-                      "Charge controls belong to the selected quick-panel tab.")
+        let views = descendants(of: host.view)
+        // macOS 27 draws SwiftUI sliders in the host instead of creating an
+        // NSSlider descendant. Check the visible editor and shared draft contract;
+        // actual slider and Apply accessibility actions require the native Lab.
+        if #unavailable(macOS 27) {
+            XCTAssertFalse(views.compactMap { $0 as? NSSlider }.isEmpty,
+                           "Charge controls belong to the selected quick-panel tab.")
+        }
+        let percentage = try XCTUnwrap(views.compactMap { $0 as? NSTextField }.first {
+            $0.isEditable && $0.stringValue == fixture.model.draftText
+        }, "The selected Charge tab must contain its editable percentage field.")
+        XCTAssertEqual(percentage.stringValue, "90")
+        XCTAssertEqual(segments.selectedSegment, 1)
+        XCTAssertTrue(fixture.model.canEdit)
+        XCTAssertTrue(fixture.model.canApply)
+        XCTAssertEqual(fixture.model.sliderIndex, Double(try XCTUnwrap(fixture.model.acceptedTargets.firstIndex(of: 90))))
         XCTAssertFalse(openedDetails, "A segment switch must keep the owner in the quick panel.")
+    }
+
+    /// The page area changes height on a spring (about a third of a second); wait until the reported size is stable.
+    private func settle(_ host: QuickPanelHostingController) async throws {
+        var previous: CGFloat = -1, stable = 0
+        for _ in 0..<150 {
+            try await Task.sleep(for: .milliseconds(20))
+            host.view.layoutSubtreeIfNeeded()
+            let height = host.preferredContentSize.height
+            stable = abs(height - previous) < 0.01 ? stable + 1 : 0
+            previous = height
+            if stable >= 6 { return }
+        }
     }
 
     private func descendants(of view: NSView) -> [NSView] {

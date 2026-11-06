@@ -1,17 +1,21 @@
 import SwiftUI
 import Charts
+import Observation
 import PowerCore
+import PowerPersistence
 
 /// Daily overview follows the owner-selected centered-device composition.
 /// Technical metadata stays behind explicit info buttons, not in summary rails.
 @MainActor struct OverviewDashboard: View {
+    @Environment(\.studioPresentation) private var studioPresentation
     @ObservedObject var model: TilveroModel
+    @State private var liveMetrics = OverviewLiveMetrics()
     private var level: Int? { EnergyVisualSnapshot(model.snapshot).level }
     private var chargeReading: CatalogReading? { reading("011") }
     private func reading(_ id: String) -> CatalogReading? { model.snapshot.catalog.first { $0.id == id } }
 
     var body: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: studioPresentation.spacing(18)) {
             chargeHeader
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .center, spacing: 22) {
@@ -32,22 +36,36 @@ import PowerCore
             historyStrip
             HStack(alignment: .firstTextBaseline, spacing: 16) {
                 HStack(spacing: 7) {
-                    Image(systemName: "battery.100percent").foregroundStyle(.green).accessibilityHidden(true)
+                    Image(systemName: "battery.100percent").foregroundStyle(studioPresentation.accent).accessibilityHidden(true)
                     Text(L10n.text("macOS charge limit"))
-                    Text(limitText).monospacedDigit()
+                    StudioText(limitText, id: "overview.nativeLimit.value").monospacedDigit()
                 }.font(.system(size: 12))
                     .help(L10n.text("macOS manages this setting independently of Tilvero."))
                 Spacer(minLength: 8)
-                Button(L10n.text("Details")) { model.selectedSection = .battery }
+                StudioActionButton(L10n.text("Details"), id: "battery-summary.details") { model.selectedSection = .battery }
             }
+        }
+        .task { await refreshLiveMetrics() }
+    }
+
+    private func refreshLiveMetrics() async {
+        let clock = ContinuousClock()
+        while !Task.isCancelled {
+            let start = clock.now
+            let readings = await model.readOverviewMetrics()
+            guard !Task.isCancelled else { return }
+            liveMetrics.readings = readings ?? []
+            let next = start.advanced(by: .seconds(2))
+            // A slow read must not produce overlapping reads or a burst of catch-up samples.
+            let deadline = next > clock.now ? next : clock.now.advanced(by: .seconds(2))
+            do { try await clock.sleep(until: deadline) }
+            catch { return }
         }
     }
 
     private var leftRail: some View {
-        VStack(alignment: .leading, spacing: 26) {
-            OverviewDashboardMetric(reading: reading("054"), title: "Adapter input", fahrenheit: model.fahrenheit)
-            OverviewDashboardMetric(reading: reading("039"), title: "Temperature", fahrenheit: model.fahrenheit)
-        }
+        OverviewLiveMetricRail(live: liveMetrics, input: reading("054"), temperature: reading("039"),
+                               fahrenheit: model.fahrenheit)
     }
     private var rightRail: some View {
         VStack(alignment: .leading, spacing: 26) {
@@ -57,10 +75,10 @@ import PowerCore
     }
     private var chargeHeader: some View {
         VStack(spacing: 7) {
-            Text(model.chargeText).font(.system(size: 44, weight: .semibold, design: .rounded))
-                .monospacedDigit().foregroundStyle(level == nil || model.snapshot.chargePercent.freshness == .stale ? Color.secondary : Color.green)
+            StudioText(model.chargeText, id: "overview.charge.value").font(.system(size: 44, weight: .semibold, design: .rounded))
+                .monospacedDigit().foregroundStyle(level == nil || model.snapshot.chargePercent.freshness == .stale ? Color.secondary : studioPresentation.accent)
                 .contentTransition(.numericText())
-            Text(model.chargingStateText).font(.system(size: 12)).foregroundStyle(.secondary)
+            StudioText(model.chargingStateText, id: "overview.charge.status").font(.system(size: 12)).foregroundStyle(.secondary)
                 .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
             if model.snapshot.chargePercent.freshness == .stale {
                 Text(L10n.text("Stale")).font(.callout).foregroundStyle(.orange)
@@ -89,38 +107,27 @@ import PowerCore
         return "—"
     }
     private var historyStrip: some View {
-        let observations = model.history.filter { $0.collectedAt >= Date().addingTimeInterval(-86400) }
-        let points = HistoryChart.points(observations.map {
-            ChartObservation(id: $0.id, date: $0.collectedAt, value: $0.chargePercent, continuityID: $0.segmentID.uuidString)
+        let now = Date()
+        let window = now.addingTimeInterval(-86400)...now
+        let observations = model.history.filter { window.contains($0.collectedAt) }
+        let series = OverviewHistorySeries(observations.map {
+            ChartObservation(id: $0.id, date: $0.collectedAt,
+                             value: $0.isAggregate ? nil : $0.chargePercent,
+                             continuityID: $0.segmentID.uuidString)
         })
         return VStack(alignment: .leading, spacing: 9) {
             HStack {
-                Text(L10n.text("Charge over 24 hours")).font(.system(size: 13, weight: .semibold))
+                StudioText(L10n.text("Charge over 24 hours"), id: "overview.history.title").font(.system(size: 13, weight: .semibold))
                 Spacer()
                 Button { model.selectedSection = .history } label: {
                     Label(L10n.text("Open history"), systemImage: "chevron.right")
                 }.buttonStyle(.borderless).font(.system(size: 12))
             }
-            if points.isEmpty {
+            if series.points.isEmpty {
                 Text(L10n.text(model.isDemo ? "Simulation data is never stored in live history." : "No recorded measurements yet"))
                     .font(.callout).foregroundStyle(.secondary).padding(.vertical, 14)
             } else {
-                Chart(points) { point in
-                    LineMark(x: .value("Time", point.date), y: .value("Charge", point.value), series: .value("Segment", point.series))
-                        .foregroundStyle(Color.green).interpolationMethod(.linear)
-                }
-                .chartYScale(domain: 0...100)
-                .chartYAxis {
-                    AxisMarks(values: [0, 100]) { value in
-                        AxisGridLine().foregroundStyle(.primary.opacity(0.05))
-                        AxisValueLabel { if let value = value.as(Int.self) { Text("\(value)%").font(.system(size: 12)) } }
-                    }
-                }
-                .chartXAxis {
-                    AxisMarks(values: .automatic(desiredCount: 4)) { _ in AxisValueLabel(format: .dateTime.hour().minute()) }
-                }
-                .frame(height: 66)
-                .accessibilityLabel(L10n.text("Recorded charge over the last 24 hours. Missing observations remain gaps."))
+                OverviewHistoryPlot(series: series, window: window)
             }
         }
     }
@@ -130,6 +137,13 @@ import PowerCore
     let reading: CatalogReading?
     let title: String
     let fahrenheit: Bool
+
+    private func qualifications(for reading: CatalogReading) -> [String] {
+        CatalogDataPresentation.qualifications(reading).filter {
+            reading.id != "027" || $0 != L10n.text("Stale")
+        }
+    }
+
     private var value: String {
         guard let reading else { return "—" }
         if reading.id == "027", reading.availability == .available || reading.freshness == .stale,
@@ -138,20 +152,133 @@ import PowerCore
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            Text(value).font(.system(size: 28, weight: .medium, design: .rounded)).monospacedDigit()
+            StudioText(value, id: "overview.metric." + (reading?.id ?? studioSemanticID(title)) + ".value").font(.system(size: 28, weight: .medium, design: .rounded)).monospacedDigit()
                 .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
             HStack(alignment: .firstTextBaseline, spacing: 3) {
-                Text(L10n.text(title)).font(.system(size: 12)).foregroundStyle(.secondary)
+                StudioText(L10n.text(title), id: "overview.metric." + (reading?.id ?? studioSemanticID(title)) + ".title").font(.system(size: 12)).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 if let reading { ReadingInfoButton(reading: reading, fahrenheit: fahrenheit) }
             }
             if let reading {
-                ForEach(CatalogDataPresentation.qualifications(reading), id: \.self) { qualification in
+                ForEach(qualifications(for: reading), id: \.self) { qualification in
                     Text(qualification).font(.system(size: 11))
                         .foregroundStyle(qualification == L10n.text("Stale") ? Color.orange : Color.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }.frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+@MainActor private struct OverviewHistoryPlot: View {
+    @Environment(\.studioPresentation) private var studioPresentation
+    let series: OverviewHistorySeries
+    let window: ClosedRange<Date>
+    private let observedStroke = StrokeStyle(lineWidth: 2.4, lineCap: .round, lineJoin: .round)
+    private let gapStroke = StrokeStyle(lineWidth: 1.2, lineCap: .round, dash: [4, 4])
+    private let gapColor = Color.secondary
+
+    var body: some View {
+        let isolatedIDs = Set(series.isolatedPoints.map(\.id))
+        VStack(alignment: .leading, spacing: 5) {
+            Chart(series.points) { point in
+                if isolatedIDs.contains(point.id) {
+                    PointMark(x: .value("Time", point.date), y: .value("Charge", point.value))
+                        .foregroundStyle(studioPresentation.accent).symbolSize(15)
+                } else {
+                    LineMark(x: .value("Time", point.date), y: .value("Charge", point.value),
+                             series: .value("Segment", point.series))
+                        .foregroundStyle(studioPresentation.accent).lineStyle(observedStroke)
+                        .interpolationMethod(.linear)
+                }
+            }
+            .chartXScale(domain: window)
+            .chartYScale(domain: 0...100)
+            .chartYAxis {
+                AxisMarks(values: [0, 50, 100]) { value in
+                    AxisGridLine().foregroundStyle(.primary.opacity(0.06))
+                    if let percent = value.as(Int.self), percent != 50 {
+                        AxisValueLabel { Text("\(percent)%").font(.system(size: 11)) }
+                    }
+                }
+            }
+            .chartXAxis {
+                AxisMarks(values: [6.0, 12.0, 18.0].map { window.lowerBound.addingTimeInterval($0 * 3600) }) { _ in
+                    AxisValueLabel(format: .dateTime.hour().minute().locale(L10n.locale))
+                }
+            }
+            .chartBackground { proxy in
+                if !series.gaps.isEmpty {
+                    GeometryReader { geometry in
+                        if let frame = proxy.plotFrame {
+                            let plot = geometry[frame]
+                            Canvas { context, _ in
+                                var connectors = Path()
+                                for gap in series.gaps {
+                                    guard let start = proxy.position(for: (x: gap.start.date, y: gap.start.value)),
+                                          let end = proxy.position(for: (x: gap.end.date, y: gap.end.value)) else { continue }
+                                    connectors.move(to: start)
+                                    connectors.addLine(to: end)
+                                }
+                                context.stroke(connectors, with: .color(gapColor), style: gapStroke)
+                            }
+                            .frame(width: plot.width, height: plot.height)
+                            .position(x: plot.midX, y: plot.midY)
+                        }
+                    }
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                }
+            }
+            .frame(height: 70)
+            .accessibilityLabel(L10n.text("Charge over 24 hours"))
+            .accessibilityHint(series.gaps.isEmpty ? "" : L10n.text("Dashed lines mark intervals without recorded measurements."))
+
+            HStack(spacing: 14) {
+                legendItem("Recorded measurements", color: studioPresentation.accent, stroke: observedStroke)
+                legendItem("No measurements", color: gapColor, stroke: gapStroke)
+            }
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .accessibilityHidden(true)
+        }
+    }
+
+    private func legendItem(_ key: String, color: Color, stroke: StrokeStyle) -> some View {
+        HStack(spacing: 5) {
+            Path { path in
+                path.move(to: CGPoint(x: 1, y: 3))
+                path.addLine(to: CGPoint(x: 17, y: 3))
+            }
+            .stroke(color, style: stroke)
+            .frame(width: 18, height: 6)
+            Text(L10n.text(key))
+        }
+    }
+}
+
+
+/// Only the two metric views observe these faster samples.
+@MainActor @Observable private final class OverviewLiveMetrics {
+    var readings: [CatalogReading] = []
+}
+
+@MainActor private struct OverviewLiveMetricRail: View {
+    let live: OverviewLiveMetrics
+    let input: CatalogReading?
+    let temperature: CatalogReading?
+    let fahrenheit: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 26) {
+            OverviewDashboardMetric(reading: newest("054", fallback: input), title: "Adapter input", fahrenheit: fahrenheit)
+            OverviewDashboardMetric(reading: newest("039", fallback: temperature), title: "Temperature", fahrenheit: fahrenheit)
+        }
+    }
+
+    private func newest(_ id: String, fallback: CatalogReading?) -> CatalogReading? {
+        guard let sample = live.readings.first(where: { $0.id == id }),
+              fallback.map({ $0.collectedAt <= sample.collectedAt }) ?? true else { return fallback }
+        return sample
     }
 }

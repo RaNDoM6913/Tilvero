@@ -58,20 +58,30 @@ enum NativeStatusPresentation {
     }
 }
 
-/// Normal mode uses public native SF Symbol layers with continuous fill. The inside
-/// mode is deliberately custom and iOS-inspired. Template alpha, including text
+/// macOS 27 uses the public native filled silhouette with continuous measured
+/// fill. macOS 26 retains its original outline and iOS-inspired inside mode.
+/// Template alpha, including text
 /// cutouts, lets the status bar adapt both modes to its actual appearance. Only a
 /// confirmed own Keep Awake session uses blue, with a separate monochrome cup.
 @MainActor
 enum NativeBatteryStatusImage {
     static func make(level: Int?, style: MenuBarDisplayStyle, externalPower: Bool, scale: CGFloat = 1, textSize: MenuBarTextSize = .larger,
-                     awake: KeepAwakeStatusIndicator = .off, highlighted: Bool = false) -> NSImage {
+                     awake: KeepAwakeStatusIndicator = .off, highlighted: Bool = false, appearance: MenuBarBatteryAppearance = .macOS26,
+                     redWhenLow: Bool = false, awakeColor: NSColor = .systemBlue) -> NSImage {
         let inside = style == .inside
-        let batteryWidth: CGFloat = inside ? 35 : 29
-        let canvas = NSSize(width: batteryWidth + (awake == .off ? 0 : 10), height: 18)
+        let validLevel = ReadingPresentation.validLevel(level)
+        let modernExtension = appearance == .macOS27 && inside ? modernBodyExtension(textSize: textSize) : 0
+        let batteryWidth: CGFloat = appearance == .macOS27 ? 29 + CGFloat(modernExtension) : inside ? 35 : 27
+        // macOS 27 body: a confirmed Keep Awake session turns only the measured fill blue; no badge, the plain canvas.
+        // The macOS 26 outline keeps its cup badge and whole-icon blue.
+        let tintedAwake = awake == .active && appearance == .macOS27
+        let canvas = NSSize(width: batteryWidth + (awake == .off || tintedAwake ? 0 : 10), height: 18)
         let factor = CGFloat(MenuBarSizing.validatedIconScale(Double(scale)))
         let size = NSSize(width: canvas.width * factor, height: canvas.height * factor)
-        let level = ReadingPresentation.validLevel(level)
+        let level = validLevel
+        // Like the system indicator: a red fill at 20 % or less while running on battery. Only the modern (macOS 27)
+        // body is composed this way; the pressed state keeps the plain template.
+        let lowFill = redWhenLow && appearance == .macOS27 && !externalPower && (level.map { $0 <= lowChargeThreshold } ?? false)
         let image = NSImage(size: size, flipped: false) { rect in
             NSGraphicsContext.saveGraphicsState()
             defer { NSGraphicsContext.restoreGraphicsState() }
@@ -79,21 +89,39 @@ enum NativeBatteryStatusImage {
             transform.translateX(by: rect.minX, yBy: rect.minY)
             transform.scaleX(by: rect.width / canvas.width, yBy: rect.height / canvas.height)
             transform.concat()
-            if inside {
+            var redRegion: NSRect?
+            if appearance == .macOS27 {
+                redRegion = drawModern(level: level, style: style, externalPower: externalPower, textSize: textSize, bodyExtension: modernExtension)
+            } else if inside {
                 drawInside(level: level, externalPower: externalPower, textSize: textSize)
             } else {
                 drawNormal(level: level, externalPower: externalPower)
             }
-            if awake != .off { drawAwakeBadge(awake, x: batteryWidth + 1) }
-            if awake == .active && !highlighted {
+            if awake != .off && !tintedAwake { drawAwakeBadge(awake, x: batteryWidth + 1) }
+            if tintedAwake {
+                (isDarkInk ? NSColor.white : NSColor.black).setFill()
+                NSRect(origin: .zero, size: canvas).fill(using: .sourceIn)
+                if let region = redRegion { awakeColor.setFill(); region.fill(using: .sourceAtop) }
+            } else if awake == .active && !tintedAwake && !highlighted {
                 // Tint the existing alpha mask; measured fill and numeral/bolt
                 // cutouts remain identical to the native template presentation.
                 NSColor.systemBlue.setFill()
                 NSRect(origin: .zero, size: canvas).fill(using: .sourceIn)
+            } else if lowFill {
+                // Not a template: resolve the ink here, in the status button's appearance.
+                (isDarkInk ? NSColor.white : NSColor.black).setFill()
+                NSRect(origin: .zero, size: canvas).fill(using: .sourceIn)
+            }
+            if lowFill, let region = redRegion {
+                // sourceAtop keeps the numeral cutouts and the antialiased silhouette of the fill.
+                NSColor.systemRed.setFill()
+                region.fill(using: .sourceAtop)
             }
             return true
         }
-        image.isTemplate = awake != .active || highlighted
+        // The fill colours stay while the menu is open (pressed): the quick menu is where the user starts these modes.
+        image.isTemplate = (awake != .active && !lowFill) || (highlighted && !tintedAwake && !lowFill)
+        if tintedAwake { image.isTemplate = false }
         return image
     }
 
@@ -124,17 +152,109 @@ enum NativeBatteryStatusImage {
     }
 
     private static func drawNormal(level: Int?, externalPower: Bool) {
+        // Runtime SF Symbols change with the OS. This original vector preserves
+        // the owner's macOS 26 appearance even while running macOS 27.
+        drawFallbackNormal(level: level, externalPower: externalPower)
+    }
+
+    private static func modernFont(_ size: MenuBarTextSize, compactFullCharge: Bool = false) -> NSFont {
+        // The native 100 reference fits smaller public system numerals into the
+        // same body. Preserve the measured 0...99 typography independently.
+        let pointSize: CGFloat = compactFullCharge ? (size == .system ? 9.25 : 10.25) : (size == .system ? 10 : 11)
+        return NSFont.systemFont(ofSize: pointSize, weight: .medium)
+    }
+
+    private static let modernTwoDigitCapacity: [MenuBarTextSize: CGFloat] =
+        Dictionary(uniqueKeysWithValues: MenuBarTextSize.allCases.map { size in
+            let font = modernFont(size)
+            let capacity = (0...99).reduce(CGFloat.zero) { width, value in
+                max(width, (String(value) as NSString).size(withAttributes: [.font: font]).width)
+            }
+            return (size, capacity)
+        })
+
+    private static func modernBodyExtension(textSize: MenuBarTextSize) -> Int {
+        // Only the explicit larger-text option reserves additional space. Full
+        // charge keeps the same native body as every other measured reading.
+        max(0, Int(ceil(modernTwoDigitCapacity[textSize]! - modernTwoDigitCapacity[.system]!)))
+    }
+
+    private static var modernContactOpacity: CGFloat {
+        // The owner's dark- and light-ink references have different secondary
+        // contact coverage. Resolve it at draw time, like the numeral cutouts.
+        isDarkInk ? 0.55 : 0.8
+    }
+
+    private static var isDarkInk: Bool { NSAppearance.currentDrawing().bestMatch(from: [.aqua, .darkAqua]) == .darkAqua }
+
+    /// White ink on a dark menu bar: the native unfilled track is about half as bright as the fill and the
+    /// numeral/bolt are cut clean through both, so they read dark on the fill and on the track alike.
+    private static var modernTrackOpacity: CGFloat { isDarkInk ? 0.5 : 0.2 }
+    private static var modernCutoutOperation: NSCompositingOperation { isDarkInk ? .destinationOut : .xor }
+
+    private static var modernCutoutOpacity: CGFloat {
+        // The supplied dark-ink reference uses secondary numeral/cue coverage;
+        // white ink retains clear cutouts. Read the active drawing context so
+        // the same cached status image can adapt without a global theme change.
+        NSAppearance.currentDrawing().bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? 1 : 0.75
+    }
+
+    /// Charge at or below which the fill turns red on battery power (the system indicator does the same).
+    static let lowChargeThreshold = 20
+
+    /// Returns the rectangle of the measured fill (canvas coordinates) when the native symbol was used.
+    @discardableResult
+    private static func drawModern(level: Int?, style: MenuBarDisplayStyle, externalPower: Bool, textSize: MenuBarTextSize, bodyExtension: Int) -> NSRect? {
+        var fillRegion: NSRect?
+        let extra = CGFloat(bodyExtension)
+        let compactFullCharge = style == .inside && level == 100
         let density = max(1, min(8, Int((NSGraphicsContext.current?.cgContext.ctm.a ?? 2).magnitude.rounded())))
-        if let native = SystemBatterySymbol.make(level: level ?? 0, adapter: externalPower, density: density) {
+        if let native = SystemBatterySymbol.makeFilled(level: level, density: density, contactOpacity: modernContactOpacity, trackOpacity: modernTrackOpacity, bodyExtension: bodyExtension, contactInset: 0.5) {
             let offset = floor(1.5 * CGFloat(density)) / CGFloat(density)
             native.draw(at: NSPoint(x: -offset, y: -3), from: .zero, operation: .sourceOver, fraction: 1)
-            if level == nil {
-                drawText("—", centeredAt: NSPoint(x: externalPower ? 7 : 12.5, y: 9), size: 8, operation: .sourceOver)
-            }
-            return
+            fillRegion = NSRect(x: -offset, y: 0, width: SystemBatterySymbol.lastFillEdge, height: 18)
+        } else {
+            let body = NSRect(x: 1, y: 3, width: 23 + extra, height: 12)
+            NSColor.black.withAlphaComponent(0.2).setFill()
+            NSBezierPath(roundedRect: body, xRadius: 3.5, yRadius: 3.5).fill()
+            drawFill(level: level, in: body, radius: 3.5)
+            NSColor.black.withAlphaComponent(modernContactOpacity).setFill()
+            NSBezierPath(roundedRect: NSRect(x: 25 + extra, y: 7, width: 1.5, height: 4), xRadius: 0.75, yRadius: 0.75).fill()
         }
-        // A future symbol-topology change must retain truthful measured fill.
-        drawFallbackNormal(level: level, externalPower: externalPower)
+        if style == .inside {
+            drawModernText(level.map(String.init) ?? "—", centeredAt: NSPoint(x: (externalPower ? (compactFullCharge ? 10.5 : 10) : 12.5) + extra / 2, y: 9),
+                           font: modernFont(textSize, compactFullCharge: compactFullCharge))
+        } else if level == nil {
+            drawModernText("—", centeredAt: NSPoint(x: externalPower ? 10 : 12.5, y: 9), font: modernFont(textSize))
+        }
+        if externalPower {
+            guard let marker = NSImage(systemSymbolName: "bolt.fill", accessibilityDescription: nil)?
+                .withSymbolConfiguration(.init(pointSize: compactFullCharge ? 6 : 7.5, weight: .regular)) else { return fillRegion }
+            let centreX: CGFloat = style == .inside || level == nil ? (compactFullCharge ? 21 : 19.5) + extra : 12.5
+            let centreY: CGFloat = compactFullCharge ? 9 : 9.25
+            marker.draw(at: NSPoint(x: centreX - marker.size.width / 2, y: centreY - marker.size.height / 2),
+                        from: .zero, operation: modernCutoutOperation, fraction: modernCutoutOpacity)
+        }
+        return fillRegion
+    }
+
+    private static func drawModernText(_ value: String, centeredAt point: NSPoint, font: NSFont) {
+        let string = value as NSString
+        var attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.black]
+        var dimensions = string.size(withAttributes: attributes)
+        if value == "100" {
+            // Match the native compact numeral spacing without distorting glyphs.
+            // Center by the two inter-digit gaps, excluding NSString's trailing kern.
+            let tracking = -0.5 * font.pointSize / 9.25
+            attributes[.kern] = tracking
+            dimensions.width += 2 * tracking
+        }
+        let image = NSImage(size: dimensions, flipped: false) { _ in
+            string.draw(at: .zero, withAttributes: attributes)
+            return true
+        }
+        image.draw(at: NSPoint(x: point.x - dimensions.width / 2, y: point.y - dimensions.height / 2),
+                   from: .zero, operation: modernCutoutOperation, fraction: modernCutoutOpacity)
     }
 
     private static func drawFallbackNormal(level: Int?, externalPower: Bool) {
@@ -200,11 +320,11 @@ enum NativeBatteryStatusImage {
         NSGraphicsContext.restoreGraphicsState()
     }
 
-    private static func drawText(_ text: String, centeredAt point: NSPoint, size: CGFloat, operation: NSCompositingOperation) {
+    private static func drawText(_ text: String, centeredAt point: NSPoint, size: CGFloat, operation: NSCompositingOperation, rounded: Bool = true) {
         let baseFont = NSFont.systemFont(ofSize: size, weight: .bold, width: .condensed)
         // Selecting the rounded design resets weight on some macOS releases.
         // Reapply traits so small status-bar digits retain their strong stems.
-        let descriptor = baseFont.fontDescriptor.withDesign(.rounded)?.withSymbolicTraits([.bold, .condensed])
+        let descriptor = rounded ? baseFont.fontDescriptor.withDesign(.rounded)?.withSymbolicTraits([.bold, .condensed]) : nil
         let font = descriptor.flatMap { NSFont(descriptor: $0, size: size) } ?? baseFont
         let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.black]
         let string = text as NSString

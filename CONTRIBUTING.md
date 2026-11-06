@@ -14,6 +14,53 @@ open build/Tilvero.app
 
 The scripts select Xcode per process when available. The alternative native project build is `bash scripts/build-xcode.sh`; run only one app bundle at a time. See the [README](README.md) for diagnostics and explicit demo mode.
 
+## Branch and review workflow
+
+`main` is the accepted integration baseline. Use a focused `codex/<topic>` branch
+for a coherent feature, fix or milestone. Reuse that branch for related refinements
+and review fixes; a new chat, worker or test run does not need a new branch.
+
+Normally keep one active work branch. A second is useful for an independent
+parallel objective; use separate worktrees when writers would otherwise interfere.
+Avoid permanent `develop`, staging or release branches unless maintaining an
+additional supported version requires one. Small documentation and workflow
+housekeeping can use a separate commit on the current work branch.
+
+Use ignored `/local-lab/` for isolated component demos, screenshots, experimental
+pages and preview builds. A component workbench is useful for design decisions;
+an integration worktree is useful when the chosen change needs the complete app.
+Keep demo data and bundle identity isolated from production. Transfer selected
+changes onto the feature branch for normal verification and review; a demo is
+not release acceptance. Commit coherent changes regularly and push the focused
+branch when authorized and useful for backup or review.
+
+Keep only one discoverable lab app; use `.staging.noindex` for candidates and
+verified archives for retired bundles. See [project layout](docs/PROJECT_LAYOUT.md)
+for directory ownership and cleanup boundaries.
+
+The normal delivery path is **focused branch → pull request → checks and review →
+accepted integration into `main` → branch cleanup**:
+
+- Keep one PR per coherent objective. Describe the user-visible result, verification
+  and remaining limits using the PR template. Do not mix unrelated product work.
+- Run focused checks while developing, then the required complete suite and app
+  builds on the stable behavioral changeset. Reuse unchanged evidence; rerun when
+  relevant changes or failures require it. Documentation-only changes need content
+  and link checks.
+- Meaningful behavioral changes need an independent review of the complete changed
+  scope. Control/authority/recovery boundaries need early focused review as well.
+  Complete the agreed native/device acceptance; a local install or fixture pass
+  does not by itself make a feature ready to merge.
+- Prefer a normal PR merge that preserves the feature's commit history. Continue
+  corrections on the same branch; avoid force-pushing published work.
+- Once integration is verified, remove inactive fully merged feature branches with
+  safe deletion and remove unused worktrees. Preserve attached branches, unique
+  commits and explicitly retained archives. Never use forced deletion as cleanup.
+
+These are contribution rules, not a claim that GitHub branch protection or required
+CI checks are configured. Remote publication and integration still require the
+repository owner's authorization. Never push all local branches or private archives.
+
 ## Find the right boundary
 
 | Path | Responsibility |

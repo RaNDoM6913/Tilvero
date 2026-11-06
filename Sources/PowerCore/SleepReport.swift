@@ -26,7 +26,7 @@ public struct SleepBatteryEndpoint: Codable, Sendable, Equatable {
     public init?(snapshot: BatterySnapshot, stamp: SleepObservationStamp) {
         guard !snapshot.isDemo, stamp.isValid,
               let reading = snapshot.catalog.first(where: { $0.id == "011" }),
-              reading.availability == .available, reading.freshness == .fresh,
+              reading.isCurrentObservation(at: stamp.wallDate),
               let percent = reading.value?.doubleValue, percent.isFinite, (0...100).contains(percent),
               reading.monotonicAgeSeconds.map({ $0 <= 60 && $0 >= 0 && $0.isFinite }) ?? true else { return nil }
         let age = stamp.wallDate.timeIntervalSince(reading.collectedAt)
@@ -34,8 +34,8 @@ public struct SleepBatteryEndpoint: Codable, Sendable, Equatable {
               reading.sourceSampleAt.map({ $0.timeIntervalSince(reading.collectedAt) <= 1 && $0.timeIntervalSince1970.isFinite
                   && stamp.wallDate.timeIntervalSince($0) <= 60 }) ?? true else { return nil }
         func boolean(_ id: String) -> Bool? {
-            guard let field = snapshot.catalog.first(where: { $0.id == id }), field.availability == .available,
-                  field.freshness == .fresh, abs(field.collectedAt.timeIntervalSince(reading.collectedAt)) <= 60,
+            guard let field = snapshot.catalog.first(where: { $0.id == id }), field.isCurrentObservation(at: stamp.wallDate),
+                  abs(field.collectedAt.timeIntervalSince(reading.collectedAt)) <= 60,
                   case .boolean(let value)? = field.value else { return nil }
             return value
         }
@@ -153,7 +153,10 @@ public struct SleepSessionTracker: Sendable {
     public private(set) var pending: SleepSessionRecord?
     private var wakeEpoch: UInt64?
     private var lastWasWake = false
-    public init() {}
+    /// IOPowerSources gives no sample time, so a read taken immediately after wake may still be the
+    /// pre-sleep value. Such readings are ignored until this many seconds after wake; the next poll closes the record.
+    public let postWakeSettleSeconds: Double
+    public init(postWakeSettleSeconds: Double = 5) { self.postWakeSettleSeconds = min(max(0, postWakeSettleSeconds), 30) }
     public mutating func accept(_ event: SleepObservationEvent) -> [SleepSessionRecord] {
         switch event {
         case .willSleep(let stamp, let endpoint):
@@ -194,6 +197,7 @@ public struct SleepSessionTracker: Sendable {
             let wallDelay = endpoint.collectedAt.timeIntervalSince(wake.wallDate)
             guard elapsed >= 0, measurementDelay >= 0, measurementDelay <= 60,
                   wallDelay >= -1, wallDelay <= 60 else { return [] }
+            if endpoint.source == "IOPowerSources", endpoint.sourceSampleAt == nil, measurementDelay < postWakeSettleSeconds { return [] }
             var flags = current.issues
             if abs(wallDelay - measurementDelay) > 5 { flags.append(.clockChanged) }
             if let before = current.before {

@@ -4,6 +4,7 @@ import PowerCore
 /// Observations only. Fan policy controls retain their existing admission gate outside this view.
 @MainActor
 struct CoolingPanel: View {
+    @Environment(\.studioPresentation) private var studioPresentation
     @ObservedObject var model: TilveroModel
     let showUnavailable: Bool
 
@@ -18,9 +19,9 @@ struct CoolingPanel: View {
         VStack(alignment: .leading, spacing: 22) {
             VStack(spacing: 9) {
                 Image(systemName: model.fanless ? "leaf.fill" : "fan")
-                    .font(.system(size: 29, weight: .light)).foregroundStyle(.green)
+                    .font(.system(size: 29, weight: .light)).foregroundStyle(studioPresentation.accent)
                     .accessibilityHidden(true)
-                Text(L10n.text(model.fanless ? "Fanless cooling" : "System cooling"))
+                StudioText(L10n.text(model.fanless ? "Fanless cooling" : "System cooling"), id: "cooling.heading")
                     .font(.title2.weight(.medium)).multilineTextAlignment(.center)
                 Text(L10n.text(model.fanless
                                ? "This MacBook Air has no fans. macOS manages cooling automatically."
@@ -70,11 +71,11 @@ struct CoolingPanel: View {
         let observation = reading(id)
         let value = observation.map { CatalogDataPresentation.value($0, reveal: false, fahrenheit: model.fahrenheit) } ?? "—"
         return VStack(alignment: .leading, spacing: 7) {
-            Text(value)
+            StudioText(value, id: "cooling.metric." + id + ".value")
                 .font(.system(size: value.rangeOfCharacter(from: .decimalDigits) == nil ? 22 : 28, weight: .medium, design: .rounded))
                 .monospacedDigit().textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
             HStack(alignment: .firstTextBaseline, spacing: 3) {
-                Text(L10n.text(title)).font(.system(size: 12)).foregroundStyle(.secondary)
+                StudioText(L10n.text(title), id: "cooling.metric." + id + ".title").font(.system(size: 12)).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 if let observation { ReadingInfoButton(reading: observation, fahrenheit: model.fahrenheit) }
             }

@@ -9,36 +9,71 @@ import ChargeBackends
         let state = model.nativeCharge.presentation()
         VStack(alignment: .leading, spacing: compact ? 7 : 9) {
             if let preference = state.currentPreference {
-                Text(L10n.text("Native macOS setting") + ": " + configurationText(preference))
-                    .font(compact ? .subheadline : .caption).monospacedDigit()
+                HStack(spacing: 8) {
+                    StudioText(L10n.text("Native macOS setting") + ": " + configurationText(preference), id: "native.setting")
+                        .font(compact ? .subheadline : .caption).monospacedDigit()
+                    if compact {
+                        Spacer(minLength: 0)
+                        // A refresh of a known setting belongs to this row. Keep
+                        // its slot stable while the native read comes and goes.
+                        ZStack {
+                            if state.pendingPurpose == .read {
+                                ProgressView().controlSize(.mini)
+                                    .accessibilityLabel(L10n.text("Reading the native charge policy…"))
+                            }
+                        }.frame(width: 12, height: 12)
+                    }
+                }
+            } else if let target = model.nativeCharge.currentReportedTarget {
+                StudioText(L10n.text("Current target reported by macOS") + ": \(target)%", id: "native.reportedTarget")
+                    .font(.subheadline).monospacedDigit()
+            }
+            if let stored = model.nativeCharge.diagnosticStoredTarget {
+                StudioText(L10n.text("Saved target reported by macOS") + ": \(stored)%", id: "native.diagnosticStoredTarget")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .help(L10n.text("This diagnostic value is not a confirmed active limit; its source freshness is unknown."))
+                Text(L10n.text("The return time is unavailable here. Check the charging mode in macOS settings."))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button(L10n.text("Charging settings in macOS…")) { model.openBatterySettings() }
             }
             if let status = statusText(state) {
-                Text(L10n.text(status)).font(.caption)
+                StudioText(L10n.text(status), id: "native.status").font(.caption)
                     .foregroundStyle(state.requiresGlobalAttention ? .orange : .secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             if let target = state.pendingTarget ?? state.restorationTarget {
-                Text(L10n.text(state.pendingTarget == nil ? "Restoration pending" : "Pending charging target")
-                     + " · " + L10n.text("Waiting for discharge below") + " \(target)%")
+                StudioText(L10n.text(state.pendingTarget == nil ? "Restoration pending" : "Pending charging target")
+                     + " · " + L10n.text("Waiting for discharge below") + " \(target)%", id: "native.pending")
                     .font(.caption).foregroundStyle(.secondary)
                     .help(L10n.text("Lower targets wait for natural discharge."))
             }
             if compact {
-                Text(model.chargingStateText).font(.caption).foregroundStyle(.secondary)
+                StudioText(model.chargingStateText, id: "native.chargingState").font(.caption).foregroundStyle(.secondary)
             }
             HStack(spacing: 10) {
-                Button(L10n.text("Refresh")) { Task { await model.refreshNativeCharge() } }
+                StudioActionButton(L10n.text("Refresh"), id: "action.refresh") { Task { await model.refreshNativeCharge() } }
                     .disabled(actionsBlocked)
                 if !model.nativeCharge.admitted && !model.nativeCharge.recoveryRequired {
-                    Button(L10n.text("Validate native control…")) { model.qualifyNativeCharge() }
-                        .disabled(actionsBlocked)
-                        .help(L10n.text("Native control needs one local setting-and-restoration check."))
+                    StudioActionButton(L10n.text("Validate 80–100%…"), id: "action.validate-native-control") { model.qualifyNativeCharge() }
+                        .disabled(actionsBlocked || !model.nativeCharge.canRequestQualification)
+                        .help(L10n.text("Validation writes 80%, 85%, 95% and 100% in turn and restores your setting, after a confirmed persistent baseline and a battery level below 80%."))
                 }
+            }
+            if model.nativeCharge.interfaceWasDiscovered && !model.nativeCharge.admitted {
+                Text(L10n.text("Native control must be validated on this macOS version before Apply is available."))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if model.nativeCharge.admitted && model.nativeCharge.authorizedPersistentTargets == NativeChargeAdmission.persistentTargets {
+                Text(L10n.text("Verified persistent limits: 80%, 85%, 90%, 95% and 100%. Other targets and one-time full charging need separate validation."))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             // Recovery is an explicit existing action, never a consequence of
             // merely displaying a readable preference or this status panel.
             if !compact && (state.hasOwnership || model.nativeCharge.recoveryRequired || model.nativeCharge.restorationPending) {
-                Button(L10n.text("Restore previous macOS limit")) { model.releaseControl() }
+                StudioActionButton(L10n.text("Restore previous macOS limit"), id: "action.restore-previous-macos-limit") { model.releaseControl() }
                     .disabled(actionsBlocked)
             }
             if !compact {
@@ -66,7 +101,7 @@ import ChargeBackends
                 }
                 .font(.caption).foregroundStyle(.secondary)
             }
-        }
+        }.studioElement("native.statusPanel", kind: "container", label: "Native charging status")
     }
     private var actionsBlocked: Bool {
         model.isApplying || model.nativeCharge.isBusy || model.nativeCharge.isQualifying
@@ -75,20 +110,41 @@ import ChargeBackends
     private func configurationText(_ configuration: NativeChargeConfiguration) -> String {
         configuration.enabled ? "\(configuration.target)%" : L10n.text("System managed")
     }
-    private func statusText(_ state: NativeChargePresentation) -> String? {
+    func statusText(_ state: NativeChargePresentation) -> String? {
         switch state.attention {
         case .sessionReview: "Saved charging session needs review."
         case .mutationUnresolved: "A dispatched native setting still has an unconfirmed outcome."
         case .journalIntegrity: "The native session journal needs review before further changes."
         case .operationPending:
-            state.pendingPurpose == .read ? "Reading the native charge policy…" : "Waiting for the native charging operation…"
+            if state.pendingPurpose == .read {
+                if compact && !model.nativeCharge.isBusy && !model.nativeCharge.isQualifying,
+                   let message = model.nativeCharge.message {
+                    message
+                } else if compact && !model.nativeCharge.isQualifying, let partialPolicyWarning {
+                    // The same reported target and diagnostic context remain visible
+                    // while a read is pending. Keep their policy warning in place.
+                    partialPolicyWarning
+                } else {
+                    compact && state.currentPreference != nil ? nil : "Reading the native charge policy…"
+                }
+            } else {
+                "Waiting for the native charging operation…"
+            }
         case .restorationPending:
             state.restorationTarget == nil ? "Restoring the previous setting is waiting for natural discharge." : nil
         case .lowerTargetPending:
             state.pendingTarget == nil ? "The lower target is waiting for natural discharge." : nil
-        case .policyUnconfirmed: "Active charge policy is unconfirmed"
+        case .policyUnconfirmed:
+            partialPolicyWarning ?? (model.nativeCharge.nativeSetting == nil
+                ? model.nativeCharge.message ?? "Active charge policy is unconfirmed"
+                : "Active charge policy is unconfirmed")
         case .none: nil
         }
+    }
+    private var partialPolicyWarning: String? {
+        guard model.nativeCharge.incompleteObservation != nil,
+              model.nativeCharge.currentReportedTarget != nil else { return nil }
+        return "The current target is readable. Safe control and restoration are not yet confirmed for this charging mode."
     }
     private func explanationText(_ state: NativeChargePresentation) -> String? {
         switch state.attention {

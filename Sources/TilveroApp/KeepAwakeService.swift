@@ -141,6 +141,13 @@ struct KeepAwakeAssertion: Sendable, Equatable {
     private let sleeper: @Sendable (Duration) async throws -> Void
     private let wallNow: () -> Date
     private let continuousNow: () -> ContinuousClock.Instant
+    private var appliedPresetDurationSeconds: Int?
+    /// The confirmed preset's origin survives extension, independently of drafts.
+    var appliedPillDurationSeconds: Int? { isActive && expiry == .duration ? appliedPresetDurationSeconds : nil }
+    /// The independently confirmed timeout, rather than a pending duration draft.
+    var activeDurationSeconds: Int? {
+        isActive && expiry == .duration ? expectedTimeoutSeconds : nil
+    }
     var isAvailable: Bool { allowed }
     var hasOwnedAssertion: Bool { ownedAssertionID != nil }
     var remainingSeconds: Int {
@@ -204,6 +211,7 @@ struct KeepAwakeAssertion: Sendable, Equatable {
             ownedAssertionID = id; name = token
             guard let actual = try driver.read(id), matches(actual, name: token, seconds: seconds) else { throw KeepAwakeError.unconfirmed }
             expectedTimeoutSeconds = seconds; expiry = requested
+            appliedPresetDurationSeconds = requested == .duration ? seconds : nil
             deadline = seconds.map { beforeCreate.advanced(by: .seconds($0)) }
             isActive = true
             schedule()
@@ -228,6 +236,17 @@ struct KeepAwakeAssertion: Sendable, Equatable {
         if case .until(let target) = expiry { requested = .until(target.addingTimeInterval(Double(seconds))) }
         else { requested = .duration }
         try update(id, name: name, seconds: remaining + seconds, expiry: requested)
+    }
+    /// Reset a confirmed finite assertion in place; no release/acquire gap.
+    func replaceDuration(seconds: Int) throws {
+        guard allowed else { throw KeepAwakeError.unavailable }
+        guard (1...86_400).contains(seconds) else { throw KeepAwakeError.invalidDuration }
+        guard isActive, let expiry, expiry != .untilStopped,
+              let id = ownedAssertionID, let name else { throw KeepAwakeError.noFiniteSession }
+        try preflight(id, name: name)
+        guard remainingSeconds > 0 else { try stop(); throw KeepAwakeError.noFiniteSession }
+        try update(id, name: name, seconds: seconds, expiry: .duration)
+        appliedPresetDurationSeconds = seconds
     }
     private func matches(_ actual: KeepAwakeAssertion, name: String, seconds: Int?) -> Bool {
         actual.name == name && actual.kind == "PreventUserIdleSystemSleep" && actual.active &&
@@ -357,6 +376,6 @@ struct KeepAwakeAssertion: Sendable, Equatable {
     private func clear() {
         invalidateSchedule()
         ownedAssertionID = nil; name = nil; deadline = nil
-        expectedTimeoutSeconds = nil; expiry = nil; isActive = false; message = nil
+        expectedTimeoutSeconds = nil; appliedPresetDurationSeconds = nil; expiry = nil; isActive = false; message = nil
     }
 }

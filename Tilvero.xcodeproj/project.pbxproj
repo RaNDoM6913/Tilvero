@@ -11,16 +11,40 @@
 			path = "Sources/TilveroApp/AppInstancePolicy.swift";
 			sourceTree = "<group>";
 		};
+		A90783956AB029B19B55A9E5 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/AppLaunchPolicy.swift";
+			sourceTree = "<group>";
+		};
 		AE853F44EEA522280C9EAFD3 = {
 			isa = "PBXFileReference";
 			lastKnownFileType = "sourcecode.swift";
 			path = "Sources/TilveroApp/BatteryDataViews.swift";
 			sourceTree = "<group>";
 		};
+		8DC498587F6B8F6C67A5F6E8 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/ClosedLidCapability.swift";
+			sourceTree = "<group>";
+		};
+		C2BC250CCECF2068928BDDB7 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/ClosedLidService.swift";
+			sourceTree = "<group>";
+		};
 		BD6A40A89DEA211FF047B4C3 = {
 			isa = "PBXFileReference";
 			lastKnownFileType = "sourcecode.swift";
 			path = "Sources/TilveroApp/ControlCatalog.swift";
+			sourceTree = "<group>";
+		};
+		8EE6B7464D7F2D1B515233C6 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/ControllerSessionLease.swift";
 			sourceTree = "<group>";
 		};
 		C8F30D9D793D65DF124BA67D = {
@@ -39,6 +63,18 @@
 			isa = "PBXFileReference";
 			lastKnownFileType = "sourcecode.swift";
 			path = "Sources/TilveroApp/EnergyStateIllustration.swift";
+			sourceTree = "<group>";
+		};
+		05C9F637B6D5138984BE4E32 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/FirstSetupPanel.swift";
+			sourceTree = "<group>";
+		};
+		E9DD4485448AB3FF26B944E8 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/FullWidthSegmentedTabs.swift";
 			sourceTree = "<group>";
 		};
 		10D32C23EF6E944C381ECA3D = {
@@ -77,6 +113,12 @@
 			path = "Sources/TilveroApp/KeyboardBacklightService.swift";
 			sourceTree = "<group>";
 		};
+		621CCEB32542AF6E696D2A30 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/LidSleepOverrideService.swift";
+			sourceTree = "<group>";
+		};
 		190F04879EB231EE48FEF3DD = {
 			isa = "PBXFileReference";
 			lastKnownFileType = "sourcecode.swift";
@@ -87,6 +129,12 @@
 			isa = "PBXFileReference";
 			lastKnownFileType = "sourcecode.swift";
 			path = "Sources/TilveroApp/Localization.swift";
+			sourceTree = "<group>";
+		};
+		01F423ED36343CA5D57D225F = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/MenuBarBatteryAppearance.swift";
 			sourceTree = "<group>";
 		};
 		C2A6BDD137E9B015AA8C6F80 = {
@@ -137,6 +185,18 @@
 			path = "Sources/TilveroApp/NativeChargeStatusPanel.swift";
 			sourceTree = "<group>";
 		};
+		7666E565DD525CC4F499CFD6 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/NativeDrumPicker.swift";
+			sourceTree = "<group>";
+		};
+		7D779C077052CDD600E370C6 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/NativeSleepTimerTransport.swift";
+			sourceTree = "<group>";
+		};
 		9DF94B1EED05B01F4A3E713E = {
 			isa = "PBXFileReference";
 			lastKnownFileType = "sourcecode.swift";
@@ -153,6 +213,12 @@
 			isa = "PBXFileReference";
 			lastKnownFileType = "sourcecode.swift";
 			path = "Sources/TilveroApp/OverviewPreferences.swift";
+			sourceTree = "<group>";
+		};
+		5D41EB8712ECBF9CC4E8F063 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/PopoverCloseObserver.swift";
 			sourceTree = "<group>";
 		};
 		8CF97806282186D932239723 = {
@@ -177,6 +243,18 @@
 			isa = "PBXFileReference";
 			lastKnownFileType = "sourcecode.swift";
 			path = "Sources/TilveroApp/PrototypeMigration.swift";
+			sourceTree = "<group>";
+		};
+		BDEED20B0285FAF6CA15EC2C = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/QuickMotionProbe.swift";
+			sourceTree = "<group>";
+		};
+		E5CD5C41164732D4F0A90118 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/QuickNativeChargePanel.swift";
 			sourceTree = "<group>";
 		};
 		C3959A6719F3AEE146C3186C = {
@@ -215,10 +293,88 @@
 			path = "Sources/TilveroApp/ReleaseIdentity.swift";
 			sourceTree = "<group>";
 		};
+		A6D43B63F83A9C84CA7184E2 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/SectionInfoButton.swift";
+			sourceTree = "<group>";
+		};
+		BB7D589F477B4322B68FBD6E = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/SetupActionCoordinator.swift";
+			sourceTree = "<group>";
+		};
+		72E4112A44313187BD94CE69 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/SetupReadiness.swift";
+			sourceTree = "<group>";
+		};
+		52AD62E8E710B8DFCBD1A5B9 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/SetupRuntime.swift";
+			sourceTree = "<group>";
+		};
+		D7E799F3501D8CCC5AABBCA2 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/SleepActiveControls.swift";
+			sourceTree = "<group>";
+		};
+		4D17186785FBE2C0EC4ACA63 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/SleepAtChargeService.swift";
+			sourceTree = "<group>";
+		};
+		E6987D0EC4D5347000C835E4 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/SleepPills.swift";
+			sourceTree = "<group>";
+		};
 		B01DA16DC69F7E80E020E02A = {
 			isa = "PBXFileReference";
 			lastKnownFileType = "sourcecode.swift";
 			path = "Sources/TilveroApp/SleepReportPanel.swift";
+			sourceTree = "<group>";
+		};
+		59A9975E1A586CF79898AE84 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/SleepTimerPanel.swift";
+			sourceTree = "<group>";
+		};
+		28D42F8457415A167A2B4A5C = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/SleepTimerService.swift";
+			sourceTree = "<group>";
+		};
+		6D6F4A1DA20FE51D6F1D25FF = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/SleepTimerWarningController.swift";
+			sourceTree = "<group>";
+		};
+		02DFE029BEF9BDF1294DD06C = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/SleepWheelPicker.swift";
+			sourceTree = "<group>";
+		};
+		B2E2EEFB71F29C1630A8DB22 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/SparkleUpdateInstaller.swift";
+			sourceTree = "<group>";
+		};
+		F2BD106E0D8BAB3D641E6571 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/StudioPresentation.swift";
 			sourceTree = "<group>";
 		};
 		B1F421DF2A5AA69B637F5D10 = {
@@ -251,10 +407,58 @@
 			path = "Sources/TilveroApp/TilveroViews.swift";
 			sourceTree = "<group>";
 		};
+		D5851A53A83CB9D38F34A956 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/UpdateCheckService.swift";
+			sourceTree = "<group>";
+		};
+		6C487E66C566591ED72F43C7 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/UpdateDiscovery.swift";
+			sourceTree = "<group>";
+		};
+		B9F2EA62D53A3CA6AAC73419 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/UpdateIdentity.swift";
+			sourceTree = "<group>";
+		};
+		88C432E57CD478512F1E049B = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/UpdateInstallGate.swift";
+			sourceTree = "<group>";
+		};
+		738625D5011AC00287A10A16 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/UpdateInstallQualification.swift";
+			sourceTree = "<group>";
+		};
+		4845A53181AA9096211547C8 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/UpdateRecoveryGate.swift";
+			sourceTree = "<group>";
+		};
+		DFA36913A94226AB87E9BCC7 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroApp/UpdatesPanel.swift";
+			sourceTree = "<group>";
+		};
 		3B93961BC3CE39D295CE4BCC = {
 			isa = "PBXFileReference";
 			lastKnownFileType = "sourcecode.swift";
 			path = "Helper/TilveroHelperMain.swift";
+			sourceTree = "<group>";
+		};
+		AD16AA85761DB39E44FCEC65 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "Sources/TilveroLidHelper/TilveroLidHelperMain.swift";
 			sourceTree = "<group>";
 		};
 		4A236EECDBB629D61D977B31 = {
@@ -311,20 +515,34 @@
 			path = "TilveroHelper";
 			sourceTree = "BUILT_PRODUCTS_DIR";
 		};
+		0D458416A9D6A36766BFA29D = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "compiled.mach-o.executable";
+			path = "TilveroLidHelper";
+			sourceTree = "BUILT_PRODUCTS_DIR";
+		};
 		0A3E27B8CA818264D75C8D81 = {
 			isa = "PBXGroup";
-			children = ("93649E1D9C3552D09E56F75C", "21A78EB20D18F9D06C76B74A");
+			children = ("93649E1D9C3552D09E56F75C", "21A78EB20D18F9D06C76B74A", "0D458416A9D6A36766BFA29D");
 			name = "Products";
 			sourceTree = "<group>";
 		};
 		0035FE99EA2940F7FA633A58 = {
 			isa = "PBXGroup";
-			children = ("22A7095EDEA153FA6D316BBB", "AE853F44EEA522280C9EAFD3", "BD6A40A89DEA211FF047B4C3", "C8F30D9D793D65DF124BA67D", "483EB80F595C540C640476A0", "6AD8505C51F531E1621632A5", "10D32C23EF6E944C381ECA3D", "BFCF6F63C5552533088BECDC", "A826C575926A168A4771CEAF", "EC4725209586F9A452ABDB35", "0CD48E56961D39E92EA63C8C", "F02F18AEAE9662C44BB52BCC", "190F04879EB231EE48FEF3DD", "D5B447B2D8B86F60E2F5F763", "C2A6BDD137E9B015AA8C6F80", "6A3733295895473A9936D0CA", "4F871FC37103858F605BC917", "53985A058151B0CCD2F8C1F8", "3A5E0E48859AFBC28923A424", "8E108340B114842F3F46052B", "A4C29D7BA74736E30D8968B0", "FAAAA0EB064E87EB3A992811", "9DF94B1EED05B01F4A3E713E", "26AAF88B5A4BC55624397C6A", "D4D14950B7A40FA1E875C15E", "8CF97806282186D932239723", "0E6AED55A4FC3EB75AF59E8F", "4018BCAF304BD49BC2BFEABA", "56888E105F9C1F1C303EFD07", "C3959A6719F3AEE146C3186C", "C90AAF28488514881FFC2A00", "3973BE9BDF7E8D2337656820", "D1D21A4B0A36C2EE47A377B1", "901391EAF11BC06B1F0F7602", "88F8A122CA3CC28B3272E9F0", "B01DA16DC69F7E80E020E02A", "B1F421DF2A5AA69B637F5D10", "7C08980CAE1B53A03E6E6A40", "9D3801A0CBBE1BDAFE7D97B2", "1C12C9068A12109D9DF752A3", "9AC438AF57561F1411573833", "3B93961BC3CE39D295CE4BCC", "4A236EECDBB629D61D977B31", "D81BCC6DA8871FE35F2371BF", "0A3E27B8CA818264D75C8D81", "39E0F17396719B35C79DEEF5", "3E360DA83AB7D58585EFBBB8", "7317662EC3FE653EC4F00666", "1DCFEC1BFD5FE595CD433831", "A8CE060755A330E0C1F953FC", "31B033F57FC46927ADA854E7", "975FB54E9647105C978B5E58");
+			children = ("22A7095EDEA153FA6D316BBB", "A90783956AB029B19B55A9E5", "AE853F44EEA522280C9EAFD3", "8DC498587F6B8F6C67A5F6E8", "C2BC250CCECF2068928BDDB7", "BD6A40A89DEA211FF047B4C3", "8EE6B7464D7F2D1B515233C6", "C8F30D9D793D65DF124BA67D", "483EB80F595C540C640476A0", "6AD8505C51F531E1621632A5", "05C9F637B6D5138984BE4E32", "E9DD4485448AB3FF26B944E8", "10D32C23EF6E944C381ECA3D", "BFCF6F63C5552533088BECDC", "A826C575926A168A4771CEAF", "EC4725209586F9A452ABDB35", "0CD48E56961D39E92EA63C8C", "F02F18AEAE9662C44BB52BCC", "621CCEB32542AF6E696D2A30", "190F04879EB231EE48FEF3DD", "D5B447B2D8B86F60E2F5F763", "01F423ED36343CA5D57D225F", "C2A6BDD137E9B015AA8C6F80", "6A3733295895473A9936D0CA", "4F871FC37103858F605BC917", "53985A058151B0CCD2F8C1F8", "3A5E0E48859AFBC28923A424", "8E108340B114842F3F46052B", "A4C29D7BA74736E30D8968B0", "FAAAA0EB064E87EB3A992811", "7666E565DD525CC4F499CFD6", "7D779C077052CDD600E370C6", "9DF94B1EED05B01F4A3E713E", "26AAF88B5A4BC55624397C6A", "D4D14950B7A40FA1E875C15E", "5D41EB8712ECBF9CC4E8F063", "8CF97806282186D932239723", "0E6AED55A4FC3EB75AF59E8F", "4018BCAF304BD49BC2BFEABA", "56888E105F9C1F1C303EFD07", "BDEED20B0285FAF6CA15EC2C", "E5CD5C41164732D4F0A90118", "C3959A6719F3AEE146C3186C", "C90AAF28488514881FFC2A00", "3973BE9BDF7E8D2337656820", "D1D21A4B0A36C2EE47A377B1", "901391EAF11BC06B1F0F7602", "88F8A122CA3CC28B3272E9F0", "A6D43B63F83A9C84CA7184E2", "BB7D589F477B4322B68FBD6E", "72E4112A44313187BD94CE69", "52AD62E8E710B8DFCBD1A5B9", "D7E799F3501D8CCC5AABBCA2", "4D17186785FBE2C0EC4ACA63", "E6987D0EC4D5347000C835E4", "B01DA16DC69F7E80E020E02A", "59A9975E1A586CF79898AE84", "28D42F8457415A167A2B4A5C", "6D6F4A1DA20FE51D6F1D25FF", "02DFE029BEF9BDF1294DD06C", "B2E2EEFB71F29C1630A8DB22", "F2BD106E0D8BAB3D641E6571", "B1F421DF2A5AA69B637F5D10", "7C08980CAE1B53A03E6E6A40", "9D3801A0CBBE1BDAFE7D97B2", "1C12C9068A12109D9DF752A3", "9AC438AF57561F1411573833", "D5851A53A83CB9D38F34A956", "6C487E66C566591ED72F43C7", "B9F2EA62D53A3CA6AAC73419", "88C432E57CD478512F1E049B", "738625D5011AC00287A10A16", "4845A53181AA9096211547C8", "DFA36913A94226AB87E9BCC7", "3B93961BC3CE39D295CE4BCC", "AD16AA85761DB39E44FCEC65", "4A236EECDBB629D61D977B31", "D81BCC6DA8871FE35F2371BF", "0A3E27B8CA818264D75C8D81", "39E0F17396719B35C79DEEF5", "3E360DA83AB7D58585EFBBB8", "7317662EC3FE653EC4F00666", "1DCFEC1BFD5FE595CD433831", "A8CE060755A330E0C1F953FC", "31B033F57FC46927ADA854E7", "975FB54E9647105C978B5E58", "3C9CF919E5A3D7D60D2206D0", "A4F1CEFD5C3D47468F9316F7");
 			sourceTree = "<group>";
 		};
 		BC4A71180870F7945155FBB0 = {
 			isa = "XCLocalSwiftPackageReference";
 			relativePath = ".";
+		};
+		712A7AD824632A5CB5613623 = {
+			isa = "XCRemoteSwiftPackageReference";
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = "exactVersion";
+				version = "2.10.1";
+			};
 		};
 		903F9A6B8983BD1551992B73 = {
 			isa = "XCSwiftPackageProductDependency";
@@ -369,7 +587,8 @@
 				PRODUCT_NAME = "TilveroHelper";
 				SKIP_INSTALL = "YES";
 				CREATE_INFOPLIST_SECTION_IN_BINARY = "YES";
-				INFOPLIST_FILE = "Config/HelperInfo.plist";
+				INFOPLIST_FILE = "$(TILVERO_HELPER_INFO_PLIST)";
+				TILVERO_HELPER_INFO_PLIST = "Config/HelperInfo.plist";
 			};
 		};
 		EB3F9E377CF9476BC875FF4C = {
@@ -391,7 +610,8 @@
 				PRODUCT_NAME = "TilveroHelper";
 				SKIP_INSTALL = "YES";
 				CREATE_INFOPLIST_SECTION_IN_BINARY = "YES";
-				INFOPLIST_FILE = "Config/HelperInfo.plist";
+				INFOPLIST_FILE = "$(TILVERO_HELPER_INFO_PLIST)";
+				TILVERO_HELPER_INFO_PLIST = "Config/HelperInfo.plist";
 			};
 		};
 		14BB0333D21991C943E9F946 = {
@@ -411,6 +631,100 @@
 			buildRules = ();
 			dependencies = ();
 			packageProductDependencies = ("903F9A6B8983BD1551992B73");
+		};
+		5C1A8F3BA8EBA5CD8F0E276E = {
+			isa = "XCSwiftPackageProductDependency";
+			productName = "ClosedLidControl";
+		};
+		D9D86E41CC1135D2FDE65388 = {
+			isa = "XCSwiftPackageProductDependency";
+			productName = "PowerPrivileged";
+		};
+		AF6D9551B9475415F4A45BFF = {
+			isa = "PBXBuildFile";
+			productRef = "5C1A8F3BA8EBA5CD8F0E276E";
+		};
+		32BDBB178E530270C131BFC9 = {
+			isa = "PBXBuildFile";
+			productRef = "D9D86E41CC1135D2FDE65388";
+		};
+		411804FCC1559DCDD50229AB = {
+			isa = "PBXFrameworksBuildPhase";
+			buildActionMask = 2147483647;
+			files = ("AF6D9551B9475415F4A45BFF", "32BDBB178E530270C131BFC9");
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		ADF4473027347C9655BD0AA9 = {
+			isa = "PBXBuildFile";
+			fileRef = "AD16AA85761DB39E44FCEC65";
+		};
+		D79DDBB9437AFD9259E0EBF8 = {
+			isa = "PBXSourcesBuildPhase";
+			buildActionMask = 2147483647;
+			files = ("ADF4473027347C9655BD0AA9");
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0F98B2D00D6B4B20EE03989F = {
+			isa = "XCBuildConfiguration";
+			name = "Debug";
+			buildSettings = {
+				SDKROOT = "macosx";
+				ARCHS = "arm64";
+				ONLY_ACTIVE_ARCH = "YES";
+				MACOSX_DEPLOYMENT_TARGET = "26.0";
+				SWIFT_VERSION = "6.0";
+				CLANG_ENABLE_MODULES = "YES";
+				ENABLE_HARDENED_RUNTIME = "YES";
+				CODE_SIGN_STYLE = "Manual";
+				CODE_SIGN_IDENTITY = "-";
+				SWIFT_STRICT_CONCURRENCY = "complete";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				PRODUCT_BUNDLE_IDENTIFIER = "local.tilvero.lidlab.helper";
+				PRODUCT_NAME = "TilveroLidHelper";
+				SKIP_INSTALL = "YES";
+				CREATE_INFOPLIST_SECTION_IN_BINARY = "YES";
+				INFOPLIST_FILE = "Config/TilveroLidHelper-Info.plist";
+			};
+		};
+		2D0FDA330B6496E910CBF142 = {
+			isa = "XCBuildConfiguration";
+			name = "Release";
+			buildSettings = {
+				SDKROOT = "macosx";
+				ARCHS = "arm64";
+				ONLY_ACTIVE_ARCH = "YES";
+				MACOSX_DEPLOYMENT_TARGET = "26.0";
+				SWIFT_VERSION = "6.0";
+				CLANG_ENABLE_MODULES = "YES";
+				ENABLE_HARDENED_RUNTIME = "YES";
+				CODE_SIGN_STYLE = "Manual";
+				CODE_SIGN_IDENTITY = "-";
+				SWIFT_STRICT_CONCURRENCY = "complete";
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				PRODUCT_BUNDLE_IDENTIFIER = "local.tilvero.lidlab.helper";
+				PRODUCT_NAME = "TilveroLidHelper";
+				SKIP_INSTALL = "YES";
+				CREATE_INFOPLIST_SECTION_IN_BINARY = "YES";
+				INFOPLIST_FILE = "Config/TilveroLidHelper-Info.plist";
+			};
+		};
+		4662D69F117415A35E5DB14E = {
+			isa = "XCConfigurationList";
+			buildConfigurations = ("0F98B2D00D6B4B20EE03989F", "2D0FDA330B6496E910CBF142");
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = "Release";
+		};
+		AF71486E7855BF952A31C512 = {
+			isa = "PBXNativeTarget";
+			name = "TilveroLidHelper";
+			productName = "TilveroLidHelper";
+			productReference = "0D458416A9D6A36766BFA29D";
+			productType = "com.apple.product-type.tool";
+			buildConfigurationList = "4662D69F117415A35E5DB14E";
+			buildPhases = ("D79DDBB9437AFD9259E0EBF8", "411804FCC1559DCDD50229AB");
+			buildRules = ();
+			dependencies = ();
+			packageProductDependencies = ("5C1A8F3BA8EBA5CD8F0E276E", "D9D86E41CC1135D2FDE65388");
 		};
 		CF52F5494423AF6A38CC3F1F = {
 			isa = "PBXBuildFile";
@@ -450,13 +764,17 @@
 			isa = "PBXBuildFile";
 			fileRef = "21A78EB20D18F9D06C76B74A";
 		};
+		35461D2D4264F0168B37E318 = {
+			isa = "PBXBuildFile";
+			fileRef = "0D458416A9D6A36766BFA29D";
+		};
 		A110DF655A0F951BA2C4E7D7 = {
 			isa = "PBXCopyFilesBuildPhase";
 			buildActionMask = 2147483647;
 			dstPath = "Contents/Library/HelperTools";
 			dstSubfolderSpec = 1;
-			files = ("D9085A2DCFB46E5B07B9231F");
-			name = "Embed helper";
+			files = ("D9085A2DCFB46E5B07B9231F", "35461D2D4264F0168B37E318");
+			name = "Embed helpers";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		31B033F57FC46927ADA854E7 = {
@@ -479,12 +797,32 @@
 			isa = "PBXBuildFile";
 			fileRef = "975FB54E9647105C978B5E58";
 		};
+		3C9CF919E5A3D7D60D2206D0 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "text.plist.xml";
+			path = "Config/LaunchDaemons/local.tilvero.lidlab.controller.plist";
+			sourceTree = "<group>";
+		};
+		EACC515BA62642BAC6523ECC = {
+			isa = "PBXBuildFile";
+			fileRef = "3C9CF919E5A3D7D60D2206D0";
+		};
+		A4F1CEFD5C3D47468F9316F7 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "text.plist.xml";
+			path = "Config/LaunchDaemons/local.tilvero.lidlab.guardian.plist";
+			sourceTree = "<group>";
+		};
+		A4C6ED385A7F8BFDD9508CAA = {
+			isa = "PBXBuildFile";
+			fileRef = "A4F1CEFD5C3D47468F9316F7";
+		};
 		185F1CC37FBFB0EB68575A5B = {
 			isa = "PBXCopyFilesBuildPhase";
 			buildActionMask = 2147483647;
 			dstPath = "Contents/Library/LaunchDaemons";
 			dstSubfolderSpec = 1;
-			files = ("7765D04B7AFE2AAED92D8AD5", "00FC0B3D43C07198C7CEFB6E");
+			files = ("7765D04B7AFE2AAED92D8AD5", "00FC0B3D43C07198C7CEFB6E", "EACC515BA62642BAC6523ECC", "A4C6ED385A7F8BFDD9508CAA");
 			name = "Embed launch jobs";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -535,6 +873,15 @@
 			isa = "XCSwiftPackageProductDependency";
 			productName = "KeyboardBackends";
 		};
+		EC92BC54AB0E6EDF56CA6544 = {
+			isa = "XCSwiftPackageProductDependency";
+			productName = "ClosedLidControl";
+		};
+		76A29A7DE05630D7BC8A274C = {
+			isa = "XCSwiftPackageProductDependency";
+			productName = "Sparkle";
+			package = "712A7AD824632A5CB5613623";
+		};
 		50A06B955F194B70BCB0BF95 = {
 			isa = "PBXBuildFile";
 			productRef = "E7808E2E98DBDA29BB7592CA";
@@ -571,23 +918,47 @@
 			isa = "PBXBuildFile";
 			productRef = "62D314D5BE382445AD44FAEC";
 		};
+		857737DD4B2628FC721476BA = {
+			isa = "PBXBuildFile";
+			productRef = "EC92BC54AB0E6EDF56CA6544";
+		};
+		0878B573645052F0A1BF3E22 = {
+			isa = "PBXBuildFile";
+			productRef = "76A29A7DE05630D7BC8A274C";
+		};
 		99B338A5CB92EA98F74598F3 = {
 			isa = "PBXFrameworksBuildPhase";
 			buildActionMask = 2147483647;
-			files = ("50A06B955F194B70BCB0BF95", "EE42349F24711A5F243F8E47", "B35790AF0DC1F225728A5DAF", "FC05183607BF49859953070D", "1DB73022A682D79BB40A918F", "46A8050506C92985188B704A", "D6B6BD2D6425A58194BE31D5", "D0CFDF5A72B5BB95B9016191", "46AAE642EF682D5EEFEDE981");
+			files = ("50A06B955F194B70BCB0BF95", "EE42349F24711A5F243F8E47", "B35790AF0DC1F225728A5DAF", "FC05183607BF49859953070D", "1DB73022A682D79BB40A918F", "46A8050506C92985188B704A", "D6B6BD2D6425A58194BE31D5", "D0CFDF5A72B5BB95B9016191", "46AAE642EF682D5EEFEDE981", "857737DD4B2628FC721476BA", "0878B573645052F0A1BF3E22");
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		3A861B7337723B71B508D464 = {
 			isa = "PBXBuildFile";
 			fileRef = "22A7095EDEA153FA6D316BBB";
 		};
+		860E4FBCD5E475D693D60A51 = {
+			isa = "PBXBuildFile";
+			fileRef = "A90783956AB029B19B55A9E5";
+		};
 		8881064E8271B50E2D9043C0 = {
 			isa = "PBXBuildFile";
 			fileRef = "AE853F44EEA522280C9EAFD3";
 		};
+		9E0488EE8BF97F8951E43F1B = {
+			isa = "PBXBuildFile";
+			fileRef = "8DC498587F6B8F6C67A5F6E8";
+		};
+		8A5669F557DF15C40502DEBD = {
+			isa = "PBXBuildFile";
+			fileRef = "C2BC250CCECF2068928BDDB7";
+		};
 		6BB815C9E502FC626FCA90B2 = {
 			isa = "PBXBuildFile";
 			fileRef = "BD6A40A89DEA211FF047B4C3";
+		};
+		03AC28B3E5CA6B0076D7F614 = {
+			isa = "PBXBuildFile";
+			fileRef = "8EE6B7464D7F2D1B515233C6";
 		};
 		C07483142EE5FCA18D9A75B9 = {
 			isa = "PBXBuildFile";
@@ -600,6 +971,14 @@
 		8A6A0B2ADD1467003090E79F = {
 			isa = "PBXBuildFile";
 			fileRef = "6AD8505C51F531E1621632A5";
+		};
+		43FD47B0ABA6C672F345B565 = {
+			isa = "PBXBuildFile";
+			fileRef = "05C9F637B6D5138984BE4E32";
+		};
+		B2AEC8D7B43BE58A171ED45D = {
+			isa = "PBXBuildFile";
+			fileRef = "E9DD4485448AB3FF26B944E8";
 		};
 		D68687C155580EEED74BB2E5 = {
 			isa = "PBXBuildFile";
@@ -625,6 +1004,10 @@
 			isa = "PBXBuildFile";
 			fileRef = "F02F18AEAE9662C44BB52BCC";
 		};
+		7E75F12A7E705BD530F2FEF6 = {
+			isa = "PBXBuildFile";
+			fileRef = "621CCEB32542AF6E696D2A30";
+		};
 		3FEA12A3B96765B505CA7F5A = {
 			isa = "PBXBuildFile";
 			fileRef = "190F04879EB231EE48FEF3DD";
@@ -632,6 +1015,10 @@
 		F616CEABF661BFC83FEBAE14 = {
 			isa = "PBXBuildFile";
 			fileRef = "D5B447B2D8B86F60E2F5F763";
+		};
+		9AA58AE3C6623C2BBBBF2B11 = {
+			isa = "PBXBuildFile";
+			fileRef = "01F423ED36343CA5D57D225F";
 		};
 		24F8F255FA9A5426FED57403 = {
 			isa = "PBXBuildFile";
@@ -665,6 +1052,14 @@
 			isa = "PBXBuildFile";
 			fileRef = "FAAAA0EB064E87EB3A992811";
 		};
+		5DC9533263DE5F732454031B = {
+			isa = "PBXBuildFile";
+			fileRef = "7666E565DD525CC4F499CFD6";
+		};
+		D52833B3AC0EC0A1274F7245 = {
+			isa = "PBXBuildFile";
+			fileRef = "7D779C077052CDD600E370C6";
+		};
 		3765C724C3147FBE0290E132 = {
 			isa = "PBXBuildFile";
 			fileRef = "9DF94B1EED05B01F4A3E713E";
@@ -676,6 +1071,10 @@
 		418D5FD37A2D9F4A3B353344 = {
 			isa = "PBXBuildFile";
 			fileRef = "D4D14950B7A40FA1E875C15E";
+		};
+		51C8D3FF889B68B492855681 = {
+			isa = "PBXBuildFile";
+			fileRef = "5D41EB8712ECBF9CC4E8F063";
 		};
 		760F6A64E0B6770664122016 = {
 			isa = "PBXBuildFile";
@@ -692,6 +1091,14 @@
 		2B35864CBDE1C87D7FB57D3E = {
 			isa = "PBXBuildFile";
 			fileRef = "56888E105F9C1F1C303EFD07";
+		};
+		576CAE536942F9152201C9A3 = {
+			isa = "PBXBuildFile";
+			fileRef = "BDEED20B0285FAF6CA15EC2C";
+		};
+		A04C7661B17EE243B63EFFC8 = {
+			isa = "PBXBuildFile";
+			fileRef = "E5CD5C41164732D4F0A90118";
 		};
 		D992672489A56670212EE6F9 = {
 			isa = "PBXBuildFile";
@@ -717,9 +1124,61 @@
 			isa = "PBXBuildFile";
 			fileRef = "88F8A122CA3CC28B3272E9F0";
 		};
+		517443B915067DA91333995B = {
+			isa = "PBXBuildFile";
+			fileRef = "A6D43B63F83A9C84CA7184E2";
+		};
+		8A2560D5B5CE11CC1C0A9E83 = {
+			isa = "PBXBuildFile";
+			fileRef = "BB7D589F477B4322B68FBD6E";
+		};
+		0C364C3F50C4B6F7D319EE4A = {
+			isa = "PBXBuildFile";
+			fileRef = "72E4112A44313187BD94CE69";
+		};
+		7354261B27BD1086F28F00BF = {
+			isa = "PBXBuildFile";
+			fileRef = "52AD62E8E710B8DFCBD1A5B9";
+		};
+		AEF067A7779FD45B35994300 = {
+			isa = "PBXBuildFile";
+			fileRef = "D7E799F3501D8CCC5AABBCA2";
+		};
+		B82E79697D1B1EB419B24CC1 = {
+			isa = "PBXBuildFile";
+			fileRef = "4D17186785FBE2C0EC4ACA63";
+		};
+		CD9E627AB61BAEC14998ABD4 = {
+			isa = "PBXBuildFile";
+			fileRef = "E6987D0EC4D5347000C835E4";
+		};
 		D3F9DCAD4A64BEABE801BB51 = {
 			isa = "PBXBuildFile";
 			fileRef = "B01DA16DC69F7E80E020E02A";
+		};
+		CEFBF4ADADAE4C773F643DB6 = {
+			isa = "PBXBuildFile";
+			fileRef = "59A9975E1A586CF79898AE84";
+		};
+		3A730C43C405A02139BF86CF = {
+			isa = "PBXBuildFile";
+			fileRef = "28D42F8457415A167A2B4A5C";
+		};
+		27103EFBE430B01D868E3F2F = {
+			isa = "PBXBuildFile";
+			fileRef = "6D6F4A1DA20FE51D6F1D25FF";
+		};
+		6869E46C9F12367C3789F738 = {
+			isa = "PBXBuildFile";
+			fileRef = "02DFE029BEF9BDF1294DD06C";
+		};
+		2738F97B0A6E86EDC724E29B = {
+			isa = "PBXBuildFile";
+			fileRef = "B2E2EEFB71F29C1630A8DB22";
+		};
+		7001580FCC915A7910E68C4C = {
+			isa = "PBXBuildFile";
+			fileRef = "F2BD106E0D8BAB3D641E6571";
 		};
 		96FF294B7A92D844A09262AD = {
 			isa = "PBXBuildFile";
@@ -741,10 +1200,38 @@
 			isa = "PBXBuildFile";
 			fileRef = "9AC438AF57561F1411573833";
 		};
+		417BF9CABC6F1419BAF0BB1B = {
+			isa = "PBXBuildFile";
+			fileRef = "D5851A53A83CB9D38F34A956";
+		};
+		7830EA07BD182D339AB03139 = {
+			isa = "PBXBuildFile";
+			fileRef = "6C487E66C566591ED72F43C7";
+		};
+		6775581779CE9E2DED4EB59A = {
+			isa = "PBXBuildFile";
+			fileRef = "B9F2EA62D53A3CA6AAC73419";
+		};
+		3F52A194BAB376B46B5D7BDB = {
+			isa = "PBXBuildFile";
+			fileRef = "88C432E57CD478512F1E049B";
+		};
+		43AB8B744F12AD97CFD45F3F = {
+			isa = "PBXBuildFile";
+			fileRef = "738625D5011AC00287A10A16";
+		};
+		820664DDE449A8B2F4C42A4F = {
+			isa = "PBXBuildFile";
+			fileRef = "4845A53181AA9096211547C8";
+		};
+		07C79E5A7A03FBEC86C150B7 = {
+			isa = "PBXBuildFile";
+			fileRef = "DFA36913A94226AB87E9BCC7";
+		};
 		F84253A18A3EE2E61F4F9304 = {
 			isa = "PBXSourcesBuildPhase";
 			buildActionMask = 2147483647;
-			files = ("3A861B7337723B71B508D464", "8881064E8271B50E2D9043C0", "6BB815C9E502FC626FCA90B2", "C07483142EE5FCA18D9A75B9", "03383B5A9C35CA72E21D308A", "8A6A0B2ADD1467003090E79F", "D68687C155580EEED74BB2E5", "322870D5E33F67DCAAF6B9A1", "56A1BE12703FC162CC947432", "7BBD9E2F6F4BC2D5E0E95A52", "3D976F581DD4EA9DE12D3521", "C376F5A49F11E7260BA1C5E0", "3FEA12A3B96765B505CA7F5A", "F616CEABF661BFC83FEBAE14", "24F8F255FA9A5426FED57403", "D743D33D57D2A9E33DBCA9A2", "D7DBA46C32CDC1E17D6F2F1F", "990095B6B82BEF6DE1918545", "9AEFE956C2AEBA87E93D48FB", "F0724CEC4CFF59139F6D4798", "6C8E227CDBFAC2C92C020E8F", "CCA1A7F500D9C0AB796E0D47", "3765C724C3147FBE0290E132", "FD1A9DE99730D7E86887B3E1", "418D5FD37A2D9F4A3B353344", "760F6A64E0B6770664122016", "3C8CF2FE9490A665807FF643", "7400BF3C7E811D55E95BF06C", "2B35864CBDE1C87D7FB57D3E", "D992672489A56670212EE6F9", "18437CFC31BBB7DC278E4BC0", "F5816783F85DDDA3F655FCFD", "688E275BF530DF803D9074C8", "83389355CE99AF393126B896", "30B3B0510DB59499DC65F723", "D3F9DCAD4A64BEABE801BB51", "96FF294B7A92D844A09262AD", "DFCB85D710191A4C7821BDEC", "EFA0B3B824E3897570966946", "82E82F127B05E69CA7C2D817", "FD3CB448061FD9AB69F8228A");
+			files = ("3A861B7337723B71B508D464", "860E4FBCD5E475D693D60A51", "8881064E8271B50E2D9043C0", "9E0488EE8BF97F8951E43F1B", "8A5669F557DF15C40502DEBD", "6BB815C9E502FC626FCA90B2", "03AC28B3E5CA6B0076D7F614", "C07483142EE5FCA18D9A75B9", "03383B5A9C35CA72E21D308A", "8A6A0B2ADD1467003090E79F", "43FD47B0ABA6C672F345B565", "B2AEC8D7B43BE58A171ED45D", "D68687C155580EEED74BB2E5", "322870D5E33F67DCAAF6B9A1", "56A1BE12703FC162CC947432", "7BBD9E2F6F4BC2D5E0E95A52", "3D976F581DD4EA9DE12D3521", "C376F5A49F11E7260BA1C5E0", "7E75F12A7E705BD530F2FEF6", "3FEA12A3B96765B505CA7F5A", "F616CEABF661BFC83FEBAE14", "9AA58AE3C6623C2BBBBF2B11", "24F8F255FA9A5426FED57403", "D743D33D57D2A9E33DBCA9A2", "D7DBA46C32CDC1E17D6F2F1F", "990095B6B82BEF6DE1918545", "9AEFE956C2AEBA87E93D48FB", "F0724CEC4CFF59139F6D4798", "6C8E227CDBFAC2C92C020E8F", "CCA1A7F500D9C0AB796E0D47", "5DC9533263DE5F732454031B", "D52833B3AC0EC0A1274F7245", "3765C724C3147FBE0290E132", "FD1A9DE99730D7E86887B3E1", "418D5FD37A2D9F4A3B353344", "51C8D3FF889B68B492855681", "760F6A64E0B6770664122016", "3C8CF2FE9490A665807FF643", "7400BF3C7E811D55E95BF06C", "2B35864CBDE1C87D7FB57D3E", "576CAE536942F9152201C9A3", "A04C7661B17EE243B63EFFC8", "D992672489A56670212EE6F9", "18437CFC31BBB7DC278E4BC0", "F5816783F85DDDA3F655FCFD", "688E275BF530DF803D9074C8", "83389355CE99AF393126B896", "30B3B0510DB59499DC65F723", "517443B915067DA91333995B", "8A2560D5B5CE11CC1C0A9E83", "0C364C3F50C4B6F7D319EE4A", "7354261B27BD1086F28F00BF", "AEF067A7779FD45B35994300", "B82E79697D1B1EB419B24CC1", "CD9E627AB61BAEC14998ABD4", "D3F9DCAD4A64BEABE801BB51", "CEFBF4ADADAE4C773F643DB6", "3A730C43C405A02139BF86CF", "27103EFBE430B01D868E3F2F", "6869E46C9F12367C3789F738", "2738F97B0A6E86EDC724E29B", "7001580FCC915A7910E68C4C", "96FF294B7A92D844A09262AD", "DFCB85D710191A4C7821BDEC", "EFA0B3B824E3897570966946", "82E82F127B05E69CA7C2D817", "FD3CB448061FD9AB69F8228A", "417BF9CABC6F1419BAF0BB1B", "7830EA07BD182D339AB03139", "6775581779CE9E2DED4EB59A", "3F52A194BAB376B46B5D7BDB", "43AB8B744F12AD97CFD45F3F", "820664DDE449A8B2F4C42A4F", "07C79E5A7A03FBEC86C150B7");
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		B1E2081CB8812032E53E65A2 = {
@@ -764,10 +1251,12 @@
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				PRODUCT_BUNDLE_IDENTIFIER = "local.tilvero.prototype";
 				ASSETCATALOG_COMPILER_APPICON_NAME = "AppIcon";
+				COPY_PHASE_STRIP = "NO";
 				ENABLE_USER_SCRIPT_SANDBOXING = "NO";
 				PRODUCT_NAME = "Tilvero";
 				EXECUTABLE_NAME = "TilveroApp";
-				INFOPLIST_FILE = "Config/Info.plist";
+				INFOPLIST_FILE = "$(TILVERO_APP_INFO_PLIST)";
+				TILVERO_APP_INFO_PLIST = "Config/Info.plist";
 				GENERATE_INFOPLIST_FILE = "NO";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 			};
@@ -789,10 +1278,12 @@
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				PRODUCT_BUNDLE_IDENTIFIER = "local.tilvero.prototype";
 				ASSETCATALOG_COMPILER_APPICON_NAME = "AppIcon";
+				COPY_PHASE_STRIP = "NO";
 				ENABLE_USER_SCRIPT_SANDBOXING = "NO";
 				PRODUCT_NAME = "Tilvero";
 				EXECUTABLE_NAME = "TilveroApp";
-				INFOPLIST_FILE = "Config/Info.plist";
+				INFOPLIST_FILE = "$(TILVERO_APP_INFO_PLIST)";
+				TILVERO_APP_INFO_PLIST = "Config/Info.plist";
 				GENERATE_INFOPLIST_FILE = "NO";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 			};
@@ -812,8 +1303,8 @@
 			buildConfigurationList = "34B6A76F1E5A2A9FB2C56D5E";
 			buildPhases = ("F84253A18A3EE2E61F4F9304", "99B338A5CB92EA98F74598F3", "41D311A605520FC7B8B9A980", "A708DF92C9E46229E8F1CD50", "A110DF655A0F951BA2C4E7D7", "185F1CC37FBFB0EB68575A5B");
 			buildRules = ();
-			dependencies = ("7F5ECE40377968467A091904");
-			packageProductDependencies = ("E7808E2E98DBDA29BB7592CA", "F676F12C0AAB768521A4A6EB", "09D29EAF79257C29BF2467C3", "493A737FD26FE27450A83A57", "88C2302F5C2EA2B97E7C35AD", "6E767982409C544E395DCC35", "4F340507422369A33F3117A4", "1B7EB0D053308D13C0F7E46D", "62D314D5BE382445AD44FAEC");
+			dependencies = ("7F5ECE40377968467A091904", "965BF066091B632C88958399");
+			packageProductDependencies = ("E7808E2E98DBDA29BB7592CA", "F676F12C0AAB768521A4A6EB", "09D29EAF79257C29BF2467C3", "493A737FD26FE27450A83A57", "88C2302F5C2EA2B97E7C35AD", "6E767982409C544E395DCC35", "4F340507422369A33F3117A4", "1B7EB0D053308D13C0F7E46D", "62D314D5BE382445AD44FAEC", "EC92BC54AB0E6EDF56CA6544", "76A29A7DE05630D7BC8A274C");
 		};
 		E6D4397E4F11BA67BDEF2A4A = {
 			isa = "PBXContainerItemProxy";
@@ -822,10 +1313,22 @@
 			remoteGlobalIDString = "91EB08AC9531ACAD42863137";
 			remoteInfo = "TilveroHelper";
 		};
+		A5AD9C93410CF4ACA2810613 = {
+			isa = "PBXContainerItemProxy";
+			containerPortal = "244210E48437B6556980A702";
+			proxyType = 1;
+			remoteGlobalIDString = "AF71486E7855BF952A31C512";
+			remoteInfo = "TilveroLidHelper";
+		};
 		7F5ECE40377968467A091904 = {
 			isa = "PBXTargetDependency";
 			target = "91EB08AC9531ACAD42863137";
 			targetProxy = "E6D4397E4F11BA67BDEF2A4A";
+		};
+		965BF066091B632C88958399 = {
+			isa = "PBXTargetDependency";
+			target = "AF71486E7855BF952A31C512";
+			targetProxy = "A5AD9C93410CF4ACA2810613";
 		};
 		73EBF6644258C120893E685D = {
 			isa = "XCBuildConfiguration";
@@ -881,8 +1384,8 @@
 			productRefGroup = "0A3E27B8CA818264D75C8D81";
 			projectDirPath = "";
 			projectRoot = "";
-			targets = ("5673EBA7F844CFA71D44372F", "91EB08AC9531ACAD42863137");
-			packageReferences = ("BC4A71180870F7945155FBB0");
+			targets = ("5673EBA7F844CFA71D44372F", "91EB08AC9531ACAD42863137", "AF71486E7855BF952A31C512");
+			packageReferences = ("BC4A71180870F7945155FBB0", "712A7AD824632A5CB5613623");
 		};
 	};
 	rootObject = "244210E48437B6556980A702";

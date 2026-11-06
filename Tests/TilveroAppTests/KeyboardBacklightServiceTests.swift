@@ -38,6 +38,34 @@ import KeyboardBackends
         XCTAssertEqual(service.requestedBrightness, 0.25)
         XCTAssertEqual(service.isEnabled, true)
     }
+    func testExplicitBrightnessWritesOnceConfirmsByReadbackAndRemembersNonzero() async throws {
+        let driver = KeyboardFixture(), store = KeyboardMemory()
+        let service = KeyboardBacklightService(driver: driver, storage: store)
+        await service.setBrightness(0.6)
+        XCTAssertEqual(driver.writes, [0.6])
+        XCTAssertEqual(service.brightness ?? 0, 0.6, accuracy: 0.005)
+        XCTAssertEqual(service.lastAppliedBrightness ?? 0, 0.6, accuracy: 0.005)
+        XCTAssertEqual(store.lastNonzeroBrightness ?? 0, 0.6, accuracy: 0.005)
+        XCTAssertEqual(service.observation?.automaticBrightness, true)
+        XCTAssertNil(service.error)
+        await service.setBrightness(0.6)
+        XCTAssertEqual(driver.writes, [0.6], "A value that already matches the readback is not written again.")
+        await service.setBrightness(0)
+        XCTAssertEqual(driver.writes, [0.6, 0])
+        XCTAssertEqual(service.isEnabled, false)
+        await service.setBrightness(7)
+        XCTAssertEqual(driver.writes.last, 1, "Values are clamped to 0...1.")
+        await service.setBrightness(.nan)
+        XCTAssertEqual(service.error, .invalidBrightness)
+    }
+    func testUnconfirmedBrightnessIsNotClaimedApplied() async throws {
+        let driver = KeyboardFixture(), service = KeyboardBacklightService(driver: driver, storage: KeyboardMemory())
+        driver.ignoreWrite = true
+        await service.setBrightness(0.9)
+        XCTAssertEqual(service.error, .unconfirmedWrite)
+        XCTAssertNil(service.lastAppliedBrightness)
+        XCTAssertEqual(service.brightness ?? 0, 0.35, accuracy: 0.005, "The observed reality is retained.")
+    }
     func testAlreadyMatchingStateDoesNotWrite() async throws {
         let driver = KeyboardFixture(), service = KeyboardBacklightService(driver: driver, storage: KeyboardMemory())
         await service.setEnabled(true)

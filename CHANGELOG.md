@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.3.0-beta.1 — Sleep and Charge Source Preview — 2026-11-06
+
+- Quick menu: tabs and sleep pills are one capsule control with a sliding accent pill (click or drag), cross-faded pages and one spring for page height and popover size. The menu no longer switches Spaces or raises the details window when it opens.
+- Sleep: **Sleep at charge** (sleep once the battery falls to a chosen level) and **Keep awake until charge**, next to the Sleep Timer. Only one of Keep Awake, Sleep Timer, Sleep at charge and Keep awake until charge can run at a time. Compact Until picker with cyclic wheels.
+- Keep Awake can also hold the Mac awake with the lid closed (`pmset disablesleep`, through a one-time administrator approval). It never starts Keep Awake by itself.
+- Menu bar icon: Keep Awake fills the battery with a configurable colour (blue by default); the fill turns red at 20 % or less.
+- Charge: the quick Charge page uses the native macOS charge limit with a slider for 80, 85, 90, 95 and 100 %; letting go applies it. It works on battery power after a one-time validation on a charger (battery below 80 %). The page does not change height while the limit is applied.
+- Optional keyboard-backlight row in the quick menu (hidden by default).
+- History is decoded as scalars only, so refreshes no longer cause multi-second main-thread work.
+- Overview shows capacity retention; sleep endpoints and the discharge forecast accept app-observed IOPowerSources readings.
+
+This beta contains source for Apple silicon with macOS 26.0+ and full Xcode; it
+includes no app or DMG. The charge limit was exercised on one Mac (macOS 27.2);
+its validation and the closed-lid override still need your own device check.
+Automatic installation remains gated.
+
+## 0.2.0 — Source Preview — 2026-11-04
+
+- Refined the sidebar and menu bar battery indicator, and shared the native full-width segmented controls between the app and Lab.
+- Improved Overview with a daily charge chart that distinguishes gaps, a weekly capacity estimate based on recorded observations, and clearer power readings.
+- Improved the quick Charge tab during refresh and separated the configured charge limit, diagnostic readback and editable draft.
+- Added a first-run readiness checklist and an Updates screen for GitHub release discovery.
+
+This release contains source for Apple silicon with macOS 26.0+ and full Xcode.
+Automatic installation remains gated. Native charge, fan and closed-lid
+controls require their separate device and recovery checks.
+
+## 0.1.0-beta.2 — Sleep Controls Source Preview — 2026-11-02
+
+- One-shot Sleep Timer with visible countdown, cancellation, pre-sleep preparation and an owned idle-sleep hold until expiry.
+- Compact Timer/Awake controls with master switches, 36 pt presets, native Custom/Until wheels, explicit mode-replacement consent and exact-session action guards.
+- Confirmed preset identity survives extensions; Timer Custom commits after native popover closure.
+- A dedicated lid-only native backend, signed XPC boundary, durable journal, app lease and independent recovery guardian. Live admission is restricted to a separately signed trial capped at 120 seconds; physical behavior and restoration remain unqualified.
+- Shared-source laboratory flavor with isolated data, injected fixture controls and source-bound local packaging. Experimental Studio artifacts remain private.
+- Reproducible isolated trial preparation and stricter rejection of private laboratory paths in source exports.
+
+This is source only. It includes no app/DMG, helper enrollment or hardware-support certification. The public binary profile remains helper-free monitoring; trusted signing, notarization and device gates are separate.
+
 ## 0.1.0-beta.1 — Source Preview — 2026-10-31
 
 First source prerelease for Apple silicon and macOS 26.0+. This preview contains

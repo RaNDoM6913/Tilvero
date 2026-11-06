@@ -5,6 +5,17 @@ import PowerTelemetry
 import PowerDiagnostics
 import OSLog
 import ChargeBackends
+import Carbon
+
+enum SleepTimerQuitReason {
+    static func isSystem(_ reason: AEEventID?) -> Bool {
+        guard let reason else { return false }
+        return [kAEQuitAll, kAEShutDown, kAERestart, kAEReallyLogOut, kAELogOut].contains(reason)
+    }
+    static var currentIsSystem: Bool {
+        isSystem(NSAppleEventManager.shared().currentAppleEvent?.paramDescriptor(forKeyword: AEKeyword(kAEQuitReason))?.enumCodeValue)
+    }
+}
 
 @main
 @MainActor
@@ -78,8 +89,33 @@ struct TilveroMain {
             guard AppInstancePolicy.mayStart(application: application, existing: existing) else { return nil }
         }
         let identity: ReleaseIdentity
+        var launchPolicy = AppLaunchPolicy.resolve(metadata: Bundle.main.infoDictionary ?? [:], arguments: CommandLine.arguments,
+            runningBundleIdentifiers: Set(AppLaunchPolicy.knownBundleIdentifiers.flatMap {
+                NSRunningApplication.runningApplications(withBundleIdentifier: $0)
+            }.filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier && !$0.isTerminated }
+                .compactMap(\.bundleIdentifier)))
+        var controllerLease: ControllerSessionLease?
+        #if TILVERO_LAB_STUDIO
+        // Studio composes memory-only ports and never takes a real control lease.
+        launchPolicy = .resolve(metadata: Bundle.main.infoDictionary ?? [:], arguments: ["--monitor-only"])
+        #endif
         do {
             identity = try ReleaseIdentity.current()
+            #if TILVERO_LAB_STUDIO
+            guard identity.isLaboratory,
+                  Bundle.main.object(forInfoDictionaryKey: "TilveroStudioBuild") as? Bool == true,
+                  Bundle.main.object(forInfoDictionaryKey: "TilveroStudioRoot") as? String != nil else {
+                showStartupBlock(english: "The Studio build requires its isolated laboratory identity and source metadata.",
+                    russian: "Для Studio нужны отдельный идентификатор лаборатории и метаданные исходников.")
+                return nil
+            }
+            #endif
+            // Acquire before constructing any domain service. Failure chooses a
+            // monitoring session for this entire launch, with no later promotion.
+            if !launchPolicy.monitoringOnly {
+                do { controllerLease = try ControllerSessionLease.acquire() }
+                catch { launchPolicy = launchPolicy.tighteningForUnavailableController() }
+            }
             if identity.isProduction {
                 let defaults = UserDefaults.standard
                 let source = defaults.persistentDomain(forName: ReleaseIdentity.prototypeBundleIdentifier) ?? [:]
@@ -112,7 +148,7 @@ struct TilveroMain {
                 russian: "Tilvero не смог безопасно подготовить данные. Запуск остановлен. После устранения проблемы перенос можно повторить; существующие данные сохранены.")
             return nil
         }
-        return TilveroAppDelegate(historyURL: identity.historyURL())
+        return TilveroAppDelegate(historyURL: identity.historyURL(), launchPolicy: launchPolicy, controllerLease: controllerLease)
     }
 
     // Do not read app localization/defaults before migration has committed.
@@ -151,20 +187,50 @@ private final class TilveroStartupDelegate: NSObject, NSApplicationDelegate {
 
 @MainActor
 final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
-    private let model: TilveroModel
+    private var model: TilveroModel
+    #if TILVERO_LAB_STUDIO
+    private let studio: LabStudioState
+    private let sandbox: LabSandboxSession
+    #endif
+    // Keep ownership through failed/successful quit recovery. Application stop
+    // does not release it; delegate destruction/process exit does.
+    private let controllerLease: ControllerSessionLease?
 
-    init(historyURL: URL) {
-        model = TilveroModel(isDemo: CommandLine.arguments.contains("--demo"), historyURL: historyURL)
+    init(historyURL: URL, launchPolicy: AppLaunchPolicy, controllerLease: ControllerSessionLease?) {
+        #if TILVERO_LAB_STUDIO
+        let root = URL(fileURLWithPath: Bundle.main.object(forInfoDictionaryKey: "TilveroStudioRoot") as! String)
+        sandbox = LabSandboxSession(root: root)
+        studio = LabStudioState(root: root)
+        model = sandbox.model
+        self.controllerLease = nil
+        #else
+        self.controllerLease = controllerLease
+        model = TilveroModel(isDemo: CommandLine.arguments.contains("--demo"), launchPolicy: launchPolicy, historyURL: historyURL)
+        #endif
         super.init()
+        #if TILVERO_LAB_STUDIO
+        sandbox.onModelReplacement = { [weak self] model in self?.replaceSandboxModel(model) }
+        #endif
     }
     private var statusItem: NSStatusItem?
+    private var menuLanguage: String?
     private var keepAwakeStatusBinding: NativeKeepAwakeStatusBinding?
-    private let popover = NSPopover()
+    private var sleepTimerWarning: SleepTimerWarningController?
+    let popover = NSPopover()
     private var detailsWindow: NSWindow?
+    /// Activating the app for the quick panel raises every app window. While the panel is open the already
+    /// visible details window is made invisible and click-through, then restored when the panel is gone.
+    private var detailsHiddenForQuickPanel = false
     private var outsideClickMonitor: Any?
     private var escapeMonitor: Any?
     private var popoverGeneration: UInt64 = 0
     private var activationGate = QuickPanelActivationGate()
+    private var presentingWithoutActivation = false
+    private var textEditingObserver: Any?
+    private var detailsWindowIsOnAnotherSpace: Bool {
+        guard let window = detailsWindow, window.isVisible, !window.isMiniaturized else { return false }
+        return !window.isOnActiveSpace
+    }
     private let popoverLog = Logger(subsystem: Bundle.main.bundleIdentifier ?? ReleaseIdentity.prototypeBundleIdentifier, category: "MenuPopover")
 
     func start() {
@@ -176,22 +242,25 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         item.button?.font = NativeStatusPresentation.font(for: model.menuBarTextSize)
 
         popover.behavior = .transient
-        let panel = QuickPanelHostingController(model: model, maximumHeight: panelMaximumHeight)
-        panel.onSizeChange = { [weak self] size in self?.popover.contentSize = size }
-        popover.contentViewController = panel
-        popover.contentSize = panel.preferredContentSize
-        popover.delegate = self
-
-        model.openDetails = { [weak self] in self?.showDetails() }
-        model.onPresentationChange = { [weak self] in self?.updateStatusItem() }
-        keepAwakeStatusBinding = NativeKeepAwakeStatusBinding(service: model.keepAwake) { [weak self] _ in
-            self?.updateStatusItem()
+        // Typing needs an active application. Without activation the popover works with the mouse; the first text
+        // field edit activates (and, as for any activation, hides the details window while the panel is open).
+        textEditingObserver = NotificationCenter.default.addObserver(forName: NSControl.textDidBeginEditingNotification, object: nil, queue: .main) { [weak self] note in
+            let editedWindow = (note.object as? NSView)?.window
+            MainActor.assumeIsolated {
+                guard let self, self.popover.isShown, !NSApplication.shared.isActive,
+                      editedWindow != nil, editedWindow === self.popover.contentViewController?.view.window else { return }
+                self.hideDetailsForQuickPanel()
+                NSApplication.shared.activate()
+            }
         }
+        configureQuickPanel()
+        configureModelPresentation()
         NSWorkspace.shared.notificationCenter.addObserver(
             self, selector: #selector(didWake),
             name: NSWorkspace.didWakeNotification, object: nil
         )
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(willSleep), name: NSWorkspace.willSleepNotification, object: nil)
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(sessionResigned), name: NSWorkspace.sessionDidResignActiveNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(powerChanged), name: .NSProcessInfoPowerStateDidChange, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(clockChanged), name: NSNotification.Name.NSSystemClockDidChange, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(clockChanged), name: NSNotification.Name.NSSystemTimeZoneDidChange, object: nil)
@@ -199,12 +268,109 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         buildMenu()
         updateStatusItem()
         model.start()
-        if CommandLine.arguments.contains("--show-details") { showDetails() }
+        runMotionProbeIfRequested()
+        #if TILVERO_LAB_STUDIO
+        showDetails()
+        #else
+        if model.canShowSetup && !model.hasReviewedSetup {
+            model.selectedSettingsPage = .setup
+            model.selectedSection = .settings
+            showDetails()
+        } else if CommandLine.arguments.contains("--show-details") {
+            showDetails()
+        }
+        #endif
     }
 
+    private func configureQuickPanel() {
+        #if TILVERO_LAB_STUDIO
+        studio.setRegistryVisible("popover", false)
+        #endif
+        let panel = QuickPanelHostingController(model: model, maximumHeight: panelMaximumHeight)
+        #if TILVERO_LAB_STUDIO
+        panel.attachStudio(studio)
+        #endif
+        panel.onSizeChange = { [weak self] size in if let popover = self?.popover { QuickPanelPopoverSizing.apply(size, to: popover) } }
+        popover.contentViewController = panel
+        popover.contentSize = panel.preferredContentSize
+        popover.delegate = self
+
+    }
+
+    private func configureModelPresentation() {
+        #if TILVERO_LAB_STUDIO
+        L10n.useStudioLanguage(model.language)
+        #endif
+        model.openDetails = { [weak self] in self?.showDetails() }
+        sleepTimerWarning = SleepTimerWarningController(service: model.sleepTimer) { [weak self] in
+            guard let self else { return }
+            self.model.selectedSleepPage = .timer; self.model.selectedSection = .sleep; self.showDetails()
+        }
+        model.onPresentationChange = { [weak self] in
+            guard let self else { return }
+            #if TILVERO_LAB_STUDIO
+            if L10n.useStudioLanguage(self.model.language) { self.studio.objectWillChange.send() }
+            #endif
+            self.updateStatusItem()
+            if self.menuLanguage != L10n.language { self.buildMenu() }
+            self.sleepTimerWarning?.refreshPresentation()
+        }
+        keepAwakeStatusBinding = NativeKeepAwakeStatusBinding(service: model.keepAwake) { [weak self] _ in
+            self?.updateStatusItem()
+        }
+    }
+
+    #if TILVERO_LAB_STUDIO
+    private func replaceSandboxModel(_ replacement: TilveroModel) {
+        closePopover(reason: "Studio scenario changed")
+        replacement.selectedSection = model.selectedSection
+        replacement.selectedSettingsPage = model.selectedSettingsPage
+        replacement.selectedSleepPage = model.selectedSleepPage
+        replacement.isDetailVisible = detailsAreOnScreen
+        model.onPresentationChange = nil
+        keepAwakeStatusBinding = nil
+        sleepTimerWarning?.close()
+        sleepTimerWarning = nil
+        model = replacement
+        configureQuickPanel()
+        configureModelPresentation()
+        updateStatusItem()
+        model.start()
+    }
+    #endif
+
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // Sparkle can replace an extracted update when the host exits. Keep all
+        // ordinary quit paths closed until explicit consent and verified handoff.
+        if model.updateInstaller.installationBlocksQuit {
+            guard model.updateInstaller.validatedHandoffAllowsTermination,
+                  model.updateReadiness.blockers.isEmpty else {
+                return .terminateCancel
+            }
+            return .terminateNow
+        }
+        let systemInitiated = SleepTimerQuitReason.currentIsSystem
+        if !systemInitiated && model.sleepTimer.needsHoldRelease {
+            model.sleepTimer.cancel()
+            if model.sleepTimer.needsHoldRelease {
+                let alert = NSAlert(); alert.messageText = L10n.text("The timer’s awake hold still needs to be released.")
+                alert.informativeText = model.sleepTimer.diagnostic ?? L10n.text("Release timer hold")
+                alert.runModal(); return .terminateCancel
+            }
+        }
+        if !systemInitiated && model.sleepTimerBlocksControls {
+            let alert = NSAlert(); alert.messageText = L10n.text("A sleep request is being prepared or observed.")
+            alert.informativeText = L10n.text("Wait for it to finish, or cancel preparation from the timer.")
+            alert.runModal(); return .terminateCancel
+        }
+        if !systemInitiated && model.sleepTimer.isEditable {
+            let alert = NSAlert(); alert.messageText = L10n.text("Quitting cancels the sleep timer.")
+            alert.addButton(withTitle: L10n.text("Keep Tilvero open"))
+            alert.addButton(withTitle: L10n.text("Quit and cancel timer"))
+            guard alert.runModal() == .alertSecondButtonReturn else { return .terminateCancel }
+        }
         Task {
-            let restored = await model.prepareForTermination()
+            let restored = await model.prepareForTermination(systemInitiated: systemInitiated)
             if !restored {
                 let alert = NSAlert(); alert.messageText = L10n.text("Recovery required")
                 alert.informativeText = model.terminationRecoveryMessage ?? L10n.text("Operation failed")
@@ -216,6 +382,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         return .terminateLater
     }
     func applicationWillTerminate(_ notification: Notification) {
+        sleepTimerWarning?.close()
         stopPopoverEventMonitors()
         model.stop()
         NSWorkspace.shared.notificationCenter.removeObserver(self)
@@ -231,6 +398,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     }
     func applicationDidResignActive(_ notification: Notification) {
         closePopover(reason: "application deactivated")
+        restoreDetailsAfterQuickPanel()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -245,6 +413,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
 
     @objc private func didWake() { model.setSleeping(false) }
     @objc private func willSleep() { model.setSleeping(true) }
+    @objc private func sessionResigned() { model.sleepTimer.sessionResigned() }
     @objc private func powerChanged() { Task { await model.refresh() } }
     @objc private func clockChanged() {
         try? model.keepAwake.reconcile()
@@ -252,7 +421,13 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     }
     @objc private func reopenDetails() { showDetails() }
     @objc private func openSettings() { model.selectedSection = .settings; showDetails() }
+    @objc private func checkForUpdates() {
+        model.selectedSection = .settings; model.selectedSettingsPage = .updates; showDetails()
+        if model.updateInstaller.isQualified { model.updateInstaller.checkForUpdates(channel: model.updates.channel) }
+        Task { await model.updates.check() }
+    }
     private func buildMenu() {
+        menuLanguage = L10n.language
         let main = NSMenu()
         let root = NSMenuItem(); main.addItem(root)
         let app = NSMenu(); root.submenu = app
@@ -261,7 +436,9 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         quickPanel.target = self
         app.addItem(quickPanel)
         let settings = NSMenuItem(title: L10n.text("Settings"), action: #selector(openSettings), keyEquivalent: ",")
-        settings.target = self; app.addItem(settings); app.addItem(.separator())
+        settings.target = self; app.addItem(settings)
+        let updates = NSMenuItem(title: L10n.text("Check for Updates…"), action: #selector(checkForUpdates), keyEquivalent: "")
+        updates.target = self; app.addItem(updates); app.addItem(.separator())
         app.addItem(withTitle: L10n.text("Quit Tilvero"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         let edit = NSMenuItem(); let editMenu = NSMenu(title: L10n.text("Edit"))
         for (title, selector, key) in [("Cut", "cut:", "x"), ("Copy", "copy:", "c"),
@@ -272,7 +449,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         NSApplication.shared.mainMenu = main
     }
 
-    @objc private func togglePopover() {
+    @objc func togglePopover() {
         guard let button = statusItem?.button else { return }
         if popover.isShown || activationGate.isWaiting {
             closePopover(reason: "status item toggled")
@@ -281,19 +458,49 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         popoverGeneration &+= 1
         button.state = .on
         button.highlight(true)
-        if activationGate.request(applicationIsActive: NSApplication.shared.isActive) {
+        // Activating the app switches to the Space that holds its details window. Opening the quick menu must not
+        // move the user away from the desktop they are on, so in that case the popover is shown without activation
+        // (mouse works as usual; a text field asks for activation when editing starts, see below).
+        presentingWithoutActivation = QuickPanelActivationPolicy.avoidsActivation(
+            applicationIsActive: NSApplication.shared.isActive, detailsWindowOnAnotherSpace: detailsWindowIsOnAnotherSpace)
+        if activationGate.request(applicationIsActive: NSApplication.shared.isActive || presentingWithoutActivation) {
             presentPopover()
         } else {
+            hideDetailsForQuickPanel()
             startPopoverEventMonitors()
             NSApplication.shared.activate(ignoringOtherApps: true)
             if NSApplication.shared.isActive, activationGate.applicationBecameActive() { presentPopover() }
         }
     }
 
+    /// A covered, minimised or hidden details window needs neither fast polling nor live metrics.
+    private var detailsAreOnScreen: Bool {
+        guard let window = detailsWindow else { return false }
+        return window.isVisible && window.occlusionState.contains(.visible) && !detailsHiddenForQuickPanel
+    }
+    private func syncDetailsVisibility() { model.isDetailVisible = detailsAreOnScreen }
+
+    private func hideDetailsForQuickPanel() {
+        guard let window = detailsWindow, window.isVisible, !NSApplication.shared.isActive else { return }
+        window.alphaValue = 0
+        window.ignoresMouseEvents = true
+        detailsHiddenForQuickPanel = true
+        syncDetailsVisibility()
+    }
+
+    private func restoreDetailsAfterQuickPanel() {
+        guard detailsHiddenForQuickPanel else { return }
+        detailsHiddenForQuickPanel = false
+        detailsWindow?.alphaValue = 1
+        detailsWindow?.ignoresMouseEvents = false
+        syncDetailsVisibility()
+    }
+
     private func presentPopover() {
         Task { await model.refreshProcessActivity() }
+        Task { await model.quickPanelWillOpen() }
         try? model.keepAwake.reconcile()
-        guard NSApplication.shared.isActive, let button = statusItem?.button else { return }
+        guard NSApplication.shared.isActive || presentingWithoutActivation, let button = statusItem?.button else { return }
         (popover.contentViewController as? QuickPanelHostingController)?.updateMaximumHeight(panelMaximumHeight)
         model.isPopoverVisible = true
         QuickPanelMotion.configure(popover, reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
@@ -357,25 +564,43 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     }
 
     private func showDetails() {
-        try? model.keepAwake.reconcile()
+        // Setup presents and refreshes its own read-only facts.
+        let observeControls = model.selectedSection != .settings || model.selectedSettingsPage != .setup
+        if observeControls { try? model.keepAwake.reconcile() }
         closePopover(reason: "details opened")
         if detailsWindow == nil {
+            #if TILVERO_LAB_STUDIO
+            let controller = NSHostingController(rootView: LabStudioWorkspace(session: sandbox, studio: studio))
+            #else
             let controller = NSHostingController(rootView: BatteryInfoView(model: model))
+            #endif
             let window = NSWindow(contentViewController: controller)
+            #if TILVERO_LAB_STUDIO
+            window.title = "Tilvero Lab"
+            window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+            window.setContentSize(NSSize(width: 1280, height: 820))
+            window.minSize = NSSize(width: 1040, height: 640)
+            #else
             window.title = AppIdentity.displayName
             window.appearance = NSAppearance(named: .aqua)
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             window.setContentSize(NSSize(width: 940, height: 680))
             window.minSize = NSSize(width: 760, height: 540)
+            #endif
             window.isReleasedWhenClosed = false
             window.delegate = self
             window.center()
             detailsWindow = window
+            NotificationCenter.default.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: window, queue: .main) { [weak self] _ in
+                Task { @MainActor [weak self] in self?.syncDetailsVisibility() }
+            }
         }
         model.isDetailVisible = true
+        restoreDetailsAfterQuickPanel()
         NSApplication.shared.activate(ignoringOtherApps: true)
         detailsWindow?.makeKeyAndOrderFront(nil)
-        Task { await model.refresh() }
+        syncDetailsVisibility()
+        if observeControls { Task { await model.refresh() } }
     }
 
     private func updateStatusItem() {
@@ -385,8 +610,15 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         let attached = power.availability == .available && power.freshness != .stale && power.value == true
         let awake = KeepAwakeStatusIndicator(service: model.keepAwake)
         button.font = NativeStatusPresentation.font(for: model.menuBarTextSize)
-        button.image = NativeBatteryStatusImage.make(level: level, style: model.displayStyle, externalPower: attached, scale: CGFloat(model.menuBarIconScale), textSize: model.menuBarTextSize, awake: awake, highlighted: button.state == .on)
-        button.alternateImage = awake == .active ? NativeBatteryStatusImage.make(level: level, style: model.displayStyle, externalPower: attached, scale: CGFloat(model.menuBarIconScale), textSize: model.menuBarTextSize, awake: awake, highlighted: true) : nil
+        let lowOnBattery = !attached && (level.map { $0 <= NativeBatteryStatusImage.lowChargeThreshold } ?? false)
+        func icon(pressed: Bool) -> NSImage {
+            NativeBatteryStatusImage.make(level: level, style: model.displayStyle, externalPower: attached, scale: CGFloat(model.menuBarIconScale),
+                                          textSize: model.menuBarTextSize, awake: awake, highlighted: pressed,
+                                          appearance: model.menuBarBatteryAppearance, redWhenLow: true, awakeColor: model.awakeIndicatorColor.nsColor)
+        }
+        button.image = icon(pressed: button.state == .on)
+        // The coloured fill (Keep Awake blue, low-charge red) stays while the menu is open.
+        button.alternateImage = awake == .active || lowOnBattery ? icon(pressed: true) : nil
         let percentageTitle = model.displayStyle == .beside ? NativeStatusPresentation.percentageTitle(level: level) : ""
         // Development-only marker: fixtures must remain identifiable even when closed.
         button.title = percentageTitle + (model.isDemo ? " DEMO" : "")
@@ -407,16 +639,31 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
 
 extension TilveroAppDelegate: NSPopoverDelegate {
     func popoverDidShow(_ notification: Notification) {
+        #if TILVERO_LAB_STUDIO
+        studio.setRegistryVisible("popover", true)
+        #endif
         activatePopoverWindow()
         popoverLog.info("Quick panel opened; active: \(NSApplication.shared.isActive, privacy: .public); key: \(self.popover.contentViewController?.view.window?.isKeyWindow ?? false, privacy: .public)")
     }
     func popoverDidClose(_ notification: Notification) {
+        #if TILVERO_LAB_STUDIO
+        studio.setRegistryVisible("popover", false)
+        #endif
         popoverGeneration &+= 1
         stopPopoverEventMonitors()
         statusItem?.button?.state = .off
         statusItem?.button?.highlight(false)
         updateStatusItem()
         model.quickPanelDidClose()
+        if detailsHiddenForQuickPanel {
+            // The user closed the panel without asking for the details window: hand activation back to the
+            // previous app instead of revealing it. A fallback guarantees the window is never left invisible.
+            if NSApplication.shared.isActive { NSApplication.shared.deactivate() }
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(500))
+                self?.restoreDetailsAfterQuickPanel()
+            }
+        }
         popoverLog.info("Quick panel closed; event monitors removed")
     }
 }

@@ -64,12 +64,12 @@ import SwiftUI
                 }.font(.caption).help(L10n.text(row.detail))
             }
             HStack {
-                Button(L10n.text("Save mode")) {
+                StudioActionButton(L10n.text("Save mode"), id: "action.save-mode") {
                     do { try model.saveMode(draft); message = "Mode saved. No settings were applied." }
                     catch { message = "The mode could not be saved." }
                 }.disabled(!unsaved || model.isApplying)
                 Spacer()
-                Button(L10n.text("Apply available actions")) { Task { await model.applyMode(draft.mode) } }
+                StudioActionButton(L10n.text("Apply available actions"), id: "action.apply-available-actions") { Task { await model.applyMode(draft.mode) } }
                     .disabled(unsaved || model.isApplying || model.nativeCharge.isBusy || model.nativeCharge.isQualifying || model.liveControl.isBusy || !preview.contains { $0.status == .available })
             }
             if unsaved {
@@ -130,9 +130,9 @@ import SwiftUI
                 }
             }
             HStack {
-                Button(L10n.text("Edit modes…")) { model.selectedSection = .charging; model.openDetails?() }
+                StudioActionButton(L10n.text("Edit modes…"), id: "action.edit-modes") { model.selectedSection = .charging; model.openDetails?() }
                 Spacer()
-                Button(L10n.text("Apply")) { Task { await model.applyMode(model.selectedMode) } }
+                StudioActionButton(L10n.text("Apply"), id: "action.apply") { Task { await model.applyMode(model.selectedMode) } }
                     .buttonStyle(.borderedProminent)
                     .disabled(model.isApplying || model.nativeCharge.isBusy || model.nativeCharge.isQualifying || model.liveControl.isBusy || !preview.contains { $0.status == .available })
             }

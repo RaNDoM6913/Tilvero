@@ -1,4 +1,5 @@
 import Foundation
+import PowerCore
 
 /// An extrapolation of a recent continuous discharge, not a battery-life promise.
 enum DischargeForecast {
@@ -15,6 +16,16 @@ enum DischargeForecast {
         let lowerSeconds: Double
         let upperSeconds: Double
         let observedSeconds: Double
+    }
+    /// Current-reading gates for `estimate`. IOPowerSources rows with unknown source freshness count
+    /// when the app collected them just now (`CurrentObservation`); retained or stale values never do.
+    /// Typed readings are stamped with the snapshot's own time, so here the source/key-path checks (not the
+    /// 60 s window) are what gate the input; `estimate` separately bounds the history age.
+    static func currentInputs(_ snapshot: BatterySnapshot) -> (percent: Int?, fresh: Bool, onBattery: Bool) {
+        let at = snapshot.collectedAt
+        return (snapshot.chargePercent.value,
+                snapshot.chargePercent.isCurrentObservation(catalogID: "011", at: at),
+                snapshot.isExternalPower.isCurrentObservation(catalogID: "015", at: at) && snapshot.isExternalPower.value == false)
     }
     static func estimate(_ samples: [Sample], currentPercent: Int?, currentFresh: Bool, onBattery: Bool, now: Date = Date()) -> Estimate? {
         guard currentFresh, onBattery, let current = currentPercent, (0...100).contains(current),

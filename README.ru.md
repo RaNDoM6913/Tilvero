@@ -1,7 +1,7 @@
 ![Tilvero — батарея, питание и активность. Swift 6, macOS 26+, Apple silicon. Предварительная версия в исходниках.](.github/assets/cover.png)
 
 <p align="center">
-  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.2.0"><img src="https://img.shields.io/badge/source-preview-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Предварительная версия в исходниках" height="28"></a>
+  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.3.0-beta.1"><img src="https://img.shields.io/badge/source-preview-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Предварительная версия в исходниках" height="28"></a>
   <a href="docs/GITHUB_TRAFFIC.md"><img src="https://img.shields.io/badge/zip%20%E2%80%A2%20clones%20%E2%80%A2%20unique-5%20%E2%80%A2%20269%20%E2%80%A2%20119-2F6E4B?style=for-the-badge&amp;labelColor=172A22" alt="Скачивания ZIP 5, клонирования Git 269, уникальные клонирующие 119" height="28"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Лицензия GPL-3.0-only" height="28"></a>
 </p>
@@ -12,9 +12,9 @@ Tilvero показывает состояние батареи и питания
 в удобном нативном окне. Следите за зарядкой, изучайте состояние батареи
 и изменения со временем. Без аккаунта и облачного сервиса.
 
-**Исходники Tilvero 0.2.0 для разработчиков.**
-[Получить исходники](https://github.com/RaNDoM6913/Tilvero/releases/download/v0.2.0/Tilvero-0.2.0-source.zip)
-· [Описание выпуска и контрольные суммы](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.2.0)
+**Исходники Tilvero 0.3.0-beta.1 для разработчиков.**
+[Получить исходники](https://github.com/RaNDoM6913/Tilvero/releases/download/v0.3.0-beta.1/Tilvero-0.3.0-beta.1-source.zip)
+· [Описание выпуска и контрольные суммы](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.3.0-beta.1)
 · [Сборка и запуск](#сборка-и-запуск) · [План развития](ROADMAP.md)
 
 Снимок на **4 ноября 2026 г. (UTC)**. ZIP — скачивания исходников за вычетом одного проверочного скачивания. CLONES и UNIQUE — клонирования за **27 октября — 2 ноября (UTC)**. [Цифры и методика](docs/GITHUB_TRAFFIC.md).
@@ -62,7 +62,7 @@ Tilvero показывает состояние батареи и питания
 macOS SDK и Swift 6. Отдельные Command Line Tools не являются проверенным путём сборки.
 
 ```sh
-git clone --branch v0.2.0 https://github.com/RaNDoM6913/Tilvero.git
+git clone --branch v0.3.0-beta.1 https://github.com/RaNDoM6913/Tilvero.git
 cd Tilvero
 bash scripts/test.sh
 bash scripts/build-local-app.sh

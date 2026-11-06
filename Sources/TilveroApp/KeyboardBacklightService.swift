@@ -89,6 +89,34 @@ enum KeyboardBacklightAvailability: Equatable {
             lastAppliedBrightness = after.brightness
         } catch { invalidate(.unconfirmedWrite) }
     }
+    /// Explicit slider commit: writes the requested brightness (0...1), then confirms it by readback.
+    func setBrightness(_ requested: Double) async {
+        guard !isBusy else { return }
+        guard allowed else { invalidate(.disabledInSimulation); return }
+        guard requested.isFinite else { error = .invalidBrightness; return }
+        let target = min(1, max(0, requested))
+        isBusy = true; error = nil; lastAppliedBrightness = nil; requestedBrightness = nil
+        defer { isBusy = false }
+        let before: KeyboardBacklightObservation
+        do { before = try await driver.read(); accept(before) }
+        catch { invalidate(Self.typed(error)); return }
+        if target == 0 ? before.brightness == 0 : abs(before.brightness - target) <= 0.005 { return }
+        requestedBrightness = target
+        do { try await driver.setBrightness(target, keyboardID: before.keyboardID) }
+        catch {
+            let failure = Self.typed(error)
+            do { accept(try await driver.read()); self.error = failure }
+            catch { invalidate(.unconfirmedWrite) }
+            return
+        }
+        do {
+            let after = try await driver.read(); accept(after)
+            guard after.keyboardID == before.keyboardID else { error = .unconfirmedWrite; return }
+            guard after.automaticBrightness == before.automaticBrightness else { error = .automaticPolicyChanged; return }
+            guard target == 0 ? after.brightness == 0 : abs(after.brightness - target) <= 0.005 else { error = .unconfirmedWrite; return }
+            lastAppliedBrightness = after.brightness
+        } catch { invalidate(.unconfirmedWrite) }
+    }
     private func accept(_ observed: KeyboardBacklightObservation) {
         observation = observed; availability = .available
         if observed.brightness > 0 { storage.lastNonzeroBrightness = observed.brightness }

@@ -11,6 +11,7 @@
 - (uint8_t)getMCLLimitWithError:(NSError **)error;
 - (id)availableChargeLimitsWithError:(NSError **)error;
 - (NSUInteger)isSmartChargingCurrentlyEnabled:(NSError **)error;
+- (id)powerLogStatus;
 - (BOOL)setMCLLimit:(uint8_t)target error:(NSError **)error;
 - (BOOL)enableMCL:(NSError **)error;
 - (BOOL)disableMCL:(NSError **)error;
@@ -19,6 +20,39 @@
 static BOOL TVFail(NSError **error, NSInteger code, NSString *message) {
     if (error) *error = [NSError errorWithDomain:@"Tilvero.NativeCharge" code:code userInfo:@{NSLocalizedDescriptionKey:message}];
     return NO;
+}
+static BOOL TVValidTargets(id targets) {
+    if (![targets isKindOfClass:NSArray.class] || ![targets count] || [targets count]>21) return NO;
+    NSInteger previous = 79;
+    for (id value in targets) {
+        if (![value isKindOfClass:NSNumber.class] || CFGetTypeID((__bridge CFTypeRef)value) == CFBooleanGetTypeID()) return NO;
+        double number = [value doubleValue];
+        if (!(number>=80 && number<=100) || number != [value integerValue] || [value integerValue]<=previous) return NO;
+        previous = [value integerValue];
+    }
+    return YES;
+}
+static NSNumber *TVValidObservedTarget(id value, NSArray *targets) {
+    if (![value isKindOfClass:NSNumber.class] || CFGetTypeID((__bridge CFTypeRef)value) == CFBooleanGetTypeID()) return nil;
+    double number = [value doubleValue];
+    if (!(number>=80 && number<=100) || number != [value integerValue]) return nil;
+    NSNumber *target = @([value integerValue]);
+    NSDecimal observed = [value decimalValue], integral = [target decimalValue];
+    if (NSDecimalCompare(&observed, &integral) != NSOrderedSame || ![targets containsObject:target]) return nil;
+    return target;
+}
+static NSNumber *TVReadDiagnosticStoredTarget(id client, NSArray *targets) {
+    // Optional, fixed getter: absence or ABI drift must not discard mandatory
+    // capability/current-target observations from the incomplete read.
+    @try {
+        Method method = class_getInstanceMethod(object_getClass(client), @selector(powerLogStatus));
+        const char *encoding = method ? method_getTypeEncoding(method) : NULL;
+        if (!encoding || ![@"@16@0:8" isEqualToString:[NSString stringWithUTF8String:encoding]]) return nil;
+        id status = [client powerLogStatus];
+        if (![status isKindOfClass:NSDictionary.class]) return nil;
+        // Never export the raw dictionary, unrelated keys or private payloads.
+        return TVValidObservedTarget(status[@"chargeLimitTargetSoC"], targets);
+    } @catch (NSException *exception) { return nil; }
 }
 static id TVClient(NSError **error) {
     static void *handle;
@@ -56,11 +90,24 @@ NSDictionary<NSString *,id> *TVNativeChargeRead(NSError **error) {
         uint8_t target = [client getMCLLimitWithError:&failure]; if (failure) { if(error)*error=failure; return nil; }
         NSArray *targets = [client availableChargeLimitsWithError:&failure]; if (failure) { if(error)*error=failure; return nil; }
         NSUInteger optimized = [client isSmartChargingCurrentlyEnabled:&failure]; if (failure) { if(error)*error=failure; return nil; }
-        if (enabled>1 || optimized>1 || target<80 || target>100 || ![targets isKindOfClass:NSArray.class] || !targets.count || targets.count>21) {
-            TVFail(error,5,@"Native charge readback is incomplete or invalid."); return nil;
-        }
-        for (id value in targets) if (![value isKindOfClass:NSNumber.class] || [value doubleValue] != [value integerValue] || [value integerValue]<80 || [value integerValue]>100) {
+        if (!TVValidTargets(targets)) {
             TVFail(error,5,@"Native target list is invalid."); return nil;
+        }
+        if (enabled>1 || optimized>1 || target<80 || target>100) {
+            // Preserve capability discovery, never a normalized state snapshot.
+            // The setter's required complete readback still fails closed.
+            NSMutableDictionary *metadata = [@{NSLocalizedDescriptionKey:@"Native charge readback is incomplete or invalid.",
+                @"supportedTargets":targets, @"rawManualState":@(enabled)} mutableCopy];
+            NSNumber *currentTarget = TVValidObservedTarget(@(target), targets);
+            if (currentTarget) metadata[@"currentTarget"] = currentTarget;
+            NSNumber *diagnosticStoredTarget = TVReadDiagnosticStoredTarget(client, targets);
+            if (diagnosticStoredTarget) metadata[@"diagnosticStoredTarget"] = diagnosticStoredTarget;
+            if (error) *error = [NSError errorWithDomain:@"Tilvero.NativeCharge" code:5
+                userInfo:metadata];
+#if !__has_feature(objc_arc)
+            [metadata release];
+#endif
+            return nil;
         }
         return [[NSDictionary alloc] initWithDictionary:@{@"enabled":@(enabled==1), @"target":@(target), @"optimizedCharging":@(optimized==1), @"targets":targets}];
     } @catch (NSException *exception) { TVFail(error,6,@"The native charging interface failed."); return nil; }

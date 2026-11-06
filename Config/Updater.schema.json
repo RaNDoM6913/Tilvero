@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Tilvero Monitoring updater configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "enabled", "profile", "bundleID", "teamID", "feedURL", "publicKey"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "enabled": {"type": "boolean"},
+    "profile": {"const": "monitoring"},
+    "bundleID": {"const": "io.github.random6913.tilvero"},
+    "teamID": {"type": ["string", "null"]},
+    "feedURL": {"type": ["string", "null"]},
+    "publicKey": {"type": ["string", "null"]}
+  },
+  "allOf": [{
+    "if": {"properties": {"enabled": {"const": true}}},
+    "then": {"properties": {
+      "teamID": {"type": "string", "pattern": "^[A-Z0-9]{10}$"},
+      "feedURL": {"type": "string", "pattern": "^https://"},
+      "publicKey": {"type": "string", "minLength": 44, "maxLength": 44}
+    }},
+    "else": {"properties": {"teamID": {"type": "null"}, "feedURL": {"type": "null"}, "publicKey": {"type": "null"}}}
+  }]
+}

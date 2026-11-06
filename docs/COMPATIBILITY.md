@@ -12,12 +12,18 @@ A source prerelease and a trusted Mac download are separate deliverables.
 | OS | macOS 26.0 or later |
 | Build tools | Full Xcode with a compatible macOS SDK and Swift 6; Command Line Tools alone are not the validated route |
 | Interface | Native SwiftUI and AppKit; Russian and English |
-| Connectivity | No account, cloud service or internet connection required by the app |
+| Connectivity | Offline monitoring core; optional release checks use HTTPS without an account or telemetry upload |
 | Monitoring | Runs without administrator approval or helper enrollment |
 
 The deployment target does not prove every model/OS combination has been tested.
 Recorded actual monitoring/UI observations include MacBook Air M5 / Mac17,3 on
 macOS 26.6.2. MacBook Air is fanless; a Pro simulator cannot qualify Pro hardware.
+
+Native UI and local-update continuity were also checked on macOS 27.2. Settings →
+General → Battery appearance offers the compact macOS 27 battery and retained
+macOS 26 appearance; percentage placement remains a separate preference. The
+legacy renderer was compared on the current host, not rerun on a macOS 26 host.
+This UI acceptance does not renew hardware-control qualification after an OS upgrade.
 
 ## Capability matrix
 
@@ -25,10 +31,13 @@ macOS 26.6.2. MacBook Air is fanless; a Pro simulator cannot qualify Pro hardwar
 | --- | --- | --- |
 | Battery and adapter readings | Implemented; actual local app observations | The 115-field catalog is a schema, not a promise of 115 available measurements |
 | Menu bar and detail window | Implemented; native UI, keyboard and appearance checks recorded | Full VoiceOver speech acceptance remains open |
+| Updates | Native version/build, source-release discovery, notes, retry and opt-in checking; qualified Sparkle integration | Development/Lab/trial stay manual; actual signed feed, trusted binary and downloaded-install acceptance remain open |
 | Local history and CSV/JSON export | Implemented and fixture-tested; actual history observed | Gaps stay visible; no invented samples; preview exports before sharing |
 | Application activity | Read-only process counters, search, filtering and ranking | CPU energy/power estimates cover CPU activity only; accessible processes may be a partial set |
 | Sleep & drain | Read-only observation and fixture coverage | New app-observed intervals only; completed real sleep/wake validation remains a device gate |
 | Keep Mac Awake | Explicit source-build sessions with visible Stop | Disabled in DEMO and Monitoring Preview; does not override lid, forced or low-battery sleep |
+| Sleep Timer | One-shot development sessions with preparation and cancellation | Disabled in DEMO and Monitoring Preview; actual system sleep/wake remains a device check |
+| Closed-lid mode | Implemented lid-only backend, dedicated signed helper, journal, lease and guardian; fixture-tested | Normal builds gated; separately signed trial is limited to 120 seconds; physical behavior/restoration not qualified |
 | Saved modes | Separate Save / Apply, action previews and per-action outcomes | Saving never applies; unqualified energy/display actions are excluded |
 | Native charge controller | User-space PowerUI adapter with a recovery journal | Requires admission on the exact Mac/OS/ABI; cutoff and one-time-full-charge behavior have separate gates |
 | Privileged helper and recovery | Source and fixture implementation | Trusted signing, OS enrollment, lifecycle and device acceptance remain open |
@@ -49,7 +58,7 @@ are not persisted in battery history.
 ## Development source and Monitoring Preview
 
 A default `build-local-app.sh` build uses the development identity. It includes
-control-related code and a bundled, unregistered helper. Native charge admission
+control-related code and bundled, unregistered helpers. The dedicated lid helper has separate identities and storage; building never enrolls either helper. Native charge admission
 is a separate normal-user route: a bounded setting/readback/restoration check
 never enables helper or fan control. Targets may remain pending until natural
 discharge; a pending target is not active. Fans default to System Auto.
@@ -61,13 +70,11 @@ inferred from the behavior of an ordinary source build.
 
 A readable key, model name, successful test/build or simulator result never
 qualifies a hardware write. There is no UI or environment override for the
-privileged qualification gate. See the [helper architecture](../Helper/README.md).
+privileged qualification gate. See the [helper architecture](../Helper/README.md) and [closed-lid trial boundary](CLOSED_LID.md).
 
 ## Validation and distribution
 
-The latest recorded stable app milestone ran **362 tests with zero failures**,
-built SwiftPM Release and Xcode Debug bundles, and verified local ad-hoc signature
-integrity. These results apply to the recorded source milestone, not automatically
+The Sleep-controls source milestone passed the complete **557 Swift tests and 61 Python release-tool tests**, built SwiftPM Release and Xcode Debug bundles, and verified local ad-hoc integrity. An earlier complete run failed eight protected migration-journal operations; a standalone Foundation probe reproduced unavailable Class B reopen/read operations. A later unchanged-source run passed after those protected operations became available, with the same protection class and `0600` permissions. The precise external authentication/system transition remains unknown. These results apply to the recorded source milestone, not automatically
 to a later release commit. [Testing and validation](TESTING.md) summarizes public coverage and its limits.
 
 **Implemented** means code exists. **Fixture-tested** means deterministic inputs

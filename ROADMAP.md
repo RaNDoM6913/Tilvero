@@ -6,7 +6,16 @@ Tilvero focuses on battery, charging, power and cooling in a native, offline mac
 
 Live monitoring, a compact menu bar panel, searchable readings, local history, redacted exports, Russian/English UI and explicit simulation are available in source builds. Control policies and recovery boundaries have software coverage; live writes remain disabled pending the [compatibility gates](docs/COMPATIBILITY.md).
 
+Settings now includes release discovery and notes with opt-in automatic checking.
+Source archives remain informational. Native Sparkle installation is implemented
+behind exact signed Monitoring identity, feed and recovery gates; actual trusted
+binary distribution and downloaded-update acceptance are still pending. The menu
+bar supports macOS 27 and selectable legacy macOS 26 appearance, with stable
+compact charging refresh geometry.
+
 ## Next proposed milestones
+
+The Sleep-controls source milestone adds one-shot timers, compact native Timer/Awake controls and a separately gated lid-only controller with journal/lease/guardian recovery. Signed real-device closed-lid behavior and restoration are still pending; see [the trial boundary](docs/CLOSED_LID.md).
 
 Distribution preparation is described separately in the [release and download proposal](docs/RELEASING.md): a source-bound Monitoring Beta DMG, original app icon, installation/update checks, Developer ID/notarization and honest GitHub download statistics. No binary release exists yet. Preparing distribution does not enable hardware controls or replace their acceptance gates.
 

@@ -1,100 +1,84 @@
 import AppKit
 
-/// Uses the public system glyph at runtime. Only its reservoir is clipped;
-/// Apple's contour, lightning, halo and antialiasing remain native pixels.
+/// Uses the public system glyph at runtime. Its filled silhouette and contact
+/// stay native; continuous charge, numerals and adapter presence remain separate.
 @MainActor enum SystemBatterySymbol {
     private struct Component {
         var pixels: [Int]
         var bounds: CGRect
     }
-    private struct Layers {
+    private struct FilledLayers {
         let alpha: [UInt8]
-        let plainFill: [UInt8]?
-        let roles: [UInt8] // 0 contour/contact, 1 reservoir, 2 native lightning
-        let reservoir: ClosedRange<Int>
+        let body: CGRect
+        let contactBoundary: CGFloat
         let width: Int
         let height: Int
     }
-    private static var cache: [Int: Layers] = [:]
+    private static var filledCache: [Int: FilledLayers] = [:]
+    /// Right edge of the measured fill in points, measured from the left of the last image `makeFilled` returned.
+    private(set) static var lastFillEdge: CGFloat = 0
 
-    static func make(level: Int, adapter: Bool, density: Int, contourOpacity: CGFloat = 0.5) -> NSImage? {
-        let scale = min(8, max(1, density)), key = scale * 2 + (adapter ? 1 : 0)
-        let layers: Layers
-        if let existing = cache[key] { layers = existing }
+    /// The macOS 27 public full-battery symbol is a filled body and a separate
+    /// contact. Keep its exact native silhouette, including antialiasing, while
+    /// clipping continuous measured fill. Numerals and the small adapter cue are
+    /// composed by the caller because SF Symbols does not supply percentage text.
+    static func makeFilled(level: Int?, density: Int, contactOpacity: CGFloat = 0.45, trackOpacity: CGFloat = 0.2, bodyExtension: Int = 0, contactInset: CGFloat = 0) -> NSImage? {
+        let scale = min(8, max(1, density))
+        let layers: FilledLayers
+        if let cached = filledCache[scale] { layers = cached }
         else {
-            guard let value = prepare(adapter: adapter, density: scale) else { return nil }
-            cache[key] = value; layers = value
+            guard let alpha = raster("battery.100percent", density: scale) else { return nil }
+            let parts = components(alpha, width: 32 * scale, height: 24 * scale)
+            // Older/unknown symbol topologies use the caller's original vector
+            // fallback rather than mistaking a contour or bolt for the reservoir.
+            guard parts.count == 2, let body = parts.max(by: { $0.pixels.count < $1.pixels.count })?.bounds,
+                  let contact = parts.min(by: { $0.pixels.count < $1.pixels.count })?.bounds,
+                  body.width > body.height * 1.5, contact.minX > body.maxX else { return nil }
+            // Solid-core bounds exclude native AA. Split at the inter-component
+            // gutter, then include every body fringe pixel in measured fill.
+            let boundary = (body.maxX + contact.minX - 1) / 2
+            let bodyPixels = alpha.indices.filter { alpha[$0] > 0 && CGFloat($0 % (32 * scale)) < boundary }
+            guard let left = bodyPixels.map({ $0 % (32 * scale) }).min(),
+                  let right = bodyPixels.map({ $0 % (32 * scale) }).max() else { return nil }
+            let reservoir = CGRect(x: left, y: 0, width: right - left + 1, height: 24 * scale)
+            layers = .init(alpha: alpha, body: reservoir, contactBoundary: boundary, width: 32 * scale, height: 24 * scale)
+            filledCache[scale] = layers
         }
-        guard let rep = bitmap(density: scale), let data = rep.bitmapData else { return nil }
-        let fraction = CGFloat(min(100, max(0, level))) / 100
-        let edge = CGFloat(layers.reservoir.lowerBound) + CGFloat(layers.reservoir.count) * fraction
-        for y in 0..<layers.height { for x in 0..<layers.width {
-            let i = y * layers.width + x
-            let multiplier: CGFloat
-            switch layers.roles[i] {
-            case 1: multiplier = min(1, max(0, edge - CGFloat(x)))
-            case 2: multiplier = 1
-            default: multiplier = contourOpacity
-            }
+        // Extend only the solid centre column: native endcaps and the separate
+        // contact keep their geometry for the explicit larger-text option.
+        let extra = max(0, min(16, bodyExtension)) * scale
+        // Keep public 1× pixel hinting: its body/contact AA fringes touch.
+        // At Retina densities the inset translates the separate contact mask.
+        let inset = scale >= 2 && contactInset.isFinite ? min(1, max(0, contactInset)) * CGFloat(scale) : 0
+        let outputWidth = layers.width + extra
+        guard let rep = bitmap(density: scale, extraWidth: extra / scale), let data = rep.bitmapData else { return nil }
+        let fraction = CGFloat(min(100, max(0, level ?? 0))) / 100
+        let edge = layers.body.minX + (layers.body.width + CGFloat(extra)) * fraction
+        lastFillEdge = edge / CGFloat(scale)
+        let middle = Int(layers.body.midX.rounded())
+        for y in 0..<layers.height { for x in 0..<outputWidth {
+            let sourceX = x < middle ? x : x < middle + extra ? middle : x - extra
+            let i = y * layers.width + sourceX
+            let body = CGFloat(x) < layers.contactBoundary + CGFloat(extra)
+            let coverage = level == nil ? 0 : min(1, max(0, edge - CGFloat(x)))
+            let opacity: CGFloat = body ? trackOpacity + (1 - trackOpacity) * coverage : contactOpacity
             let offset = y * rep.bytesPerRow + x * 4
             data[offset] = 0; data[offset + 1] = 0; data[offset + 2] = 0
-            if let plainFill = layers.plainFill {
-                let fill = CGFloat(plainFill[i]) * min(1, max(0, edge - CGFloat(x)))
-                data[offset + 3] = UInt8(min(255, (CGFloat(layers.alpha[i]) * contourOpacity + fill).rounded()))
-            } else { data[offset + 3] = UInt8((CGFloat(layers.alpha[i]) * multiplier).rounded()) }
-        } }
-        let image = NSImage(size: NSSize(width: 32, height: 24)); image.addRepresentation(rep)
-        return image
-    }
-
-    private static func prepare(adapter: Bool, density: Int) -> Layers? {
-        _ = NSApplication.shared
-        guard let empty = raster("battery.0percent", density: density),
-              let full = raster("battery.100percent", density: density),
-              let source = adapter ? raster("battery.100percent.bolt", density: density) : full else { return nil }
-        let width = 32 * density, height = 24 * density
-        let emptyParts = components(empty, width: width, height: height)
-        guard emptyParts.count == 2, let body = emptyParts.max(by: { $0.pixels.count < $1.pixels.count })?.bounds else { return nil }
-        let reservoirPixels = full.indices.filter { Int(full[$0]) > Int(empty[$0]) + 1 }
-        guard let left = reservoirPixels.map({ $0 % width }).min(), let right = reservoirPixels.map({ $0 % width }).max(), right > left else { return nil }
-        if !adapter {
-            // At 1x the native filled reservoir can touch the outline's solid
-            // core. Alpha subtraction preserves both rather than assuming three
-            // disconnected components. At full opacity E + (F - E) is exactly F.
-            guard full.indices.allSatisfy({ full[$0] >= empty[$0] }) else { return nil }
-            return .init(alpha: empty, plainFill: full.indices.map { full[$0] - empty[$0] },
-                         roles: [UInt8](repeating: 0, count: source.count), reservoir: left...right, width: width, height: height)
-        }
-        let parts = components(source, width: width, height: height)
-        guard parts.count == (adapter ? 6 : 3) else { return nil }
-        let fills = parts.indices.filter {
-            let box = parts[$0].bounds
-            return box.height < body.height - CGFloat(2 * density) && box.minX > body.minX + CGFloat(density)
-                && box.maxX < body.maxX - CGFloat(density) && box.minY > body.minY + CGFloat(density)
-                && box.maxY < body.maxY - CGFloat(density)
-        }
-        guard fills.count == (adapter ? 2 : 1) else { return nil }
-        let bolt = adapter ? parts.indices.filter { !fills.contains($0) && parts[$0].bounds.height >= body.height - CGFloat(density) }
-            .min(by: { abs(parts[$0].bounds.midX - body.midX) < abs(parts[$1].bounds.midX - body.midX) }) : nil
-        guard !adapter || bolt != nil else { return nil }
-        var owner = [Int](repeating: -1, count: source.count)
-        for (index, part) in parts.enumerated() { for pixel in part.pixels { owner[pixel] = index } }
-        var roles = [UInt8](repeating: 0, count: source.count)
-        for i in source.indices where source[i] > 0 {
-            var selected = owner[i]
-            if selected < 0 {
-                let x = i % width, y = i / width
-                var nearest = Int.max
-                // Only the fringe needs classification; solid cores keep their
-                // original role. Assign, rather than discard, native AA pixels.
-                for (index, part) in parts.enumerated() { for pixel in part.pixels {
-                    let dx = x - pixel % width, dy = y - pixel / width, distance = dx * dx + dy * dy
-                    if distance < nearest { nearest = distance; selected = index }
-                } }
+            let alpha: CGFloat
+            if body { alpha = CGFloat(layers.alpha[i]) }
+            else {
+                let sampleX = CGFloat(sourceX) + inset
+                let left = Int(floor(sampleX)), fraction = sampleX - CGFloat(left)
+                if left >= 0 && left + 1 < layers.width {
+                    let row = y * layers.width
+                    alpha = CGFloat(layers.alpha[row + left]) * (1 - fraction)
+                        + CGFloat(layers.alpha[row + left + 1]) * fraction
+                } else { alpha = 0 }
             }
-            roles[i] = fills.contains(selected) ? 1 : selected == bolt ? 2 : 0
-        }
-        return .init(alpha: source, plainFill: nil, roles: roles, reservoir: left...right, width: width, height: height)
+            data[offset + 3] = UInt8((alpha * opacity).rounded())
+        } }
+        let image = NSImage(size: rep.size); image.addRepresentation(rep)
+        return image
     }
 
     private static func components(_ alpha: [UInt8], width: Int, height: Int) -> [Component] {
@@ -115,11 +99,11 @@ import AppKit
         }
         return result
     }
-    private static func bitmap(density: Int) -> NSBitmapImageRep? {
-        let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 32 * density, pixelsHigh: 24 * density,
+    private static func bitmap(density: Int, extraWidth: Int = 0) -> NSBitmapImageRep? {
+        let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: (32 + extraWidth) * density, pixelsHigh: 24 * density,
             bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
-            bytesPerRow: 32 * density * 4, bitsPerPixel: 32)
-        rep?.size = NSSize(width: 32, height: 24)
+            bytesPerRow: (32 + extraWidth) * density * 4, bitsPerPixel: 32)
+        rep?.size = NSSize(width: 32 + extraWidth, height: 24)
         return rep
     }
     private static func raster(_ name: String, density: Int) -> [UInt8]? {

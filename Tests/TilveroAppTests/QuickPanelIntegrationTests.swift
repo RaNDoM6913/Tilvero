@@ -6,7 +6,7 @@ import ChargeBackends
 @testable import TilveroApp
 
 @MainActor final class QuickPanelIntegrationTests: XCTestCase {
-    func testFourthAwakeTabFitsEnglishAndRussianAndDoesNotStartOnSelection() async throws {
+    func testFourthSleepTabAndBothModesFitEnglishAndRussianWithoutStartingOnSelection() async throws {
         let savedArguments = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
         defer { UserDefaults.standard.setVolatileDomain(savedArguments, forName: UserDefaults.argumentDomain) }
         let fixture = try AwakePanelFixture()
@@ -23,17 +23,24 @@ import ChargeBackends
             let segments = try XCTUnwrap(descendants(host.view).compactMap { $0 as? NSSegmentedControl }.first)
             XCTAssertEqual(segments.segmentCount, 4)
             guard segments.segmentCount == 4 else { return }
-            XCTAssertEqual(segments.label(forSegment: 3), language == "ru" ? "Не спать" : "Awake")
+            XCTAssertEqual(segments.label(forSegment: 3), language == "ru" ? "Сон" : "Sleep")
             XCTAssertLessThanOrEqual(segments.fittingSize.width, 320, "Four localized tabs must fit the content width")
             host.onSizeChange = { window.setContentSize($0) }
             segments.selectedSegment = 3
             _ = segments.sendAction(segments.action, to: segments.target)
             try await Task.sleep(for: .milliseconds(30))
             host.view.layoutSubtreeIfNeeded()
+            let modes = try XCTUnwrap(descendants(host.view).compactMap { $0 as? NSSegmentedControl }.first { $0.segmentCount == 2 })
+            XCTAssertEqual(modes.label(forSegment: 0), language == "ru" ? "Таймер сна" : "Sleep timer")
+            modes.selectedSegment = 1
+            _ = modes.sendAction(modes.action, to: modes.target)
+            try await Task.sleep(for: .milliseconds(30))
+            host.view.layoutSubtreeIfNeeded()
             XCTAssertEqual(host.preferredContentSize.width, 360)
             XCTAssertLessThan(host.preferredContentSize.height, 620, "Flexible Awake remains bounded in the native panel")
             XCTAssertGreaterThan(host.preferredContentSize.height, 180)
             XCTAssertFalse(fixture.model.keepAwake.hasOwnedAssertion)
+            XCTAssertFalse(fixture.model.sleepTimer.isActive)
             XCTAssertTrue(fixture.driver.assertions.isEmpty, "Opening or selecting Awake must not start a session")
         }
     }
