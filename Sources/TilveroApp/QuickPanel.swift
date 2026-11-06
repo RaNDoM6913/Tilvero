@@ -100,7 +100,8 @@ struct QuickPanel: View {
 
     private var contextualNotice: String? {
         guard let notice = model.notice else { return nil }
-        if section == .charge, model.usesNativeCharge, notice == model.nativeCharge.message.map(L10n.text) { return nil }
+        // The native Charge page prints its own notice (QuickNativeChargePanel.attention); a second copy here was the duplicate line.
+        if section == .charge, model.usesNativeCharge { return nil }
         if model.isDemo, notice == L10n.text("Simulation only — your Mac settings are unchanged.") { return nil }
         return notice
     }
