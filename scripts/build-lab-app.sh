@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (c) 2026 RaNDoM6913
+
 # Build the complete editable Studio from current application sources.
 set -euo pipefail
 project_root="$(cd "$(dirname "$0")/.." && pwd)"

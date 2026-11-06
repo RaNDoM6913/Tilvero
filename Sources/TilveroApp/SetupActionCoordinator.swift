@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2026 RaNDoM6913
+
 /// Explicit setup commands. Construction and refresh perform no consent or control action.
 @MainActor final class SetupActionCoordinator {
     struct Ports {

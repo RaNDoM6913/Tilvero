@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (c) 2026 RaNDoM6913
+
 set -euo pipefail
 [[ "$#" == 0 ]] || { echo 'Usage: run-local.sh' >&2; exit 2; }
 project_root="$(cd "$(dirname "$0")/.." && pwd)"

@@ -1,4 +1,7 @@
 #!/usr/bin/env swift
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2026 RaNDoM6913
+
 // Public-key-only verification: never opens Keychain or generates signing keys.
 import CryptoKit
 import Foundation

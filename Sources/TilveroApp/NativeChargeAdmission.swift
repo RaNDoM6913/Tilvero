@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2026 RaNDoM6913
+
 import Foundation
 import Darwin
 import ChargeBackends
@@ -98,3 +101,4 @@ struct NativeChargeAdmission: Codable {
 
     static func load(from url: URL, environment: String) -> Bool { loadScope(from: url, environment: environment) != nil }
 }
+// tlv-origin:919104438672318b

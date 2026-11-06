@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (c) 2026 RaNDoM6913
+
 """Prepare or verify an offline source preview. Requires the matching Git source; never builds or publishes."""
 import argparse
 from contextlib import contextmanager
@@ -277,3 +280,4 @@ def main():
 
 if __name__ == '__main__':
     sys.exit(main())
+# tlv-origin:8bd6900ca0d5015c

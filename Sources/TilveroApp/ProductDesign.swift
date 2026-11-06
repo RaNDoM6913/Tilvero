@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2026 RaNDoM6913
+
 import SwiftUI
 
 /// Finite event-driven main-window motion. The menu bar has independent styling.

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (c) 2026 RaNDoM6913
+
 """Exercise local packaging with disposable Swift/signing tool boundaries."""
 import hashlib
 import json

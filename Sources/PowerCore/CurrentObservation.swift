@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2026 RaNDoM6913
+
 import Foundation
 
 /// Shared rule for "this reading is a current observation made by the app".
@@ -56,3 +59,4 @@ extension TelemetryReading {
             sourceSampleAt: sourceSampleAt, monotonicAgeSeconds: monotonicAgeSeconds, at: now)
     }
 }
+// tlv-origin:308eaff6b519b991

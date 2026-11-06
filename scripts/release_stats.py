@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (c) 2026 RaNDoM6913
+
 """On-demand GitHub DMG download observations. Never contacts Tilvero users."""
 
 import argparse

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2026 RaNDoM6913
+
 import SwiftUI
 
 /// Small "i" next to a section title; the explanation lives in its popover instead of as caption text under the

@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (c) 2026 RaNDoM6913
+
 """Prepare a same-checkout Apple-signed local candidate without using a key.
 
 Only --build-sign invokes Xcode and the explicitly selected signing identity.
@@ -402,3 +405,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+# tlv-origin:8e238a52317bf4b3

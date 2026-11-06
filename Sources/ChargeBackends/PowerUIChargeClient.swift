@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2026 RaNDoM6913
+
 import Foundation
 import PowerUIBridge
 import PowerCore
@@ -171,3 +174,4 @@ public actor PowerUIChargeClient: NativeChargeTransport {
         }
     }
 }
+// tlv-origin:cbe1e2f248d38792

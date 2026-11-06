@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (c) 2026 RaNDoM6913
+
 """Generate the Xcode graph, including the exact pinned Sparkle framework."""
 from pathlib import Path
 import hashlib, json, argparse

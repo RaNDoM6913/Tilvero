@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (c) 2026 RaNDoM6913
+
 """Read-only release reporting contracts; all API responses are fixtures."""
 
 import importlib.util

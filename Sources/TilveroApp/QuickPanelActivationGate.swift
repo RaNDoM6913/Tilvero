@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2026 RaNDoM6913
+
 /// Prevents an accessory panel from becoming visible before macOS finishes
 /// activating its application. A cancelled request cannot reappear later.
 struct QuickPanelActivationGate {
