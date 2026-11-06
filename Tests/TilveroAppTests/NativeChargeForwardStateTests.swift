@@ -4,6 +4,7 @@
 import XCTest
 @testable import TilveroApp
 import ChargeBackends
+import PowerCore
 
 /// Every transport here is an isolated actor fixture; these tests never call PowerUI.
 @MainActor final class NativeChargeForwardStateTests: XCTestCase {
@@ -29,6 +30,55 @@ import ChargeBackends
         }
         let writes = await f.client.writes
         XCTAssertEqual(writes, [90])
+    }
+
+    /// Owner report: 90 -> 85 at 86%, then discharging below 85% left the "waiting for natural discharge" line on the
+    /// quick panel (twice) although the limit was already applied.
+    func testPendingNoticeDoesNotOutliveTheLimitThatDischargeApplied() async throws {
+        let f = ForwardFixture(); defer { f.cleanup() }
+        let suite = "PendingNotice-\(UUID())", preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
+        preferences.set(false, forKey: "historyEnabled")
+        defer { preferences.removePersistentDomain(forName: suite) }
+        await f.service.refresh()
+        try await f.service.apply(90, batteryPercent: 60, batteryFresh: true)
+        let model = TilveroModel(isDemo: false, preferences: preferences,
+            historyURL: f.url.deletingLastPathComponent().appendingPathComponent("History.sqlite"),
+            snapshotProvider: { BatterySnapshot(chargePercent: .init(value: 86, source: "fixture", freshness: .fresh),
+                                                isExternalPower: .init(value: false, source: "fixture")) },
+            nativeCharge: f.service)
+        defer { model.stop() }
+        await model.refresh()
+        model.setDraft(85); model.applyDemoTarget()
+        for _ in 0..<200 where model.isApplying { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertEqual(f.service.pendingTarget, 85)
+        XCTAssertNotNil(model.notice, "The pending explanation is visible while the target is waiting")
+        XCTAssertTrue(model.noticeIsNativeChargeStatus, "It is the Charge page's line, so other tabs must not print it")
+        await f.service.observeBattery(percent: 84, fresh: true)
+        XCTAssertNil(f.service.pendingTarget)
+        XCTAssertNil(model.notice, "A copy of the pending message must not survive the apply that resolved it")
+    }
+
+    func testLeavingThePageDropsItsActionNotice() async throws {
+        let f = ForwardFixture(); defer { f.cleanup() }
+        let suite = "NoticeDismiss-\(UUID())", preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
+        preferences.set(false, forKey: "historyEnabled")
+        defer { preferences.removePersistentDomain(forName: suite) }
+        await f.service.refresh()
+        try await f.service.apply(90, batteryPercent: 60, batteryFresh: true)
+        let model = TilveroModel(isDemo: false, preferences: preferences,
+            historyURL: f.url.deletingLastPathComponent().appendingPathComponent("History.sqlite"),
+            snapshotProvider: { BatterySnapshot(chargePercent: .init(value: 86, source: "fixture", freshness: .fresh),
+                                                isExternalPower: .init(value: false, source: "fixture")) },
+            nativeCharge: f.service)
+        defer { model.stop() }
+        await model.refresh()
+        model.setDraft(85); model.applyDemoTarget()
+        for _ in 0..<200 where model.isApplying { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertNotNil(model.notice)
+        model.dismissActionNotice()
+        XCTAssertNil(model.notice, "An action notice must not follow the user onto another tab")
+        XCTAssertFalse(model.noticeIsNativeChargeStatus)
+        XCTAssertEqual(f.service.pendingTarget, 85, "Only the text goes; the pending target itself stays")
     }
 
     func testConfirmedReplacementCannotResumeSupersededPendingTarget() async throws {

@@ -278,6 +278,17 @@ final class TilveroModel: ObservableObject {
     private var awakeSubscription: AnyCancellable?
     private var awakeMessageSubscription: AnyCancellable?
     private var lastAwakeFailureNotice: String?
+    /// The native-charge status line last copied into `notice`; it is dropped once the service reports something newer.
+    private var lastNativeMirroredNotice: String?
+    /// True while `notice` is only a copy of the native charge status line (for example the pending lower limit).
+    /// It belongs to the Charge page; other quick-menu tabs must not print it.
+    var noticeIsNativeChargeStatus: Bool { notice != nil && notice == lastNativeMirroredNotice }
+    /// An action's notice describes the page it was raised on. Leaving that page drops it, so it never trails the user
+    /// onto an unrelated tab. A Keep Awake failure is the exception: it stays visible on every tab until it is resolved.
+    func dismissActionNotice() {
+        guard let notice, notice != lastAwakeFailureNotice else { return }
+        self.notice = nil; lastNativeMirroredNotice = nil
+    }
     @Published var keepAwakeDraft: KeepAwakeDraft { didSet {
         if case .duration(let duration) = keepAwakeDraft {
             preferences.set(duration.rawValue, forKey: "keepAwakeMinutes")
@@ -351,6 +362,7 @@ final class TilveroModel: ObservableObject {
     let nativeCharge: NativeChargeService
     let keyboardBacklight: KeyboardBacklightService
     private var nativeSubscription: AnyCancellable?
+    private var nativeMessageSubscription: AnyCancellable?
     let liveControl: LiveControlService
     private var liveSubscription: AnyCancellable?
     let isDemo: Bool
@@ -552,6 +564,13 @@ final class TilveroModel: ObservableObject {
         }
         nativeSubscription = self.nativeCharge.objectWillChange.sink { [weak self] in
             self?.objectWillChange.send()
+        }
+        nativeMessageSubscription = self.nativeCharge.$message.dropFirst().sink { [weak self] _ in
+            guard let self else { return }
+            // The pending lower-limit line was copied into `notice` when the user released the slider. When the battery later
+            // discharges and the service applies the limit on its own, that copy would otherwise outlive the state it described.
+            if self.notice == self.lastNativeMirroredNotice { self.notice = nil }
+            self.lastNativeMirroredNotice = nil
         }
         liveSubscription = self.liveControl.objectWillChange.sink { [weak self] in
             self?.objectWillChange.send()
@@ -889,7 +908,7 @@ final class TilveroModel: ObservableObject {
             do {
                 try await action(nativeCharge); draftDirty = false
                 if !nativeCharge.isBusy { await nativeCharge.refresh() }
-                discardDraft(); notice = nativeCharge.message.map(L10n.text)
+                discardDraft(); notice = nativeCharge.message.map(L10n.text); lastNativeMirroredNotice = notice
             } catch { notice = L10n.text(error.localizedDescription) }
         }
     }

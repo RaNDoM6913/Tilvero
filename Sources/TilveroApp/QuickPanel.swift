@@ -76,6 +76,7 @@ struct QuickPanel: View {
                 }
             }
             .animation(reduceMotion ? nil : Self.pageFade, value: section)
+            .onChange(of: section) { _, _ in model.dismissActionNotice() }
             .fixedSize(horizontal: false, vertical: true)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { pageMotion.naturalHeightChanged($0, animated: !reduceMotion) }
             .quickPageArea(pageMotion)
@@ -100,7 +101,10 @@ struct QuickPanel: View {
 
     private var contextualNotice: String? {
         guard let notice = model.notice else { return nil }
-        if section == .charge, model.usesNativeCharge, notice == model.nativeCharge.message.map(L10n.text) { return nil }
+        // The native charge status is the Charge page's own business (QuickNativeChargePanel prints it); it must neither
+        // repeat there nor leak onto the Sleep and other tabs.
+        if model.noticeIsNativeChargeStatus { return nil }
+        if section == .charge, model.usesNativeCharge { return nil }
         if model.isDemo, notice == L10n.text("Simulation only — your Mac settings are unchanged.") { return nil }
         return notice
     }

@@ -569,6 +569,10 @@ enum NativeChargeServiceError: Error, LocalizedError {
             let verified = try await verify(target: target, enabled: toUnlimited ? false : nil)
             journal?.lastVerified = verified.configuration; journal?.phase = .owned; journal?.plannedTarget = nil
             try saveJournal(); observed = verified; pendingTarget = nil
+            // A limit macOS has independently confirmed is the user's own system setting (the slider does what System
+            // Settings does). The scoped session ends here: no baseline is kept to rewrite when Tilvero quits, and a later
+            // change made in System Settings is simply observed. Unresolved or unconfirmed states never reach this point.
+            if journal?.version == 2 { try relinquish() }
             message = "The native macOS charge limit was independently confirmed."
         } catch {
             if case NativeChargeServiceError.unsafeEnable = error,
