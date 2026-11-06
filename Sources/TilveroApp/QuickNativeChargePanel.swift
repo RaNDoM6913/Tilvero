@@ -8,7 +8,10 @@ import ChargeBackends
     @ObservedObject var model: TilveroModel
     @State private var dragging = false
     @State private var settle: Task<Void, Never>?
+    /// What the slider shows from the user's first movement until the apply is done, so a busy model never snaps it back.
+    @State private var chosen: Int?
 
+    private var canRelease: Bool { model.canShowChargeControls && model.canReleaseCharge && !model.isApplying }
     private var targets: [Int] { model.nativeCharge.authorizedPersistentTargets.sorted() }
 
     var body: some View {
@@ -34,17 +37,31 @@ import ChargeBackends
                 L10n.text("100% means no limit. Verified levels: 80%, 85%, 90%, 95% and 100%."),
             ], id: "charge-limit-info")
             Spacer(minLength: 8)
+            // Returning to the system's own setting: an icon in a fixed slot (it fades in when there is something to
+            // return), so appearing never adds a row.
+            Button { model.releaseControl() } label: {
+                Image(systemName: "arrow.uturn.backward.circle").font(.system(size: 13)).foregroundStyle(.secondary)
+                    .frame(width: 20, height: 20).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain).focusEffectDisabled()
+            .opacity(canRelease ? 1 : 0).animation(.easeOut(duration: 0.15), value: canRelease)
+            .disabled(!canRelease).allowsHitTesting(canRelease)
+            .help(L10n.text("Return to system control"))
+            .accessibilityLabel(L10n.text("Return to system control"))
+            .accessibilityHidden(!canRelease)
+            .accessibilityIdentifier("action.return-to-system-control")
             // A fixed slot: a native read or an apply comes and goes without moving the row.
-            ZStack {
-                if state.pendingPurpose != nil || model.isApplying { ProgressView().controlSize(.mini) }
-            }.frame(width: 12, height: 12)
+            ProgressView().controlSize(.mini).frame(width: 12, height: 12)
+                .opacity(state.pendingPurpose != nil || model.isApplying ? 1 : 0)
+                .animation(.easeOut(duration: 0.15), value: state.pendingPurpose != nil || model.isApplying)
+                .accessibilityHidden(true)
             if let value {
                 HStack(alignment: .firstTextBaseline, spacing: 2) {
                     StudioText("\(value)", id: "charge.readout")
                         .font(.system(size: 22, weight: .semibold, design: .rounded)).monospacedDigit()
-                        .contentTransition(.numericText())
                     Text("%").font(.system(size: 15, weight: .medium, design: .rounded)).foregroundStyle(.secondary)
                 }
+                .frame(width: 58, alignment: .trailing)   // 80 and 100 take the same room: nothing beside it moves
             }
         }
         .frame(height: 30)
@@ -53,7 +70,7 @@ import ChargeBackends
     // MARK: Limit controls
 
     private func controls(_ state: NativeChargePresentation) -> some View {
-        let shown = model.draftTarget ?? state.currentPreference.map { $0.enabled ? $0.target : NativeChargeAdmission.unlimitedTarget }
+        let shown = chosen ?? model.draftTarget ?? state.currentPreference.map { $0.enabled ? $0.target : NativeChargeAdmission.unlimitedTarget }
         return VStack(alignment: .leading, spacing: 8) {
             title(value: shown, state: state)
             Slider(value: Binding(get: { sliderPosition(shown) }, set: { setSlider($0) }),
@@ -62,7 +79,6 @@ import ChargeBackends
                        dragging = editing
                        if !editing { applySoon(after: .milliseconds(150)) }
                    })
-                .disabled(!model.canEdit)
                 .accessibilityLabel(L10n.text("Charge limit"))
                 .accessibilityValue(shown.map { "\($0)%" } ?? "")
                 .accessibilityIdentifier("charge.slider")
@@ -88,15 +104,30 @@ import ChargeBackends
     /// Only the user's own slider movement reaches this point, so only it can lead to a write.
     private func setSlider(_ value: Double) {
         guard value.isFinite, !targets.isEmpty else { return }
-        model.setDraft(targets[min(targets.count - 1, max(0, Int(value.rounded())))])
+        let target = targets[min(targets.count - 1, max(0, Int(value.rounded())))]
+        chosen = target
+        model.setDraft(target)
         if !dragging { applySoon(after: .milliseconds(800)) }   // keyboard and accessibility steps settle first
     }
     private func applySoon(after delay: Duration) {
         settle?.cancel()
         settle = Task { @MainActor in
             try? await Task.sleep(for: delay)
-            guard !Task.isCancelled, !dragging, model.canApply else { return }
-            model.applyDemoTarget()
+            // A busy model (a read or an earlier apply) is waited for, not fought: the choice is applied once it is free.
+            for _ in 0..<40 {
+                guard !Task.isCancelled, !dragging else { return }
+                if !model.isApplying && !model.nativeCharge.isBusy { break }
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            guard !Task.isCancelled, !dragging, let target = chosen else { return }
+            model.setDraft(target)
+            if model.canApply { model.applyDemoTarget() }
+            // Release the local choice once the model shows the same level (or has refused it).
+            for _ in 0..<60 {
+                if !model.isApplying && !model.nativeCharge.isBusy { break }
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            if !Task.isCancelled, !dragging { chosen = nil }
         }
     }
 
@@ -151,7 +182,8 @@ import ChargeBackends
                 }
             }
         }
-        if let status = NativeChargeStatusPanel(model: model, compact: true).statusText(state) {
+        // While an operation is pending the spinner is the only sign (no text that appears and vanishes).
+        if state.attention != .operationPending, let status = NativeChargeStatusPanel(model: model, compact: true).statusText(state) {
             StudioText(L10n.text(status), id: "native.status").font(.caption)
                 .foregroundStyle(state.requiresGlobalAttention ? .orange : .secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -166,12 +198,6 @@ import ChargeBackends
             if model.canChargeToFullOnce || model.isOneShotDemo {
                 StudioActionButton(L10n.text(model.isOneShotDemo ? "Cancel one-time charge" : "Charge to 100% once"), id: "charge.once") { model.toggleOneShotDemo() }
                     .disabled(model.isApplying)
-            }
-            if model.canReleaseCharge {
-                Button(L10n.text("Return to system control")) { model.releaseControl() }
-                    .buttonStyle(.borderless).font(.system(size: 13))
-                    .disabled(model.isApplying || !model.canReleaseCharge)
-                    .accessibilityIdentifier("action.return-to-system-control")
             }
         }
     }

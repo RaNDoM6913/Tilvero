@@ -81,3 +81,51 @@ private actor RenderChargeTransport: NativeChargeTransport {
         }
     }
 }
+
+/// The page must not move while the limit is applied: same height before, during and after, no transient text rows.
+@MainActor final class QuickChargeStabilityTests: XCTestCase {
+    func testChangingTheLimitNeverResizesThePage() async throws {
+        let suite = "ChargeStable-\(UUID())", prefs = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        prefs.set(false, forKey: "historyEnabled")
+        let native = NativeChargeService(client: StableChargeTransport(), journalURL: root.appendingPathComponent("native.json"), admitted: true,
+                                         batteryProvider: { ChargeObservation(percent: 60, externalPower: true, fresh: true) })
+        await native.refresh()
+        let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"),
+                                 snapshotProvider: { .unavailable(reason: "fixture") }, nativeCharge: native)
+        defer { model.stop() }
+        await model.quickPanelWillOpen()
+        let host = QuickPanelHostingController(model: model, maximumHeight: 900, section: .charge)
+        let window = NSWindow(contentViewController: host)
+        window.setContentSize(host.preferredContentSize); host.view.layoutSubtreeIfNeeded()
+        try await Task.sleep(for: .milliseconds(200))
+        var heights: [CGFloat] = []
+        host.onSizeChange = { size in heights.append(size.height); window.setContentSize(size) }
+        for target in [85, 100, 80, 95] {
+            model.setDraft(target)
+            for _ in 0..<12 { try await Task.sleep(for: .milliseconds(20)); host.view.layoutSubtreeIfNeeded() }
+        }
+        XCTAssertTrue(heights.isEmpty, "Changing the chosen level must not resize the open menu: \(heights)")
+        // And the apply itself (pending read, write, readback) must not move the page either.
+        model.setDraft(85)
+        model.applyDemoTarget()
+        for _ in 0..<40 { try await Task.sleep(for: .milliseconds(25)); host.view.layoutSubtreeIfNeeded() }
+        XCTAssertEqual(model.nativeCharge.observed?.configuration.target, 85, "The limit was applied")
+        XCTAssertTrue(heights.isEmpty, "Applying must not resize the open menu: \(heights)")
+        window.orderOut(nil)
+    }
+}
+
+/// Stateful and slow enough for the pending states to be on screen.
+private actor StableChargeTransport: NativeChargeTransport {
+    private var target = 90
+    func read() async -> NativeChargeSnapshot {
+        try? await Task.sleep(for: .milliseconds(40))
+        let off = target == 100
+        return .init(configuration: .init(enabled: !off, target: target, optimizedCharging: true), supportedTargets: [80, 85, 90, 95, 100],
+                     registeredManualLimit: off ? nil : target)
+    }
+    func setLimit(_ target: Int) async { try? await Task.sleep(for: .milliseconds(80)); self.target = target }
+    func setEnabled(_ enabled: Bool) {}
+}
