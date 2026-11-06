@@ -11,11 +11,12 @@ or a claim of hardware support or release qualification. The app icon files are
 unchanged by this README refresh.
 
 The README badge row uses Shields' `for-the-badge` style: 28 px high, Verdana
-uppercase type, dark pine labels (`#172A22`) and green values (`#2F6E4B`). The
-source-download badge is pinned to the `v0.3.0-beta.1` source ZIP; it excludes
-checksums, JSON metadata and other assets. Stars come from the repository count.
-These are download/star observations, not installation or active-user counts.
-The badge images update through Shields; no app telemetry or updater was added.
+uppercase type, dark pine labels (`#172A22`) and green values (`#2F6E4B`).
+The ZIP • CLONES • UNIQUE badge shows three separate values from the dated
+snapshot in [GitHub traffic](../../docs/GITHUB_TRAFFIC.md). ZIP counts
+source downloads excluding the verification download. CLONES counts all
+reported clone events, and UNIQUE uses GitHub’s period-level unique count.
+The row contains Source Preview, traffic and license badges.
 
 The bilingual gallery in `screenshots/` renders actual SwiftUI views using isolated synthetic fixtures; every frame visibly identifies demo data. It is not owner telemetry or binary/hardware acceptance.
 

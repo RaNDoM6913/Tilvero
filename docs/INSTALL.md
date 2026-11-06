@@ -67,16 +67,7 @@ around rejection. A checksum confirms integrity, not signing trust or notarizati
 
 ### Updates and local data
 
-Choose **Settings → General → Battery appearance** for macOS 27 or macOS 26.
-Percentage placement is independent: choose **Percent inside** for the compact
-modern presentation or **Percent beside** for the traditional layout.
-
-Settings → Updates shows the running version/build, release notes and published
-source previews. **Check for Updates…** is also in the app menu. Automatic checking
-is off initially; opting in does not enable automatic installation. Source
-previews require a local Xcode build and are never installable app updates.
-
-Current development and trial updates are manual. Read migration notes, quit the running version normally,
+Updates are manual. Read migration notes, quit the running version normally,
 then replace it with the verified new app. Preserve history and preferences;
 report an import failure instead of deleting the old store. Do not run prototype
 and production copies together during migration.
@@ -89,10 +80,7 @@ and production copies together during migration.
 Production uses a separate store to protect prototype data. Release notes must
 state which migration paths were verified. Removing the app does not erase its
 history. Use Settings to erase history intentionally; preview exports/diagnostics
-before sharing them. The native Sparkle installer is restricted to a separately
-qualified signed Monitoring app; its feed/signing gate is currently closed.
-Each admitted installation needs an explicit choice and safe recovery. See
-[Updates distribution](UPDATES_DISTRIBUTION.md) for the remaining acceptance gates.
+before sharing them. No automatic updater is enabled.
 
 [Compatibility](COMPATIBILITY.md) · [Changelog](../CHANGELOG.md) · [License](../LICENSE)
 
@@ -164,16 +152,7 @@ bash scripts/run-local.sh
 
 ### Обновление и данные
 
-В «Настройки → Основные → Вид батареи» доступны macOS 27 и macOS 26.
-Размещение процента выбирается отдельно: «Процент внутри» для компактного
-нового вида или «Процент рядом» для традиционного расположения.
-
-В «Настройки → Обновления» видны текущая версия и сборка, заметки и опубликованные
-исходники. В меню приложения также есть «Проверить обновления…». Автопроверка
-изначально выключена и не включает автоматическую установку. Исходники требуют
-сборки в Xcode и никогда не считаются установочным приложением.
-
-Текущие сборки для разработки и тестирования обновляются вручную: прочитайте заметки о переносе, штатно завершите приложение
+Обновление ручное: прочитайте заметки о переносе, штатно завершите приложение
 и замените его проверенной новой версией. Сохраните историю и настройки;
 о сбое импорта сообщите, не удаляя старую базу. Не запускайте прототип
 и production-копию одновременно во время переноса.
@@ -186,9 +165,6 @@ bash scripts/run-local.sh
 Отдельная production-база защищает данные прототипа. Заметки выпуска должны
 указывать проверенные варианты переноса. Удаление приложения не удаляет историю.
 Для намеренного удаления используйте настройки; просмотрите экспорт и диагностику
-перед передачей. Нативная установка через Sparkle ограничена отдельно проверенной
-подписанной сборкой Monitoring; допуск подписи и ленты сейчас закрыт. Каждая
-установка требует явного выбора и безопасного завершения сеансов. Оставшиеся
-проверки описаны в [документе об обновлениях](UPDATES_DISTRIBUTION.md).
+перед передачей. Автоматическое обновление не включено.
 
 [Совместимость](COMPATIBILITY.md) · [История изменений](../CHANGELOG.md) · [Лицензия](../LICENSE)

@@ -2,9 +2,8 @@
 
 <p align="center">
   <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.3.0-beta.1"><img src="https://img.shields.io/badge/source-preview-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Source preview" height="28"></a>
-  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.3.0-beta.1"><img src="https://img.shields.io/github/downloads/RaNDoM6913/Tilvero/v0.3.0-beta.1/Tilvero-0.3.0-beta.1-source.zip?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B&amp;label=source+downloads&amp;displayAssetName=false" alt="Downloads of the v0.3.0-beta.1 source ZIP" height="28"></a>
+  <a href="docs/GITHUB_TRAFFIC.md"><img src="https://img.shields.io/badge/zip%20%E2%80%A2%20clones%20%E2%80%A2%20unique-5%20%E2%80%A2%20269%20%E2%80%A2%20119-2F6E4B?style=for-the-badge&amp;labelColor=172A22" alt="Source ZIP downloads 5, Git clones 269, unique cloners 119" height="28"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="License: GPL-3.0-only" height="28"></a>
-  <a href="https://github.com/RaNDoM6913/Tilvero/stargazers"><img src="https://img.shields.io/github/stars/RaNDoM6913/Tilvero?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B&amp;label=stars" alt="GitHub stars" height="28"></a>
 </p>
 
 <p align="center"><strong>English</strong> · <a href="README.ru.md">Русский</a></p>
@@ -14,10 +13,11 @@ window when you want the details. Follow charging, inspect battery health and
 understand changes over time, without an account or a cloud service.
 
 **0.3.0-beta.1 Source Preview for developers.**
-Sleep controls and the gated closed-lid development trial are included in source; physical closed-lid support remains unqualified.
 [Get the source](https://github.com/RaNDoM6913/Tilvero/releases/download/v0.3.0-beta.1/Tilvero-0.3.0-beta.1-source.zip)
 · [Release notes and checksums](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.3.0-beta.1)
 · [Build and run](#build-and-run) · [Roadmap](ROADMAP.md)
+
+Snapshot on **4 November 2026 UTC**. ZIP counts source downloads excluding one verification download. Clones and unique cloners cover **27 October–2 November UTC**. [Counts and methodology](docs/GITHUB_TRAFFIC.md).
 
 A signed, notarized Mac download is still in preparation. The planned
 **Monitoring Preview** DMG will be read-only; this repository also contains
@@ -32,7 +32,6 @@ separately gated development controls. [Availability and installation](docs/INST
 | Power and charging | Battery power, reported system load and adapter input/capability kept distinct; system charge-limit readback |
 | Application activity | Searchable process activity, CPU load, CPU energy/power estimates, wakeups and disk I/O, with partial coverage made visible |
 | History and reports | Local charts, minute samples, hourly summaries and previewable CSV/JSON exports; gaps stay visible |
-| Sleep Timer and Awake | One-shot sleep timers, compact preset controls and native Custom/Until editors in development builds |
 | Sleep & drain | App-observed sleep/wake intervals and current sleep blockers, with incomplete evidence clearly marked |
 | A panel that fits | Rearrange or hide blocks, choose Russian or English, and adjust menu bar text and icon size |
 
@@ -97,8 +96,6 @@ saved modes and a native charge controller. Saving a plan does not apply it.
 Native charge changes require a local per-Mac setting/readback/restoration check;
 one-time full charging has an additional gate. Privileged charging, power-mode
 and fan writes remain unqualified. Fans default to System Auto.
-
-The source also includes a separate lid-only controller and recovery guardian. It is gated behind a separately signed, bounded trial; physical closed-lid operation is not yet qualified. [Closed-lid development and recovery](docs/CLOSED_LID.md) describes the source, preparation route and remaining device checks.
 
 The future Monitoring Preview configuration disables Keep Mac Awake and control
 actions and contains no privileged helper. A default source build is a development
