@@ -52,6 +52,7 @@ import PowerCore
         for _ in 0..<200 where model.isApplying { try await Task.sleep(for: .milliseconds(10)) }
         XCTAssertEqual(f.service.pendingTarget, 85)
         XCTAssertNotNil(model.notice, "The pending explanation is visible while the target is waiting")
+        XCTAssertTrue(model.noticeIsNativeChargeStatus, "It is the Charge page's line, so other tabs must not print it")
         await f.service.observeBattery(percent: 84, fresh: true)
         XCTAssertNil(f.service.pendingTarget)
         XCTAssertNil(model.notice, "A copy of the pending message must not survive the apply that resolved it")

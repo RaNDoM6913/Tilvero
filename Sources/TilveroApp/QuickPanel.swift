@@ -100,7 +100,9 @@ struct QuickPanel: View {
 
     private var contextualNotice: String? {
         guard let notice = model.notice else { return nil }
-        // The native Charge page prints its own notice (QuickNativeChargePanel.attention); a second copy here was the duplicate line.
+        // The native charge status is the Charge page's own business (QuickNativeChargePanel prints it); it must neither
+        // repeat there nor leak onto the Sleep and other tabs.
+        if model.noticeIsNativeChargeStatus { return nil }
         if section == .charge, model.usesNativeCharge { return nil }
         if model.isDemo, notice == L10n.text("Simulation only — your Mac settings are unchanged.") { return nil }
         return notice
