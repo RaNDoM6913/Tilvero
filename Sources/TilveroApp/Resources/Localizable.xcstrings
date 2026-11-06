@@ -15729,86 +15729,6 @@
         }
       }
     },
-    "Validate 80–95%…": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Validate 80–95%…"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Проверить 80–95 %…"
-          }
-        }
-      }
-    },
-    "Validation writes 80%, 85%, 90% and 95% in turn and restores your setting, after a confirmed persistent baseline and a battery level below 80%.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Validation writes 80%, 85%, 90% and 95% in turn and restores your setting, after a confirmed persistent baseline and a battery level below 80%."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Проверка по очереди ставит 80, 85, 90 и 95 % и возвращает вашу настройку; нужна подтверждённая постоянная настройка и заряд ниже 80 %."
-          }
-        }
-      }
-    },
-    "Verified persistent limits: 80%, 85%, 90% and 95%. Other targets and one-time full charging need separate validation.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verified persistent limits: 80%, 85%, 90% and 95%. Other targets and one-time full charging need separate validation."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Проверены постоянные лимиты 80, 85, 90 и 95 %. Другие цели и однократная полная зарядка требуют отдельной проверки."
-          }
-        }
-      }
-    },
-    "This charge target has not completed local validation. Only the verified persistent 80%, 85%, 90% and 95% targets are authorized.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This charge target has not completed local validation. Only the verified persistent 80%, 85%, 90% and 95% targets are authorized."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Эта цель заряда не прошла локальную проверку. Разрешены только проверенные постоянные цели 80, 85, 90 и 95 %."
-          }
-        }
-      }
-    },
-    "Persistent 80%, 85%, 90% and 95% settings and restoration passed on this Mac. Other targets and physical cutoff remain unqualified.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Persistent 80%, 85%, 90% and 95% settings and restoration passed on this Mac. Other targets and physical cutoff remain unqualified."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Постоянные настройки 80, 85, 90 и 95 % и возврат прошли проверку на этом Mac. Другие цели и физическая остановка зарядки не проверены."
-          }
-        }
-      }
-    },
     "Validation requires a confirmed persistent baseline and a fresh battery level below 80%. No setting was written.": {
       "localizations": {
         "en": {
@@ -15821,6 +15741,134 @@
           "stringUnit": {
             "state": "translated",
             "value": "Для проверки нужна подтверждённая постоянная настройка и свежий уровень заряда ниже 80 %. Ничего не записано."
+          }
+        }
+      }
+    },
+    "A level below the current charge takes effect when the battery discharges to it.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A level below the current charge takes effect when the battery discharges to it."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Уровень ниже текущего заряда начнёт действовать, когда батарея разрядится до него."
+          }
+        }
+      }
+    },
+    "Validate 80–100%…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Validate 80–100%…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверить 80–100 %…"
+          }
+        }
+      }
+    },
+    "Validation writes 80%, 85%, 95% and 100% in turn and restores your setting, after a confirmed persistent baseline and a battery level below 80%.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Validation writes 80%, 85%, 95% and 100% in turn and restores your setting, after a confirmed persistent baseline and a battery level below 80%."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверка по очереди ставит 80, 85, 95 и 100 % и возвращает вашу настройку; нужна подтверждённая постоянная настройка и заряд ниже 80 %."
+          }
+        }
+      }
+    },
+    "Verified persistent limits: 80%, 85%, 90%, 95% and 100%. Other targets and one-time full charging need separate validation.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verified persistent limits: 80%, 85%, 90%, 95% and 100%. Other targets and one-time full charging need separate validation."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверены постоянные лимиты 80, 85, 90, 95 и 100 %. Другие цели и однократная полная зарядка требуют отдельной проверки."
+          }
+        }
+      }
+    },
+    "This charge target has not completed local validation. Only the verified persistent 80%, 85%, 90%, 95% and 100% targets are authorized.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This charge target has not completed local validation. Only the verified persistent 80%, 85%, 90%, 95% and 100% targets are authorized."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эта цель заряда не прошла локальную проверку. Разрешены только проверенные цели 80, 85, 90, 95 и 100 %."
+          }
+        }
+      }
+    },
+    "Persistent 80%, 85%, 90%, 95% and 100% settings and restoration passed on this Mac. Other targets and physical cutoff remain unqualified.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Persistent 80%, 85%, 90%, 95% and 100% settings and restoration passed on this Mac. Other targets and physical cutoff remain unqualified."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Постоянные настройки 80, 85, 90, 95 и 100 % и возврат прошли проверку на этом Mac. Другие цели и физическая остановка зарядки не проверены."
+          }
+        }
+      }
+    },
+    "The same limit as macOS Battery settings: charging stops at the chosen level. Letting go of the slider applies it.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The same limit as macOS Battery settings: charging stops at the chosen level. Letting go of the slider applies it."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тот же лимит, что в настройках macOS «Аккумулятор»: зарядка останавливается на выбранном уровне. Лимит применяется, когда вы отпускаете ползунок."
+          }
+        }
+      }
+    },
+    "100% means no limit. Verified levels: 80%, 85%, 90%, 95% and 100%.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "100% means no limit. Verified levels: 80%, 85%, 90%, 95% and 100%."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "100 % означает «без лимита». Проверены уровни 80, 85, 90, 95 и 100 %."
           }
         }
       }

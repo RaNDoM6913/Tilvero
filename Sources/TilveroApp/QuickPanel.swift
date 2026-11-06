@@ -138,7 +138,13 @@ struct QuickPanel: View {
             .help("\(L10n.text("Source")): \(reading.source) · \(L10n.text("Freshness")): \(reading.freshness.rawValue)")
     }
 
-    private var charge: some View {
+    @ViewBuilder private var charge: some View {
+        if !model.isDemo && model.usesNativeCharge {
+            QuickNativeChargePanel(model: model)
+        } else { legacyCharge }
+    }
+
+    private var legacyCharge: some View {
         VStack(alignment: .leading, spacing: 12) {
             ChargeLimitControl(model: model, isQuickPanel: true)
             if model.canShowChargeControls {

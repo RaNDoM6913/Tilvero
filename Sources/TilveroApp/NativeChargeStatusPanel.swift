@@ -55,9 +55,9 @@ import ChargeBackends
                 StudioActionButton(L10n.text("Refresh"), id: "action.refresh") { Task { await model.refreshNativeCharge() } }
                     .disabled(actionsBlocked)
                 if !model.nativeCharge.admitted && !model.nativeCharge.recoveryRequired {
-                    StudioActionButton(L10n.text("Validate 80–95%…"), id: "action.validate-native-control") { model.qualifyNativeCharge() }
+                    StudioActionButton(L10n.text("Validate 80–100%…"), id: "action.validate-native-control") { model.qualifyNativeCharge() }
                         .disabled(actionsBlocked || !model.nativeCharge.canRequestQualification)
-                        .help(L10n.text("Validation writes 80%, 85%, 90% and 95% in turn and restores your setting, after a confirmed persistent baseline and a battery level below 80%."))
+                        .help(L10n.text("Validation writes 80%, 85%, 95% and 100% in turn and restores your setting, after a confirmed persistent baseline and a battery level below 80%."))
                 }
             }
             if model.nativeCharge.interfaceWasDiscovered && !model.nativeCharge.admitted {
@@ -66,7 +66,7 @@ import ChargeBackends
                     .fixedSize(horizontal: false, vertical: true)
             }
             if model.nativeCharge.admitted && model.nativeCharge.authorizedPersistentTargets == NativeChargeAdmission.persistentTargets {
-                Text(L10n.text("Verified persistent limits: 80%, 85%, 90% and 95%. Other targets and one-time full charging need separate validation."))
+                Text(L10n.text("Verified persistent limits: 80%, 85%, 90%, 95% and 100%. Other targets and one-time full charging need separate validation."))
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }

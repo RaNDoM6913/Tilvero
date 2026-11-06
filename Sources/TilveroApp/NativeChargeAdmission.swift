@@ -5,10 +5,16 @@ import ChargeBackends
 /// Evidence for a finite persistent-setting contract, never physical cutoff,
 /// temporary overrides, helper authorization, or every offered target.
 struct NativeChargeAdmission: Codable {
-    static let version = 3
-    static let semanticContract = "PowerUI-v3-persistent-80-85-90-95"
-    /// The finite persistent targets a local validation exercises (every one written, read back and restored).
-    static let persistentTargets = [80, 85, 90, 95]
+    static let version = 4
+    static let semanticContract = "PowerUI-v4-persistent-80-85-90-95-100"
+    /// The persistent states a local validation exercises (every one written, read back and restored). 100 is how
+    /// macOS stores "limit off": enabled false, target 100, no registered manual limit.
+    static let persistentTargets = [80, 85, 90, 95, 100]
+    static let unlimitedTarget = 100
+    /// A configuration the scoped journal may hold: an enabled limit at a verified target, or the limit off.
+    static func isValidState(_ configuration: NativeChargeConfiguration) -> Bool {
+        configuration.target == unlimitedTarget ? !configuration.enabled : configuration.enabled && persistentTargets.contains(configuration.target)
+    }
 
     struct Scope: Equatable, Sendable {
         let environment: String
@@ -50,7 +56,11 @@ struct NativeChargeAdmission: Codable {
     }
 
     static func isPersistent(_ value: NativeChargeSnapshot, target: Int, optimizedCharging: Bool) -> Bool {
-        value.configuration == .init(enabled: true, target: target, optimizedCharging: optimizedCharging)
+        if target == unlimitedTarget {
+            return value.configuration == .init(enabled: false, target: unlimitedTarget, optimizedCharging: optimizedCharging)
+                && value.policyMatches && value.registeredManualLimit == nil && validOfferedTargets(value.supportedTargets)
+        }
+        return value.configuration == .init(enabled: true, target: target, optimizedCharging: optimizedCharging)
             && value.policyMatches && value.registeredManualLimit == target && validOfferedTargets(value.supportedTargets)
     }
 
