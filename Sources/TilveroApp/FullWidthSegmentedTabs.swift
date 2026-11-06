@@ -297,14 +297,14 @@ import SwiftUI
     @Binding var selection: QuickPanelSection
 
     private var selectedIndex: Binding<Int> {
-        Binding(get: { QuickPanelSection.allCases.firstIndex(of: selection) ?? 0 }, set: { index in
-            guard QuickPanelSection.allCases.indices.contains(index) else { return }
-            selection = QuickPanelSection.allCases[index]
+        Binding(get: { QuickPanelSection.visible.firstIndex(of: selection) ?? 0 }, set: { index in
+            guard QuickPanelSection.visible.indices.contains(index) else { return }
+            selection = QuickPanelSection.visible[index]
         })
     }
 
     var body: some View {
-        FullWidthSegmentedTabs(selection: selectedIndex, labels: QuickPanelSection.allCases.map(\.title),
+        FullWidthSegmentedTabs(selection: selectedIndex, labels: QuickPanelSection.visible.map(\.title),
             accessibilityID: "quick.tabs", accessibilityLabel: L10n.text("Battery menu"))
     }
 }

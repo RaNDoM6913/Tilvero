@@ -35,3 +35,10 @@ import XCTest
         window.orderOut(nil)
     }
 }
+
+final class QuickPanelSectionVisibilityTests: XCTestCase {
+    func testModesIsADevelopmentOnlyTab() {
+        XCTAssertEqual(QuickPanelSection.visibleSections(development: false), [.overview, .charge, .awake])
+        XCTAssertEqual(QuickPanelSection.visibleSections(development: true), [.overview, .charge, .modes, .awake])
+    }
+}

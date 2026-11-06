@@ -5,6 +5,20 @@ import PowerCore
 enum QuickPanelSection: String, CaseIterable, Identifiable {
     case overview, charge, modes, awake
     var id: String { rawValue }
+
+    /// Tabs still in development (Modes) are shown only in debug and laboratory builds, never in a release.
+    static var showsDevelopmentSections: Bool {
+        #if DEBUG
+        true
+        #else
+        Bundle.main.object(forInfoDictionaryKey: "TilveroDataScope") as? String == "laboratory"
+        #endif
+    }
+    static func visibleSections(development: Bool) -> [QuickPanelSection] {
+        allCases.filter { development || $0 != .modes }
+    }
+    /// The tabs the quick panel offers in this build.
+    static var visible: [QuickPanelSection] { visibleSections(development: showsDevelopmentSections) }
     var title: String {
         switch self {
         case .overview: L10n.text("Overview")
