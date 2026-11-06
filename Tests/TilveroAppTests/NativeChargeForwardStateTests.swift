@@ -58,6 +58,29 @@ import PowerCore
         XCTAssertNil(model.notice, "A copy of the pending message must not survive the apply that resolved it")
     }
 
+    func testLeavingThePageDropsItsActionNotice() async throws {
+        let f = ForwardFixture(); defer { f.cleanup() }
+        let suite = "NoticeDismiss-\(UUID())", preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
+        preferences.set(false, forKey: "historyEnabled")
+        defer { preferences.removePersistentDomain(forName: suite) }
+        await f.service.refresh()
+        try await f.service.apply(90, batteryPercent: 60, batteryFresh: true)
+        let model = TilveroModel(isDemo: false, preferences: preferences,
+            historyURL: f.url.deletingLastPathComponent().appendingPathComponent("History.sqlite"),
+            snapshotProvider: { BatterySnapshot(chargePercent: .init(value: 86, source: "fixture", freshness: .fresh),
+                                                isExternalPower: .init(value: false, source: "fixture")) },
+            nativeCharge: f.service)
+        defer { model.stop() }
+        await model.refresh()
+        model.setDraft(85); model.applyDemoTarget()
+        for _ in 0..<200 where model.isApplying { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertNotNil(model.notice)
+        model.dismissActionNotice()
+        XCTAssertNil(model.notice, "An action notice must not follow the user onto another tab")
+        XCTAssertFalse(model.noticeIsNativeChargeStatus)
+        XCTAssertEqual(f.service.pendingTarget, 85, "Only the text goes; the pending target itself stays")
+    }
+
     func testConfirmedReplacementCannotResumeSupersededPendingTarget() async throws {
         let f = ForwardFixture(); defer { f.cleanup() }
         await f.service.refresh()

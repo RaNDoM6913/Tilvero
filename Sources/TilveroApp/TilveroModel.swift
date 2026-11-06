@@ -283,6 +283,12 @@ final class TilveroModel: ObservableObject {
     /// True while `notice` is only a copy of the native charge status line (for example the pending lower limit).
     /// It belongs to the Charge page; other quick-menu tabs must not print it.
     var noticeIsNativeChargeStatus: Bool { notice != nil && notice == lastNativeMirroredNotice }
+    /// An action's notice describes the page it was raised on. Leaving that page drops it, so it never trails the user
+    /// onto an unrelated tab. A Keep Awake failure is the exception: it stays visible on every tab until it is resolved.
+    func dismissActionNotice() {
+        guard let notice, notice != lastAwakeFailureNotice else { return }
+        self.notice = nil; lastNativeMirroredNotice = nil
+    }
     @Published var keepAwakeDraft: KeepAwakeDraft { didSet {
         if case .duration(let duration) = keepAwakeDraft {
             preferences.set(duration.rawValue, forKey: "keepAwakeMinutes")

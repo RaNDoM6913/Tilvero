@@ -117,7 +117,7 @@ struct BatteryInfoView: View {
                     }
                     sectionContent
                     if let error = model.storeError { Label(L10n.text("Data store error") + ": " + error, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange) }
-                    if let notice = model.notice { Text(notice).font(.caption).foregroundStyle(.secondary) }
+                    if let notice = model.notice, !model.noticeIsNativeChargeStatus { Text(notice).font(.caption).foregroundStyle(.secondary) }
                     if presentedSection != .overview && (presentedSection != .sleep || presentedSleepPage == .reports) {
                         Text("\(L10n.text("Last collection")): \(model.snapshot.collectedAt.formatted(.dateTime.locale(L10n.locale)))")
                             .font(.caption).foregroundStyle(.secondary)
