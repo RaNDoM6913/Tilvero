@@ -15872,6 +15872,22 @@
           }
         }
       }
+    },
+    "Connect the charger: macOS confirms the limit only while the Mac is plugged in.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect the charger: macOS confirms the limit only while the Mac is plugged in."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подключите зарядку: macOS подтверждает лимит, только когда Mac подключён к питанию."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

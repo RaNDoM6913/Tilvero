@@ -121,6 +121,13 @@ import ChargeBackends
             }
         }
     }
+    /// An unconfirmed policy on battery power is the Mac simply not being plugged in (no manual limit is registered then).
+    static func needsPowerHint(attention: NativeChargePresentation.Attention, onBattery: Bool) -> Bool {
+        attention == .policyUnconfirmed && onBattery
+    }
+    private var onBattery: Bool {
+        model.snapshot.isExternalPower.availability == .available && model.snapshot.isExternalPower.value == false
+    }
     private var canValidate: Bool { !actionsBlocked && model.nativeCharge.canRequestQualification }
     private var actionsBlocked: Bool {
         model.isApplying || model.nativeCharge.isBusy || model.nativeCharge.isQualifying
@@ -141,7 +148,11 @@ import ChargeBackends
                 }
             }
         }
-        if let status = NativeChargeStatusPanel(model: model, compact: true).statusText(state) {
+        if Self.needsPowerHint(attention: state.attention, onBattery: onBattery) {
+            // macOS registers the manual limit only while the Mac is plugged in; say what to do instead of "unconfirmed".
+            StudioText(L10n.text("Connect the charger: macOS confirms the limit only while the Mac is plugged in."), id: "native.needsPower")
+                .font(.system(size: 13)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        } else if let status = NativeChargeStatusPanel(model: model, compact: true).statusText(state) {
             StudioText(L10n.text(status), id: "native.status").font(.caption)
                 .foregroundStyle(state.requiresGlobalAttention ? .orange : .secondary)
                 .fixedSize(horizontal: false, vertical: true)
