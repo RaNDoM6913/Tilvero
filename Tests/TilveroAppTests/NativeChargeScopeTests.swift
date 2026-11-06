@@ -278,6 +278,47 @@ import PowerCore
         await f.assertWrites(["limit80", "limit85", "limit95", "limit100", "limit90", "limit95", "limit90"])
     }
 
+    /// Owner decision 2026-11-06: the limit is the system's own setting. A verified slider choice stays after the app
+    /// quits; quitting neither rewrites the previous value nor refuses to quit.
+    func testVerifiedLimitIsAdoptedAndSurvivesQuitWithoutAnyRestoreWrite() async throws {
+        let f = ScopeFixture(); defer { f.cleanup() }
+        try await f.service.qualify()
+        let scope = try XCTUnwrap(NativeChargeAdmission.loadScope(from: f.admission, environment: "scope-fixture"))
+        let service = f.makeService(scope: scope)
+        await service.refresh()
+        try await service.apply(85, batteryPercent: 50, batteryFresh: true)
+        XCTAssertEqual(service.observed?.configuration, .init(enabled: true, target: 85, optimizedCharging: true))
+        XCTAssertFalse(service.hasOwnedSettings, "A confirmed choice is the user's own macOS setting, not an app session")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: f.journal.path), "No journal outlives the confirmed apply")
+        XCTAssertFalse(service.recoveryRequired)
+        let quit = try await service.restore(batteryPercent: 50, batteryFresh: true)   // what Quit calls
+        XCTAssertTrue(quit)
+        XCTAssertEqual(service.observed?.configuration.target, 85)
+        await f.assertWrites(["limit80", "limit85", "limit95", "limit100", "limit90", "limit85"])
+        let reopened = f.makeService(scope: scope)
+        await reopened.refresh()
+        XCTAssertFalse(reopened.recoveryRequired, "The next launch has nothing to review")
+        XCTAssertEqual(reopened.observed?.configuration.target, 85)
+        XCTAssertTrue(reopened.needsApply(target: 90), "The slider keeps working from the adopted setting")
+    }
+
+    func testPendingLowerLimitIsDroppedOnQuitWithoutWritingAnything() async throws {
+        let f = ScopeFixture(); defer { f.cleanup() }
+        try await f.service.qualify()
+        let scope = try XCTUnwrap(NativeChargeAdmission.loadScope(from: f.admission, environment: "scope-fixture"))
+        let service = f.makeService(scope: scope)
+        await service.refresh()
+        await f.client.setMode("battery91")
+        try await service.apply(85, batteryPercent: 91, batteryFresh: true)
+        XCTAssertEqual(service.pendingTarget, 85)
+        let quit = try await service.restore(batteryPercent: 91, batteryFresh: true)
+        XCTAssertTrue(quit, "Quitting must not be refused because a lower limit is waiting")
+        XCTAssertNil(service.pendingTarget)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: f.journal.path))
+        XCTAssertEqual(service.observed?.configuration.target, 90, "Nothing was written: macOS keeps the previous limit")
+        await f.assertWrites(["limit80", "limit85", "limit95", "limit100", "limit90"])
+    }
+
     func testQualificationFromAnotherPersistentBaselineRestoresThatBaseline() async throws {
         let f = ScopeFixture(initialTarget: 85); defer { f.cleanup() }
         await f.service.refresh()
@@ -291,7 +332,7 @@ import PowerCore
         XCTAssertNotNil(NativeChargeAdmission.loadScope(from: f.admission, environment: "scope-fixture"))
     }
 
-    func testScopedApplyToLimitOffAndBackRestoresTheBaseline() async throws {
+    func testScopedApplyToLimitOffAndBackKeepsEachConfirmedChoice() async throws {
         let f = ScopeFixture(); defer { f.cleanup() }
         try await f.service.qualify()
         let scope = try XCTUnwrap(NativeChargeAdmission.loadScope(from: f.admission, environment: "scope-fixture"))
@@ -300,16 +341,15 @@ import PowerCore
         XCTAssertTrue(service.needsApply(target: 100))
         try await service.apply(100, batteryPercent: 50, batteryFresh: true)
         XCTAssertEqual(service.observed?.configuration, .init(enabled: false, target: 100, optimizedCharging: true), "100 is stored as limit off")
-        XCTAssertTrue(service.hasOwnedSettings)
+        XCTAssertFalse(service.hasOwnedSettings, "A confirmed choice is the user's own setting")
         XCTAssertFalse(service.needsApply(target: 100), "Already off: nothing to write")
         try await service.apply(85, batteryPercent: 50, batteryFresh: true)   // re-enables through the limit write itself
         XCTAssertEqual(service.observed?.configuration, .init(enabled: true, target: 85, optimizedCharging: true))
         try await service.apply(100, batteryPercent: 50, batteryFresh: true)
-        let restored = try await service.restore(batteryPercent: 50, batteryFresh: true)
-        XCTAssertTrue(restored)
-        XCTAssertEqual(service.observed?.configuration, .init(enabled: true, target: 90, optimizedCharging: true), "The user's own baseline comes back")
-        XCTAssertFalse(service.hasOwnedSettings)
-        await f.assertWrites(["limit80", "limit85", "limit95", "limit100", "limit90", "limit100", "limit85", "limit100", "limit90"])
+        let quit = try await service.restore(batteryPercent: 50, batteryFresh: true)
+        XCTAssertTrue(quit)
+        XCTAssertEqual(service.observed?.configuration, .init(enabled: false, target: 100, optimizedCharging: true), "Quit leaves the last confirmed choice")
+        await f.assertWrites(["limit80", "limit85", "limit95", "limit100", "limit90", "limit100", "limit85", "limit100"])
         XCTAssertFalse(service.recoveryRequired)
     }
 
@@ -333,11 +373,11 @@ import PowerCore
         XCTAssertTrue(service.canApplyTarget(85))
         try await service.apply(85, batteryPercent: 50, batteryFresh: true)
         XCTAssertEqual(service.observed?.configuration, .init(enabled: true, target: 85, optimizedCharging: true))
-        XCTAssertTrue(service.hasOwnedSettings)
-        let restored = try await service.restore(batteryPercent: 50, batteryFresh: true)
-        XCTAssertTrue(restored)
-        XCTAssertEqual(service.observed?.configuration.target, 90)
-        await f.assertWrites(["limit80", "limit85", "limit95", "limit100", "limit90", "limit85", "limit90"])
+        XCTAssertFalse(service.hasOwnedSettings, "On battery power too, the confirmed limit is the user's own setting")
+        let quit = try await service.restore(batteryPercent: 50, batteryFresh: true)
+        XCTAssertTrue(quit)
+        XCTAssertEqual(service.observed?.configuration.target, 85)
+        await f.assertWrites(["limit80", "limit85", "limit95", "limit100", "limit90", "limit85"])
     }
 
     func testProductionScopeRejectsLegacyJournalAndPreservesItsBytes() async throws {
