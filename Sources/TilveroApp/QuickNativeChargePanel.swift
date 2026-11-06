@@ -11,7 +11,6 @@ import ChargeBackends
     /// What the slider shows from the user's first movement until the apply is done, so a busy model never snaps it back.
     @State private var chosen: Int?
 
-    private var canRelease: Bool { model.canShowChargeControls && model.canReleaseCharge && !model.isApplying }
     private var targets: [Int] { model.nativeCharge.authorizedPersistentTargets.sorted() }
 
     var body: some View {
@@ -37,19 +36,6 @@ import ChargeBackends
                 L10n.text("100% means no limit. Verified levels: 80%, 85%, 90%, 95% and 100%."),
             ], id: "charge-limit-info")
             Spacer(minLength: 8)
-            // Returning to the system's own setting: an icon in a fixed slot (it fades in when there is something to
-            // return), so appearing never adds a row.
-            Button { model.releaseControl() } label: {
-                Image(systemName: "arrow.uturn.backward.circle").font(.system(size: 13)).foregroundStyle(.secondary)
-                    .frame(width: 20, height: 20).contentShape(Rectangle())
-            }
-            .buttonStyle(.plain).focusEffectDisabled()
-            .opacity(canRelease ? 1 : 0).animation(.easeOut(duration: 0.15), value: canRelease)
-            .disabled(!canRelease).allowsHitTesting(canRelease)
-            .help(L10n.text("Return to system control"))
-            .accessibilityLabel(L10n.text("Return to system control"))
-            .accessibilityHidden(!canRelease)
-            .accessibilityIdentifier("action.return-to-system-control")
             // A fixed slot: a native read or an apply comes and goes without moving the row.
             ProgressView().controlSize(.mini).frame(width: 12, height: 12)
                 .opacity(state.pendingPurpose != nil || model.isApplying ? 1 : 0)
