@@ -30,6 +30,10 @@ protocol LidSleepSystem: Sendable {
 
 @MainActor final class LidSleepOverrideService: ObservableObject {
     static let recoveryKey = "lidSleepOverrideActive"
+    static let preferenceKey = "lidClosedPreferred"
+    /// The option: "with the lid closed" applies to every Keep Awake session the user starts. It never starts one.
+    @Published private(set) var isPreferred = false
+    /// The override itself is in effect (a Keep Awake session is running and the option is on).
     @Published private(set) var isOn = false
     @Published private(set) var busy = false
     @Published private(set) var failure: String?
@@ -56,14 +60,14 @@ protocol LidSleepSystem: Sendable {
         self.awakeIsActive = awakeIsActive; self.lidSleepRetryDelay = lidSleepRetryDelay
         needsRecovery = defaults.bool(forKey: Self.recoveryKey)
         ruleFilePresent = system.ruleFilePresent
+        isPreferred = allowed && defaults.bool(forKey: Self.preferenceKey)
     }
 
     var isAvailable: Bool { allowed }
-    /// A message from the row itself (for example, Keep Awake could not be started).
-    func report(_ text: String) { failure = text }
     var canEnable: Bool { allowed && !busy && !needsRecovery && !isOn && awakeIsActive() }
 
-    /// The lid mode belongs to one Keep Awake session: when that session ends or is replaced, the override ends.
+    /// The override belongs to one Keep Awake session: it is applied when a session starts while the option is on,
+    /// and ended when that session ends or is replaced. The option itself stays.
     func bind(_ awake: KeepAwakeService) {
         guard boundAwake != ObjectIdentifier(awake) else { return }
         boundAwake = ObjectIdentifier(awake)
@@ -72,20 +76,57 @@ protocol LidSleepSystem: Sendable {
             Task { @MainActor [weak self] in
                 guard let self, id != self.boundOwner else { return }
                 self.boundOwner = id
-                if self.isOn || self.defaults.bool(forKey: Self.recoveryKey) { await self.restore(userInitiated: false, sleepIfLidClosed: true) }
+                if self.isOn || self.defaults.bool(forKey: Self.recoveryKey) {
+                    await self.restore(userInitiated: false, sleepIfLidClosed: true)
+                }
+                if id != nil, self.isPreferred, !self.isOn, !self.needsRecovery { await self.enable(allowPrompt: false) }
             }
         }
     }
 
-    // MARK: Enable
+    // MARK: Option
 
-    func setEnabled(_ enabled: Bool) async {
-        if enabled { await enable() } else { await restore(userInitiated: true, sleepIfLidClosed: true) }
+    /// The switch. Turning it on only records the choice (and obtains the permission, the one administrator prompt, at
+    /// the user's action); the override starts with the next Keep Awake session, or at once if one is running.
+    func setPreferred(_ on: Bool) async {
+        guard allowed else { return }
+        if !on {
+            isPreferred = false
+            defaults.set(false, forKey: Self.preferenceKey)
+            failure = nil
+            if isOn || defaults.bool(forKey: Self.recoveryKey) { await restore(userInitiated: true, sleepIfLidClosed: true) }
+            return
+        }
+        guard !busy, !isPreferred else { return }
+        guard !needsRecovery else { failure = L10n.text("Normal sleep could not be restored. Use Restore sleep."); return }
+        busy = true; failure = nil
+        let granted = await prepareRule()
+        busy = false
+        guard granted else { return }
+        isPreferred = true
+        defaults.set(true, forKey: Self.preferenceKey)
+        if awakeIsActive() { await enable(allowPrompt: false) }
     }
 
-    private func enable() async {
-        guard allowed, !busy, !needsRecovery, !isOn else { return }
-        guard awakeIsActive() else { failure = L10n.text("Start Keep Awake first."); return }
+    /// Checks the baseline and makes sure the passwordless path exists (prompting once if it does not).
+    private func prepareRule() async -> Bool {
+        guard await system.readSleepDisabled() == false else {
+            failure = L10n.text("Sleep is already disabled by another tool or setting. Tilvero will not change it.")
+            return false
+        }
+        if !(await system.passwordlessPathWorks()) {
+            guard await system.installRule(), await system.passwordlessPathWorks() else {
+                failure = L10n.text("The permission was not granted. The lid mode stays off.")
+                ruleFilePresent = system.ruleFilePresent
+                return false
+            }
+        }
+        ruleFilePresent = system.ruleFilePresent
+        return true
+    }
+
+    private func enable(allowPrompt: Bool) async {
+        guard allowed, !busy, !needsRecovery, !isOn, awakeIsActive() else { return }
         busy = true; failure = nil; pendingEnd = false
         defer { busy = false }
         generation &+= 1
@@ -98,8 +139,9 @@ protocol LidSleepSystem: Sendable {
         }
         guard generation == id, awakeIsActive() else { return }
         if !(await system.passwordlessPathWorks()) {
-            guard await system.installRule(), await system.passwordlessPathWorks() else {
-                failure = L10n.text("The permission was not granted. The lid mode stays off.")
+            // A session starting by itself never raises a password prompt: the user is told how to repair it.
+            guard allowPrompt, await system.installRule(), await system.passwordlessPathWorks() else {
+                failure = L10n.text("The permission is missing. Switch With lid closed off and on again.")
                 ruleFilePresent = system.ruleFilePresent
                 return
             }

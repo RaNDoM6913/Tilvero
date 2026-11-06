@@ -66,7 +66,11 @@ gated clamshell-user-client trial above, which stays for lab/trial builds (`Clos
 - First use: one macOS administrator prompt installs `/etc/sudoers.d/tilvero-lid`, a rule for the user's uid that
   allows exactly `/usr/bin/pmset disablesleep 1` and `... 0` without a password (validated with `visudo -c`).
   The info popover offers **Remove permission…** (second prompt) while the mode is off.
-- The mode exists only while a Keep Awake session runs. A recovery marker (`lidSleepOverrideActive`) is written
+- "With lid closed" is an OPTION of Keep Awake (owner, 2026-11-06): it can be switched on without Keep Awake, only
+  records the choice (`lidClosedPreferred`) and obtains the permission (the one administrator prompt), and never
+  starts Keep Awake. The override is applied when the user starts a Keep Awake session (silently; if the rule has
+  vanished no prompt appears by itself, the user is asked to switch the option off and on) or at once if one runs.
+- The override exists only while a Keep Awake session runs. A recovery marker (`lidSleepOverrideActive`) is written
   before the override is set and cleared only after a confirmed `SleepDisabled 0`. An override that is already set
   (another tool, the user's own `pmset`) or unreadable is never adopted.
 - Restore paths (passwordless, no prompt): Keep Awake ends or is replaced, the switch, quit/update preparation,

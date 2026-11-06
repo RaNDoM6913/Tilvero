@@ -15473,22 +15473,6 @@
         }
       }
     },
-    "Start Keep Awake first.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Start Keep Awake first."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Сначала включите «Не засыпать»."
-          }
-        }
-      }
-    },
     "The permission was not granted. The lid mode stays off.": {
       "localizations": {
         "en": {
@@ -15617,22 +15601,6 @@
         }
       }
     },
-    "Keeps the Mac awake with the lid closed while Keep Awake runs. The first time, macOS asks for the administrator password to allow one command, pmset disablesleep, without a password. Nothing else is allowed.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Keeps the Mac awake with the lid closed while Keep Awake runs. The first time, macOS asks for the administrator password to allow one command, pmset disablesleep, without a password. Nothing else is allowed."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Держит Mac бодрым при закрытой крышке, пока работает «Не засыпать». В первый раз macOS попросит пароль администратора, чтобы разрешить одну команду, pmset disablesleep, без пароля. Больше ничего не разрешается."
-          }
-        }
-      }
-    },
     "Normal sleep returns when Keep Awake ends, when you quit Tilvero, before a sleep timer or charge sleep, and at the next launch if the app was killed. A closed Mac in a bag stays on and warm: use a hard, ventilated surface.": {
       "localizations": {
         "en": {
@@ -15677,6 +15645,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Сон уже отключён другой программой или настройкой. Tilvero её не изменит."
+          }
+        }
+      }
+    },
+    "An option for Keep Awake: with it on, a Keep Awake session also continues with the lid closed. It never starts Keep Awake by itself. The first time, macOS asks for the administrator password to allow one command, pmset disablesleep, without a password. Nothing else is allowed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An option for Keep Awake: with it on, a Keep Awake session also continues with the lid closed. It never starts Keep Awake by itself. The first time, macOS asks for the administrator password to allow one command, pmset disablesleep, without a password. Nothing else is allowed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Опция для «Не засыпать»: когда она включена, сеанс «Не засыпать» продолжается и при закрытой крышке. Сама она «Не засыпать» не запускает. В первый раз macOS попросит пароль администратора, чтобы разрешить одну команду, pmset disablesleep, без пароля. Больше ничего не разрешается."
+          }
+        }
+      }
+    },
+    "The permission is missing. Switch With lid closed off and on again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The permission is missing. Switch With lid closed off and on again."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешение пропало. Выключите и снова включите «С закрытой крышкой»."
           }
         }
       }

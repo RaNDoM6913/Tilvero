@@ -69,23 +69,13 @@ import ClosedLidControl
     @ObservedObject var model: TilveroModel
     @ObservedObject private var service: LidSleepOverrideService
     init(model: TilveroModel) { self.model = model; service = model.lidSleep }
-    /// The lid mode lives inside a Keep Awake session. Switching it on without one starts Keep Awake with the saved
-    /// choice first (the same as its own switch), instead of leaving the control dead.
-    private func turn(_ enabled: Bool) async {
-        if enabled, !model.keepAwake.hasOwnedAssertion {
-            do { try SleepPillActions.setAwakeEnabled(model, enabled: true, token: nil) }
-            catch { service.report(L10n.text("Start Keep Awake first.")); return }
-        }
-        await service.setEnabled(enabled)
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 StudioText(L10n.text("With lid closed"), id: "awake.closedLid.heading")
                     .font(.system(size: 14, weight: .semibold)).fixedSize()
                 SectionInfoButton(title: L10n.text("With lid closed"), paragraphs: [
-                    L10n.text("Keeps the Mac awake with the lid closed while Keep Awake runs. The first time, macOS asks for the administrator password to allow one command, pmset disablesleep, without a password. Nothing else is allowed."),
+                    L10n.text("An option for Keep Awake: with it on, a Keep Awake session also continues with the lid closed. It never starts Keep Awake by itself. The first time, macOS asks for the administrator password to allow one command, pmset disablesleep, without a password. Nothing else is allowed."),
                     L10n.text("Normal sleep returns when Keep Awake ends, when you quit Tilvero, before a sleep timer or charge sleep, and at the next launch if the app was killed. A closed Mac in a bag stays on and warm: use a hard, ventilated surface."),
                     L10n.text("Not verified on every Mac and macOS version."),
                 ], id: "closed-lid-info",
@@ -93,10 +83,10 @@ import ClosedLidControl
                     ? (L10n.text("Remove permission…"), { Task { await service.removePermission() } }) : nil)
                 Spacer(minLength: 8)
                 Toggle(L10n.text("With lid closed"), isOn: Binding(
-                    get: { service.isOn },
-                    set: { enabled in Task { await turn(enabled) } }))
+                    get: { service.isPreferred },
+                    set: { enabled in Task { await service.setPreferred(enabled) } }))
                     .toggleStyle(.switch).controlSize(.regular).labelsHidden().fixedSize()
-                    .disabled(!service.isAvailable || service.busy || (!service.isOn && (service.needsRecovery || !SleepPillActions.canChooseAwake(model) && !model.keepAwake.hasOwnedAssertion)))
+                    .disabled(!service.isAvailable || service.busy || (!service.isPreferred && service.needsRecovery))
                     .accessibilityIdentifier("closed-lid-master")
             }
             .frame(height: 32)
