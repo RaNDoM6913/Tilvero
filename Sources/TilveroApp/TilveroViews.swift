@@ -490,6 +490,23 @@ private struct SettingsPanel: View {
                     }.labelsHidden().frame(width: 220).studioElement("settings.batteryAppearance", label: "Battery appearance")
                 }
                 Divider()
+                HStack(alignment: .center) {
+                    StudioText(L10n.text("Keep Awake color"), id: "settings.awakeColor.title")
+                    Spacer()
+                    HStack(spacing: 8) {
+                        ForEach(AwakeIndicatorColor.allCases) { option in
+                            Button { model.awakeIndicatorColor = option } label: {
+                                Circle().fill(Color(nsColor: option.nsColor)).frame(width: 18, height: 18)
+                                    .overlay(Circle().strokeBorder(Color.primary.opacity(model.awakeIndicatorColor == option ? 0.9 : 0.12), lineWidth: model.awakeIndicatorColor == option ? 2 : 1))
+                                    .padding(2)
+                            }
+                            .buttonStyle(.plain).focusEffectDisabled()
+                            .accessibilityLabel(option.title).accessibilityAddTraits(model.awakeIndicatorColor == option ? [.isSelected] : [])
+                            .help(option.title)
+                        }
+                    }.studioElement("settings.awakeColor", label: "Keep Awake indicator color")
+                }
+                Divider()
                 HStack(alignment: .firstTextBaseline) {
                     StudioText(L10n.text("Menu bar"), id: "settings.menuBar.title")
                     Spacer()

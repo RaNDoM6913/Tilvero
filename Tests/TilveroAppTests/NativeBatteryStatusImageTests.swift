@@ -668,7 +668,8 @@ final class NativeBatteryStatusImageTests: XCTestCase {
                     XCTAssertEqual(light.colorAt(x: x, y: y), repeated.colorAt(x: x, y: y),
                                    "Returning to the first appearance must not retain the previous cached mask.")
                 } }
-                XCTAssertEqual(image.isTemplate, state != .active || selected)
+                // A confirmed Keep Awake colours the fill (a real-colour image), also while the menu is open.
+                XCTAssertEqual(image.isTemplate, state != .active)
                 for name in [NSAppearance.Name.aqua, .darkAqua] {
                     let unknown = NativeBatteryStatusImage.make(level: nil, style: .inside, externalPower: true,
                         textSize: .system, appearance: .macOS27)
@@ -688,7 +689,7 @@ final class NativeBatteryStatusImageTests: XCTestCase {
             let selected = NativeBatteryStatusImage.make(level: 90, style: style, externalPower: true, awake: .active, highlighted: true, appearance: .macOS27)
             let unconfirmed = NativeBatteryStatusImage.make(level: 90, style: style, externalPower: true, awake: .unconfirmed, appearance: .macOS27)
             XCTAssertFalse(active.isTemplate)
-            XCTAssertTrue(selected.isTemplate)
+            XCTAssertFalse(selected.isTemplate, "The fill colour stays while the menu is open.")
             XCTAssertTrue(unconfirmed.isTemplate)
             let a = render(off, scale: 2), b = render(active, scale: 2), c = render(selected, scale: 2)
             for y in 0..<a.pixelsHigh { for x in 0..<a.pixelsWide {

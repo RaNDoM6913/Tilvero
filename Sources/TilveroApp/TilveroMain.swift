@@ -610,8 +610,15 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         let attached = power.availability == .available && power.freshness != .stale && power.value == true
         let awake = KeepAwakeStatusIndicator(service: model.keepAwake)
         button.font = NativeStatusPresentation.font(for: model.menuBarTextSize)
-        button.image = NativeBatteryStatusImage.make(level: level, style: model.displayStyle, externalPower: attached, scale: CGFloat(model.menuBarIconScale), textSize: model.menuBarTextSize, awake: awake, highlighted: button.state == .on, appearance: model.menuBarBatteryAppearance, redWhenLow: true)
-        button.alternateImage = awake == .active ? NativeBatteryStatusImage.make(level: level, style: model.displayStyle, externalPower: attached, scale: CGFloat(model.menuBarIconScale), textSize: model.menuBarTextSize, awake: awake, highlighted: true, appearance: model.menuBarBatteryAppearance) : nil
+        let lowOnBattery = !attached && (level.map { $0 <= NativeBatteryStatusImage.lowChargeThreshold } ?? false)
+        func icon(pressed: Bool) -> NSImage {
+            NativeBatteryStatusImage.make(level: level, style: model.displayStyle, externalPower: attached, scale: CGFloat(model.menuBarIconScale),
+                                          textSize: model.menuBarTextSize, awake: awake, highlighted: pressed,
+                                          appearance: model.menuBarBatteryAppearance, redWhenLow: true, awakeColor: model.awakeIndicatorColor.nsColor)
+        }
+        button.image = icon(pressed: button.state == .on)
+        // The coloured fill (Keep Awake blue, low-charge red) stays while the menu is open.
+        button.alternateImage = awake == .active || lowOnBattery ? icon(pressed: true) : nil
         let percentageTitle = model.displayStyle == .beside ? NativeStatusPresentation.percentageTitle(level: level) : ""
         // Development-only marker: fixtures must remain identifiable even when closed.
         button.title = percentageTitle + (model.isDemo ? " DEMO" : "")

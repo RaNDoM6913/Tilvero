@@ -67,7 +67,7 @@ enum NativeStatusPresentation {
 enum NativeBatteryStatusImage {
     static func make(level: Int?, style: MenuBarDisplayStyle, externalPower: Bool, scale: CGFloat = 1, textSize: MenuBarTextSize = .larger,
                      awake: KeepAwakeStatusIndicator = .off, highlighted: Bool = false, appearance: MenuBarBatteryAppearance = .macOS26,
-                     redWhenLow: Bool = false) -> NSImage {
+                     redWhenLow: Bool = false, awakeColor: NSColor = .systemBlue) -> NSImage {
         let inside = style == .inside
         let validLevel = ReadingPresentation.validLevel(level)
         let modernExtension = appearance == .macOS27 && inside ? modernBodyExtension(textSize: textSize) : 0
@@ -81,7 +81,7 @@ enum NativeBatteryStatusImage {
         let level = validLevel
         // Like the system indicator: a red fill at 20 % or less while running on battery. Only the modern (macOS 27)
         // body is composed this way; the pressed state keeps the plain template.
-        let lowFill = redWhenLow && appearance == .macOS27 && !externalPower && !highlighted && (level.map { $0 <= lowChargeThreshold } ?? false)
+        let lowFill = redWhenLow && appearance == .macOS27 && !externalPower && (level.map { $0 <= lowChargeThreshold } ?? false)
         let image = NSImage(size: size, flipped: false) { rect in
             NSGraphicsContext.saveGraphicsState()
             defer { NSGraphicsContext.restoreGraphicsState() }
@@ -98,10 +98,10 @@ enum NativeBatteryStatusImage {
                 drawNormal(level: level, externalPower: externalPower)
             }
             if awake != .off && !tintedAwake { drawAwakeBadge(awake, x: batteryWidth + 1) }
-            if tintedAwake && !highlighted {
+            if tintedAwake {
                 (isDarkInk ? NSColor.white : NSColor.black).setFill()
                 NSRect(origin: .zero, size: canvas).fill(using: .sourceIn)
-                if let region = redRegion { NSColor.systemBlue.setFill(); region.fill(using: .sourceAtop) }
+                if let region = redRegion { awakeColor.setFill(); region.fill(using: .sourceAtop) }
             } else if awake == .active && !tintedAwake && !highlighted {
                 // Tint the existing alpha mask; measured fill and numeral/bolt
                 // cutouts remain identical to the native template presentation.
@@ -119,8 +119,9 @@ enum NativeBatteryStatusImage {
             }
             return true
         }
-        image.isTemplate = (awake != .active && !lowFill) || highlighted
-        if tintedAwake && !highlighted { image.isTemplate = false }
+        // The fill colours stay while the menu is open (pressed): the quick menu is where the user starts these modes.
+        image.isTemplate = (awake != .active && !lowFill) || (highlighted && !tintedAwake && !lowFill)
+        if tintedAwake { image.isTemplate = false }
         return image
     }
 

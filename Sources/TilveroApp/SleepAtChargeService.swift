@@ -20,6 +20,9 @@ import Combine
     @Published private(set) var currentPercent: Int?
     @Published private(set) var onExternalPower: Bool?
 
+    /// Name of another running sleep or keep-awake mode that forbids starting this one (set by the model).
+    var blockedBy: @MainActor () -> String? = { nil }
+
     /// Safe preparation before the sleep request (same contract as the sleep timer's).
     var prepare: @MainActor () async -> Bool
     private let driver: any SleepTimerTransport
@@ -52,7 +55,7 @@ import Combine
     var isArmed: Bool { target != nil }
     /// A target is offered only when it lies below the present charge; arming at or above it would sleep at once.
     func canArm(target candidate: Int) -> Bool {
-        allowed && !isRequesting && driver.isCurrentConsoleSession() && (currentPercent.map { candidate < $0 } ?? false)
+        allowed && !isRequesting && blockedBy() == nil && driver.isCurrentConsoleSession() && (currentPercent.map { candidate < $0 } ?? false)
     }
     var canChooseTarget: Bool { Self.targets.contains { canArm(target: $0) } }
 
@@ -60,6 +63,8 @@ import Combine
         guard allowed else { throw SleepAtChargeError.unavailable }
         guard Self.targets.contains(candidate) || (1...99).contains(candidate) else { throw SleepAtChargeError.invalidTarget }
         guard !isRequesting, driver.isCurrentConsoleSession() else { throw SleepAtChargeError.unavailable }
+        // Only one sleep / keep-awake mode at a time (changing the level of this one is not a new mode).
+        if target == nil, blockedBy() != nil { throw SleepAtChargeError.otherModeActive }
         guard let percent = currentPercent else { throw SleepAtChargeError.chargeUnknown }
         guard candidate < percent else { throw SleepAtChargeError.alreadyReached }
         if target == nil {
@@ -151,13 +156,14 @@ import Combine
 }
 
 enum SleepAtChargeError: LocalizedError {
-    case unavailable, invalidTarget, chargeUnknown, alreadyReached
+    case unavailable, invalidTarget, chargeUnknown, alreadyReached, otherModeActive
     var errorDescription: String? {
         switch self {
         case .unavailable: L10n.text("Sleep at charge is unavailable in this build or simulation.")
         case .invalidTarget: L10n.text("Choose a charge between 1 and 99 %.")
         case .chargeUnknown: L10n.text("The charge level is not known yet.")
         case .alreadyReached: L10n.text("The battery is already at or below that level.")
+        case .otherModeActive: L10n.text("Another sleep or Keep Awake mode is running. Turn it off first.")
         }
     }
 }

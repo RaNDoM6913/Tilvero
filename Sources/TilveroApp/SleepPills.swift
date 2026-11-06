@@ -68,7 +68,7 @@ enum SleepPillActionError: LocalizedError, Equatable {
     }
 
     static func canChooseAwake(_ model: TilveroModel) -> Bool {
-        model.sleepPillActionsAllowed && model.keepAwake.isAvailable
+        model.sleepPillActionsAllowed && model.keepAwake.isAvailable && !model.chargeModeActive
             && !(model.keepAwake.hasOwnedAssertion && !model.keepAwake.isActive)
     }
     static func canChooseTimer(_ model: TilveroModel) -> Bool {
@@ -260,9 +260,8 @@ enum SleepPillActionError: LocalizedError, Equatable {
                     .fixedSize(horizontal: false, vertical: true)
                 StudioActionButton(L10n.text("Release timer hold"), id: "sleep-timer-release-hold") { service.cancel() }
             } else if service.isActive {
-                HStack {
-                    if let end = service.endDate { Text(SleepTimerInput.endTime(end)).font(.caption).foregroundStyle(.secondary) }
-                    if SleepPillActions.controlToken(model, awake: false) == nil {
+                if SleepPillActions.controlToken(model, awake: false) == nil {
+                    HStack {
                         Spacer(minLength: 6)
                         StudioActionButton(L10n.text("Cancel timer"), id: "sleep-timer-cancel") { service.cancel(); error = nil }
                             .disabled(!service.isEditable && service.phase != .preparing)
@@ -319,6 +318,10 @@ enum SleepPillActionError: LocalizedError, Equatable {
                 L10n.text("Keeps Mac awake until the timer ends, then requests sleep."),
             ], id: "sleep-timer-info")
             Spacer(minLength: 8)
+            if service.isActive, !service.needsHoldRelease, let end = service.endDate {
+                Text(SleepTimerInput.endTime(end)).font(.system(size: 12)).foregroundStyle(.secondary)
+                    .lineLimit(1).minimumScaleFactor(0.8).monospacedDigit()
+            }
             Toggle(L10n.text("Sleep timer"), isOn: Binding(
                 get: { service.isActive },
                 set: { setEnabled($0, token: token) }))
@@ -436,16 +439,8 @@ enum SleepPillActionError: LocalizedError, Equatable {
                         .foregroundStyle(.secondary)
                 }
             }
-            if service.hasOwnedAssertion {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    if service.isActive, let end = service.endDate {
-                        Text(KeepAwakePresentation.endTime(end)).font(.caption).foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    } else {
-                        Text(L10n.text(service.isActive ? "Until stopped" : "Check session"))
-                            .font(.caption).foregroundStyle(service.isActive ? Color.secondary : Color.orange)
-                    }
-                }
+            if service.hasOwnedAssertion, !service.isActive {
+                Text(L10n.text("Check session")).font(.caption).foregroundStyle(.orange)
             }
             if let message = error ?? service.message {
                 Text(L10n.text(message)).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
@@ -471,8 +466,15 @@ enum SleepPillActionError: LocalizedError, Equatable {
         } message: { Text(consent?.explanation ?? "") }
     }
     private var masterRow: some View {
-        // Keep the row height stable when shortcuts appear. At 320 pt the full
-        // Russian title, two regular 28-pt targets and native switch fit unscaled.
+        // The end time sits right of the title when it fits next to the shortcuts; otherwise it is left out.
+        ViewThatFits(in: .horizontal) {
+            masterRowContent(showsEnd: true)
+            masterRowContent(showsEnd: false)
+        }
+        .frame(height: 32)
+        .studioElement("awake.header", kind: "container", label: "Keep Awake controls")
+    }
+    private func masterRowContent(showsEnd: Bool) -> some View {
         let token = service.ownedAssertionID.map(SleepControlToken.awake)
         return HStack(spacing: 6) {
             StudioText(L10n.text("Keep Awake"), id: "awake.heading")
@@ -481,6 +483,10 @@ enum SleepPillActionError: LocalizedError, Equatable {
                 L10n.text("Choose a time to start immediately."),
                 L10n.text("The display can turn off. Closing the lid or choosing Sleep still works."),
             ], id: "keep-awake-info")
+            if showsEnd, service.isActive, let end = service.endDate {
+                Text(KeepAwakePresentation.endTime(end)).font(.system(size: 12)).foregroundStyle(.secondary)
+                    .lineLimit(1).fixedSize().monospacedDigit()
+            }
             Spacer(minLength: 8)
             if service.isActive, let token {
                 extensionButton(15, token: token)
@@ -494,8 +500,6 @@ enum SleepPillActionError: LocalizedError, Equatable {
                 .accessibilityIdentifier("keep-awake-master")
                 .studioElement("awake.master", label: "Keep Awake master switch")
         }
-        .frame(height: 32)
-        .studioElement("awake.header", kind: "container", label: "Keep Awake controls")
     }
     private func extensionButton(_ minutes: Int, token: SleepControlToken) -> some View {
         let title = minutes == 15 ? "+15 " + L10n.text("min") : "+1 " + L10n.text("h")
@@ -618,6 +622,7 @@ enum SleepPillActionError: LocalizedError, Equatable {
                 Toggle(title, isOn: Binding(get: { service.isArmed }, set: setEnabled))
                     .toggleStyle(.switch).controlSize(.regular).labelsHidden().fixedSize()
                     .disabled(!service.isArmed && !service.canChooseTarget)
+                    .help(service.blockedBy().map { L10n.text("Turn off first") + ": " + $0 } ?? "")
                     .accessibilityIdentifier(mode == .sleep ? "sleep-at-charge-master" : "keep-awake-until-charge-master")
                     .studioElement(prefix + ".master", label: title + " master switch")
             }
@@ -639,15 +644,8 @@ enum SleepPillActionError: LocalizedError, Equatable {
     }
 
     @ViewBuilder private var status: some View {
-        if let target = service.target {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(L10n.text("Sleeps at") + " \(target) %" + (service.currentPercent.map { " · " + L10n.text("now") + " \($0) %" } ?? ""))
-                    .font(.caption).foregroundStyle(.secondary).monospacedDigit()
-                if service.onExternalPower == true {
-                    Text(L10n.text("Waits until the Mac runs on battery power.")).font(.caption).foregroundStyle(.secondary)
-                }
-            }
-        } else if let message = error ?? service.problemMessage {
+        // Only trouble is worth a line; the level and the wait for battery power live in the info popover.
+        if !service.isArmed, let message = error ?? service.problemMessage {
             Text(L10n.text(message)).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
         }
     }

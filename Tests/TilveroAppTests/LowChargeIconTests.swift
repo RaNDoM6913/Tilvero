@@ -37,7 +37,8 @@ import XCTest
             XCTAssertTrue(image.isTemplate, "level \(level) power \(power) flag \(flag): stays a plain template")
         }
         let pressed = NativeBatteryStatusImage.make(level: 10, style: .inside, externalPower: false, highlighted: true, appearance: .macOS27, redWhenLow: true)
-        XCTAssertTrue(pressed.isTemplate, "The pressed state keeps the system's inverted template.")
+        XCTAssertFalse(pressed.isTemplate, "The red fill stays while the menu is open.")
+        XCTAssertGreaterThan(redPixels(bitmap(pressed, dark: true, background: .black)), 10)
     }
 
     func testTheRedFillCoversOnlyTheMeasuredFillAndKeepsTheNumeralCutout() throws {
@@ -96,7 +97,9 @@ extension LowChargeIconTests {
         let low = NativeBatteryStatusImage.make(level: 12, style: .inside, externalPower: false, awake: .active, appearance: .macOS27, redWhenLow: true)
         XCTAssertEqual(bluePixels(low, dark: true), 0)
         XCTAssertGreaterThan(redPixels(bitmap(low, dark: true, background: .black)), 10)
-        // Pressed: the system's inverted template, no colours.
-        XCTAssertTrue(NativeBatteryStatusImage.make(level: 64, style: .inside, externalPower: false, awake: .active, highlighted: true, appearance: .macOS27).isTemplate)
+        // Pressed (the menu is open): the fill colour stays, the user starts these modes from that menu.
+        let pressed = NativeBatteryStatusImage.make(level: 64, style: .inside, externalPower: false, awake: .active, highlighted: true, appearance: .macOS27)
+        XCTAssertFalse(pressed.isTemplate)
+        XCTAssertGreaterThan(bluePixels(pressed, dark: true), 40, "Blue while the menu is open.")
     }
 }

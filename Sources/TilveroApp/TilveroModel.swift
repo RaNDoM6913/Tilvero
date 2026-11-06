@@ -147,6 +147,9 @@ final class TilveroModel: ObservableObject {
     @Published var displayStyle: MenuBarDisplayStyle {
         didSet { preferences.set(displayStyle.rawValue, forKey: "menuBarDisplayStyle"); onPresentationChange?() }
     }
+    @Published var awakeIndicatorColor: AwakeIndicatorColor {
+        didSet { preferences.set(awakeIndicatorColor.rawValue, forKey: "awakeIndicatorColor"); onPresentationChange?() }
+    }
     @Published var menuBarBatteryAppearance: MenuBarBatteryAppearance {
         didSet { preferences.set(menuBarBatteryAppearance.rawValue, forKey: "menuBarBatteryAppearance"); onPresentationChange?() }
     }
@@ -202,6 +205,32 @@ final class TilveroModel: ObservableObject {
         set { preferences.set(newValue, forKey: "keepAwakeUntilChargeTarget"); objectWillChange.send() }
     }
     private var sleepAtChargeSubscription: AnyCancellable?
+
+    /// The four modes that keep the Mac awake until some condition: only one may run at a time.
+    enum AwakeMode: String, CaseIterable {
+        case keepAwake, sleepTimer, sleepAtCharge, keepAwakeUntilCharge
+        var title: String {
+            switch self {
+            case .keepAwake: L10n.text("Keep Awake")
+            case .sleepTimer: L10n.text("Sleep timer")
+            case .sleepAtCharge: L10n.text("Sleep at charge")
+            case .keepAwakeUntilCharge: L10n.text("Keep awake until charge")
+            }
+        }
+    }
+    func isRunning(_ mode: AwakeMode) -> Bool {
+        switch mode {
+        case .keepAwake: keepAwake.hasOwnedAssertion
+        case .sleepTimer: sleepTimer.isActive
+        case .sleepAtCharge: sleepAtCharge.isArmed
+        case .keepAwakeUntilCharge: keepAwakeUntilCharge.isArmed
+        }
+    }
+    /// Title of a running mode other than `mode`, or nil when `mode` may start.
+    func awakeModeBlocker(for mode: AwakeMode) -> String? {
+        AwakeMode.allCases.first { $0 != mode && isRunning($0) }?.title
+    }
+    var chargeModeActive: Bool { sleepAtCharge.isArmed || keepAwakeUntilCharge.isArmed }
     let closedLid: ClosedLidService
     /// Ordinary builds: closed-lid Keep Awake through the `pmset disablesleep` override (trial/lab builds keep `closedLid`).
     let lidSleep: LidSleepOverrideService
@@ -219,7 +248,7 @@ final class TilveroModel: ObservableObject {
             && !isApplying && !sleeping && !updatePreparationActive
     }
     var canSelectSleepTimerDuration: Bool {
-        !isApplying && !sleeping && !controlsAreSuspended && (sleepTimer.canStart || sleepTimer.isEditable)
+        !isApplying && !sleeping && !controlsAreSuspended && !chargeModeActive && (sleepTimer.canStart || sleepTimer.isEditable)
     }
     func startSleepTimer(replacingAwake: Bool = false) throws {
         guard canStartSleepTimer, let minutes = SleepTimerInput.minutes(sleepTimerMinutes) else { throw SleepTimerInputError.invalid }
@@ -228,6 +257,7 @@ final class TilveroModel: ObservableObject {
     func selectSleepTimer(minutes: Int, replacingAwake: Bool = false) throws {
         guard (1...1440).contains(minutes), !isApplying, !sleeping, !controlsAreSuspended,
               sleepTimer.canStart || sleepTimer.isEditable else { throw SleepTimerInputError.invalid }
+        if chargeModeActive { throw SleepTimerInputError.conflictingMode }
         if keepAwake.hasOwnedAssertion {
             guard replacingAwake else { throw SleepTimerInputError.conflictingMode }
             // Make before break: a failed timer start must not also end the running Keep Awake.
@@ -292,7 +322,7 @@ final class TilveroModel: ObservableObject {
     }
     var sleepPillActionsAllowed: Bool { !sleeping && !isApplying && !controlsAreSuspended }
     var canStartKeepAwakeDraft: Bool {
-        guard !updatePreparationActive, keepAwake.isAvailable, !keepAwake.hasOwnedAssertion else { return false }
+        guard !updatePreparationActive, keepAwake.isAvailable, !keepAwake.hasOwnedAssertion, !chargeModeActive else { return false }
         switch keepAwakeDraft {
         case .duration:
             return !keepAwakeUsesCustomDuration || Int(keepAwakeCustomMinutes).flatMap(KeepAwakeDuration.init(rawValue:)) != nil
@@ -301,7 +331,7 @@ final class TilveroModel: ObservableObject {
         }
     }
     func startKeepAwakeDraft(replacingSleepTimer: Bool = false) throws {
-        guard !controlsAreSuspended else { throw SleepTimerInputError.conflictingMode }
+        guard !controlsAreSuspended, !chargeModeActive else { throw SleepTimerInputError.conflictingMode }
         if sleepTimer.isActive && !replacingSleepTimer { throw SleepTimerInputError.conflictingMode }
         switch keepAwakeDraft {
         case .duration(let duration):
@@ -450,6 +480,7 @@ final class TilveroModel: ObservableObject {
         menuBarIconScale = MenuBarSizing.validatedIconScale(preferences.object(forKey: "menuBarIconScale") as? Double ?? 1)
         let batteryAppearance = MenuBarBatteryAppearance.restored(preferences.string(forKey: "menuBarBatteryAppearance"))
         menuBarBatteryAppearance = batteryAppearance
+        awakeIndicatorColor = AwakeIndicatorColor(rawValue: preferences.string(forKey: "awakeIndicatorColor") ?? "") ?? .blue
         displayStyle = MenuBarDisplayStyle(rawValue: preferences.string(forKey: "menuBarDisplayStyle") ?? "") ?? batteryAppearance.defaultDisplayStyle
         if let data = preferences.data(forKey: isDemo ? "demoSchedule" : "schedule") { schedule = try? JSONDecoder().decode(ScheduleRule.self, from: data) }
         if let data = preferences.data(forKey: isDemo ? "demoArbiter" : "arbiter"), let saved = try? JSONDecoder().decode(ProfileArbiter.self, from: data) { arbiter = saved }
@@ -503,6 +534,8 @@ final class TilveroModel: ObservableObject {
             guard !self.sleeping else { return false }
             return await self.liveControl.prepareForRequestedSleep()
         }
+        sleepAtCharge.blockedBy = { [weak self] in self?.awakeModeBlocker(for: .sleepAtCharge) }
+        keepAwakeUntilCharge.blockedBy = { [weak self] in self?.awakeModeBlocker(for: .keepAwakeUntilCharge) }
         sleepAtChargeSubscription = sleepAtCharge.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
         keepAwakeUntilChargeSubscription = keepAwakeUntilCharge.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
         awakeSubscription = keepAwake.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
