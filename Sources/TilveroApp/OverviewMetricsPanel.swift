@@ -37,6 +37,7 @@ import PowerCore
                 case .adapter: AdapterMetricCard(model: model, style: model.overviewPreferences.chartStyle(for: .adapter))
                 case .batteryHealth: BatteryHealthMetricCard(model: model)
                 case .keyboardBacklight: KeyboardBacklightQuickRow(service: model.keyboardBacklight)
+                case .powerTiles: PowerTilesBlock(model: model)
                 case .chargeLimit:
                     HStack {
                         Label(L10n.text("Charge limit"), systemImage: "battery.100percent")

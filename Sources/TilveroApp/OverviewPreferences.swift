@@ -4,7 +4,7 @@
 import Foundation
 
 enum OverviewMetric: String, CaseIterable, Codable, Identifiable, Sendable {
-    case forecast, power, temperature, history, chargeLimit, keepAwake, systemPower, adapter, batteryHealth, applications, keyboardBacklight
+    case forecast, power, temperature, history, chargeLimit, keepAwake, systemPower, adapter, batteryHealth, applications, keyboardBacklight, powerTiles
     var id: String { rawValue }
     var title: String {
         switch self {
@@ -19,6 +19,7 @@ enum OverviewMetric: String, CaseIterable, Codable, Identifiable, Sendable {
         case .batteryHealth: "Battery health"
         case .applications: "Application activity"
         case .keyboardBacklight: "Keyboard backlight"
+        case .powerTiles: "Power tiles"
         }
     }
     var symbol: String {
@@ -34,6 +35,7 @@ enum OverviewMetric: String, CaseIterable, Codable, Identifiable, Sendable {
         case .batteryHealth: "heart"
         case .applications: "app.badge"
         case .keyboardBacklight: "keyboard"
+        case .powerTiles: "square.grid.2x2"
         }
     }
 }
@@ -81,7 +83,7 @@ extension OverviewMetric {
 
 struct OverviewPreferences: Codable, Equatable {
     var order = OverviewMetric.allCases
-    var hidden: Set<OverviewMetric> = [.chargeLimit, .keepAwake, .systemPower, .adapter, .batteryHealth, .applications, .keyboardBacklight]
+    var hidden: Set<OverviewMetric> = [.chargeLimit, .keepAwake, .systemPower, .adapter, .batteryHealth, .applications, .keyboardBacklight, .powerTiles]
     /// Per-metric overrides; a metric without an entry uses `.sparkline`.
     var chartStyles: [OverviewMetric: MetricChartStyle] = [:]
     init() {}

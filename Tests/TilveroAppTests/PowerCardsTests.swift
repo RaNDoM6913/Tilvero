@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 RaNDoM6913
 
+import AppKit
+import SwiftUI
 import XCTest
 import PowerCore
 import PowerPersistence
@@ -11,8 +13,163 @@ import PowerTelemetry
     func testNewPowerCardsAppendHiddenWithoutReplacingSavedComposition() {
         let saved = OverviewPreferences.load(Data(#"{"order":["history","power","temperature","forecast","chargeLimit","keepAwake"],"hidden":["temperature"]}"#.utf8))
         XCTAssertEqual(Array(saved.order.prefix(6)).map(\.rawValue), ["history","power","temperature","forecast","chargeLimit","keepAwake"])
-        XCTAssertEqual(Array(saved.order.suffix(5)).map(\.rawValue), ["systemPower","adapter","batteryHealth","applications","keyboardBacklight"])
-        XCTAssertEqual(saved.hidden.map(\.rawValue).sorted(), ["adapter","applications","batteryHealth","keyboardBacklight","systemPower","temperature"])
+        XCTAssertEqual(Array(saved.order.suffix(6)).map(\.rawValue), ["systemPower","adapter","batteryHealth","applications","keyboardBacklight","powerTiles"])
+        XCTAssertEqual(saved.hidden.map(\.rawValue).sorted(), ["adapter","applications","batteryHealth","keyboardBacklight","powerTiles","systemPower","temperature"])
+    }
+    func testPowerTilesAppendHiddenAndKeepSavedComposition() throws {
+        XCTAssertEqual(OverviewMetric.allCases.last, .powerTiles, "The tiles block is appended last.")
+        XCTAssertEqual(OverviewMetric.powerTiles.title, "Power tiles")
+        XCTAssertEqual(L10n.text("Power tiles"), L10n.language == "ru" ? "Мощность: тайлы" : "Power tiles")
+        XCTAssertTrue(OverviewPreferences().hidden.contains(.powerTiles), "Off by default for new users too.")
+        // A composition saved before the block existed: order kept, the block appended hidden and never visible.
+        let saved = OverviewPreferences.load(Data(#"{"order":["history","power","forecast"],"hidden":["forecast"]}"#.utf8))
+        XCTAssertEqual(Array(saved.order.prefix(3)).map(\.rawValue), ["history", "power", "forecast"])
+        XCTAssertEqual(saved.order.last, .powerTiles)
+        XCTAssertTrue(saved.hidden.contains(.powerTiles))
+        XCTAssertFalse(saved.hidden.contains(.power), "A visible saved block stays visible.")
+        // An owner who enabled it keeps it enabled across a save/load round trip.
+        var enabled = saved
+        enabled.hidden.remove(.powerTiles)
+        let reloaded = OverviewPreferences.load(try JSONEncoder().encode(enabled))
+        XCTAssertFalse(reloaded.hidden.contains(.powerTiles))
+        XCTAssertEqual(reloaded.order, enabled.order)
+    }
+    func testTilesShowEmptyStateForMissingAdapterWithoutZero() {
+        let absent = L10n.text("Adapter not connected — no reading")
+        // No reading, adapter known absent: dash value, the absent message exactly once, no boundary line next to it.
+        let none = PowerTilesBlock.tileLines(id: "054", reading: nil, adapterConnected: false)
+        XCTAssertEqual(none.value, "—")
+        XCTAssertEqual(none.captions, [absent])
+        XCTAssertFalse(none.isStale)
+        // A reading that is not available is a dash, never a zero, and the absent message still appears once.
+        let unavailable = CatalogReading(definition: BatteryCatalog.definition("054"), value: nil, source: "fixture", keyPath: "input")
+        let missing = PowerTilesBlock.tileLines(id: "054", reading: unavailable, adapterConnected: false)
+        XCTAssertEqual(missing.value, "—")
+        XCTAssertEqual(missing.captions, [absent])
+        // Unknown external-power state (nil) is treated as connected: no "not connected" claim without evidence.
+        let unknown = PowerTilesBlock.tileLines(id: "054", reading: nil, adapterConnected: true)
+        XCTAssertEqual(unknown.value, "—")
+        XCTAssertFalse(unknown.captions.contains(absent))
+        // Connected with a reading: the value and the boundary caption.
+        let live = PowerTilesBlock.tileLines(id: "054", reading: reading("054", value: 7.8, provenance: .measured), adapterConnected: true)
+        XCTAssertEqual(live.captions, [L10n.text("Adapter input — a different boundary")])
+        XCTAssertNotEqual(live.value, "—")
+        // The battery tile carries the V×A estimate caption and the approximation prefix from the shared presentation.
+        let battery = PowerTilesBlock.tileLines(id: "038", reading: reading("038", value: -10, provenance: .estimated), adapterConnected: false)
+        XCTAssertTrue(battery.value.hasPrefix("≈ "), battery.value)
+        XCTAssertEqual(battery.captions, [L10n.text("battery · V×A estimate")], "Battery tile never shows the adapter message.")
+        XCTAssertEqual(PowerTilesBlock.tileLines(id: "038", reading: nil, adapterConnected: false).value, "—")
+        // The empty chart of that tile is the dashed frame (no scale, no axis), not a flat zero line.
+        let window = Date(timeIntervalSince1970: 1_800_000_000)...Date(timeIntervalSince1970: 1_800_003_600)
+        let empty = MetricChartSeriesSpec(id: "054", series: .make(points: [], window: window, now: window.upperBound), color: .blue, endLabel: nil)
+        let layout = MetricChartView.layout(specs: [empty], scale: MetricChartScale.scale(forMetric: "054", values: []), density: .compact)
+        XCTAssertTrue(layout.isDashedEmpty)
+        XCTAssertEqual(layout.valueTickCount, 0)
+    }
+    /// 360 pt popover minus the panel's 2 x 20 pt padding, two tiles and the gap between them.
+    private var tileWidth: CGFloat { (360 - 40 - PowerTilesBlock.spacing) / 2 }
+    private func width(_ text: String, size: CGFloat, weight: NSFont.Weight = .regular) -> CGFloat {
+        ceil((text as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: size, weight: weight)]).width)
+    }
+    func testTileTextFitsAt360InRussian() async throws {
+        let defaults = UserDefaults.standard, previous = defaults.object(forKey: "language")
+        defaults.set("ru", forKey: "language")
+        defer { if let previous { defaults.set(previous, forKey: "language") } else { defaults.removeObject(forKey: "language") } }
+        XCTAssertEqual(L10n.language, "ru")
+        let inner = tileWidth - 2 * 10 - 1   // tile chrome padding 10 pt, hairline
+        XCTAssertEqual(tileWidth, 156)
+        let estimated = reading("038", value: -100.5, provenance: .estimated)
+        var stale = reading("054", value: 7.8, provenance: .measured)
+        stale = CatalogReading(definition: BatteryCatalog.definition("054"), value: .decimal(7.8), source: "fixture", keyPath: "input", freshness: .stale)
+        let tiles = [
+            PowerTilesBlock.tileLines(id: "038", reading: estimated, adapterConnected: true),
+            PowerTilesBlock.tileLines(id: "054", reading: nil, adapterConnected: false),
+            PowerTilesBlock.tileLines(id: "054", reading: stale, adapterConnected: true),
+        ]
+        XCTAssertEqual(tiles[0].title, "Батарея")
+        XCTAssertEqual(tiles[1].title, "Адаптер")
+        for tile in tiles {
+            // Title row (title + optional "Устарело" tag) and the value are single-line; they must fit the inner width.
+            let tag = tile.isStale ? 4 + width(L10n.text("Stale"), size: 10) : 0
+            XCTAssertLessThanOrEqual(width(tile.title, size: 11) + tag, inner, "title row of \(tile.title)")
+            XCTAssertLessThanOrEqual(width(tile.value, size: 15, weight: .semibold), inner, "value \(tile.value)")
+            // Captions may wrap, but never inside a word.
+            XCTAssertLessThanOrEqual(tile.captions.count, 1)
+            for caption in tile.captions {
+                for word in caption.split(separator: " ") { XCTAssertLessThanOrEqual(width(String(word), size: 10), inner, "word \(word)") }
+            }
+        }
+        XCTAssertTrue(tiles[2].isStale)
+        // The rendered block is not blank and is exactly the offered width, with two tiles filling the row.
+        let model = try await renderModel(minutesOfHistory: 60, adapterConnected: false)
+        defer { model.cleanup() }
+        for scheme in [ColorScheme.light, .dark] {
+            let size = try renderTiles(model.model, width: 320, scheme: scheme)
+            XCTAssertEqual(size.width, 320)
+            XCTAssertGreaterThan(size.height, 70 + 40, "A tile is a title, a value and a 70 pt plot.")
+            XCTAssertLessThan(size.height, 260)
+        }
+    }
+    private func renderTiles(_ model: TilveroModel, width: CGFloat, scheme: ColorScheme, label: String = "tiles") throws -> CGSize {
+        let view = PowerTilesBlock(model: model).frame(width: width)
+            .background(scheme == .dark ? Color.black : Color.white).environment(\.colorScheme, scheme)
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = 1
+        let image = try XCTUnwrap(renderer.cgImage)
+        let bitmap = NSBitmapImageRep(cgImage: image)
+        var colors = Set<UInt32>()
+        for x in stride(from: 0, to: bitmap.pixelsWide, by: 2) {
+            for y in stride(from: 0, to: bitmap.pixelsHigh, by: 2) {
+                guard let c = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { continue }
+                colors.insert(UInt32(c.redComponent * 255) << 16 | UInt32(c.greenComponent * 255) << 8 | UInt32(c.blueComponent * 255))
+            }
+        }
+        XCTAssertGreaterThan(colors.count, 2, "The bitmap must not be blank.")
+        if let folder = ProcessInfo.processInfo.environment["TILVERO_LOOK_DIR"], let png = bitmap.representation(using: .png, properties: [:]) {
+            try? FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+            try png.write(to: URL(fileURLWithPath: folder + "/\(label)-\(scheme == .dark ? "dark" : "light").png"))
+        }
+        return CGSize(width: image.width, height: image.height)
+    }
+    /// A model whose history holds `minutesOfHistory` of battery-power samples (adapter samples only when connected).
+    private func renderModel(minutesOfHistory: Int, adapterConnected: Bool) async throws -> (model: TilveroModel, cleanup: () -> Void) {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let suite = "TilveroTiles-\(UUID())", defaults = UserDefaults(suiteName: suite)!
+        let url = root.appendingPathComponent("history.sqlite")
+        let now = Date()
+        func snapshot(_ minutesAgo: Double) -> BatterySnapshot {
+            let at = now.addingTimeInterval(-minutesAgo * 60)
+            var catalog = [CatalogReading(definition: BatteryCatalog.definition("038"), value: .decimal(-10 + 2 * sin(minutesAgo / 6)), source: "fixture",
+                                          keyPath: "Voltage×Amperage", collectedAt: at, provenance: .estimated)]
+            if adapterConnected {
+                catalog.append(CatalogReading(definition: BatteryCatalog.definition("054"), value: .decimal(7.5 + sin(minutesAgo / 9)), source: "fixture",
+                                              keyPath: "SystemPowerIn", collectedAt: at, provenance: .measured))
+            }
+            return BatterySnapshot(chargePercent: .init(value: 62, source: "fixture"), isExternalPower: .init(value: adapterConnected, source: "fixture"),
+                                   collectedAt: at, catalog: catalog)
+        }
+        let store = try BatteryHistoryStore(url: url)
+        for minute in stride(from: Double(minutesOfHistory), to: 0, by: -1) { try store.record(snapshot(minute)) }
+        try store.close()
+        let latest = snapshot(0)
+        let model = TilveroModel(isDemo: false, preferences: defaults, historyURL: url, snapshotProvider: { latest })
+        await model.refresh()
+        return (model, { model.stop(); defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) })
+    }
+    func testTilesRenderRealSeriesAndEmptyStatesInLightAndDark() async throws {
+        let withData = try await renderModel(minutesOfHistory: 55, adapterConnected: true)
+        defer { withData.cleanup() }
+        XCTAssertFalse(withData.model.metricSeries(id: "038").points.isEmpty, "The injected history reaches the series.")
+        XCTAssertFalse(withData.model.metricSeries(id: "054").points.isEmpty)
+        let discharge = try await renderModel(minutesOfHistory: 55, adapterConnected: false)
+        defer { discharge.cleanup() }
+        XCTAssertFalse(discharge.model.metricSeries(id: "038").points.isEmpty)
+        XCTAssertTrue(discharge.model.metricSeries(id: "054").points.isEmpty, "No adapter samples while unplugged.")
+        for scheme in [ColorScheme.light, .dark] {
+            _ = try renderTiles(withData.model, width: 320, scheme: scheme, label: "tiles-connected")
+            _ = try renderTiles(discharge.model, width: 320, scheme: scheme, label: "tiles-discharge")
+        }
     }
     func testMetricGraphBreaksAtStaleMissingSourceAndPowerTransitions() throws {
         let now = Date()
