@@ -175,19 +175,20 @@ struct MetricChartView: View {
                               width: max(proxy.size.width - axisWidth - gutter - endLabelWidth, 1), height: plotHeight)
             let domain = scale.domain
             let spread = Self.endLabelPositions(specs: specs, scale: scale, plotHeight: plotHeight)
+            let tickLabels = scale.tickLabels()
             ZStack(alignment: .topLeading) {
                 Canvas { context, _ in draw(&context, rect: rect, scale: scale) }
                 ForEach(Self.labelledTickIndices(count: scale.ticks.count, density: density), id: \.self) { index in
-                    Text(scale.ticks[index].formatted(.number.precision(.fractionLength(0...1))))
+                    Text(tickLabels[index])
                         .font(.system(size: 10).monospacedDigit()).foregroundStyle(.secondary)
                         .frame(width: axisWidth, alignment: .trailing)
                         .position(x: axisWidth / 2, y: yValue(scale.ticks[index], domain))
                 }
                 ForEach(Array(specs.enumerated()), id: \.element.id) { index, spec in
                     if let label = spec.endLabel, let labelY = spread[index] {
-                        Text(label).font(.system(size: 11, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.85)
-                            .frame(width: endLabelWidth - 8, alignment: .leading)
-                            .position(x: rect.maxX + 8 + (endLabelWidth - 8) / 2, y: labelY)
+                        Text(label).font(Font(Self.endLabelFont as CTFont)).lineLimit(1).minimumScaleFactor(0.85)
+                            .frame(width: Self.endLabelFrameWidth, alignment: .leading)
+                            .position(x: rect.maxX + 8 + Self.endLabelFrameWidth / 2, y: labelY)
                     }
                 }
                 ForEach(gapRanges(), id: \.0) { start, end in

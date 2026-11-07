@@ -16,6 +16,8 @@ import PowerCore
         let value: String
         /// Zero or one boundary line; the adapter tile shows the absent message instead of the boundary, never both.
         let captions: [String]
+        /// The adapter-absent message of a known-unplugged adapter. It is drawn once, inside the dashed chart frame, never as a caption.
+        let absentMessage: String?
         let isStale: Bool
     }
 
@@ -25,8 +27,9 @@ import PowerCore
     static func tileLines(id: String, reading: CatalogReading?, adapterConnected: Bool, fahrenheit: Bool = false) -> TileContent {
         let title = L10n.text(id == "054" ? "Adapter" : "Battery (short)")
         let value = reading.map { CatalogDataPresentation.value($0, reveal: false, fahrenheit: fahrenheit) } ?? "—"
-        let caption = MetricCaption.absent(for: id, adapterConnected: adapterConnected) ?? MetricCaption.boundary(for: id, reading: reading)
-        return TileContent(title: title, value: value, captions: caption.map { [$0] } ?? [], isStale: reading?.freshness == .stale)
+        let absent = MetricCaption.absent(for: id, adapterConnected: adapterConnected)
+        let caption = absent == nil ? MetricCaption.boundary(for: id, reading: reading) : nil
+        return TileContent(title: title, value: value, captions: caption.map { [$0] } ?? [], absentMessage: absent, isStale: reading?.freshness == .stale)
     }
 
     var body: some View {
@@ -47,7 +50,7 @@ import PowerCore
     private var reading: CatalogReading? { model.snapshot.catalog.first { $0.id == id } }
 
     var body: some View {
-        let content = PowerTilesBlock.tileLines(id: id, reading: reading, adapterConnected: model.snapshot.isExternalPower.value != false, fahrenheit: model.fahrenheit)
+        let content = PowerTilesBlock.tileLines(id: id, reading: reading, adapterConnected: model.snapshot.adapterIsConnected, fahrenheit: model.fahrenheit)
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(content.title).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
@@ -59,22 +62,22 @@ import PowerCore
             ForEach(content.captions, id: \.self) {
                 Text($0).font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
-            chart
+            chart(absentMessage: content.absentMessage)
         }
         // Equal tiles: the shorter one stretches to the taller one before the card chrome draws its background.
         .frame(maxHeight: .infinity, alignment: .top)
         .metricCardChrome(padding: 10)
     }
 
-    @ViewBuilder private var chart: some View {
-        let series = model.metricSeries(id: id)
+    @ViewBuilder private func chart(absentMessage: String?) -> some View {
+        let series = model.chartSeries(id: id)
         MetricChartView(
             specs: [MetricChartSeriesSpec(id: id, series: series, color: color, endLabel: nil)],
             scale: MetricChartScale.scale(forMetric: id, values: series.points.map(\.value)),
             window: model.overviewChartWindow,
             unit: PowerMetricCard.chartUnit(id: id, readingUnit: reading?.unit, fahrenheit: false),
             density: .compact,
-            emptyMessage: L10n.text("Chart: no data"))
+            emptyMessage: absentMessage ?? L10n.text("Chart: no data"))
     }
 }
 // tlv-origin:b4e07a19d3c258f6

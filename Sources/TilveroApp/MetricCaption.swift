@@ -3,6 +3,12 @@
 
 import PowerCore
 
+extension BatterySnapshot {
+    /// The one derivation of "an adapter is plugged in" for the overview charts. An unknown
+    /// external-power state (nil) counts as connected: "not connected" is claimed only on evidence.
+    var adapterIsConnected: Bool { isExternalPower.value != false }
+}
+
 /// Honest boundary wording shown under overview metrics. Wording follows the
 /// reading's own provenance; the approximation prefix belongs to
 /// `CatalogDataPresentation.value`, never to these captions.
@@ -22,7 +28,8 @@ enum MetricCaption {
                                combinedNoBatteryReadingKey, combinedAdapterNoLineKey]
 
     static func boundary(for id: String, reading: CatalogReading?) -> String? {
-        guard let reading else { return nil }
+        // A missing value names no estimate and no boundary: the provenance of a value-less reading says nothing.
+        guard let reading, hasValue(reading) else { return nil }
         switch id {
         case "038":
             return [.estimated, .inferred].contains(reading.provenance) ? L10n.text(batteryEstimateKey) : nil
@@ -37,9 +44,13 @@ enum MetricCaption {
     /// to name a boundary for, so only the missing-reading line is shown; otherwise
     /// both boundaries are named and the V×A estimate wording follows the provenance.
     static func combined(batteryReading: CatalogReading?) -> String {
-        guard let batteryReading else { return L10n.text(combinedNoBatteryReadingKey) }
+        guard let batteryReading, hasValue(batteryReading) else { return L10n.text(combinedNoBatteryReadingKey) }
         let battery = [.estimated, .inferred].contains(batteryReading.provenance) ? combinedBatteryEstimateKey : combinedBatterySignKey
         return L10n.text(battery) + " · " + L10n.text(combinedAdapterKey)
+    }
+
+    private static func hasValue(_ reading: CatalogReading) -> Bool {
+        reading.value != nil && reading.availability == .available
     }
 
     static func absent(for id: String, adapterConnected: Bool) -> String? {

@@ -13,12 +13,28 @@ struct MetricChartScale: Equatable {
         (ticks.first ?? 0)...(ticks.last ?? 0)
     }
 
+    /// Fewest fraction digits that render every tick exactly (0 for integer scales, 2 for 0.25 steps).
+    var labelFractionDigits: Int {
+        (0...6).first { digits in
+            let factor = pow(10, Double(digits))
+            return ticks.allSatisfy { abs($0 * factor - ($0 * factor).rounded()) < 1e-6 }
+        } ?? 6
+    }
+
+    /// One label per tick, all with the same precision, so a gridline never carries a rounded-off number.
+    func tickLabels(locale: Locale = .autoupdatingCurrent) -> [String] {
+        let digits = labelFractionDigits
+        return ticks.map { $0.formatted(.number.locale(locale).precision(.fractionLength(0...digits))) }
+    }
+
     private static let maximumIntervals = 5
     private static let stepMultipliers: [Double] = [1, 2, 2.5, 5]
 
     /// Builds a scale over the finite `values`. Returns nil when none are finite.
     /// The step is the smallest of {1, 2, 2.5, 5} x 10^n that needs at most five
-    /// intervals, and the domain snaps outward to multiples of that step.
+    /// intervals, and the domain snaps outward to multiples of that step. When zero
+    /// is included and every value is on one side of it, a too-narrow range grows
+    /// away from zero only (no impossible sign); mixed-sign data is re-centred.
     static func make(values: [Double], includesZero: Bool, minimumSpan: Double) -> MetricChartScale? {
         let finite = values.filter(\.isFinite)
         guard var low = finite.min(), var high = finite.max() else { return nil }
@@ -29,9 +45,17 @@ struct MetricChartScale: Equatable {
         let required = Swift.max(minimumSpan, 0)
         if high - low < required || high == low {
             let span = high == low && required == 0 ? 1 : required
-            let center = (low + high) / 2
-            low = center - span / 2
-            high = center + span / 2
+            if includesZero && low == 0 {
+                // Positive-only data: the axis starts at zero and grows upwards, so it never shows negative values.
+                high = low + span
+            } else if includesZero && high == 0 {
+                // Negative-only data: the axis ends at zero and grows downwards.
+                low = high - span
+            } else {
+                let center = (low + high) / 2
+                low = center - span / 2
+                high = center + span / 2
+            }
         }
 
         let span = high - low

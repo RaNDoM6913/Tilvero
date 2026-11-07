@@ -73,7 +73,7 @@ import PowerCore
     var body: some View {
         // Unknown external-power state is not reported as "not connected".
         let content = Self.content(battery: batteryReading, adapter: adapterReading,
-                                   adapterConnected: model.snapshot.isExternalPower.value != false, fahrenheit: model.fahrenheit)
+                                   adapterConnected: model.snapshot.adapterIsConnected, fahrenheit: model.fahrenheit)
         let battery = model.metricSeries(id: "038")
         let adapter = content.drawsAdapter ? model.metricSeries(id: "054") : nil
         VStack(alignment: .leading, spacing: 6) {

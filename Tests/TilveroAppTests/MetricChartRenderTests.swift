@@ -39,6 +39,21 @@ import XCTest
         XCTAssertEqual(layout.hatchedGapCount, 0)
     }
 
+    func testSignFlipLayoutHasOneBandPerTickIntervalAndAnInteriorZeroRule() throws {
+        let flip = spec("p", [point(5, -8), point(20, -3), point(35, 2), point(50, 6)])
+        let flipScale = try XCTUnwrap(MetricChartScale.scale(forMetric: "038", values: flip.series.points.map(\.value)))
+        let layout = MetricChartView.layout(specs: [flip], scale: flipScale, density: .full)
+        XCTAssertEqual(layout.bandCount, flipScale.ticks.count - 1)
+        XCTAssertEqual(layout.valueTickCount, flipScale.ticks.count)
+        XCTAssertFalse(layout.isDashedEmpty)
+        let zeroY = MetricChartView.yPosition(0, flipScale.domain, plotHeight: 120)
+        XCTAssertGreaterThan(zeroY, 0, "The zero rule is inside the plot, between the two signs.")
+        XCTAssertLessThan(zeroY, 120)
+        // The zero rule sits exactly on a band edge: the y of the zero tick equals the y of a tick boundary.
+        let edges = flipScale.ticks.map { MetricChartView.yPosition($0, flipScale.domain, plotHeight: 120) }
+        XCTAssertTrue(edges.contains(zeroY))
+    }
+
     func testLayoutTickCountsFollowDensity() {
         XCTAssertEqual(MetricChartView.layout(specs: [dataSpec], scale: scale, density: .full).timeTickCount, 5)
         XCTAssertEqual(MetricChartView.layout(specs: [dataSpec], scale: scale, density: .compact).timeTickCount, 2)

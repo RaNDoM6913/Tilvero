@@ -36,28 +36,33 @@ import PowerTelemetry
     }
     func testTilesShowEmptyStateForMissingAdapterWithoutZero() {
         let absent = L10n.text("Adapter not connected — no reading")
-        // No reading, adapter known absent: dash value, the absent message exactly once, no boundary line next to it.
+        // No reading, adapter known absent: dash value, the absent message exactly once (in the dashed chart frame, not as a caption).
         let none = PowerTilesBlock.tileLines(id: "054", reading: nil, adapterConnected: false)
         XCTAssertEqual(none.value, "—")
-        XCTAssertEqual(none.captions, [absent])
+        XCTAssertEqual(none.captions, [])
+        XCTAssertEqual(none.absentMessage, absent)
         XCTAssertFalse(none.isStale)
         // A reading that is not available is a dash, never a zero, and the absent message still appears once.
         let unavailable = CatalogReading(definition: BatteryCatalog.definition("054"), value: nil, source: "fixture", keyPath: "input")
         let missing = PowerTilesBlock.tileLines(id: "054", reading: unavailable, adapterConnected: false)
         XCTAssertEqual(missing.value, "—")
-        XCTAssertEqual(missing.captions, [absent])
+        XCTAssertEqual(missing.captions, [])
+        XCTAssertEqual(missing.absentMessage, absent)
         // Unknown external-power state (nil) is treated as connected: no "not connected" claim without evidence.
         let unknown = PowerTilesBlock.tileLines(id: "054", reading: nil, adapterConnected: true)
         XCTAssertEqual(unknown.value, "—")
         XCTAssertFalse(unknown.captions.contains(absent))
+        XCTAssertNil(unknown.absentMessage)
         // Connected with a reading: the value and the boundary caption.
         let live = PowerTilesBlock.tileLines(id: "054", reading: reading("054", value: 7.8, provenance: .measured), adapterConnected: true)
         XCTAssertEqual(live.captions, [L10n.text("Adapter input — a different boundary")])
+        XCTAssertNil(live.absentMessage)
         XCTAssertNotEqual(live.value, "—")
         // The battery tile carries the V×A estimate caption and the approximation prefix from the shared presentation.
         let battery = PowerTilesBlock.tileLines(id: "038", reading: reading("038", value: -10, provenance: .estimated), adapterConnected: false)
         XCTAssertTrue(battery.value.hasPrefix("≈ "), battery.value)
         XCTAssertEqual(battery.captions, [L10n.text("battery · V×A estimate")], "Battery tile never shows the adapter message.")
+        XCTAssertNil(battery.absentMessage)
         XCTAssertEqual(PowerTilesBlock.tileLines(id: "038", reading: nil, adapterConnected: false).value, "—")
         // The empty chart of that tile is the dashed frame (no scale, no axis), not a flat zero line.
         let window = Date(timeIntervalSince1970: 1_800_000_000)...Date(timeIntervalSince1970: 1_800_003_600)
@@ -384,6 +389,12 @@ import PowerTelemetry
         let inferred = reading("038", value: 12.5, provenance: .inferred)
         let measured = reading("038", value: 12.5, provenance: .measured)
         XCTAssertEqual(MetricCaption.boundary(for: "038", reading: estimated), L10n.text("battery · V×A estimate"))
+        // A value-less reading is still `.estimated`, but there is nothing to call an estimate or a boundary.
+        XCTAssertNil(MetricCaption.boundary(for: "038", reading: reading("038", value: nil, provenance: .estimated)))
+        XCTAssertNil(MetricCaption.boundary(for: "038", reading: reading("038", value: nil, provenance: .inferred)))
+        XCTAssertNil(MetricCaption.boundary(for: "054", reading: reading("054", value: nil, provenance: .measured)))
+        XCTAssertEqual(MetricCaption.combined(batteryReading: reading("038", value: nil, provenance: .estimated)), L10n.text("no reading from macOS"),
+                       "A value-less battery reading is no reading for the combined caption either.")
         XCTAssertEqual(MetricCaption.boundary(for: "038", reading: inferred), L10n.text("battery · V×A estimate"))
         XCTAssertNil(MetricCaption.boundary(for: "038", reading: measured), "A measured reading carries no estimate wording")
         XCTAssertNil(MetricCaption.boundary(for: "038", reading: nil))
@@ -401,9 +412,101 @@ import PowerTelemetry
         let lines = AdapterMetricCard.captionLines(input: nil, rating: rating, adapterConnected: false)
         XCTAssertEqual(lines.filter { $0 == message }.count, 1)
         XCTAssertEqual(lines.filter { $0.contains("not connected") || $0.contains("не подключён") }.count, 1)
+        // Chart style: the dashed frame carries the message, so the caption list must not repeat it.
+        let inChart = AdapterMetricCard.captionLines(input: nil, rating: rating, adapterConnected: false, absentInChart: true)
+        XCTAssertFalse(inChart.contains(message))
+        XCTAssertEqual(PowerMetricCard.chartEmptyMessage(id: "054", adapterConnected: false), message)
+        XCTAssertEqual(PowerMetricCard.captionLines(id: "054", reading: nil, adapterConnected: false, absentInChart: true), [])
         let connected = AdapterMetricCard.captionLines(input: reading("054", value: 30, provenance: .measured), rating: rating, adapterConnected: true)
         XCTAssertFalse(connected.contains(message))
         XCTAssertTrue(connected.contains(L10n.text("Adapter input — a different boundary")))
+    }
+    // MARK: Known-unplugged adapter is handled the same way in A, B and C
+
+    /// A live-mode model whose last hour holds 054 = 0 W samples; `external` is the reported external-power state (nil = unknown).
+    private func unpluggedModel(external: Bool?) async throws -> (model: TilveroModel, cleanup: () -> Void) {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let suite = "TilveroUnplugged-\(UUID())", defaults = UserDefaults(suiteName: suite)!
+        let url = root.appendingPathComponent("history.sqlite")
+        let now = Date()
+        func snapshot(_ minutesAgo: Double) -> BatterySnapshot {
+            let at = now.addingTimeInterval(-minutesAgo * 60)
+            let catalog = [
+                CatalogReading(definition: BatteryCatalog.definition("038"), value: .decimal(-10 + sin(minutesAgo / 6)), source: "fixture",
+                               keyPath: "Voltage×Amperage", collectedAt: at, provenance: .estimated),
+                CatalogReading(definition: BatteryCatalog.definition("054"), value: .decimal(0), source: "fixture",
+                               keyPath: "SystemPowerIn", collectedAt: at, provenance: .measured)]
+            return BatterySnapshot(chargePercent: .init(value: 62, source: "fixture"), isExternalPower: .init(value: external, source: "fixture"),
+                                   collectedAt: at, catalog: catalog)
+        }
+        let store = try BatteryHistoryStore(url: url)
+        for minute in stride(from: 55.0, to: 0, by: -1) { try store.record(snapshot(minute)) }
+        try store.close()
+        let latest = snapshot(0)
+        let model = TilveroModel(isDemo: false, preferences: defaults, historyURL: url, snapshotProvider: { latest })
+        await model.refresh()
+        return (model, { model.stop(); defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) })
+    }
+    func testAdapterConnectedAccessorTreatsUnknownAsConnected() async throws {
+        for (external, expected) in [(false as Bool?, false), (true, true), (nil, true)] {
+            let fixture = try await unpluggedModel(external: external)
+            defer { fixture.cleanup() }
+            XCTAssertEqual(fixture.model.snapshot.isExternalPower.value, external, "The fixture reaches the model unchanged.")
+            XCTAssertEqual(fixture.model.snapshot.adapterIsConnected, expected, "external power \(String(describing: external))")
+        }
+    }
+    func testUnpluggedAdapterDrawsNoHistoryInAnyVariantAndSaysItOnce() async throws {
+        let absent = L10n.text("Adapter not connected — no reading")
+        let unplugged = try await unpluggedModel(external: false)
+        defer { unplugged.cleanup() }
+        let model = unplugged.model
+        XCTAssertFalse(model.metricSeries(id: "054").points.isEmpty, "Fixture: 054 = 0 W samples exist in the last hour.")
+        XCTAssertFalse(model.snapshot.adapterIsConnected)
+        // A: the chart-style card gets an empty series (dashed frame) with the single message.
+        XCTAssertTrue(model.chartSeries(id: "054").points.isEmpty)
+        XCTAssertEqual(model.chartSeries(id: "054").state, .empty)
+        XCTAssertEqual(PowerMetricCard.chartEmptyMessage(id: "054", adapterConnected: false), absent)
+        XCTAssertFalse(PowerMetricCard.drawsHistory(id: "054", adapterConnected: false), "The sparkline style draws no history either.")
+        let aCaptions = AdapterMetricCard.captionLines(input: model.snapshot.catalog.first { $0.id == "054" }, rating: nil, adapterConnected: false, absentInChart: true)
+        XCTAssertEqual(aCaptions.filter { $0 == absent }.count, 0, "A chart style prints the message in the frame only.")
+        // B: the tile series is empty, the message sits in the chart frame and not in a caption.
+        let tile = PowerTilesBlock.tileLines(id: "054", reading: model.snapshot.catalog.first { $0.id == "054" }, adapterConnected: false)
+        XCTAssertEqual(tile.absentMessage, absent)
+        XCTAssertFalse(tile.captions.contains(absent))
+        // C: no adapter series, the message once.
+        let content = PowerCombinedBlock.content(battery: model.snapshot.catalog.first { $0.id == "038" }, adapter: model.snapshot.catalog.first { $0.id == "054" },
+                                                 adapterConnected: model.snapshot.adapterIsConnected)
+        XCTAssertFalse(content.drawsAdapter)
+        XCTAssertEqual(PowerCombinedBlock.specs(content: content, battery: model.metricSeries(id: "038"), adapter: nil).map(\.id), ["038"])
+        XCTAssertNotNil(content.absentMessage)
+        // The battery series is untouched by the rule.
+        XCTAssertFalse(model.chartSeries(id: "038").points.isEmpty)
+        // The sparkline-style adapter card lists the message once as a caption.
+        let sparkline = AdapterMetricCard.captionLines(input: nil, rating: nil, adapterConnected: false)
+        XCTAssertEqual(sparkline.filter { $0 == absent }.count, 1)
+    }
+    func testUnknownExternalPowerStillDrawsTheAdapterHistory() async throws {
+        let unknown = try await unpluggedModel(external: nil)
+        defer { unknown.cleanup() }
+        let model = unknown.model
+        XCTAssertTrue(model.snapshot.adapterIsConnected, "Unknown is not 'not connected'.")
+        XCTAssertFalse(model.chartSeries(id: "054").points.isEmpty)
+        XCTAssertEqual(model.chartSeries(id: "054").points.map(\.id), model.metricSeries(id: "054").points.map(\.id))
+        XCTAssertEqual(PowerMetricCard.chartEmptyMessage(id: "054", adapterConnected: true), L10n.text("No recorded measurements yet"))
+        XCTAssertTrue(PowerMetricCard.drawsHistory(id: "054", adapterConnected: true))
+        let tile = PowerTilesBlock.tileLines(id: "054", reading: nil, adapterConnected: model.snapshot.adapterIsConnected)
+        XCTAssertNil(tile.absentMessage)
+        XCTAssertTrue(PowerCombinedBlock.content(battery: nil, adapter: nil, adapterConnected: model.snapshot.adapterIsConnected).drawsAdapter)
+        // The same for a plugged adapter, and the rule never touches other metrics.
+        let plugged = try await unpluggedModel(external: true)
+        defer { plugged.cleanup() }
+        XCTAssertFalse(plugged.model.chartSeries(id: "054").points.isEmpty)
+        let unpluggedFixture = try await unpluggedModel(external: false)
+        defer { unpluggedFixture.cleanup() }
+        XCTAssertFalse(unpluggedFixture.model.chartSeries(id: "038").points.isEmpty)
+        XCTAssertTrue(PowerMetricCard.drawsHistory(id: "038", adapterConnected: false))
+        XCTAssertEqual(PowerMetricCard.chartEmptyMessage(id: "038", adapterConnected: false), L10n.text("No recorded measurements yet"))
     }
     func testAllNewStringsHaveRuAndEn() throws {
         let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
