@@ -74,8 +74,8 @@ import ClosedLidControl
     /// Keep Awake and the sleep timer each have their own switch; they share the permission and the override.
     let mode: LidMode
     init(model: TilveroModel, mode: LidMode = .keepAwake) { self.model = model; service = model.lidSleep; self.mode = mode }
-    private var isTimer: Bool { mode == .sleepTimer }
-    private var preferred: Bool { isTimer ? service.isPreferredForTimer : service.isPreferred }
+    private var isTimer: Bool { mode == .scheduledSleep }
+    private var preferred: Bool { isTimer ? service.isPreferredForScheduledSleep : service.isPreferred }
     /// The two info paragraphs differ by mode; the third (verification note) is shared.
     static func infoKeys(for mode: LidMode) -> [String] {
         switch mode {
@@ -83,9 +83,9 @@ import ClosedLidControl
             "An option for Keep Awake: with it on, a Keep Awake session also continues with the lid closed. It never starts Keep Awake by itself. The first time, macOS asks for the administrator password to allow one command, pmset disablesleep, without a password. Nothing else is allowed.",
             "Normal sleep returns when Keep Awake ends, when you quit Tilvero, before a sleep timer or charge sleep, and at the next launch if the app was killed. A closed Mac in a bag stays on and warm: use a hard, ventilated surface.",
             "Not verified on every Mac and macOS version."]
-        case .sleepTimer: [
-            "An option for the sleep timer: with it on, a running sleep timer also continues with the lid closed, and the Mac sleeps only when the timer ends. It never starts a timer by itself. The first time, macOS asks for the administrator password to allow one command, pmset disablesleep, without a password. Nothing else is allowed. The permission is shared with Keep Awake.",
-            "Normal sleep returns when the timer ends or is cancelled, when you quit Tilvero, and at the next launch if the app was killed. A timer can run for up to 24 hours: a closed Mac in a bag stays on and warm, so use a hard, ventilated surface.",
+        case .scheduledSleep: [
+            "An option for the sleep timer and for Sleep at charge (one switch for both): with it on, a running timer or an armed Sleep at charge also continues with the lid closed, and the Mac sleeps only when the timer ends or the chosen charge is reached. It never starts either by itself. The first time, macOS asks for the administrator password to allow one command, pmset disablesleep, without a password. Nothing else is allowed. The permission is shared with Keep Awake.",
+            "Normal sleep returns when the timer ends or the charge is reached, when you cancel, when you quit Tilvero, and at the next launch if the app was killed. Both can run for up to 24 hours: a closed Mac in a bag stays on and warm, so use a hard, ventilated surface.",
             "Not verified on every Mac and macOS version."]
         }
     }

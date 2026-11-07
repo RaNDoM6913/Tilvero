@@ -30,16 +30,17 @@ protocol LidSleepSystem: Sendable {
 }
 
 /// The holds the lid option can accompany. Each has its own switch; they share the one permission and one override.
-enum LidMode: Equatable { case keepAwake, sleepTimer }
+enum LidMode: Equatable { case keepAwake, scheduledSleep }
 
 @MainActor final class LidSleepOverrideService: ObservableObject {
     static let recoveryKey = "lidSleepOverrideActive"
     static let preferenceKey = "lidClosedPreferred"
-    static let timerPreferenceKey = "lidClosedPreferredTimer"
+    static let scheduledSleepPreferenceKey = "lidClosedPreferredScheduledSleep"
     /// The option: "with the lid closed" applies to every Keep Awake session the user starts. It never starts one.
     @Published private(set) var isPreferred = false
-    /// The same option for the sleep timer: a running timer also continues with the lid closed and ends in sleep.
-    @Published private(set) var isPreferredForTimer = false
+    /// The one option for the sleep timer AND Sleep at charge: a running timer / an armed level also continues with the lid
+    /// closed and the Mac sleeps only when it ends.
+    @Published private(set) var isPreferredForScheduledSleep = false
     /// The override itself is in effect (a Keep Awake session is running and the option is on).
     @Published private(set) var isOn = false
     @Published private(set) var busy = false
@@ -53,11 +54,11 @@ enum LidMode: Equatable { case keepAwake, sleepTimer }
     private let allowed: Bool
     /// Set by the model once the Keep Awake service exists.
     var awakeIsActive: @MainActor () -> Bool
-    /// A sleep timer is armed (running, before it prepares to sleep). Set by the model.
-    var timerIsActive: @MainActor () -> Bool
+    /// A sleep timer is armed (running, before it prepares to sleep) or Sleep at charge is armed. Set by the model.
+    var scheduledSleepIsActive: @MainActor () -> Bool
     private var activeMode: LidMode?
-    private var timerRunning = false
-    private var timerSubscription: AnyCancellable?
+    private var timerRunning = false, chargeArmed = false
+    private var timerSubscription: AnyCancellable?, chargeSubscription: AnyCancellable?
     private let lidSleepRetryDelay: Duration
     private var awakeSubscription: AnyCancellable?
     private var boundAwake: ObjectIdentifier?
@@ -67,22 +68,22 @@ enum LidMode: Equatable { case keepAwake, sleepTimer }
 
     init(system: any LidSleepSystem = NativeLidSleepSystem(), defaults: UserDefaults = .standard, allowed: Bool = true,
          awakeIsActive: @escaping @MainActor () -> Bool = { false },
-         timerIsActive: @escaping @MainActor () -> Bool = { false },
+         scheduledSleepIsActive: @escaping @MainActor () -> Bool = { false },
          lidSleepRetryDelay: Duration = .milliseconds(500)) {
         self.system = system; self.defaults = defaults; self.allowed = allowed
-        self.awakeIsActive = awakeIsActive; self.timerIsActive = timerIsActive; self.lidSleepRetryDelay = lidSleepRetryDelay
+        self.awakeIsActive = awakeIsActive; self.scheduledSleepIsActive = scheduledSleepIsActive; self.lidSleepRetryDelay = lidSleepRetryDelay
         needsRecovery = defaults.bool(forKey: Self.recoveryKey)
         ruleFilePresent = system.ruleFilePresent
         isPreferred = allowed && defaults.bool(forKey: Self.preferenceKey)
-        isPreferredForTimer = allowed && defaults.bool(forKey: Self.timerPreferenceKey)
+        isPreferredForScheduledSleep = allowed && defaults.bool(forKey: Self.scheduledSleepPreferenceKey)
     }
 
-    private func isActive(_ mode: LidMode) -> Bool { mode == .keepAwake ? awakeIsActive() : timerIsActive() }
-    private func anyActive() -> Bool { awakeIsActive() || timerIsActive() }
-    private func preferred(_ mode: LidMode) -> Bool { mode == .keepAwake ? isPreferred : isPreferredForTimer }
+    private func isActive(_ mode: LidMode) -> Bool { mode == .keepAwake ? awakeIsActive() : scheduledSleepIsActive() }
+    private func anyActive() -> Bool { awakeIsActive() || scheduledSleepIsActive() }
+    private func preferred(_ mode: LidMode) -> Bool { mode == .keepAwake ? isPreferred : isPreferredForScheduledSleep }
     private func storePreference(_ on: Bool, for mode: LidMode) {
         if mode == .keepAwake { isPreferred = on; defaults.set(on, forKey: Self.preferenceKey) }
-        else { isPreferredForTimer = on; defaults.set(on, forKey: Self.timerPreferenceKey) }
+        else { isPreferredForScheduledSleep = on; defaults.set(on, forKey: Self.scheduledSleepPreferenceKey) }
     }
 
     var isAvailable: Bool { allowed }
@@ -106,11 +107,18 @@ enum LidMode: Equatable { case keepAwake, sleepTimer }
         }
     }
 
-    /// The override also belongs to one sleep timer: it starts when the timer is armed while that option is on and ends
-    /// when the timer stops running. The phases arrive from the timer service (tests feed a subject).
+    /// The override also belongs to one scheduled sleep: a sleep timer or Sleep at charge (one switch for both, they never
+    /// run together). It starts when either is armed while that option is on and ends when it stops being armed. The
+    /// timer's phases and the charge service's armed flag arrive as publishers (tests feed subjects).
     func bindTimer(phases: AnyPublisher<SleepTimerPhase, Never>) {
         timerSubscription = phases.sink { [weak self] phase in
             Task { @MainActor [weak self] in await self?.timerPhaseChanged(phase) }
+        }
+    }
+
+    func bindSleepAtCharge(armed: AnyPublisher<Bool, Never>) {
+        chargeSubscription = armed.sink { [weak self] isArmed in
+            Task { @MainActor [weak self] in await self?.sleepAtChargeChanged(isArmed) }
         }
     }
 
@@ -118,14 +126,27 @@ enum LidMode: Equatable { case keepAwake, sleepTimer }
         let running = phase.isEditable            // armed and warning are one session
         guard running != timerRunning else { return }
         timerRunning = running
+        // Into the timer's own sleep request (preparing, requesting, accepted) the override is only lifted: the timer
+        // sleeps the Mac itself after its preparation. Any other end (cancel, failure) behaves like ending Keep Awake:
+        // a lid that is already closed gets the sleep it would have caused.
+        let intoSleep: Set<SleepTimerPhase> = [.preparing, .requesting, .accepted, .completed]
+        await scheduledSleepChanged(running: running, sleepsItself: intoSleep.contains(phase))
+    }
+
+    private func sleepAtChargeChanged(_ isArmed: Bool) async {
+        guard isArmed != chargeArmed else { return }
+        chargeArmed = isArmed
+        // When the level is reached the service's own preparation has already lifted the override before it clears the
+        // target, so there is nothing left to restore (and nothing to sleep for: it requests the sleep itself). A cancel,
+        // a stop or a system sleep reaches here with the override still set and restores it like ending Keep Awake.
+        await scheduledSleepChanged(running: isArmed, sleepsItself: false)
+    }
+
+    private func scheduledSleepChanged(running: Bool, sleepsItself: Bool) async {
         if running {
-            if isPreferredForTimer, !isOn, !needsRecovery { await enable(.sleepTimer, allowPrompt: false) }
-        } else if activeMode == .sleepTimer || (activeMode == nil && defaults.bool(forKey: Self.recoveryKey)) {
-            // Into the timer's own sleep request (preparing, requesting, accepted) the override is only lifted: the timer
-            // sleeps the Mac itself after its preparation. Any other end (cancel, failure) behaves like ending Keep Awake:
-            // a lid that is already closed gets the sleep it would have caused.
-            let intoSleep: Set<SleepTimerPhase> = [.preparing, .requesting, .accepted, .completed]
-            await restore(userInitiated: false, sleepIfLidClosed: !intoSleep.contains(phase))
+            if isPreferredForScheduledSleep, !isOn, !needsRecovery { await enable(.scheduledSleep, allowPrompt: false) }
+        } else if activeMode == .scheduledSleep || (activeMode == nil && defaults.bool(forKey: Self.recoveryKey)) {
+            await restore(userInitiated: false, sleepIfLidClosed: !sleepsItself)
         }
     }
 

@@ -294,7 +294,7 @@ enum SleepPillActionError: LocalizedError, Equatable {
             // Its own switch, like Keep Awake's (the permission is shared): a running timer continues with the lid closed.
             if model.lidSleep.isAvailable {
                 Divider().padding(.vertical, 2)
-                LidSleepOverrideRow(model: model, mode: .sleepTimer)
+                LidSleepOverrideRow(model: model, mode: .scheduledSleep)
             }
         }
         .studioElement("timer.editor", kind: "container", label: "Sleep timer editor")

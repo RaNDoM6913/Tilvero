@@ -306,25 +306,28 @@ private final class FakeLidSystem: LidSleepSystem, @unchecked Sendable {
     // MARK: Sleep timer option (owner 2026-11-07: a separate switch for the timer, shared permission)
 
     private func makeTimer(_ system: FakeLidSystem, awake: Bool = false) -> (service: LidSleepOverrideService, phases: PassthroughSubject<SleepTimerPhase, Never>,
-                                                                              setTimerActive: (Bool) -> Void, defaults: UserDefaults, cleanUp: () -> Void) {
+                                                                              setTimerActive: (Bool) -> Void, defaults: UserDefaults, cleanUp: () -> Void,
+                                                                              charge: PassthroughSubject<Bool, Never>) {
         let suite = "LidSleepTimer-\(UUID())", defaults = UserDefaults(suiteName: suite)!
         var timerFlag = false
         let awakeFlag = awake
         let service = LidSleepOverrideService(system: system, defaults: defaults, allowed: true,
-                                              awakeIsActive: { awakeFlag }, timerIsActive: { timerFlag }, lidSleepRetryDelay: .milliseconds(1))
+                                              awakeIsActive: { awakeFlag }, scheduledSleepIsActive: { timerFlag }, lidSleepRetryDelay: .milliseconds(1))
         let phases = PassthroughSubject<SleepTimerPhase, Never>()
         service.bindTimer(phases: phases.eraseToAnyPublisher())
-        return (service, phases, { timerFlag = $0 }, defaults, { defaults.removePersistentDomain(forName: suite) })
+        let charge = PassthroughSubject<Bool, Never>()
+        service.bindSleepAtCharge(armed: charge.eraseToAnyPublisher())
+        return (service, phases, { timerFlag = $0 }, defaults, { defaults.removePersistentDomain(forName: suite) }, charge)
     }
     private func settle() async { for _ in 0..<20 { await Task.yield(); try? await Task.sleep(for: .milliseconds(5)) } }
 
     func testTheTimerOptionOnlyRecordsTheChoiceAndStartsWithTheRunningTimer() async throws {
         let system = FakeLidSystem()
         let t = makeTimer(system); defer { t.cleanUp() }
-        await t.service.setPreferred(true, for: .sleepTimer)
-        XCTAssertTrue(t.service.isPreferredForTimer)
+        await t.service.setPreferred(true, for: .scheduledSleep)
+        XCTAssertTrue(t.service.isPreferredForScheduledSleep)
         XCTAssertFalse(t.service.isPreferred, "The Keep Awake option is a different switch.")
-        XCTAssertTrue(t.defaults.bool(forKey: LidSleepOverrideService.timerPreferenceKey))
+        XCTAssertTrue(t.defaults.bool(forKey: LidSleepOverrideService.scheduledSleepPreferenceKey))
         XCTAssertFalse(t.defaults.bool(forKey: LidSleepOverrideService.preferenceKey))
         XCTAssertFalse(t.service.isOn, "Without a running timer the option sets nothing.")
         XCTAssertFalse(system.sleepDisabled)
@@ -337,7 +340,7 @@ private final class FakeLidSystem: LidSleepSystem, @unchecked Sendable {
     func testTheNaturalEndRestoresBeforeTheTimerRequestsSleepAndNeverSleepsItself() async throws {
         let system = FakeLidSystem(); system.lidClosed = true
         let t = makeTimer(system); defer { t.cleanUp() }
-        await t.service.setPreferred(true, for: .sleepTimer)
+        await t.service.setPreferred(true, for: .scheduledSleep)
         t.setTimerActive(true); t.phases.send(.armed); await settle()
         XCTAssertTrue(system.sleepDisabled)
         t.setTimerActive(false); t.phases.send(.preparing); await settle()
@@ -350,7 +353,7 @@ private final class FakeLidSystem: LidSleepSystem, @unchecked Sendable {
     func testCancellingWithTheLidClosedSleepsLikeEndingKeepAwake() async throws {
         let system = FakeLidSystem(); system.lidClosed = true
         let t = makeTimer(system); defer { t.cleanUp() }
-        await t.service.setPreferred(true, for: .sleepTimer)
+        await t.service.setPreferred(true, for: .scheduledSleep)
         t.setTimerActive(true); t.phases.send(.armed); await settle()
         t.setTimerActive(false); t.phases.send(.cancelled); await settle()
         XCTAssertFalse(system.sleepDisabled)
@@ -368,7 +371,7 @@ private final class FakeLidSystem: LidSleepSystem, @unchecked Sendable {
         t.setTimerActive(false); t.phases.send(.cancelled); await settle()
         // Only the timer option is on: armed -> warning keeps one session, no extra writes.
         await t.service.setPreferred(false, for: .keepAwake)
-        await t.service.setPreferred(true, for: .sleepTimer)
+        await t.service.setPreferred(true, for: .scheduledSleep)
         t.setTimerActive(true); t.phases.send(.armed); await settle()
         let writes = system.calls.filter { $0 == "set true" }.count
         t.phases.send(.warning); await settle()
@@ -380,7 +383,7 @@ private final class FakeLidSystem: LidSleepSystem, @unchecked Sendable {
     func testATimerThatStartsByItselfNeverRaisesAPasswordPrompt() async throws {
         let system = FakeLidSystem()
         let t = makeTimer(system); defer { t.cleanUp() }
-        await t.service.setPreferred(true, for: .sleepTimer)
+        await t.service.setPreferred(true, for: .scheduledSleep)
         system.ruleWorks = false          // the permission vanished after the choice was made
         t.setTimerActive(true); t.phases.send(.armed); await settle()
         XCTAssertFalse(system.calls.contains("install"), "Only the user's own action may prompt.")
@@ -391,12 +394,12 @@ private final class FakeLidSystem: LidSleepSystem, @unchecked Sendable {
     func testTurningTheTimerOptionOffWhileTheTimerRunsRestoresAtOnce() async throws {
         let system = FakeLidSystem()
         let t = makeTimer(system); defer { t.cleanUp() }
-        await t.service.setPreferred(true, for: .sleepTimer)
+        await t.service.setPreferred(true, for: .scheduledSleep)
         t.setTimerActive(true); t.phases.send(.armed); await settle()
         XCTAssertTrue(system.sleepDisabled)
-        await t.service.setPreferred(false, for: .sleepTimer)
+        await t.service.setPreferred(false, for: .scheduledSleep)
         XCTAssertFalse(system.sleepDisabled)
-        XCTAssertFalse(t.service.isPreferredForTimer)
+        XCTAssertFalse(t.service.isPreferredForScheduledSleep)
     }
 
     func testTheTimerSwitchCanBeTurnedOnWhileKeepAwakeOwnsTheOverride() async throws {
@@ -405,9 +408,49 @@ private final class FakeLidSystem: LidSleepSystem, @unchecked Sendable {
         defer { cleanUp() }
         await service.setPreferred(true, for: .keepAwake)
         XCTAssertTrue(service.isOn)
-        await service.setPreferred(true, for: .sleepTimer)
-        XCTAssertTrue(service.isPreferredForTimer, "Our own override is not another tool's setting.")
+        await service.setPreferred(true, for: .scheduledSleep)
+        XCTAssertTrue(service.isPreferredForScheduledSleep, "Our own override is not another tool's setting.")
         XCTAssertNil(service.failure)
         XCTAssertTrue(system.sleepDisabled)
+    }
+
+    // MARK: Sleep at charge shares the scheduled-sleep switch (owner 2026-11-07: one switch for the timer and Sleep at charge)
+
+    func testAnArmedSleepAtChargeUsesTheSameSwitchAsTheTimer() async throws {
+        let system = FakeLidSystem()
+        let t = makeTimer(system); defer { t.cleanUp() }
+        // Switch off: arming sets nothing.
+        t.setTimerActive(true); t.charge.send(true); await settle()
+        XCTAssertFalse(system.sleepDisabled)
+        t.setTimerActive(false); t.charge.send(false); await settle()
+        await t.service.setPreferred(true, for: .scheduledSleep)
+        t.setTimerActive(true); t.charge.send(true); await settle()
+        XCTAssertTrue(system.sleepDisabled, "The one switch also covers Sleep at charge.")
+        XCTAssertTrue(t.service.isOn)
+    }
+
+    func testReachingTheLevelLiftsTheOverrideBeforeTheSleepRequestAndNeverSleepsItself() async throws {
+        let system = FakeLidSystem(); system.lidClosed = true
+        let t = makeTimer(system); defer { t.cleanUp() }
+        await t.service.setPreferred(true, for: .scheduledSleep)
+        t.setTimerActive(true); t.charge.send(true); await settle()
+        XCTAssertTrue(system.sleepDisabled)
+        // What SleepAtChargeService does when the level is reached: its own preparation first, then the intent is consumed.
+        let prepared = await t.service.prepareForTermination()
+        XCTAssertTrue(prepared)
+        XCTAssertFalse(system.sleepDisabled)
+        t.setTimerActive(false); t.charge.send(false); await settle()
+        XCTAssertFalse(system.calls.contains("sleep"), "The charge service requests the sleep itself.")
+        XCTAssertEqual(system.calls.filter { $0 == "set false" }.count, 1, "No second restore after the preparation.")
+    }
+
+    func testCancellingSleepAtChargeWithTheLidClosedSleepsLikeEndingKeepAwake() async throws {
+        let system = FakeLidSystem(); system.lidClosed = true
+        let t = makeTimer(system); defer { t.cleanUp() }
+        await t.service.setPreferred(true, for: .scheduledSleep)
+        t.setTimerActive(true); t.charge.send(true); await settle()
+        t.setTimerActive(false); t.charge.send(false); await settle()
+        XCTAssertFalse(system.sleepDisabled)
+        XCTAssertTrue(system.calls.contains("sleep"))
     }
 }

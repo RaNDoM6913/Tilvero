@@ -12833,18 +12833,18 @@
         }
       }
     },
-    "Tilvero prevents idle system sleep until the timer ends, then releases its hold and requests sleep. The display may turn off. Closing the lid, manual sleep and macOS safety actions still work, except that the timer's own With lid closed switch (in the menu) keeps the Mac running with the lid closed until the timer ends. A quiet warning appears one minute before. Cancel or quit releases the hold. The timer never restarts after waking or reopening Tilvero.": {
+    "Tilvero prevents idle system sleep until the timer ends, then releases its hold and requests sleep. The display may turn off. Closing the lid, manual sleep and macOS safety actions still work, except that the With lid closed switch of the timer and Sleep at charge (in the menu) keeps the Mac running with the lid closed until the timer ends or the charge is reached. A quiet warning appears one minute before. Cancel or quit releases the hold. The timer never restarts after waking or reopening Tilvero.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tilvero prevents idle system sleep until the timer ends, then releases its hold and requests sleep. The display may turn off. Closing the lid, manual sleep and macOS safety actions still work, except that the timer's own With lid closed switch (in the menu) keeps the Mac running with the lid closed until the timer ends. A quiet warning appears one minute before. Cancel or quit releases the hold. The timer never restarts after waking or reopening Tilvero."
+            "value": "Tilvero prevents idle system sleep until the timer ends, then releases its hold and requests sleep. The display may turn off. Closing the lid, manual sleep and macOS safety actions still work, except that the With lid closed switch of the timer and Sleep at charge (in the menu) keeps the Mac running with the lid closed until the timer ends or the charge is reached. A quiet warning appears one minute before. Cancel or quit releases the hold. The timer never restarts after waking or reopening Tilvero."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tilvero не даёт Mac уснуть от бездействия до окончания таймера, затем снимает удержание и запрашивает сон. Экран может выключиться. Закрытие крышки, ручной сон и защитные действия macOS работают как обычно, кроме случая, когда включён выключатель «С закрытой крышкой» у самого таймера (в меню): тогда Mac продолжает работать с закрытой крышкой до конца таймера. За минуту появится тихое предупреждение. Отмена или выход снимают удержание. После пробуждения или перезапуска таймер не возобновляется."
+            "value": "Tilvero не даёт Mac уснуть от бездействия до окончания таймера, затем снимает удержание и запрашивает сон. Экран может выключиться. Закрытие крышки, ручной сон и защитные действия macOS работают как обычно, кроме случая, когда включён выключатель «С закрытой крышкой» у таймера и «Сна при заряде» (в меню): тогда Mac продолжает работать с закрытой крышкой до конца таймера или до достижения заряда. За минуту появится тихое предупреждение. Отмена или выход снимают удержание. После пробуждения или перезапуска таймер не возобновляется."
           }
         }
       }
@@ -16145,34 +16145,34 @@
         }
       }
     },
-    "An option for the sleep timer: with it on, a running sleep timer also continues with the lid closed, and the Mac sleeps only when the timer ends. It never starts a timer by itself. The first time, macOS asks for the administrator password to allow one command, pmset disablesleep, without a password. Nothing else is allowed. The permission is shared with Keep Awake.": {
+    "An option for the sleep timer and for Sleep at charge (one switch for both): with it on, a running timer or an armed Sleep at charge also continues with the lid closed, and the Mac sleeps only when the timer ends or the chosen charge is reached. It never starts either by itself. The first time, macOS asks for the administrator password to allow one command, pmset disablesleep, without a password. Nothing else is allowed. The permission is shared with Keep Awake.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "An option for the sleep timer: with it on, a running sleep timer also continues with the lid closed, and the Mac sleeps only when the timer ends. It never starts a timer by itself. The first time, macOS asks for the administrator password to allow one command, pmset disablesleep, without a password. Nothing else is allowed. The permission is shared with Keep Awake."
+            "value": "An option for the sleep timer and for Sleep at charge (one switch for both): with it on, a running timer or an armed Sleep at charge also continues with the lid closed, and the Mac sleeps only when the timer ends or the chosen charge is reached. It never starts either by itself. The first time, macOS asks for the administrator password to allow one command, pmset disablesleep, without a password. Nothing else is allowed. The permission is shared with Keep Awake."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Опция для таймера сна: когда она включена, запущенный таймер сна продолжается и при закрытой крышке, а Mac засыпает только когда таймер закончится. Сама она таймер не запускает. В первый раз macOS попросит пароль администратора, чтобы разрешить одну команду, pmset disablesleep, без пароля. Больше ничего не разрешается. Разрешение общее с «Не засыпать»."
+            "value": "Опция для таймера сна и для «Сна при заряде» (один выключатель на обе функции): когда она включена, запущенный таймер или включённый «Сон при заряде» продолжается и при закрытой крышке, а Mac засыпает только когда таймер закончится или будет достигнут выбранный заряд. Сама она ничего не запускает. В первый раз macOS попросит пароль администратора, чтобы разрешить одну команду, pmset disablesleep, без пароля. Больше ничего не разрешается. Разрешение общее с «Не засыпать»."
           }
         }
       }
     },
-    "Normal sleep returns when the timer ends or is cancelled, when you quit Tilvero, and at the next launch if the app was killed. A timer can run for up to 24 hours: a closed Mac in a bag stays on and warm, so use a hard, ventilated surface.": {
+    "Normal sleep returns when the timer ends or the charge is reached, when you cancel, when you quit Tilvero, and at the next launch if the app was killed. Both can run for up to 24 hours: a closed Mac in a bag stays on and warm, so use a hard, ventilated surface.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Normal sleep returns when the timer ends or is cancelled, when you quit Tilvero, and at the next launch if the app was killed. A timer can run for up to 24 hours: a closed Mac in a bag stays on and warm, so use a hard, ventilated surface."
+            "value": "Normal sleep returns when the timer ends or the charge is reached, when you cancel, when you quit Tilvero, and at the next launch if the app was killed. Both can run for up to 24 hours: a closed Mac in a bag stays on and warm, so use a hard, ventilated surface."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Обычный сон возвращается, когда таймер заканчивается или отменён, при выходе из Tilvero и при следующем запуске, если приложение было завершено принудительно. Таймер может идти до 24 часов: закрытый Mac в сумке остаётся включённым и тёплым, поэтому ставьте его на твёрдую вентилируемую поверхность."
+            "value": "Обычный сон возвращается, когда таймер заканчивается или достигнут заряд, при отмене, при выходе из Tilvero и при следующем запуске, если приложение было завершено принудительно. Обе функции могут идти до 24 часов: закрытый Mac в сумке остаётся включённым и тёплым, поэтому ставьте его на твёрдую вентилируемую поверхность."
           }
         }
       }
