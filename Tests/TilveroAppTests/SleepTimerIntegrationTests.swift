@@ -84,23 +84,35 @@ import Carbon
         for _ in 0..<40 where system.sleepDisabled { try await Task.sleep(for: .milliseconds(25)) }
         XCTAssertFalse(system.sleepDisabled, "Cancelling restores normal sleep.")
     }
-    func testTheTimerLidInfoTextsExistInRussianAndEnglish() throws {
+    /// Owner 2026-11-07: the "With lid closed" info is short (the old text was ~125 words) and has no "not verified" line.
+    func testTheLidInfoTextsAreShortAndExistInRussianAndEnglish() throws {
         let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Sources/TilveroApp/Resources/Localizable.xcstrings")
         let root = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
         let strings = try XCTUnwrap(root["strings"] as? [String: Any])
         for mode in [LidMode.keepAwake, .scheduledSleep] {
-            for key in LidSleepOverrideRow.infoKeys(for: mode) {
+            let keys = LidSleepOverrideRow.infoKeys(for: mode)
+            XCTAssertEqual(keys.count, 2, "\(mode): what it does, then the permission and the warning - nothing else")
+            var words = [String: Int]()
+            for key in keys {
                 let entry = try XCTUnwrap(strings[key] as? [String: Any], "missing key: \(key.prefix(50))")
                 let localizations = try XCTUnwrap(entry["localizations"] as? [String: Any])
                 for language in ["en", "ru"] {
                     let unit = (localizations[language] as? [String: Any])?["stringUnit"] as? [String: Any]
                     XCTAssertEqual(unit?["state"] as? String, "translated", "\(language): \(key.prefix(50))")
-                    XCTAssertFalse((unit?["value"] as? String ?? "").isEmpty)
+                    let value = unit?["value"] as? String ?? ""
+                    XCTAssertFalse(value.isEmpty)
+                    XCTAssertFalse(value.localizedCaseInsensitiveContains("verified") || value.contains("проверен"), "No caveat line: \(value)")
+                    words[language, default: 0] += value.split(separator: " ").count
                 }
             }
+            XCTAssertLessThanOrEqual(words["ru"] ?? 999, 60, "\(mode): the Russian info must stay short")
+            XCTAssertLessThanOrEqual(words["en"] ?? 999, 60, "\(mode): the English info must stay short")
         }
-        XCTAssertNotEqual(LidSleepOverrideRow.infoKeys(for: .keepAwake).first, LidSleepOverrideRow.infoKeys(for: .scheduledSleep).first)
+        let timer = LidSleepOverrideRow.infoKeys(for: .scheduledSleep), awake = LidSleepOverrideRow.infoKeys(for: .keepAwake)
+        XCTAssertNotEqual(timer.first, awake.first)
+        XCTAssertEqual(timer.last, awake.last, "The permission and warning paragraph is shared")
+        XCTAssertTrue(try XCTUnwrap(timer.first).contains("Sleep at charge"), "The timer text names both functions")
     }
     func testSavedNonPresetDurationRemainsSelectedAsCustomWithoutStarting() {
         let suite = "SleepCustomReload-\(UUID())", prefs = UserDefaults(suiteName: suite)!

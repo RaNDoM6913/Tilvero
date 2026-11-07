@@ -15553,38 +15553,6 @@
         }
       }
     },
-    "Normal sleep returns when Keep Awake ends, when you quit Tilvero, before a sleep timer or charge sleep, and at the next launch if the app was killed. A closed Mac in a bag stays on and warm: use a hard, ventilated surface.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Normal sleep returns when Keep Awake ends, when you quit Tilvero, before a sleep timer or charge sleep, and at the next launch if the app was killed. A closed Mac in a bag stays on and warm: use a hard, ventilated surface."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Обычный сон возвращается, когда «Не засыпать» заканчивается, при выходе из Tilvero, перед сном по таймеру или заряду и при следующем запуске, если приложение было закрыто аварийно. Закрытый Mac в сумке остаётся включённым и греется: используйте жёсткую поверхность с вентиляцией."
-          }
-        }
-      }
-    },
-    "Not verified on every Mac and macOS version.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Not verified on every Mac and macOS version."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Работа проверена не на всех Mac и версиях macOS."
-          }
-        }
-      }
-    },
     "Sleep is already disabled by another tool or setting. Tilvero will not change it.": {
       "localizations": {
         "en": {
@@ -15597,22 +15565,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Сон уже отключён другой программой или настройкой. Tilvero её не изменит."
-          }
-        }
-      }
-    },
-    "An option for Keep Awake: with it on, a Keep Awake session also continues with the lid closed. It never starts Keep Awake by itself. The first time, macOS asks for the administrator password to allow one command, pmset disablesleep, without a password. Nothing else is allowed.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "An option for Keep Awake: with it on, a Keep Awake session also continues with the lid closed. It never starts Keep Awake by itself. The first time, macOS asks for the administrator password to allow one command, pmset disablesleep, without a password. Nothing else is allowed."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Опция для «Не засыпать»: когда она включена, сеанс «Не засыпать» продолжается и при закрытой крышке. Сама она «Не засыпать» не запускает. В первый раз macOS попросит пароль администратора, чтобы разрешить одну команду, pmset disablesleep, без пароля. Больше ничего не разрешается."
           }
         }
       }
@@ -16145,34 +16097,50 @@
         }
       }
     },
-    "An option for the sleep timer and for Sleep at charge (one switch for both): with it on, a running timer or an armed Sleep at charge also continues with the lid closed, and the Mac sleeps only when the timer ends or the chosen charge is reached. It never starts either by itself. The first time, macOS asks for the administrator password to allow one command, pmset disablesleep, without a password. Nothing else is allowed. The permission is shared with Keep Awake.": {
+    "Keep Awake keeps running with the lid closed. Normal sleep returns by itself when the session ends, on stop and on quit.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "An option for the sleep timer and for Sleep at charge (one switch for both): with it on, a running timer or an armed Sleep at charge also continues with the lid closed, and the Mac sleeps only when the timer ends or the chosen charge is reached. It never starts either by itself. The first time, macOS asks for the administrator password to allow one command, pmset disablesleep, without a password. Nothing else is allowed. The permission is shared with Keep Awake."
+            "value": "Keep Awake keeps running with the lid closed. Normal sleep returns by itself when the session ends, on stop and on quit."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Опция для таймера сна и для «Сна при заряде» (один выключатель на обе функции): когда она включена, запущенный таймер или включённый «Сон при заряде» продолжается и при закрытой крышке, а Mac засыпает только когда таймер закончится или будет достигнут выбранный заряд. Сама она ничего не запускает. В первый раз macOS попросит пароль администратора, чтобы разрешить одну команду, pmset disablesleep, без пароля. Больше ничего не разрешается. Разрешение общее с «Не засыпать»."
+            "value": "«Не засыпать» продолжит работать и при закрытой крышке. Обычный сон вернётся сам, когда сеанс закончится, при остановке и при выходе."
           }
         }
       }
     },
-    "Normal sleep returns when the timer ends or the charge is reached, when you cancel, when you quit Tilvero, and at the next launch if the app was killed. Both can run for up to 24 hours: a closed Mac in a bag stays on and warm, so use a hard, ventilated surface.": {
+    "The sleep timer and Sleep at charge keep running with the lid closed; the Mac sleeps when they finish. Normal sleep returns by itself, also on cancel or quit.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Normal sleep returns when the timer ends or the charge is reached, when you cancel, when you quit Tilvero, and at the next launch if the app was killed. Both can run for up to 24 hours: a closed Mac in a bag stays on and warm, so use a hard, ventilated surface."
+            "value": "The sleep timer and Sleep at charge keep running with the lid closed; the Mac sleeps when they finish. Normal sleep returns by itself, also on cancel or quit."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Обычный сон возвращается, когда таймер заканчивается или достигнут заряд, при отмене, при выходе из Tilvero и при следующем запуске, если приложение было завершено принудительно. Обе функции могут идти до 24 часов: закрытый Mac в сумке остаётся включённым и тёплым, поэтому ставьте его на твёрдую вентилируемую поверхность."
+            "value": "Таймер и «Сон при заряде» работают и при закрытой крышке: Mac уснёт, когда они закончатся. Обычный сон вернётся сам, в том числе при отмене и выходе."
+          }
+        }
+      }
+    },
+    "The first time, macOS asks for the administrator password; Tilvero can only turn sleep prevention on and off (pmset). A closed Mac gets warm: put it on a hard surface.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The first time, macOS asks for the administrator password; Tilvero can only turn sleep prevention on and off (pmset). A closed Mac gets warm: put it on a hard surface."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Первый раз macOS спросит пароль администратора; Tilvero сможет только запрещать и снова разрешать сон (pmset). Закрытый Mac греется: ставьте на твёрдую поверхность."
           }
         }
       }
