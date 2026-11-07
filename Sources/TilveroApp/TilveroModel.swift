@@ -520,6 +520,9 @@ final class TilveroModel: ObservableObject {
         closedLid.bind(keepAwake)
         lidSleep.awakeIsActive = { [weak self] in self?.keepAwake.hasOwnedAssertion ?? false }
         lidSleep.bind(keepAwake)
+        // The sleep timer's own switch: the override accompanies an armed timer (armed/warning), never the sleep request itself.
+        lidSleep.timerIsActive = { [weak self] in self?.sleepTimer.phase.isEditable ?? false }
+        lidSleep.bindTimer(phases: sleepTimer.$phase.eraseToAnyPublisher())
         lidSleepSubscription = lidSleep.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
         sleepTimer.prepare = { [weak self] in
             guard let self else { return false }

@@ -3,6 +3,7 @@ import Combine
 import Darwin
 import IOKit
 import IOKit.pwr_mgt
+import PowerCore
 
 // Closed-lid keep-awake through the system's `pmset disablesleep` override, the approach used by
 // vorssaint-utils (GPL-3.0, https://github.com/vorssaint/vorssaint-utils; see THIRD_PARTY_NOTICES.md). The
@@ -28,11 +29,17 @@ protocol LidSleepSystem: Sendable {
     func requestSleep() -> Bool
 }
 
+/// The holds the lid option can accompany. Each has its own switch; they share the one permission and one override.
+enum LidMode: Equatable { case keepAwake, sleepTimer }
+
 @MainActor final class LidSleepOverrideService: ObservableObject {
     static let recoveryKey = "lidSleepOverrideActive"
     static let preferenceKey = "lidClosedPreferred"
+    static let timerPreferenceKey = "lidClosedPreferredTimer"
     /// The option: "with the lid closed" applies to every Keep Awake session the user starts. It never starts one.
     @Published private(set) var isPreferred = false
+    /// The same option for the sleep timer: a running timer also continues with the lid closed and ends in sleep.
+    @Published private(set) var isPreferredForTimer = false
     /// The override itself is in effect (a Keep Awake session is running and the option is on).
     @Published private(set) var isOn = false
     @Published private(set) var busy = false
@@ -46,6 +53,11 @@ protocol LidSleepSystem: Sendable {
     private let allowed: Bool
     /// Set by the model once the Keep Awake service exists.
     var awakeIsActive: @MainActor () -> Bool
+    /// A sleep timer is armed (running, before it prepares to sleep). Set by the model.
+    var timerIsActive: @MainActor () -> Bool
+    private var activeMode: LidMode?
+    private var timerRunning = false
+    private var timerSubscription: AnyCancellable?
     private let lidSleepRetryDelay: Duration
     private var awakeSubscription: AnyCancellable?
     private var boundAwake: ObjectIdentifier?
@@ -55,12 +67,22 @@ protocol LidSleepSystem: Sendable {
 
     init(system: any LidSleepSystem = NativeLidSleepSystem(), defaults: UserDefaults = .standard, allowed: Bool = true,
          awakeIsActive: @escaping @MainActor () -> Bool = { false },
+         timerIsActive: @escaping @MainActor () -> Bool = { false },
          lidSleepRetryDelay: Duration = .milliseconds(500)) {
         self.system = system; self.defaults = defaults; self.allowed = allowed
-        self.awakeIsActive = awakeIsActive; self.lidSleepRetryDelay = lidSleepRetryDelay
+        self.awakeIsActive = awakeIsActive; self.timerIsActive = timerIsActive; self.lidSleepRetryDelay = lidSleepRetryDelay
         needsRecovery = defaults.bool(forKey: Self.recoveryKey)
         ruleFilePresent = system.ruleFilePresent
         isPreferred = allowed && defaults.bool(forKey: Self.preferenceKey)
+        isPreferredForTimer = allowed && defaults.bool(forKey: Self.timerPreferenceKey)
+    }
+
+    private func isActive(_ mode: LidMode) -> Bool { mode == .keepAwake ? awakeIsActive() : timerIsActive() }
+    private func anyActive() -> Bool { awakeIsActive() || timerIsActive() }
+    private func preferred(_ mode: LidMode) -> Bool { mode == .keepAwake ? isPreferred : isPreferredForTimer }
+    private func storePreference(_ on: Bool, for mode: LidMode) {
+        if mode == .keepAwake { isPreferred = on; defaults.set(on, forKey: Self.preferenceKey) }
+        else { isPreferredForTimer = on; defaults.set(on, forKey: Self.timerPreferenceKey) }
     }
 
     var isAvailable: Bool { allowed }
@@ -79,8 +101,31 @@ protocol LidSleepSystem: Sendable {
                 if self.isOn || self.defaults.bool(forKey: Self.recoveryKey) {
                     await self.restore(userInitiated: false, sleepIfLidClosed: true)
                 }
-                if id != nil, self.isPreferred, !self.isOn, !self.needsRecovery { await self.enable(allowPrompt: false) }
+                if id != nil, self.isPreferred, !self.isOn, !self.needsRecovery { await self.enable(.keepAwake, allowPrompt: false) }
             }
+        }
+    }
+
+    /// The override also belongs to one sleep timer: it starts when the timer is armed while that option is on and ends
+    /// when the timer stops running. The phases arrive from the timer service (tests feed a subject).
+    func bindTimer(phases: AnyPublisher<SleepTimerPhase, Never>) {
+        timerSubscription = phases.sink { [weak self] phase in
+            Task { @MainActor [weak self] in await self?.timerPhaseChanged(phase) }
+        }
+    }
+
+    private func timerPhaseChanged(_ phase: SleepTimerPhase) async {
+        let running = phase.isEditable            // armed and warning are one session
+        guard running != timerRunning else { return }
+        timerRunning = running
+        if running {
+            if isPreferredForTimer, !isOn, !needsRecovery { await enable(.sleepTimer, allowPrompt: false) }
+        } else if activeMode == .sleepTimer || (activeMode == nil && defaults.bool(forKey: Self.recoveryKey)) {
+            // Into the timer's own sleep request (preparing, requesting, accepted) the override is only lifted: the timer
+            // sleeps the Mac itself after its preparation. Any other end (cancel, failure) behaves like ending Keep Awake:
+            // a lid that is already closed gets the sleep it would have caused.
+            let intoSleep: Set<SleepTimerPhase> = [.preparing, .requesting, .accepted, .completed]
+            await restore(userInitiated: false, sleepIfLidClosed: !intoSleep.contains(phase))
         }
     }
 
@@ -88,24 +133,26 @@ protocol LidSleepSystem: Sendable {
 
     /// The switch. Turning it on only records the choice (and obtains the permission, the one administrator prompt, at
     /// the user's action); the override starts with the next Keep Awake session, or at once if one is running.
-    func setPreferred(_ on: Bool) async {
+    func setPreferred(_ on: Bool, for mode: LidMode = .keepAwake) async {
         guard allowed else { return }
         if !on {
-            isPreferred = false
-            defaults.set(false, forKey: Self.preferenceKey)
+            storePreference(false, for: mode)
             failure = nil
-            if isOn || defaults.bool(forKey: Self.recoveryKey) { await restore(userInitiated: true, sleepIfLidClosed: true) }
+            if activeMode == mode || (activeMode == nil && defaults.bool(forKey: Self.recoveryKey)) {
+                await restore(userInitiated: true, sleepIfLidClosed: true)
+            }
             return
         }
-        guard !busy, !isPreferred else { return }
+        guard !busy, !preferred(mode) else { return }
         guard !needsRecovery else { failure = L10n.text("Normal sleep could not be restored. Use Restore sleep."); return }
         busy = true; failure = nil
-        let granted = await prepareRule()
+        // While this app's own override is on (the other switch's session), the permission demonstrably works and the
+        // baseline check would only see our own setting as "another tool".
+        let granted = isOn ? true : await prepareRule()
         busy = false
         guard granted else { return }
-        isPreferred = true
-        defaults.set(true, forKey: Self.preferenceKey)
-        if awakeIsActive() { await enable(allowPrompt: false) }
+        storePreference(true, for: mode)
+        if isActive(mode) { await enable(mode, allowPrompt: false) }
     }
 
     /// Checks the baseline and makes sure the passwordless path exists (prompting once if it does not).
@@ -125,8 +172,8 @@ protocol LidSleepSystem: Sendable {
         return true
     }
 
-    private func enable(allowPrompt: Bool) async {
-        guard allowed, !busy, !needsRecovery, !isOn, awakeIsActive() else { return }
+    private func enable(_ mode: LidMode, allowPrompt: Bool) async {
+        guard allowed, !busy, !needsRecovery, !isOn, isActive(mode) else { return }
         busy = true; failure = nil; pendingEnd = false
         defer { busy = false }
         generation &+= 1
@@ -137,7 +184,7 @@ protocol LidSleepSystem: Sendable {
             failure = L10n.text("Sleep is already disabled by another tool or setting. Tilvero will not change it.")
             return
         }
-        guard generation == id, awakeIsActive() else { return }
+        guard generation == id, isActive(mode) else { return }
         if !(await system.passwordlessPathWorks()) {
             // A session starting by itself never raises a password prompt: the user is told how to repair it.
             guard allowPrompt, await system.installRule(), await system.passwordlessPathWorks() else {
@@ -147,7 +194,7 @@ protocol LidSleepSystem: Sendable {
             }
         }
         ruleFilePresent = system.ruleFilePresent
-        guard generation == id, awakeIsActive() else { return }
+        guard generation == id, isActive(mode) else { return }
         // Written down before the system is touched: a crash after the write must still be recoverable.
         defaults.set(true, forKey: Self.recoveryKey)
         needsRecovery = false
@@ -158,7 +205,7 @@ protocol LidSleepSystem: Sendable {
             failure = L10n.text("macOS did not enable the lid mode.")
             return
         }
-        if generation == id, awakeIsActive() { isOn = true } else { await restoreInline(userInitiated: false, sleepIfLidClosed: true) }
+        if generation == id, isActive(mode) { isOn = true; activeMode = mode } else { await restoreInline(userInitiated: false, sleepIfLidClosed: true) }
         if pendingEnd { pendingEnd = false; await restoreInline(userInitiated: false, sleepIfLidClosed: true) }
     }
 
@@ -191,8 +238,8 @@ protocol LidSleepSystem: Sendable {
             return
         }
         defaults.set(false, forKey: Self.recoveryKey)
-        needsRecovery = false; isOn = false; failure = nil
-        if sleepIfLidClosed && !awakeIsActive() { await sleepIfLidAlreadyClosed() }
+        needsRecovery = false; isOn = false; activeMode = nil; failure = nil
+        if sleepIfLidClosed && !anyActive() { await sleepIfLidAlreadyClosed() }
     }
 
     /// Clearing the flag only changes a kernel setting: a lid that shut during the session is not evaluated again,
@@ -200,7 +247,7 @@ protocol LidSleepSystem: Sendable {
     /// propagates, hence the bounded retries).
     private func sleepIfLidAlreadyClosed(attempts: Int = 10) async {
         for _ in 0..<attempts {
-            guard system.lidClosedWouldSleep(), !awakeIsActive(), !isOn else { return }
+            guard system.lidClosedWouldSleep(), !anyActive(), !isOn else { return }
             if system.requestSleep() { return }
             try? await Task.sleep(for: lidSleepRetryDelay)
         }
@@ -222,7 +269,7 @@ protocol LidSleepSystem: Sendable {
             return false
         }
         defaults.set(false, forKey: Self.recoveryKey)
-        needsRecovery = false; isOn = false; pendingEnd = false
+        needsRecovery = false; isOn = false; activeMode = nil; pendingEnd = false
         return true
     }
 
@@ -251,7 +298,7 @@ protocol LidSleepSystem: Sendable {
     func reconcileAfterWake() async {
         guard !busy, isOn else { return }
         if (await system.readSleepDisabled()) == false {
-            defaults.set(false, forKey: Self.recoveryKey); isOn = false
+            defaults.set(false, forKey: Self.recoveryKey); isOn = false; activeMode = nil
         }
     }
 }

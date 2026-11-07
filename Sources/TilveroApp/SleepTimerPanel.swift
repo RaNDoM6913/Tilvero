@@ -84,7 +84,7 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
                         Label(L10n.text("Keeps your Mac awake until the timer ends."), systemImage: "moon")
                     }.font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     DisclosureGroup(L10n.text("How the timer works")) {
-                        Text(L10n.text("Tilvero prevents idle system sleep until the timer ends, then releases its hold and requests sleep. The display may turn off. Closing the lid, manual sleep and macOS safety actions still work. A quiet warning appears one minute before. Cancel or quit releases the hold. The timer never restarts after waking or reopening Tilvero."))
+                        Text(L10n.text("Tilvero prevents idle system sleep until the timer ends, then releases its hold and requests sleep. The display may turn off. Closing the lid, manual sleep and macOS safety actions still work, except that the timer's own With lid closed switch (in the menu) keeps the Mac running with the lid closed until the timer ends. A quiet warning appears one minute before. Cancel or quit releases the hold. The timer never restarts after waking or reopening Tilvero."))
                             .font(.callout).foregroundStyle(.secondary).padding(.top, 8)
                     }.frame(maxWidth: 560).font(.system(size: 12))
                 case .awake:

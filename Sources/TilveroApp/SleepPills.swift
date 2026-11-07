@@ -291,6 +291,11 @@ enum SleepPillActionError: LocalizedError, Equatable {
             }
             Divider().padding(.vertical, 2)
             SleepAtChargePanel(model: model)
+            // Its own switch, like Keep Awake's (the permission is shared): a running timer continues with the lid closed.
+            if model.lidSleep.isAvailable {
+                Divider().padding(.vertical, 2)
+                LidSleepOverrideRow(model: model, mode: .sleepTimer)
+            }
         }
         .studioElement("timer.editor", kind: "container", label: "Sleep timer editor")
         .onChange(of: ObjectIdentifier(model)) { _, _ in
