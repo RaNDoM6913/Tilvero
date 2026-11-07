@@ -72,15 +72,15 @@ import PowerTelemetry
         ceil((text as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: size, weight: weight)]).width)
     }
     func testTileTextFitsAt360InRussian() async throws {
-        let defaults = UserDefaults.standard, previous = defaults.object(forKey: "language")
-        defaults.set("ru", forKey: "language")
-        defer { if let previous { defaults.set(previous, forKey: "language") } else { defaults.removeObject(forKey: "language") } }
+        // Volatile argument domain only: nothing is written to disk, and the saved domain is restored on exit.
+        let saved = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
+        UserDefaults.standard.setVolatileDomain(saved.merging(["language": "ru"]) { _, value in value }, forName: UserDefaults.argumentDomain)
+        defer { UserDefaults.standard.setVolatileDomain(saved, forName: UserDefaults.argumentDomain) }
         XCTAssertEqual(L10n.language, "ru")
         let inner = tileWidth - 2 * 10 - 1   // tile chrome padding 10 pt, hairline
         XCTAssertEqual(tileWidth, 156)
         let estimated = reading("038", value: -100.5, provenance: .estimated)
-        var stale = reading("054", value: 7.8, provenance: .measured)
-        stale = CatalogReading(definition: BatteryCatalog.definition("054"), value: .decimal(7.8), source: "fixture", keyPath: "input", freshness: .stale)
+        let stale = CatalogReading(definition: BatteryCatalog.definition("054"), value: .decimal(7.8), source: "fixture", keyPath: "input", freshness: .stale)
         let tiles = [
             PowerTilesBlock.tileLines(id: "038", reading: estimated, adapterConnected: true),
             PowerTilesBlock.tileLines(id: "054", reading: nil, adapterConnected: false),
