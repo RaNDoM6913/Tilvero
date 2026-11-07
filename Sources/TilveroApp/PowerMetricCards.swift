@@ -40,7 +40,13 @@ enum PowerMetricHistory {
     let symbol: String
     let id: String
     var color: Color = .orange
+    /// The adapter card renders its own caption list so the absent message appears exactly once.
+    var showsCaptions = true
     private var reading: CatalogReading? { model.snapshot.catalog.first { $0.id == id } }
+    static func captionLines(id: String, reading: CatalogReading?, adapterConnected: Bool) -> [String] {
+        [MetricCaption.absent(for: id, adapterConnected: adapterConnected),
+         MetricCaption.boundary(for: id, reading: reading)].compactMap { $0 }
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
@@ -49,6 +55,11 @@ enum PowerMetricHistory {
                 StudioText(reading.map { CatalogDataPresentation.value($0, reveal: false, fahrenheit: model.fahrenheit) } ?? "—", id: "powerMetric." + id + ".value").monospacedDigit()
                 if reading?.freshness == .stale { Text(L10n.text("Stale")).font(.caption2).foregroundStyle(.orange) }
             }.font(.subheadline)
+            if showsCaptions {
+                ForEach(Self.captionLines(id: id, reading: reading, adapterConnected: model.snapshot.isExternalPower.value != false), id: \.self) {
+                    Text($0).font(.caption2).foregroundStyle(.secondary)
+                }
+            }
             if id != "039" && id != "026" {
                 MetricSparkline(model: model, id: id, color: color)
             }
@@ -79,13 +90,22 @@ enum PowerMetricHistory {
 
 @MainActor struct AdapterMetricCard: View {
     @ObservedObject var model: TilveroModel
-    private var rating: String {
-        model.snapshot.catalog.first { $0.id == "050" }.map { CatalogDataPresentation.value($0, reveal: false, fahrenheit: false) } ?? "—"
+    private var inputReading: CatalogReading? { model.snapshot.catalog.first { $0.id == "054" } }
+    private var ratingReading: CatalogReading? { model.snapshot.catalog.first { $0.id == "050" } }
+    /// Unknown external-power state is not reported as "not connected".
+    private var adapterConnected: Bool { model.snapshot.isExternalPower.value != false }
+    /// Every caption line of the card body below the metric row, in display order.
+    static func captionLines(input: CatalogReading?, rating: CatalogReading?, adapterConnected: Bool) -> [String] {
+        let value = rating.map { CatalogDataPresentation.value($0, reveal: false, fahrenheit: false) } ?? "—"
+        return PowerMetricCard.captionLines(id: "054", reading: input, adapterConnected: adapterConnected)
+            + [L10n.text("Rated capability") + ": " + value]
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            PowerMetricCard(model: model, title: "Adapter input", symbol: "powerplug", id: "054", color: .blue)
-            Text(L10n.text("Rated capability") + ": " + rating).font(.caption2).foregroundStyle(.secondary)
+            PowerMetricCard(model: model, title: "Adapter input", symbol: "powerplug", id: "054", color: .blue, showsCaptions: false)
+            ForEach(Self.captionLines(input: inputReading, rating: ratingReading, adapterConnected: adapterConnected), id: \.self) {
+                Text($0).font(.caption2).foregroundStyle(.secondary)
+            }
         }.help(L10n.text("Adapter input and battery power measure different electrical boundaries. Rated capability is not current consumption."))
     }
 }

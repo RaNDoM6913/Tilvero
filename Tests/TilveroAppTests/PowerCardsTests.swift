@@ -54,6 +54,52 @@ import PowerTelemetry
             XCTAssertEqual(PowerMetricHistory.summary(points)?.count,2)
         }
     }
+    private func reading(_ id: String, value: Double?, provenance: TelemetryProvenance) -> CatalogReading {
+        .init(definition: BatteryCatalog.definition(id), value: value.map(CatalogValue.decimal), source: "fixture", keyPath: "input", provenance: provenance)
+    }
+    func testEstimateCaptionFollowsProvenance() {
+        let estimated = reading("038", value: 12.5, provenance: .estimated)
+        let inferred = reading("038", value: 12.5, provenance: .inferred)
+        let measured = reading("038", value: 12.5, provenance: .measured)
+        XCTAssertEqual(MetricCaption.boundary(for: "038", reading: estimated), L10n.text("battery · V×A estimate"))
+        XCTAssertEqual(MetricCaption.boundary(for: "038", reading: inferred), L10n.text("battery · V×A estimate"))
+        XCTAssertNil(MetricCaption.boundary(for: "038", reading: measured), "A measured reading carries no estimate wording")
+        XCTAssertNil(MetricCaption.boundary(for: "038", reading: nil))
+        XCTAssertFalse(MetricCaption.boundary(for: "038", reading: estimated)?.contains("≈") ?? false, "The value formatter owns the approximation prefix")
+        XCTAssertEqual(MetricCaption.boundary(for: "054", reading: reading("054", value: 30, provenance: .measured)), L10n.text("Adapter input — a different boundary"))
+        XCTAssertNil(MetricCaption.boundary(for: "054", reading: nil))
+        XCTAssertNil(MetricCaption.boundary(for: "043", reading: reading("043", value: 9, provenance: .estimated)))
+    }
+    func testAdapterAbsentMessageAppearsOnce() {
+        let message = L10n.text("Adapter not connected — no reading")
+        XCTAssertEqual(MetricCaption.absent(for: "054", adapterConnected: false), message)
+        XCTAssertNil(MetricCaption.absent(for: "054", adapterConnected: true))
+        XCTAssertNil(MetricCaption.absent(for: "038", adapterConnected: false))
+        let rating = reading("050", value: 67, provenance: .reported)
+        let lines = AdapterMetricCard.captionLines(input: nil, rating: rating, adapterConnected: false)
+        XCTAssertEqual(lines.filter { $0 == message }.count, 1)
+        XCTAssertEqual(lines.filter { $0.contains("not connected") || $0.contains("не подключён") }.count, 1)
+        let connected = AdapterMetricCard.captionLines(input: reading("054", value: 30, provenance: .measured), rating: rating, adapterConnected: true)
+        XCTAssertFalse(connected.contains(message))
+        XCTAssertTrue(connected.contains(L10n.text("Adapter input — a different boundary")))
+    }
+    func testAllNewStringsHaveRuAndEn() throws {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/TilveroApp/Resources/Localizable.xcstrings")
+        let root = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        let strings = try XCTUnwrap(root["strings"] as? [String: [String: Any]])
+        for key in MetricCaption.allKeys {
+            let localizations = try XCTUnwrap(strings[key]?["localizations"] as? [String: [String: Any]], key)
+            for language in ["en", "ru"] {
+                let unit = localizations[language]?["stringUnit"] as? [String: String] ?? [:]
+                let state: String = unit["state"] ?? ""
+                let value: String = unit["value"] ?? ""
+                XCTAssertEqual(state, "translated", "\(key) \(language)")
+                XCTAssertFalse(value.isEmpty, "\(key) \(language)")
+            }
+        }
+        XCTAssertEqual(Set(MetricCaption.allKeys).count, 3)
+    }
     private func sample(_ index: Int, _ date: Date, value: Double?, freshness: TelemetryFreshness = .unknown, source: String = "fixture", ac: Bool = true) -> BatterySnapshot {
         let at = date.addingTimeInterval(Double(index))
         return .init(chargePercent: .init(value: 80, source: "fixture"), isExternalPower: .init(value: ac, source: "fixture"), collectedAt: at,

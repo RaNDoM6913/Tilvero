@@ -15936,6 +15936,54 @@
           }
         }
       }
+    },
+    "battery · V×A estimate": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "battery · V×A estimate"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "батарея · оценка V×A"
+          }
+        }
+      }
+    },
+    "Adapter input — a different boundary": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adapter input — a different boundary"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вход адаптера — другая граница измерения"
+          }
+        }
+      }
+    },
+    "Adapter not connected — no reading": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adapter not connected — no reading"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Адаптер не подключён — чтения нет"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
