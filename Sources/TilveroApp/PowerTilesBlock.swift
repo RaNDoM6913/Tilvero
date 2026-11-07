@@ -35,6 +35,8 @@ import PowerCore
                 PowerTile(model: model, id: id, color: id == "054" ? .blue : .orange)
             }
         }
+        // The tiles stretch to the taller one (maxHeight below) but never to the height a container offers.
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 

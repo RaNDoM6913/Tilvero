@@ -16033,6 +16033,38 @@
         }
       }
     },
+    "Sparkline": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sparkline"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Линия"
+          }
+        }
+      }
+    },
+    "Chart style": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chart style"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Стиль графика"
+          }
+        }
+      }
+    },
     "battery: V×A estimate, sign: + into the battery": {
       "localizations": {
         "en": {
