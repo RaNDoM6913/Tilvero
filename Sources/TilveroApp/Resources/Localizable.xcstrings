@@ -16016,6 +16016,102 @@
           }
         }
       }
+    },
+    "Power: combined chart": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Power: combined chart"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Мощность: общий график"
+          }
+        }
+      }
+    },
+    "battery: V×A estimate, sign: + into the battery": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "battery: V×A estimate, sign: + into the battery"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "батарея: оценка V×A, знак: + в батарею"
+          }
+        }
+      }
+    },
+    "battery: sign: + into the battery": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "battery: sign: + into the battery"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "батарея: знак: + в батарею"
+          }
+        }
+      }
+    },
+    "adapter: input, a different boundary": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "adapter: input, a different boundary"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "адаптер: вход, другая граница"
+          }
+        }
+      }
+    },
+    "no reading from macOS": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "no reading from macOS"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "нет чтения от macOS"
+          }
+        }
+      }
+    },
+    "Adapter not connected — no adapter line": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adapter not connected — no adapter line"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Адаптер не подключён — линии адаптера нет"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

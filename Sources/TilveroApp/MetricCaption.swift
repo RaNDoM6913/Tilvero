@@ -12,6 +12,15 @@ enum MetricCaption {
     static let adapterAbsentKey = "Adapter not connected — no reading"
     static let allKeys = [batteryEstimateKey, adapterBoundaryKey, adapterAbsentKey]
 
+    // Combined power chart: one caption naming both boundaries, one "no adapter line" message.
+    static let combinedBatteryEstimateKey = "battery: V×A estimate, sign: + into the battery"
+    static let combinedBatterySignKey = "battery: sign: + into the battery"
+    static let combinedAdapterKey = "adapter: input, a different boundary"
+    static let combinedNoBatteryReadingKey = "no reading from macOS"
+    static let combinedAdapterNoLineKey = "Adapter not connected — no adapter line"
+    static let combinedKeys = [combinedBatteryEstimateKey, combinedBatterySignKey, combinedAdapterKey,
+                               combinedNoBatteryReadingKey, combinedAdapterNoLineKey]
+
     static func boundary(for id: String, reading: CatalogReading?) -> String? {
         guard let reading else { return nil }
         switch id {
@@ -22,6 +31,15 @@ enum MetricCaption {
         default:
             return nil
         }
+    }
+
+    /// Caption of the combined power chart. Without a battery reading there is nothing
+    /// to name a boundary for, so only the missing-reading line is shown; otherwise
+    /// both boundaries are named and the V×A estimate wording follows the provenance.
+    static func combined(batteryReading: CatalogReading?) -> String {
+        guard let batteryReading else { return L10n.text(combinedNoBatteryReadingKey) }
+        let battery = [.estimated, .inferred].contains(batteryReading.provenance) ? combinedBatteryEstimateKey : combinedBatterySignKey
+        return L10n.text(battery) + " · " + L10n.text(combinedAdapterKey)
     }
 
     static func absent(for id: String, adapterConnected: Bool) -> String? {

@@ -35,11 +35,14 @@ struct MetricChartView: View {
     let unit: String
     let density: Density
     let emptyMessage: String?
+    /// A lone series gets the soft area under its line; a combined chart keeps bare lines even when one series is absent.
+    let fillsSingleSeries: Bool
 
     init(
         specs: [MetricChartSeriesSpec], scale: MetricChartScale?, window: ClosedRange<Date>,
-        unit: String, density: Density, emptyMessage: String? = nil
+        unit: String, density: Density, emptyMessage: String? = nil, fillsSingleSeries: Bool = true
     ) {
+        self.fillsSingleSeries = fillsSingleSeries
         self.specs = specs
         self.scale = scale
         self.window = window
@@ -93,6 +96,23 @@ struct MetricChartView: View {
         return placed
     }
 
+    /// Vertical position of each series' end label inside a plot of `plotHeight`:
+    /// the newest point's y, spread so neighbours keep `minGap` apart. `nil` for a
+    /// series without a label or without data. The view draws exactly these positions.
+    nonisolated static func endLabelPositions(specs: [MetricChartSeriesSpec], scale: MetricChartScale, plotHeight: CGFloat, minGap: CGFloat = 14) -> [CGFloat?] {
+        let ys: [CGFloat?] = specs.map { spec in
+            spec.endLabel != nil && spec.series.state != .empty
+                ? spec.series.points.last.map { yPosition($0.value, scale.domain, plotHeight: plotHeight) } : nil
+        }
+        return placeEndLabels(ys, minGap: minGap, height: plotHeight)
+    }
+
+    nonisolated static func yPosition(_ value: Double, _ domain: ClosedRange<Double>, plotHeight: CGFloat) -> CGFloat {
+        let span = domain.upperBound - domain.lowerBound
+        guard span > 0 else { return plotHeight / 2 }
+        return plotHeight * CGFloat(1 - min(max((value - domain.lowerBound) / span, 0), 1))
+    }
+
     /// VoiceOver / tooltip text: unit, then per series the end label (value) with
     /// its state, then a note when the chart has recording gaps.
     nonisolated static func accessibilityText(specs: [MetricChartSeriesSpec], unit: String) -> String {
@@ -144,10 +164,7 @@ struct MetricChartView: View {
             let rect = CGRect(x: axisWidth + gutter, y: 0,
                               width: max(proxy.size.width - axisWidth - gutter - endLabelWidth, 1), height: plotHeight)
             let domain = scale.domain
-            let ys: [CGFloat?] = specs.map { spec in
-                spec.endLabel != nil && spec.series.state != .empty ? spec.series.points.last.map { yValue($0.value, domain) } : nil
-            }
-            let spread = Self.placeEndLabels(ys, minGap: 14, height: plotHeight)
+            let spread = Self.endLabelPositions(specs: specs, scale: scale, plotHeight: plotHeight)
             ZStack(alignment: .topLeading) {
                 Canvas { context, _ in draw(&context, rect: rect, scale: scale) }
                 ForEach(Self.labelledTickIndices(count: scale.ticks.count, density: density), id: \.self) { index in
@@ -194,9 +211,7 @@ struct MetricChartView: View {
     // MARK: Drawing
 
     private func yValue(_ value: Double, _ domain: ClosedRange<Double>) -> CGFloat {
-        let span = domain.upperBound - domain.lowerBound
-        guard span > 0 else { return plotHeight / 2 }
-        return plotHeight * CGFloat(1 - min(max((value - domain.lowerBound) / span, 0), 1))
+        Self.yPosition(value, domain, plotHeight: plotHeight)
     }
 
     private func xValue(_ date: Date, _ rect: CGRect) -> CGFloat {
@@ -259,7 +274,7 @@ struct MetricChartView: View {
                 var line = Path()
                 line.move(to: pts[0])
                 pts.dropFirst().forEach { line.addLine(to: $0) }
-                if specs.count == 1 {
+                if specs.count == 1 && fillsSingleSeries {
                     var area = line
                     area.addLine(to: CGPoint(x: pts[pts.count - 1].x, y: baseline))
                     area.addLine(to: CGPoint(x: pts[0].x, y: baseline))

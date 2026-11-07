@@ -13,18 +13,18 @@ import PowerTelemetry
     func testNewPowerCardsAppendHiddenWithoutReplacingSavedComposition() {
         let saved = OverviewPreferences.load(Data(#"{"order":["history","power","temperature","forecast","chargeLimit","keepAwake"],"hidden":["temperature"]}"#.utf8))
         XCTAssertEqual(Array(saved.order.prefix(6)).map(\.rawValue), ["history","power","temperature","forecast","chargeLimit","keepAwake"])
-        XCTAssertEqual(Array(saved.order.suffix(6)).map(\.rawValue), ["systemPower","adapter","batteryHealth","applications","keyboardBacklight","powerTiles"])
-        XCTAssertEqual(saved.hidden.map(\.rawValue).sorted(), ["adapter","applications","batteryHealth","keyboardBacklight","powerTiles","systemPower","temperature"])
+        XCTAssertEqual(Array(saved.order.suffix(7)).map(\.rawValue), ["systemPower","adapter","batteryHealth","applications","keyboardBacklight","powerTiles","powerCombined"])
+        XCTAssertEqual(saved.hidden.map(\.rawValue).sorted(), ["adapter","applications","batteryHealth","keyboardBacklight","powerCombined","powerTiles","systemPower","temperature"])
     }
     func testPowerTilesAppendHiddenAndKeepSavedComposition() throws {
-        XCTAssertEqual(OverviewMetric.allCases.last, .powerTiles, "The tiles block is appended last.")
+        XCTAssertEqual(Array(OverviewMetric.allCases.suffix(2)), [.powerTiles, .powerCombined], "The tiles block keeps its place; the combined chart is appended after it.")
         XCTAssertEqual(OverviewMetric.powerTiles.title, "Power tiles")
         XCTAssertEqual(L10n.text("Power tiles"), L10n.language == "ru" ? "Мощность: тайлы" : "Power tiles")
         XCTAssertTrue(OverviewPreferences().hidden.contains(.powerTiles), "Off by default for new users too.")
         // A composition saved before the block existed: order kept, the block appended hidden and never visible.
         let saved = OverviewPreferences.load(Data(#"{"order":["history","power","forecast"],"hidden":["forecast"]}"#.utf8))
         XCTAssertEqual(Array(saved.order.prefix(3)).map(\.rawValue), ["history", "power", "forecast"])
-        XCTAssertEqual(saved.order.last, .powerTiles)
+        XCTAssertEqual(Array(saved.order.suffix(2)), [.powerTiles, .powerCombined])
         XCTAssertTrue(saved.hidden.contains(.powerTiles))
         XCTAssertFalse(saved.hidden.contains(.power), "A visible saved block stays visible.")
         // An owner who enabled it keeps it enabled across a save/load round trip.
@@ -65,6 +65,135 @@ import PowerTelemetry
         let layout = MetricChartView.layout(specs: [empty], scale: MetricChartScale.scale(forMetric: "054", values: []), density: .compact)
         XCTAssertTrue(layout.isDashedEmpty)
         XCTAssertEqual(layout.valueTickCount, 0)
+    }
+    // MARK: Variant C - one combined chart
+
+    private let combinedWindow = Date(timeIntervalSince1970: 1_800_000_000)...Date(timeIntervalSince1970: 1_800_003_600)
+    private func combinedSeries(_ values: [Double]) -> MetricChartSeries {
+        let step = 3600.0 / Double(values.count)
+        let points = values.enumerated().map {
+            HistoryChartPoint(id: UUID(), date: combinedWindow.lowerBound.addingTimeInterval(step * Double($0.offset + 1) - 1), value: $0.element, series: "s")
+        }
+        return .make(points: points, window: combinedWindow, now: combinedWindow.upperBound)
+    }
+    func testCombinedScaleComesFromUnionOfBothSeries() {
+        let battery = combinedSeries([-12, -10, -9])
+        let adapter = combinedSeries([30, 35, 38])
+        let union = MetricChartScale.scale(forMetric: "038", values: [-12, -10, -9, 30, 35, 38])
+        let combined = PowerCombinedBlock.combinedScale(battery: battery, adapter: adapter)
+        XCTAssertEqual(combined, union)
+        let batteryOnly = MetricChartScale.scale(forMetric: "038", values: [-12, -10, -9])
+        XCTAssertNotEqual(combined, batteryOnly, "The adapter values widen the shared axis.")
+        XCTAssertTrue(try XCTUnwrap(combined).domain.contains(38))
+        XCTAssertTrue(try XCTUnwrap(combined).domain.contains(-12))
+        XCTAssertTrue(try XCTUnwrap(combined).domain.contains(0), "Power axes always include zero.")
+        // Without an adapter series the scale is the battery's own (never padded by a phantom zero line).
+        XCTAssertEqual(PowerCombinedBlock.combinedScale(battery: battery, adapter: nil), batteryOnly)
+    }
+    func testEndLabelsNeverOverlap() {
+        // Last values 0.5 W apart on a 0...30 W axis: 120 pt plot, so the raw label centres are 2 pt apart.
+        let battery = combinedSeries([13.0, 13.9]), adapter = combinedSeries([17.5, 14.4])
+        let scale = PowerCombinedBlock.combinedScale(battery: battery, adapter: adapter)
+        let content = PowerCombinedBlock.content(battery: reading("038", value: 13.9, provenance: .estimated),
+                                                 adapter: reading("054", value: 14.4, provenance: .measured), adapterConnected: true)
+        let specs = PowerCombinedBlock.specs(content: content, battery: battery, adapter: adapter)
+        XCTAssertEqual(specs.count, 2)
+        let ys = MetricChartView.endLabelPositions(specs: specs, scale: try! XCTUnwrap(scale), plotHeight: 120, minGap: 14)
+        let placed = ys.compactMap { $0 }
+        XCTAssertEqual(placed.count, 2)
+        XCTAssertGreaterThanOrEqual(abs(placed[0] - placed[1]), 12)
+        XCTAssertTrue(placed.allSatisfy { $0 >= 0 && $0 <= 120 }, "Labels stay inside the plot.")
+        // The same on the compact plot height, and for identical last values.
+        let tight = MetricChartView.endLabelPositions(specs: specs, scale: try! XCTUnwrap(scale), plotHeight: 70, minGap: 14).compactMap { $0 }
+        XCTAssertGreaterThanOrEqual(abs(tight[0] - tight[1]), 12)
+        let same = [combinedSeries([5.0]), combinedSeries([5.0])]
+        let sameSpecs = zip(["a", "b"], same).map { MetricChartSeriesSpec(id: $0, series: $1, color: .blue, endLabel: $0) }
+        let sameYs = MetricChartView.endLabelPositions(specs: sameSpecs, scale: try! XCTUnwrap(MetricChartScale.scale(forMetric: "038", values: [5])), plotHeight: 120, minGap: 14).compactMap { $0 }
+        XCTAssertGreaterThanOrEqual(abs(sameYs[0] - sameYs[1]), 12)
+    }
+    func testEndLabelsReadAsTitleAndNumberFromTheSharedPresentation() {
+        let saved = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
+        UserDefaults.standard.setVolatileDomain(saved.merging(["language": "ru"]) { _, value in value }, forName: UserDefaults.argumentDomain)
+        defer { UserDefaults.standard.setVolatileDomain(saved, forName: UserDefaults.argumentDomain) }
+        let content = PowerCombinedBlock.content(battery: reading("038", value: -10.4, provenance: .estimated),
+                                                 adapter: reading("054", value: 38.2, provenance: .measured), adapterConnected: true)
+        // Number formatting is the shared presentation's (locale decimal comma, no unit, no approximation prefix).
+        XCTAssertEqual(content.batteryLabel, "Батарея -10,4")
+        XCTAssertEqual(content.adapterLabel, "Адаптер 38,2")
+        XCTAssertEqual(content.title, "Мощность")
+        XCTAssertEqual(content.caption, "батарея: оценка V×A, знак: + в батарею · адаптер: вход, другая граница")
+        // A measured battery reading does not claim an estimate.
+        let measured = PowerCombinedBlock.content(battery: reading("038", value: -10, provenance: .measured), adapter: nil, adapterConnected: true)
+        XCTAssertFalse(measured.caption.contains("V×A"))
+        XCTAssertTrue(measured.caption.contains("адаптер"))
+    }
+    func testAdapterMissingDrawsOnlyBatteryLineAndOneMessage() {
+        let battery = combinedSeries([-10, -9.5, -10.4]), adapter = combinedSeries([5, 6, 7])
+        let absent = L10n.text("Adapter not connected — no adapter line")
+        XCTAssertEqual(absent, L10n.language == "ru" ? "Адаптер не подключён — линии адаптера нет" : "Adapter not connected — no adapter line")
+        for adapterReading in [nil, reading("054", value: nil, provenance: .measured)] {
+            let content = PowerCombinedBlock.content(battery: reading("038", value: -10.4, provenance: .estimated), adapter: adapterReading, adapterConnected: false)
+            XCTAssertEqual(content.absentMessage, absent, "The message appears exactly once.")
+            XCTAssertNil(content.adapterLabel)
+            XCTAssertFalse(content.caption.contains(absent))
+            // Even if the history still holds earlier adapter samples, an unplugged adapter draws no line and does not widen the axis.
+            let specs = PowerCombinedBlock.specs(content: content, battery: battery, adapter: adapter)
+            XCTAssertEqual(specs.map(\.id), ["038"], "Only the battery series is drawn, never a zero adapter line.")
+            XCTAssertEqual(PowerCombinedBlock.combinedScale(battery: battery, adapter: content.drawsAdapter ? adapter : nil),
+                           MetricChartScale.scale(forMetric: "038", values: [-10, -9.5, -10.4]))
+        }
+        // Unknown external-power state counts as connected: both lines, no "not connected" claim.
+        let unknown = PowerCombinedBlock.content(battery: reading("038", value: -10.4, provenance: .estimated), adapter: nil, adapterConnected: true)
+        XCTAssertNil(unknown.absentMessage)
+        XCTAssertEqual(PowerCombinedBlock.specs(content: unknown, battery: battery, adapter: adapter).map(\.id), ["038", "054"])
+        // No battery reading: the missing-reading caption, never a zero.
+        let nothing = PowerCombinedBlock.content(battery: nil, adapter: nil, adapterConnected: true)
+        XCTAssertEqual(nothing.caption, L10n.text("no reading from macOS"))
+        XCTAssertNil(nothing.batteryLabel)
+    }
+    func testNoLegendIsRendered() {
+        let battery = combinedSeries([-10, -9, -10]), adapter = combinedSeries([30, 31, 32])
+        let content = PowerCombinedBlock.content(battery: reading("038", value: -10, provenance: .estimated),
+                                                 adapter: reading("054", value: 32, provenance: .measured), adapterConnected: true)
+        let specs = PowerCombinedBlock.specs(content: content, battery: battery, adapter: adapter)
+        let layout = MetricChartView.layout(specs: specs, scale: PowerCombinedBlock.combinedScale(battery: battery, adapter: adapter), density: .full)
+        XCTAssertEqual(specs.count, 2)
+        XCTAssertFalse(layout.hasLegend)
+        XCTAssertFalse(layout.isDashedEmpty)
+        XCTAssertTrue(specs.allSatisfy { $0.endLabel != nil }, "Lines are named by end labels instead.")
+    }
+    func testCombinedStringsHaveRuAndEn() throws {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/TilveroApp/Resources/Localizable.xcstrings")
+        let root = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        let strings = try XCTUnwrap(root["strings"] as? [String: [String: Any]])
+        for key in MetricCaption.combinedKeys + [OverviewMetric.powerCombined.title, "Power"] {
+            let localizations = try XCTUnwrap(strings[key]?["localizations"] as? [String: [String: Any]], key)
+            for language in ["en", "ru"] {
+                let unit = localizations[language]?["stringUnit"] as? [String: String] ?? [:]
+                XCTAssertEqual(unit["state"], "translated", "\(key) \(language)")
+                XCTAssertFalse((unit["value"] ?? "").isEmpty, "\(key) \(language)")
+            }
+        }
+        XCTAssertEqual(OverviewMetric.powerCombined.title, "Power: combined chart")
+    }
+    func testCombinedChartRendersTwoRealLinesInLightAndDark() async throws {
+        let saved = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
+        UserDefaults.standard.setVolatileDomain(saved.merging(["language": "ru"]) { _, value in value }, forName: UserDefaults.argumentDomain)
+        defer { UserDefaults.standard.setVolatileDomain(saved, forName: UserDefaults.argumentDomain) }
+        let connected = try await renderModel(minutesOfHistory: 55, adapterConnected: true)
+        defer { connected.cleanup() }
+        let discharge = try await renderModel(minutesOfHistory: 55, adapterConnected: false)
+        defer { discharge.cleanup() }
+        for scheme in [ColorScheme.light, .dark] {
+            let two = try renderBlock(PowerCombinedBlock(model: connected.model), width: 320, scheme: scheme, label: "combined-connected")
+            XCTAssertGreaterThan(two.orange, 100, "Battery line is drawn (\(scheme)).")
+            XCTAssertGreaterThan(two.blue, 100, "Adapter line is drawn (\(scheme)).")
+            let one = try renderBlock(PowerCombinedBlock(model: discharge.model), width: 320, scheme: scheme, label: "combined-discharge")
+            XCTAssertGreaterThan(one.orange, 100)
+            XCTAssertEqual(one.blue, 0, "No adapter line while unplugged (\(scheme)).")
+            XCTAssertEqual(two.size.width, 320)
+        }
     }
     /// 360 pt popover minus the panel's 2 x 20 pt padding, two tiles and the gap between them.
     private var tileWidth: CGFloat { (360 - 40 - PowerTilesBlock.spacing) / 2 }
@@ -111,17 +240,28 @@ import PowerTelemetry
         }
     }
     private func renderTiles(_ model: TilveroModel, width: CGFloat, scheme: ColorScheme, label: String = "tiles") throws -> CGSize {
-        let view = PowerTilesBlock(model: model).frame(width: width)
+        try renderBlock(PowerTilesBlock(model: model), width: width, scheme: scheme, label: label).size
+    }
+    /// Renders a block offscreen; returns its size and how many sampled pixels are saturated orange / blue (the two chart lines).
+    private func renderBlock<V: View>(_ block: V, width: CGFloat, scheme: ColorScheme, label: String) throws -> (size: CGSize, orange: Int, blue: Int) {
+        let view = block.frame(width: width)
             .background(scheme == .dark ? Color.black : Color.white).environment(\.colorScheme, scheme)
         let renderer = ImageRenderer(content: view)
         renderer.scale = 1
         let image = try XCTUnwrap(renderer.cgImage)
         let bitmap = NSBitmapImageRep(cgImage: image)
         var colors = Set<UInt32>()
-        for x in stride(from: 0, to: bitmap.pixelsWide, by: 2) {
-            for y in stride(from: 0, to: bitmap.pixelsHigh, by: 2) {
+        var orange = 0, blue = 0
+        for x in 0..<bitmap.pixelsWide {
+            for y in 0..<bitmap.pixelsHigh {
                 guard let c = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { continue }
-                colors.insert(UInt32(c.redComponent * 255) << 16 | UInt32(c.greenComponent * 255) << 8 | UInt32(c.blueComponent * 255))
+                if x % 2 == 0 && y % 2 == 0 {
+                    colors.insert(UInt32(c.redComponent * 255) << 16 | UInt32(c.greenComponent * 255) << 8 | UInt32(c.blueComponent * 255))
+                }
+                if c.saturationComponent > 0.6, c.brightnessComponent > 0.5 {
+                    if (0.04...0.13).contains(c.hueComponent) { orange += 1 }
+                    if (0.55...0.67).contains(c.hueComponent) { blue += 1 }
+                }
             }
         }
         XCTAssertGreaterThan(colors.count, 2, "The bitmap must not be blank.")
@@ -129,7 +269,7 @@ import PowerTelemetry
             try? FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
             try png.write(to: URL(fileURLWithPath: folder + "/\(label)-\(scheme == .dark ? "dark" : "light").png"))
         }
-        return CGSize(width: image.width, height: image.height)
+        return (CGSize(width: image.width, height: image.height), orange, blue)
     }
     /// A model whose history holds `minutesOfHistory` of battery-power samples (adapter samples only when connected).
     private func renderModel(minutesOfHistory: Int, adapterConnected: Bool) async throws -> (model: TilveroModel, cleanup: () -> Void) {
