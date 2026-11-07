@@ -127,6 +127,31 @@ import PowerTelemetry
         XCTAssertFalse(measured.caption.contains("V×A"))
         XCTAssertTrue(measured.caption.contains("адаптер"))
     }
+    func testRussianEndLabelsFitTheLabelFrameAt360() {
+        let saved = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
+        UserDefaults.standard.setVolatileDomain(saved.merging(["language": "ru"]) { _, value in value }, forName: UserDefaults.argumentDomain)
+        defer { UserDefaults.standard.setVolatileDomain(saved, forName: UserDefaults.argumentDomain) }
+        // 360 pt popover minus panel padding 2 x 20 and card padding 2 x 12, then axis, gutter and the label column.
+        let inner: CGFloat = 360 - 2 * 20 - 2 * 12
+        let plot = inner - 30 - 6 - MetricChartView.endLabelColumnWidth
+        XCTAssertGreaterThanOrEqual(plot, 140, "The plot keeps a usable width after the wider label column.")
+        let frame = MetricChartView.endLabelFrameWidth
+        let font = MetricChartView.endLabelFont
+        XCTAssertEqual(font.pointSize, 11)
+        let labels = [("038", -10.4), ("054", 38.25), ("038", -100.5), ("054", 38.2)].compactMap { id, value in
+            PowerCombinedBlock.endLabel(titleKey: id == "054" ? "Adapter" : "Battery (short)",
+                                        reading: reading(id, value: value, provenance: id == "038" ? .estimated : .measured), fahrenheit: false)
+        }
+        XCTAssertEqual(labels, ["Батарея -10,4", "Адаптер 38,25", "Батарея -100,5", "Адаптер 38,2"])
+        for label in labels {
+            let width = ceil((label as NSString).size(withAttributes: [.font: font]).width)
+            XCTAssertLessThanOrEqual(width, frame, "\(label) is \(width) pt in a \(frame) pt frame")
+            XCTAssertTrue(MetricChartView.endLabelFits(label), label)
+            XCTAssertGreaterThanOrEqual(frame / width, 0.85, "never needs scaling below 0.85")
+        }
+        XCTAssertTrue(MetricChartView.endLabelFits("Battery -10.4"))
+        XCTAssertFalse(MetricChartView.endLabelFits("Батарея -1000,55 мощность"), "The helper does report overflow.")
+    }
     func testAdapterMissingDrawsOnlyBatteryLineAndOneMessage() {
         let battery = combinedSeries([-10, -9.5, -10.4]), adapter = combinedSeries([5, 6, 7])
         let absent = L10n.text("Adapter not connected — no adapter line")

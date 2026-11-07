@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 RaNDoM6913
 
+import AppKit
 import SwiftUI
 
 /// One line of a chart: the pure series, its colour and an optional end label
@@ -136,7 +137,16 @@ struct MetricChartView: View {
     private var plotHeight: CGFloat { density == .full ? 120 : 70 }
     private let axisWidth: CGFloat = 30
     private let gutter: CGFloat = 6
-    private var endLabelWidth: CGFloat { specs.contains { $0.endLabel != nil } ? 84 : 0 }
+    /// Column reserved right of the plot for end labels: an 8 pt lead-in plus a label frame wide enough
+    /// for the longest realistic Russian label ("Батарея -100,5" is about 85 pt in 11 pt semibold).
+    nonisolated static let endLabelColumnWidth: CGFloat = 96
+    nonisolated static let endLabelFrameWidth: CGFloat = endLabelColumnWidth - 8
+    nonisolated static var endLabelFont: NSFont { NSFont.systemFont(ofSize: 11, weight: .semibold) }
+    /// Whether `text` fits the label frame at full size (the view still allows a 0.85 shrink as a safety net).
+    nonisolated static func endLabelFits(_ text: String) -> Bool {
+        ceil((text as NSString).size(withAttributes: [.font: endLabelFont]).width) <= endLabelFrameWidth
+    }
+    private var endLabelWidth: CGFloat { specs.contains { $0.endLabel != nil } ? Self.endLabelColumnWidth : 0 }
 
     var body: some View {
         let text = Self.accessibilityText(specs: specs, unit: unit)
@@ -175,7 +185,7 @@ struct MetricChartView: View {
                 }
                 ForEach(Array(specs.enumerated()), id: \.element.id) { index, spec in
                     if let label = spec.endLabel, let labelY = spread[index] {
-                        Text(label).font(.system(size: 11, weight: .semibold)).lineLimit(1)
+                        Text(label).font(.system(size: 11, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.85)
                             .frame(width: endLabelWidth - 8, alignment: .leading)
                             .position(x: rect.maxX + 8 + (endLabelWidth - 8) / 2, y: labelY)
                     }
