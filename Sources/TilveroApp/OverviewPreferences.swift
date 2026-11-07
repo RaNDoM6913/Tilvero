@@ -65,11 +65,28 @@ struct OverviewDragState {
         return preferences.acceptDrop(payload, session: session, onto: target)
     }
 }
+/// How a metric card draws its last hour: the compact sparkline (default) or the
+/// full zebra chart with a value axis.
+enum MetricChartStyle: String, Codable, Sendable { case sparkline, chart }
+
+extension OverviewMetric {
+    /// Blocks that take a chart style (battery power, system, adapter input, temperature).
+    var supportsChartStyle: Bool {
+        switch self {
+        case .power, .systemPower, .adapter, .temperature: true
+        default: false
+        }
+    }
+}
+
 struct OverviewPreferences: Codable, Equatable {
     var order = OverviewMetric.allCases
     var hidden: Set<OverviewMetric> = [.chargeLimit, .keepAwake, .systemPower, .adapter, .batteryHealth, .applications, .keyboardBacklight]
+    /// Per-metric overrides; a metric without an entry uses `.sparkline`.
+    var chartStyles: [OverviewMetric: MetricChartStyle] = [:]
     init() {}
-    private enum CodingKeys: String, CodingKey { case order, hidden }
+    private enum CodingKeys: String, CodingKey { case order, hidden, chartStyles }
+    func chartStyle(for metric: OverviewMetric) -> MetricChartStyle { chartStyles[metric] ?? .sparkline }
     init(from decoder: any Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         let rawOrder = try values.decodeIfPresent([String].self, forKey: .order) ?? OverviewMetric.allCases.map(\.rawValue)
@@ -81,11 +98,21 @@ struct OverviewPreferences: Codable, Equatable {
         order = known + additions
         hidden = Set(try values.decodeIfPresent([String].self, forKey: .hidden)?.compactMap(OverviewMetric.init(rawValue:)) ?? Array(Self().hidden))
         hidden.formUnion(additions.filter { Self().hidden.contains($0) })
+        // Tolerant on purpose: a missing, mistyped or partly unknown map never costs the saved composition.
+        let rawStyles = (try? values.decodeIfPresent([String: String].self, forKey: .chartStyles)) ?? nil
+        chartStyles = (rawStyles ?? [:]).reduce(into: [:]) { result, entry in
+            if let metric = OverviewMetric(rawValue: entry.key), let style = MetricChartStyle(rawValue: entry.value) {
+                result[metric] = style
+            }
+        }
     }
     func encode(to encoder: any Encoder) throws {
         var values = encoder.container(keyedBy: CodingKeys.self)
         try values.encode(order.map(\.rawValue), forKey: .order)
         try values.encode(hidden.map(\.rawValue).sorted(), forKey: .hidden)
+        if !chartStyles.isEmpty {
+            try values.encode(Dictionary(uniqueKeysWithValues: chartStyles.map { ($0.key.rawValue, $0.value.rawValue) }), forKey: .chartStyles)
+        }
     }
     static func load(_ data: Data?) -> Self {
         guard let data, let value = try? JSONDecoder().decode(Self.self, from: data) else { return .init() }

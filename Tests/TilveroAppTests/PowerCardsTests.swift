@@ -100,6 +100,40 @@ import PowerTelemetry
         }
         XCTAssertEqual(Set(MetricCaption.allKeys).count, 3)
     }
+    func testTemperatureHasNoChartInSparklineStyle() {
+        XCTAssertFalse(PowerMetricCard.showsChart(id: "039", style: .sparkline))
+        XCTAssertFalse(PowerMetricCard.showsSparkline(id: "039", style: .sparkline), "Temperature never had a sparkline on the quick page.")
+        XCTAssertTrue(PowerMetricCard.showsChart(id: "039", style: .chart))
+        XCTAssertFalse(PowerMetricCard.showsSparkline(id: "039", style: .chart))
+        for id in ["038", "043", "054"] {
+            XCTAssertTrue(PowerMetricCard.showsSparkline(id: id, style: .sparkline), id)
+            XCTAssertFalse(PowerMetricCard.showsChart(id: id, style: .sparkline), id)
+            XCTAssertTrue(PowerMetricCard.showsChart(id: id, style: .chart), id)
+            XCTAssertFalse(PowerMetricCard.showsSparkline(id: id, style: .chart), id)
+        }
+        XCTAssertFalse(PowerMetricCard.showsChart(id: "026", style: .chart), "Capacity retention takes no chart style.")
+        XCTAssertFalse(PowerMetricCard.showsSparkline(id: "026", style: .chart))
+    }
+    func testChartStyleUsesDataDrivenScaleWithZeroOnlyForPower() throws {
+        let values = [3.2, 4.1, 5.0]
+        for id in ["038", "043", "054"] {
+            let scale = try XCTUnwrap(MetricChartScale.scale(forMetric: id, values: values), id)
+            XCTAssertEqual(scale.ticks.first, 0, "Power axes are anchored at zero (\(id)).")
+        }
+        let temperature = try XCTUnwrap(MetricChartScale.scale(forMetric: "039", values: [31.2, 33.5, 34.0]))
+        XCTAssertGreaterThan(try XCTUnwrap(temperature.ticks.first), 0, "Temperature must not force zero.")
+        XCTAssertLessThanOrEqual(try XCTUnwrap(temperature.ticks.first), 31.2)
+        XCTAssertGreaterThanOrEqual(try XCTUnwrap(temperature.ticks.last), 34.0)
+        XCTAssertNil(MetricChartScale.scale(forMetric: "038", values: []), "No data, no scale; the chart shows its empty frame.")
+    }
+    func testChartUnitComesFromTheReadingAndTemperatureFollowsFahrenheit() {
+        XCTAssertEqual(PowerMetricCard.chartUnit(id: "038", readingUnit: "W", fahrenheit: false, language: "ru"), "Вт")
+        XCTAssertEqual(PowerMetricCard.chartUnit(id: "038", readingUnit: nil, fahrenheit: false, language: "en"), "W")
+        XCTAssertEqual(PowerMetricCard.chartUnit(id: "039", readingUnit: "°C", fahrenheit: false, language: "ru"), "°C")
+        XCTAssertEqual(PowerMetricCard.chartUnit(id: "039", readingUnit: nil, fahrenheit: true, language: "ru"), "°F")
+        XCTAssertEqual(PowerMetricCard.chartValue(20, id: "039", fahrenheit: true), 68)
+        XCTAssertEqual(PowerMetricCard.chartValue(20, id: "038", fahrenheit: true), 20)
+    }
     private func sample(_ index: Int, _ date: Date, value: Double?, freshness: TelemetryFreshness = .unknown, source: String = "fixture", ac: Bool = true) -> BatterySnapshot {
         let at = date.addingTimeInterval(Double(index))
         return .init(chargePercent: .init(value: 80, source: "fixture"), isExternalPower: .init(value: ac, source: "fixture"), collectedAt: at,

@@ -42,10 +42,31 @@ enum PowerMetricHistory {
     var color: Color = .orange
     /// The adapter card renders its own caption list so the absent message appears exactly once.
     var showsCaptions = true
+    /// Replaces the default caption list (the adapter card adds its rated-capability line).
+    var captionOverride: [String]?
+    /// Sparkline (default, unchanged look) or the full chart with a value axis.
+    var style: MetricChartStyle = .sparkline
     private var reading: CatalogReading? { model.snapshot.catalog.first { $0.id == id } }
     static func captionLines(id: String, reading: CatalogReading?, adapterConnected: Bool) -> [String] {
         [MetricCaption.absent(for: id, adapterConnected: adapterConnected),
          MetricCaption.boundary(for: id, reading: reading)].compactMap { $0 }
+    }
+    /// Only battery power, system, adapter input and temperature can take the full chart.
+    static func showsChart(id: String, style: MetricChartStyle) -> Bool {
+        style == .chart && ["038", "043", "054", "039"].contains(id)
+    }
+    /// Temperature and capacity retention never had a sparkline on the quick page.
+    static func showsSparkline(id: String, style: MetricChartStyle) -> Bool {
+        id != "039" && id != "026" && !showsChart(id: id, style: style)
+    }
+    /// Axis unit: the reading's own unit (localised), the metric's natural unit when
+    /// the reading is missing, and Fahrenheit for a converted temperature.
+    static func chartUnit(id: String, readingUnit: String?, fahrenheit: Bool, language: String = L10n.language) -> String {
+        if id == "039" && fahrenheit { return "°F" }
+        return CatalogDataPresentation.unit(readingUnit ?? (id == "039" ? "°C" : "W"), language: language)
+    }
+    static func chartValue(_ value: Double, id: String, fahrenheit: Bool) -> Double {
+        id == "039" && fahrenheit ? value * 9 / 5 + 32 : value
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -56,14 +77,41 @@ enum PowerMetricHistory {
                 if reading?.freshness == .stale { Text(L10n.text("Stale")).font(.caption2).foregroundStyle(.orange) }
             }.font(.subheadline)
             if showsCaptions {
-                ForEach(Self.captionLines(id: id, reading: reading, adapterConnected: model.snapshot.isExternalPower.value != false), id: \.self) {
+                ForEach(captionOverride ?? Self.captionLines(id: id, reading: reading, adapterConnected: model.snapshot.isExternalPower.value != false), id: \.self) {
                     Text($0).font(.caption2).foregroundStyle(.secondary)
                 }
             }
-            if id != "039" && id != "026" {
+            if Self.showsChart(id: id, style: style) {
+                chart
+            } else if Self.showsSparkline(id: id, style: style) {
                 MetricSparkline(model: model, id: id, color: color)
             }
         }.help(reading.map { L10n.text("Source") + ": " + $0.source + " · " + L10n.text("Freshness") + ": " + $0.freshness.rawValue + "\n" + L10n.text($0.reason ?? "Recorded observations during the last hour.") } ?? L10n.text("Unavailable"))
+    }
+}
+
+extension PowerMetricCard {
+    @ViewBuilder fileprivate var chart: some View {
+        let fahrenheit = model.fahrenheit
+        let series = model.metricSeries(id: id).convertingValues { Self.chartValue($0, id: id, fahrenheit: fahrenheit) }
+        MetricChartView(
+            specs: [MetricChartSeriesSpec(id: id, series: series, color: color, endLabel: nil)],
+            scale: MetricChartScale.scale(forMetric: id, values: series.points.map(\.value)),
+            window: model.overviewChartWindow,
+            unit: Self.chartUnit(id: id, readingUnit: reading?.unit, fahrenheit: fahrenheit),
+            density: .full,
+            emptyMessage: L10n.text("No recorded measurements yet"))
+    }
+}
+
+extension MetricChartSeries {
+    /// The same series with every value mapped (unit conversion); dates, gaps and state are untouched.
+    func convertingValues(_ transform: (Double) -> Double) -> MetricChartSeries {
+        func map(_ point: HistoryChartPoint) -> HistoryChartPoint {
+            HistoryChartPoint(id: point.id, date: point.date, value: transform(point.value), series: point.series)
+        }
+        return MetricChartSeries(points: points.map(map), gaps: gaps.map { .init(start: map($0.start), end: map($0.end)) },
+                                 isolatedPoints: isolatedPoints.map(map), staleSince: staleSince, state: state)
     }
 }
 
@@ -90,6 +138,7 @@ enum PowerMetricHistory {
 
 @MainActor struct AdapterMetricCard: View {
     @ObservedObject var model: TilveroModel
+    var style: MetricChartStyle = .sparkline
     private var inputReading: CatalogReading? { model.snapshot.catalog.first { $0.id == "054" } }
     private var ratingReading: CatalogReading? { model.snapshot.catalog.first { $0.id == "050" } }
     /// Unknown external-power state is not reported as "not connected".
@@ -102,9 +151,15 @@ enum PowerMetricHistory {
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            PowerMetricCard(model: model, title: "Adapter input", symbol: "powerplug", id: "054", color: .blue, showsCaptions: false)
-            ForEach(Self.captionLines(input: inputReading, rating: ratingReading, adapterConnected: adapterConnected), id: \.self) {
-                Text($0).font(.caption2).foregroundStyle(.secondary)
+            if style == .chart {
+                // The captions sit under the title, above the chart, as in the sparkline-free layout.
+                PowerMetricCard(model: model, title: "Adapter input", symbol: "powerplug", id: "054", color: .blue,
+                                captionOverride: Self.captionLines(input: inputReading, rating: ratingReading, adapterConnected: adapterConnected), style: style)
+            } else {
+                PowerMetricCard(model: model, title: "Adapter input", symbol: "powerplug", id: "054", color: .blue, showsCaptions: false, style: style)
+                ForEach(Self.captionLines(input: inputReading, rating: ratingReading, adapterConnected: adapterConnected), id: \.self) {
+                    Text($0).font(.caption2).foregroundStyle(.secondary)
+                }
             }
         }.help(L10n.text("Adapter input and battery power measure different electrical boundaries. Rated capability is not current consumption."))
     }

@@ -590,6 +590,16 @@ final class TilveroModel: ObservableObject {
             ChartObservation(id: $0.id, date: $0.collectedAt, value: $0.chargePercent, continuityID: $0.segmentID.uuidString)
         })
     }
+    /// Window of every overview chart: the last hour up to the newest snapshot.
+    var overviewChartWindow: ClosedRange<Date> {
+        snapshot.collectedAt.addingTimeInterval(-3600)...snapshot.collectedAt
+    }
+    /// Last-hour series of one catalog metric for the overview charts. Computed on
+    /// demand from the loaded history; a later change may memoise it behind this signature.
+    func metricSeries(id: String) -> MetricChartSeries {
+        let window = overviewChartWindow
+        return .make(points: PowerMetricHistory.points(history, id: id, since: window.lowerBound), window: window, now: snapshot.collectedAt)
+    }
     var dischargeForecast: DischargeForecast.Estimate? {
         guard !isDemo else { return nil }
         let current = DischargeForecast.currentInputs(snapshot)

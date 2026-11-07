@@ -30,11 +30,11 @@ import PowerCore
                         if allowsAwakeActions { KeepAwakePanel(model: model, compact: true).id(model.language) }
                         else { KeepAwakeSummary(service: model.keepAwake).id(model.language) }
                     }
-                case .power: PowerMetricCard(model: model, title: "Battery power", symbol: "bolt", id: "038")
-                case .temperature: PowerMetricCard(model: model, title: "Temperature", symbol: "thermometer.medium", id: "039", color: .red)
+                case .power: PowerMetricCard(model: model, title: "Battery power", symbol: "bolt", id: "038", style: model.overviewPreferences.chartStyle(for: .power))
+                case .temperature: PowerMetricCard(model: model, title: "Temperature", symbol: "thermometer.medium", id: "039", color: .red, style: model.overviewPreferences.chartStyle(for: .temperature))
                 case .applications: ProcessActivityPanel(model: model, compact: true, allowsNavigation: allowsAwakeActions).id(model.language)
-                case .systemPower: PowerMetricCard(model: model, title: "System", symbol: "desktopcomputer", id: "043")
-                case .adapter: AdapterMetricCard(model: model)
+                case .systemPower: PowerMetricCard(model: model, title: "System", symbol: "desktopcomputer", id: "043", style: model.overviewPreferences.chartStyle(for: .systemPower))
+                case .adapter: AdapterMetricCard(model: model, style: model.overviewPreferences.chartStyle(for: .adapter))
                 case .batteryHealth: BatteryHealthMetricCard(model: model)
                 case .keyboardBacklight: KeyboardBacklightQuickRow(service: model.keyboardBacklight)
                 case .chargeLimit:
