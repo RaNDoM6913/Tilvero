@@ -116,37 +116,85 @@ import SwiftUI
         XCTAssertEqual(model.overviewPreferences.chartStyle(for: .power), .sparkline)
     }
 
+    // MARK: Preview rendering
+
+    private struct PreviewRender {
+        let bitmap: NSBitmapImageRep
+        /// Sampled pixels in the saturated orange (battery line) and blue (adapter line) hue bands.
+        let orange: Int
+        let blue: Int
+    }
+    private func renderPreview(_ model: TilveroModel, layout: OverviewPreferences, scheme: ColorScheme) throws -> PreviewRender {
+        model.overviewPreferences = layout
+        let host = NSHostingController(rootView: PassiveQuickPanelPreview(model: model, section: .overview)
+            .environment(\.colorScheme, scheme))
+        let window = NSWindow(contentViewController: host)
+        window.isReleasedWhenClosed = false
+        window.appearance = NSAppearance(named: scheme == .dark ? .darkAqua : .aqua)
+        defer { window.close() }
+        let size = host.sizeThatFits(in: NSSize(width: 360, height: 8000))
+        XCTAssertTrue(size.width.isFinite && size.height.isFinite)
+        window.setContentSize(size)
+        host.view.layoutSubtreeIfNeeded()
+        let bitmap = try XCTUnwrap(host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds))
+        host.view.cacheDisplay(in: host.view.bounds, to: bitmap)
+        var orange = 0, blue = 0
+        for x in stride(from: 0, to: bitmap.pixelsWide, by: 2) {
+            for y in stride(from: 0, to: bitmap.pixelsHigh, by: 2) {
+                guard let c = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB), c.saturationComponent > 0.6, c.brightnessComponent > 0.5 else { continue }
+                if (0.04...0.13).contains(c.hueComponent) { orange += 1 }
+                if (0.55...0.67).contains(c.hueComponent) { blue += 1 }
+            }
+        }
+        if let folder = ProcessInfo.processInfo.environment["TILVERO_LOOK_DIR"], let png = bitmap.representation(using: .png, properties: [:]) {
+            try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+            let name = layout.hidden.count == OverviewMetric.allCases.count ? "none" : "\(layout.chartStyles.isEmpty ? "plain" : "styled")-\(OverviewMetric.allCases.filter { !layout.hidden.contains($0) }.map(\.rawValue).joined(separator: "+"))"
+            try png.write(to: URL(fileURLWithPath: folder + "/preview-\(name)-\(scheme == .dark ? "dark" : "light").png"))
+        }
+        return PreviewRender(bitmap: bitmap, orange: orange, blue: blue)
+    }
+    private func layout(showing visible: Set<OverviewMetric>, chartStyle: MetricChartStyle = .sparkline) -> OverviewPreferences {
+        var layout = OverviewPreferences()
+        layout.hidden = Set(OverviewMetric.allCases).subtracting(visible)
+        if chartStyle == .chart { layout.chartStyles = Dictionary(uniqueKeysWithValues: OverviewMetric.allCases.filter(\.supportsChartStyle).map { ($0, MetricChartStyle.chart) }) }
+        return layout
+    }
+
     func testPreviewRendersEveryVariant() async throws {
         let fixture = try await SeriesFixture.make()
         defer { fixture.cleanup() }
         let model = fixture.model
-        var layout = OverviewPreferences()
-        layout.hidden = []
-        layout.chartStyles = [.power: .chart, .temperature: .chart, .systemPower: .chart, .adapter: .chart]
-        model.overviewPreferences = layout
-        for scheme in [NSAppearance.Name.aqua, .darkAqua] {
-            let host = NSHostingController(rootView: PassiveQuickPanelPreview(model: model, section: .overview))
-            let window = NSWindow(contentViewController: host)
-            window.appearance = NSAppearance(named: scheme)
-            let size = host.sizeThatFits(in: NSSize(width: 360, height: 6000))
-            XCTAssertTrue(size.width.isFinite && size.height.isFinite)
-            XCTAssertGreaterThan(size.height, 800, "Every block, charts included, takes room.")
-            window.setContentSize(size)
-            host.view.layoutSubtreeIfNeeded()
-            let bitmap = try XCTUnwrap(host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds))
-            host.view.cacheDisplay(in: host.view.bounds, to: bitmap)
-            var colors = Set<UInt32>()
-            for x in stride(from: 0, to: bitmap.pixelsWide, by: 2) {
-                for y in stride(from: 0, to: bitmap.pixelsHigh, by: 2) {
-                    guard let c = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { continue }
-                    colors.insert(UInt32(c.redComponent * 255) << 16 | UInt32(c.greenComponent * 255) << 8 | UInt32(c.blueComponent * 255))
-                }
-            }
-            XCTAssertGreaterThan(colors.count, 20, "The preview bitmap must not be blank (\(scheme.rawValue)).")
-            if let folder = ProcessInfo.processInfo.environment["TILVERO_LOOK_DIR"], let png = bitmap.representation(using: .png, properties: [:]) {
-                try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
-                try png.write(to: URL(fileURLWithPath: folder + "/preview-all-variants-\(scheme == .darkAqua ? "dark" : "light").png"))
-            }
+        XCTAssertFalse(model.metricSeries(id: "038").points.isEmpty, "The injected history reaches the series.")
+        XCTAssertFalse(model.metricSeries(id: "054").points.isEmpty)
+        let everything = Set(OverviewMetric.allCases)
+        for scheme in [ColorScheme.light, .dark] {
+            let tag = "(\(scheme))"
+            // (c) With every chart block hidden no series-coloured pixel is drawn: the hue counts measure the charts, not the chrome.
+            let none = try renderPreview(model, layout: layout(showing: []), scheme: scheme)
+            XCTAssertEqual(none.orange, 0, "No battery-coloured pixels without charts \(tag).")
+            XCTAssertEqual(none.blue, 0, "No adapter-coloured pixels without charts \(tag).")
+            // Sparkline default draws the battery sparkline and the adapter sparkline.
+            let sparkline = try renderPreview(model, layout: layout(showing: [.power, .adapter]), scheme: scheme)
+            XCTAssertGreaterThan(sparkline.orange, 20, "Battery sparkline \(tag).")
+            XCTAssertGreaterThan(sparkline.blue, 20, "Adapter sparkline \(tag).")
+            // Variant A: the same cards as full charts are taller and still draw both lines.
+            let chart = try renderPreview(model, layout: layout(showing: [.power, .adapter], chartStyle: .chart), scheme: scheme)
+            XCTAssertGreaterThan(chart.bitmap.pixelsHigh, sparkline.bitmap.pixelsHigh, "Chart cards are taller than sparklines \(tag).")
+            XCTAssertGreaterThan(chart.orange, 20, "Battery chart line \(tag).")
+            XCTAssertGreaterThan(chart.blue, 20, "Adapter chart line \(tag).")
+            // Variants B and C, each alone, draw both series (the tiles' two charts, the combined chart's two lines).
+            let tiles = try renderPreview(model, layout: layout(showing: [.powerTiles]), scheme: scheme)
+            XCTAssertGreaterThan(tiles.orange, 20, "Tiles battery line \(tag).")
+            XCTAssertGreaterThan(tiles.blue, 20, "Tiles adapter line \(tag).")
+            let combined = try renderPreview(model, layout: layout(showing: [.powerCombined]), scheme: scheme)
+            XCTAssertGreaterThan(combined.orange, 20, "Combined battery line \(tag).")
+            XCTAssertGreaterThan(combined.blue, 20, "Combined adapter line \(tag).")
+            // (a) All variants on at once differ from the sparkline-only layout.
+            let all = try renderPreview(model, layout: layout(showing: everything, chartStyle: .chart), scheme: scheme)
+            let plain = try renderPreview(model, layout: layout(showing: everything.subtracting([.powerTiles, .powerCombined])), scheme: scheme)
+            XCTAssertGreaterThan(all.bitmap.pixelsHigh, plain.bitmap.pixelsHigh + 400, "Charts, tiles and combined block add height \(tag).")
+            XCTAssertGreaterThan(all.orange, plain.orange, "More battery-line pixels with every variant \(tag).")
+            XCTAssertGreaterThan(all.blue, plain.blue, "More adapter-line pixels with every variant \(tag).")
         }
     }
 
@@ -156,5 +204,22 @@ import SwiftUI
         let host = NSHostingController(rootView: PowerTilesBlock(model: fixture.model).frame(width: 320))
         let size = host.sizeThatFits(in: NSSize(width: 320, height: 8000))
         XCTAssertLessThan(size.height, 300, "Equal-height tiles stretch to each other, not to the offered height.")
+        // Both tiles' cards span the same rows (battery has no boundary caption, adapter wraps one: heights would differ unstretched).
+        let renderer = ImageRenderer(content: PowerTilesBlock(model: fixture.model).frame(width: 320).background(Color.white).environment(\.colorScheme, .light))
+        renderer.scale = 1
+        let bitmap = NSBitmapImageRep(cgImage: try XCTUnwrap(renderer.cgImage))
+        func extent(column x: Int) -> ClosedRange<Int>? {
+            let rows = (0..<bitmap.pixelsHigh).filter {
+                guard let c = bitmap.colorAt(x: x, y: $0)?.usingColorSpace(.sRGB) else { return false }
+                return c.redComponent < 0.995 || c.greenComponent < 0.995 || c.blueComponent < 0.995
+            }
+            return rows.first.flatMap { first in rows.last.map { first...$0 } }
+        }
+        let tileWidth = (320 - PowerTilesBlock.spacing) / 2
+        let left = try XCTUnwrap(extent(column: Int(tileWidth / 4)), "Left tile card drawn.")
+        let right = try XCTUnwrap(extent(column: Int(tileWidth + PowerTilesBlock.spacing + tileWidth / 4)), "Right tile card drawn.")
+        XCTAssertEqual(left.lowerBound, right.lowerBound, accuracy: 1)
+        XCTAssertEqual(left.upperBound, right.upperBound, accuracy: 1, "Both tiles share one height.")
+        XCTAssertGreaterThan(left.count, 100)
     }
 }

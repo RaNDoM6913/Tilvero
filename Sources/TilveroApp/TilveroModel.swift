@@ -596,7 +596,9 @@ final class TilveroModel: ObservableObject {
     }
     /// What a cached series depends on: the window end, how much history there is and its newest sample.
     /// `history` replaces itself wholesale (a full reload, an append after trimming the week, an erase), so the
-    /// count alone could repeat with different data; its newest sample id is added and every replacement also drops the cache.
+    /// count alone could repeat with different data; its newest sample id is added to the key. The `didSet` on
+    /// `history` is belt-and-braces beyond the key: stored samples are immutable, so no model API produces a
+    /// replacement with the same count and newest id but different older samples, and no test can isolate it.
     private struct SeriesCacheKey: Equatable { let collectedAt: Date; let count: Int; let lastSampleID: UUID? }
     private var seriesCacheKey: SeriesCacheKey?
     private var seriesCache: [String: MetricChartSeries] = [:]
