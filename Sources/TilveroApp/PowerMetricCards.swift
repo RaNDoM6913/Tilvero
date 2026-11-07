@@ -56,6 +56,8 @@ enum PowerMetricHistory {
         style == .chart && ["038", "043", "054", "039"].contains(id)
     }
     /// Temperature and capacity retention never had a sparkline on the quick page.
+    /// The rounded card chrome frames chart-style cards only; sparkline cards stay bare.
+    static func showsChrome(id: String, style: MetricChartStyle) -> Bool { showsChart(id: id, style: style) }
     static func showsSparkline(id: String, style: MetricChartStyle) -> Bool {
         id != "039" && id != "026" && !showsChart(id: id, style: style)
     }
@@ -69,6 +71,9 @@ enum PowerMetricHistory {
         id == "039" && fahrenheit ? value * 9 / 5 + 32 : value
     }
     var body: some View {
+        content.modifier(OptionalCardChrome(isOn: Self.showsChrome(id: id, style: style)))
+    }
+    private var content: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
                 Label(L10n.text(title), systemImage: symbol)
@@ -87,6 +92,13 @@ enum PowerMetricHistory {
                 MetricSparkline(model: model, id: id, color: color)
             }
         }.help(reading.map { L10n.text("Source") + ": " + $0.source + " · " + L10n.text("Freshness") + ": " + $0.freshness.rawValue + "\n" + L10n.text($0.reason ?? "Recorded observations during the last hour.") } ?? L10n.text("Unavailable"))
+    }
+}
+
+private struct OptionalCardChrome: ViewModifier {
+    let isOn: Bool
+    @ViewBuilder func body(content: Content) -> some View {
+        if isOn { content.metricCardChrome() } else { content }
     }
 }
 

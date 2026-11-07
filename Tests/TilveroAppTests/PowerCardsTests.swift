@@ -114,6 +114,15 @@ import PowerTelemetry
         XCTAssertFalse(PowerMetricCard.showsChart(id: "026", style: .chart), "Capacity retention takes no chart style.")
         XCTAssertFalse(PowerMetricCard.showsSparkline(id: "026", style: .chart))
     }
+    func testCardChromeIsAppliedOnlyInChartStyle() {
+        for id in ["038", "043", "054", "039"] {
+            XCTAssertTrue(PowerMetricCard.showsChrome(id: id, style: .chart), id)
+            XCTAssertFalse(PowerMetricCard.showsChrome(id: id, style: .sparkline), id)
+        }
+        XCTAssertFalse(PowerMetricCard.showsChrome(id: "026", style: .chart), "No chart, no chrome.")
+        XCTAssertEqual(MetricCardChrome.cornerRadius, 12)
+        XCTAssertEqual(MetricCardChrome.defaultPadding, 12)
+    }
     func testChartStyleUsesDataDrivenScaleWithZeroOnlyForPower() throws {
         let values = [3.2, 4.1, 5.0]
         for id in ["038", "043", "054"] {
