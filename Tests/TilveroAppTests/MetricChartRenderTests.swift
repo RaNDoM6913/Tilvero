@@ -64,11 +64,33 @@ import XCTest
                        "A shared gap is hatched once.")
     }
 
-    func testSpreadLabelsKeepsNeighboursApartInsideTheHeight() {
-        let placed = MetricChartView.spreadLabels([60, 62, 118], minGap: 14, height: 120)
-        XCTAssertGreaterThanOrEqual(placed[1] - placed[0], 14)
-        XCTAssertGreaterThanOrEqual(placed[2] - placed[1], 14)
-        XCTAssertLessThanOrEqual(placed[2], 120)
+    func testEmptySeriesDoesNotPushARealEndLabel() {
+        // An empty spec (or one without a label) is nil and must not move the real label from y = 10.
+        let placed = MetricChartView.placeEndLabels([nil, 10, nil], minGap: 14, height: 120)
+        XCTAssertEqual(placed[1], 10)
+        XCTAssertNil(placed[0])
+        XCTAssertNil(placed[2])
+        XCTAssertEqual(MetricChartView.placeEndLabels([60, 62, 118], minGap: 14, height: 120).map { $0! }, [55, 69, 113])
+    }
+
+    func testEndLabelsNearTheBottomKeepTheGapAndStayInsidePlot() {
+        // Two at the bottom: pushed to 116, then the overflow shifts both up so the last sits at height - gap/2.
+        XCTAssertEqual(MetricChartView.placeEndLabels([110, 112], minGap: 12, height: 120).map { $0! }, [102, 114])
+        // Three: raw 112/113/118 -> 112/124/136 -> shift 22 -> 90/102/114.
+        XCTAssertEqual(MetricChartView.placeEndLabels([112, 113, 118], minGap: 12, height: 120).map { $0! }, [90, 102, 114])
+        // Input order does not matter.
+        XCTAssertEqual(MetricChartView.placeEndLabels([118, 112, nil], minGap: 12, height: 120), [114, 102, nil])
+    }
+
+    func testAccessibilityTextForDataStaleAndEmpty() {
+        let data = MetricChartView.accessibilityText(specs: [spec("a", [point(60, -10)], label: "Батарея −10,0")], unit: "Вт")
+        XCTAssertEqual(data, "\(L10n.text("Chart")), Вт: Батарея −10,0")
+        let stale = MetricChartView.accessibilityText(specs: [spec("s", [point(0, -8)], now: now.addingTimeInterval(600), label: "Батарея −8,0")], unit: "Вт")
+        XCTAssertEqual(stale, "\(L10n.text("Chart")), Вт: Батарея −8,0 (\(L10n.text("Stale").lowercased()))")
+        let empty = MetricChartView.accessibilityText(specs: [emptySpec], unit: "Вт")
+        XCTAssertEqual(empty, "\(L10n.text("Chart")), Вт: \(L10n.text("Chart: no data"))")
+        let gap = MetricChartView.accessibilityText(specs: [gapSpec], unit: "Вт")
+        XCTAssertEqual(gap, "\(L10n.text("Chart")), Вт: \(L10n.text("No recording"))")
     }
 
     // MARK: Rendering
