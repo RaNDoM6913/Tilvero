@@ -41,7 +41,7 @@ import XCTest
 
 final class QuickPanelSectionVisibilityTests: XCTestCase {
     func testModesIsADevelopmentOnlyTab() {
-        XCTAssertEqual(QuickPanelSection.visibleSections(development: false), [.overview, .charge, .awake])
-        XCTAssertEqual(QuickPanelSection.visibleSections(development: true), [.overview, .charge, .modes, .awake])
+        XCTAssertEqual(QuickPanelSection.visibleSections(development: false), [.overview, .awake, .charge])
+        XCTAssertEqual(QuickPanelSection.visibleSections(development: true), [.overview, .awake, .charge, .modes])
     }
 }

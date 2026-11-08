@@ -6,7 +6,7 @@ import SwiftUI
 import PowerCore
 
 enum QuickPanelSection: String, CaseIterable, Identifiable {
-    case overview, charge, modes, awake
+    case overview, awake, charge, modes
     var id: String { rawValue }
 
     /// Tabs still in development (Modes) are shown only in debug and laboratory builds, never in a release.

@@ -153,7 +153,7 @@ final class QuickPanelLayoutTests: XCTestCase {
         host.onSizeChange = { size in reported = size; window.setContentSize(size) }
         let segments = try XCTUnwrap(descendants(of: host.view).compactMap { $0 as? NSSegmentedControl }.first)
         XCTAssertEqual(segments.segmentCount, 4)
-        segments.selectedSegment = 1
+        segments.selectedSegment = 2   // Charge: the tabs are Overview, Sleep, Charge, Modes
         _ = segments.sendAction(segments.action, to: segments.target)
         try await settle(host)
         XCTAssertNotEqual(host.preferredContentSize.height, oldHeight)
@@ -170,7 +170,7 @@ final class QuickPanelLayoutTests: XCTestCase {
             $0.isEditable && $0.stringValue == fixture.model.draftText
         }, "The selected Charge tab must contain its editable percentage field.")
         XCTAssertEqual(percentage.stringValue, "90")
-        XCTAssertEqual(segments.selectedSegment, 1)
+        XCTAssertEqual(segments.selectedSegment, 2)
         XCTAssertTrue(fixture.model.canEdit)
         XCTAssertTrue(fixture.model.canApply)
         XCTAssertEqual(fixture.model.sliderIndex, Double(try XCTUnwrap(fixture.model.acceptedTargets.firstIndex(of: 90))))

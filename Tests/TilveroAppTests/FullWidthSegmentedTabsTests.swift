@@ -36,7 +36,7 @@ import XCTest
                     XCTAssertEqual(control.controlSize, .regular)
                 }
                 XCTAssertEqual(upper.frame.height, lower.frame.height, accuracy: 0.5)
-                XCTAssertEqual(upper.selectedSegment, 3)
+                XCTAssertEqual(upper.selectedSegment, 1)
                 XCTAssertEqual(lower.selectedSegment, 0)
             }
         }
@@ -64,7 +64,8 @@ import XCTest
         XCTAssertEqual(lower.accessibilityLabel(), L10n.text("Sleep"))
         XCTAssertTrue(upper.acceptsFirstResponder)
         XCTAssertTrue(lower.acceptsFirstResponder)
-        for (index, expected) in [QuickPanelSection.overview, .charge, .modes, .awake].enumerated() {
+        // Tab order: Overview, Sleep, Charge, Modes. The last pick is Sleep, which the rest of the test continues from.
+        for (index, expected) in [(0, QuickPanelSection.overview), (2, .charge), (3, .modes), (1, .awake)] {
             upper.selectedSegment = index
             XCTAssertTrue(upper.sendAction(upper.action, to: upper.target))
             XCTAssertEqual(section, expected)

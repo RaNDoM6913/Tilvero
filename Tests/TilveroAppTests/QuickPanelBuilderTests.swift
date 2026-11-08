@@ -224,3 +224,11 @@ import SwiftUI
         XCTAssertGreaterThan(left.count, 100)
     }
 }
+
+@MainActor final class QuickPanelTabOrderTests: XCTestCase {
+    func testSleepComesBeforeChargeInTheQuickMenu() {
+        XCTAssertEqual(QuickPanelSection.visibleSections(development: false), [.overview, .awake, .charge])
+        XCTAssertEqual(QuickPanelSection.visibleSections(development: true), [.overview, .awake, .charge, .modes])
+        XCTAssertEqual(QuickPanelSection.awake.rawValue, "awake", "tab identities stay as they were")
+    }
+}
