@@ -4,11 +4,11 @@ Tilvero has two distribution routes. The **Source Preview** distributes code for
 
 ## Source Preview
 
-The current source release is `v0.4.0-beta.1`. It targets developers building on Apple silicon with macOS 26 or later and a compatible full Xcode installation. It includes no `.app`, helper executable or DMG. The source tree contains gated development controls as well as monitoring.
+The current source release is `v0.4.0`. It targets developers building on Apple silicon with macOS 26 or later and a compatible full Xcode installation. It includes no `.app`, helper executable or DMG. The source tree contains gated development controls as well as monitoring.
 
 The source profile's exact upload allowlist is:
 
-- `Tilvero-0.4.0-beta.1-source.zip`
+- `Tilvero-0.4.0-source.zip`
 - `source-release.json`
 - `SHA256SUMS`
 
@@ -17,7 +17,7 @@ Prepare only after every public source, document and media asset is committed an
 ```sh
 python3 scripts/source_release.py prepare --commit <full-current-commit>
 python3 scripts/source_release.py verify \
-  --manifest build/source-releases/v0.4.0-beta.1/source-release.json
+  --manifest build/source-releases/v0.4.0/source-release.json
 ```
 
 The tool requires an exact 40-character current commit, matching committed configuration, an unused local tag and the admitted public ancestry. The coordinator must also check the remote tag/release state. It exports the full committed tree, rejects private/runtime/signing files and verifies ZIP entries, raw blobs, permissions, CRC, commit identity and final checksums. Untracked and ignored local inputs never become release source. Even accidentally tracked `local-lab` paths are rejected; source exports must not contain Studio state, captures, owner data or signing material. Existing output is never replaced; failed work remains `.incomplete` for inspection.

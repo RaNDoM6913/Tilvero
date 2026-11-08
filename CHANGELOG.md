@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.0 — Overview and Keep Awake Source Preview — 2026-11-08
+
+The first stable release of the 0.4 line. It contains everything of 0.4.0-beta.1 (the Overview charge-limit
+capsule, the chart sizes, the Overview Keep Awake strip, the lid-closed switch of the sleep timer, the charge
+limit that survives quitting) plus:
+
+- Quick menu: the tabs are Overview, Sleep, Charge, because Sleep and Keep Awake are used more often than the charge limit.
+- Keep Awake: tapping the running choice on Overview ends the session, as on the Sleep tab; the countdown ticks live.
+- The closed-lid override, Keep Awake, the sleep timer and the charge limit were checked on a real Mac.
+
+This release contains source for Apple silicon with macOS 26.0+ and full Xcode; it
+includes no app or DMG. Automatic installation remains gated.
+
 ## 0.4.0-beta.1 — Overview and Keep Awake Source Preview — 2026-11-08
 
 - Overview: the macOS charge limit is shown in the battery block as an outlined capsule as wide as the battery icon (the confirmed target, 100 % while the limit is off, a blue dash while macOS has not confirmed it); tapping it opens the Charge page. The separate "Charge limit" block is gone.

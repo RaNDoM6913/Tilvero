@@ -1,8 +1,8 @@
 {
-  "tag": "v0.4.0-beta.1",
+  "tag": "v0.4.0",
   "version": "0.4.0",
-  "build": "62",
-  "channel": "beta",
+  "build": "63",
+  "channel": "stable",
   "bundleID": "io.github.random6913.tilvero",
   "helperID": "io.github.random6913.tilvero.helper",
   "guardianID": "io.github.random6913.tilvero.guardian",
