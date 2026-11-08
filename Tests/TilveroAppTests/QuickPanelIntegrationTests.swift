@@ -26,10 +26,10 @@ import ChargeBackends
             let segments = try XCTUnwrap(descendants(host.view).compactMap { $0 as? NSSegmentedControl }.first)
             XCTAssertEqual(segments.segmentCount, 4)
             guard segments.segmentCount == 4 else { return }
-            XCTAssertEqual(segments.label(forSegment: 3), language == "ru" ? "Сон" : "Sleep")
+            XCTAssertEqual(segments.label(forSegment: 1), language == "ru" ? "Сон" : "Sleep")
             XCTAssertLessThanOrEqual(segments.fittingSize.width, 320, "Four localized tabs must fit the content width")
             host.onSizeChange = { window.setContentSize($0) }
-            segments.selectedSegment = 3
+            segments.selectedSegment = 1
             _ = segments.sendAction(segments.action, to: segments.target)
             try await Task.sleep(for: .milliseconds(30))
             host.view.layoutSubtreeIfNeeded()
