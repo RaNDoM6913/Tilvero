@@ -88,7 +88,7 @@ import PowerCore
                 scale: Self.combinedScale(battery: battery, adapter: adapter),
                 window: model.overviewChartWindow,
                 unit: PowerMetricCard.chartUnit(id: "038", readingUnit: batteryReading?.unit, fahrenheit: false),
-                density: .full,
+                density: model.overviewPreferences.chartSize.density,
                 emptyMessage: L10n.text("No recorded measurements yet"),
                 fillsSingleSeries: false)
             if let message = content.absentMessage {

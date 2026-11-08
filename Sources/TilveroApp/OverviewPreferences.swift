@@ -71,6 +71,19 @@ struct OverviewDragState {
 /// full zebra chart with a value axis.
 enum MetricChartStyle: String, Codable, Sendable { case sparkline, chart }
 
+/// How tall the zebra charts of the quick panel are: a thin strip, the moderate default (80 pt plot, three time
+/// labels, caption in the card header) or the original regular height (120 pt).
+enum MetricChartSize: String, Codable, CaseIterable, Sendable {
+    case strip, moderate, regular
+    static let standard = MetricChartSize.moderate
+    var density: MetricChartView.Density {
+        switch self { case .strip: .strip; case .moderate: .moderate; case .regular: .full }
+    }
+    var title: String {
+        switch self { case .strip: "Strip"; case .moderate: "Compact"; case .regular: "Regular" }
+    }
+}
+
 extension OverviewMetric {
     /// Blocks that take a chart style (battery power, system, adapter input, temperature).
     var supportsChartStyle: Bool {
@@ -86,8 +99,10 @@ struct OverviewPreferences: Codable, Equatable {
     var hidden: Set<OverviewMetric> = [.keepAwake, .systemPower, .adapter, .batteryHealth, .applications, .keyboardBacklight, .powerTiles, .powerCombined]
     /// Per-metric overrides; a metric without an entry uses `.sparkline`.
     var chartStyles: [OverviewMetric: MetricChartStyle] = [:]
+    /// One height for every chart on the page; the default stays unwritten so untouched preferences stay unchanged.
+    var chartSize: MetricChartSize = .standard
     init() {}
-    private enum CodingKeys: String, CodingKey { case order, hidden, chartStyles }
+    private enum CodingKeys: String, CodingKey { case order, hidden, chartStyles, chartSize }
     func chartStyle(for metric: OverviewMetric) -> MetricChartStyle { chartStyles[metric] ?? .sparkline }
     init(from decoder: any Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -100,6 +115,7 @@ struct OverviewPreferences: Codable, Equatable {
         order = known + additions
         hidden = Set(try values.decodeIfPresent([String].self, forKey: .hidden)?.compactMap(OverviewMetric.init(rawValue:)) ?? Array(Self().hidden))
         hidden.formUnion(additions.filter { Self().hidden.contains($0) })
+        chartSize = ((try? values.decodeIfPresent(String.self, forKey: .chartSize)) ?? nil).flatMap(MetricChartSize.init(rawValue:)) ?? .standard
         // Tolerant on purpose: a missing, mistyped or partly unknown map never costs the saved composition.
         let rawStyles = (try? values.decodeIfPresent([String: String].self, forKey: .chartStyles)) ?? nil
         chartStyles = (rawStyles ?? [:]).reduce(into: [:]) { result, entry in
@@ -112,6 +128,7 @@ struct OverviewPreferences: Codable, Equatable {
         var values = encoder.container(keyedBy: CodingKeys.self)
         try values.encode(order.map(\.rawValue), forKey: .order)
         try values.encode(hidden.map(\.rawValue).sorted(), forKey: .hidden)
+        if chartSize != .standard { try values.encode(chartSize.rawValue, forKey: .chartSize) }
         if !chartStyles.isEmpty {
             try values.encode(Dictionary(uniqueKeysWithValues: chartStyles.map { ($0.key.rawValue, $0.value.rawValue) }), forKey: .chartStyles)
         }

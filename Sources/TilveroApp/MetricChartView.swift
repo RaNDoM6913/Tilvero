@@ -13,12 +13,22 @@ struct MetricChartSeriesSpec: Identifiable {
     let endLabel: String?
 }
 
+extension MetricChartView.Density {
+    nonisolated var plotHeight: CGFloat {
+        switch self { case .full: 120; case .moderate: 80; case .compact: 70; case .strip: 40 }
+    }
+    nonisolated var timeTickCount: Int {
+        switch self { case .full: 5; case .moderate: 3; case .compact, .strip: 2 }
+    }
+}
+
 /// Shared zebra chart: horizontal bands between value ticks, a unit-labelled
 /// value axis, time labels, hatched gaps, a muted stale tail and a dashed empty
 /// frame. All layout decisions come from `layout(specs:scale:density:)`.
 @MainActor
 struct MetricChartView: View {
-    enum Density { case full, compact }
+    /// `full` 120 pt plot, `moderate` 80 pt, `compact` 70 pt (tiles), `strip` 40 pt.
+    enum Density { case full, moderate, compact, strip }
 
     struct Layout: Equatable {
         var bandCount: Int
@@ -71,11 +81,12 @@ struct MetricChartView: View {
             isDashedEmpty: false,
             staleMuted: specs.contains { $0.series.state == .staleTail },
             valueTickCount: labelledTickIndices(count: scale.ticks.count, density: density).count,
-            timeTickCount: density == .full ? 5 : 2
+            timeTickCount: density.timeTickCount
         )
     }
 
     nonisolated static func labelledTickIndices(count: Int, density: Density) -> [Int] {
+        if density == .strip, count > 2 { return [0, count - 1] }
         guard density == .compact, count > 4 else { return Array(0..<count) }
         return (0..<count).filter { (count - 1 - $0) % 2 == 0 }
     }
@@ -134,7 +145,7 @@ struct MetricChartView: View {
 
     // MARK: View
 
-    private var plotHeight: CGFloat { density == .full ? 120 : 70 }
+    private var plotHeight: CGFloat { density.plotHeight }
     private let axisWidth: CGFloat = 30
     private let gutter: CGFloat = 6
     /// Column reserved right of the plot for end labels: an 8 pt lead-in plus a label frame wide enough

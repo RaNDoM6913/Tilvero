@@ -42,6 +42,14 @@ enum SettingsPage: String, CaseIterable, Identifiable {
             StudioText(L10n.text("Quick panel builder"), id: "builder.title").font(.title3).bold().fixedSize(horizontal: false, vertical: true)
             StudioText(L10n.text("Drag blocks to reorder. Switch off the ones you do not need."), id: "builder.subtitle")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Text(L10n.text("Chart size")).font(.subheadline)
+                Spacer(minLength: 8)
+                Picker(L10n.text("Chart size"), selection: $model.overviewPreferences.chartSize) {
+                    ForEach(MetricChartSize.allCases, id: \.self) { Text(L10n.text($0.title)).tag($0) }
+                }.pickerStyle(.segmented).labelsHidden().controlSize(.small).frame(maxWidth: 230)
+                    .studioElement("builder.chartSize", label: "Chart size")
+            }
             VStack(spacing: 6) {
                 ForEach(model.overviewPreferences.order) { item in
                     HStack(spacing: 10) {

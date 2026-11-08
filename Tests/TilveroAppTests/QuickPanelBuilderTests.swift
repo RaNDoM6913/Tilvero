@@ -155,6 +155,7 @@ import SwiftUI
     }
     private func layout(showing visible: Set<OverviewMetric>, chartStyle: MetricChartStyle = .sparkline) -> OverviewPreferences {
         var layout = OverviewPreferences()
+        layout.chartSize = .regular   // these renders compare variants against each other; the size has its own tests (MetricChartSizeTests)
         layout.hidden = Set(OverviewMetric.allCases).subtracting(visible)
         if chartStyle == .chart { layout.chartStyles = Dictionary(uniqueKeysWithValues: OverviewMetric.allCases.filter(\.supportsChartStyle).map { ($0, MetricChartStyle.chart) }) }
         return layout

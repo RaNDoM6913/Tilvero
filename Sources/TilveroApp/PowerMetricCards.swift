@@ -82,18 +82,22 @@ enum PowerMetricHistory {
         content.modifier(OptionalCardChrome(isOn: Self.showsChrome(id: id, style: style)))
     }
     private var content: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        let captions = showsCaptions ? (captionOverride ?? Self.captionLines(id: id, reading: reading, adapterConnected: adapterConnected,
+                                                                             absentInChart: Self.showsChart(id: id, style: style))) : []
+        // A chart below regular height keeps its caption in the header line instead of a line of its own.
+        let inlineCaption = Self.showsChart(id: id, style: style) && model.overviewPreferences.chartSize != .regular
+        return VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
                 Label(L10n.text(title), systemImage: symbol)
+                if inlineCaption, !captions.isEmpty {
+                    Text(captions.joined(separator: " · ")).font(.caption2).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
+                }
                 Spacer(minLength: 8)
                 StudioText(reading.map { CatalogDataPresentation.value($0, reveal: false, fahrenheit: model.fahrenheit) } ?? "—", id: "powerMetric." + id + ".value").monospacedDigit()
                 if reading?.freshness == .stale { Text(L10n.text("Stale")).font(.caption2).foregroundStyle(.orange) }
             }.font(.subheadline)
-            if showsCaptions {
-                ForEach(captionOverride ?? Self.captionLines(id: id, reading: reading, adapterConnected: adapterConnected,
-                                                              absentInChart: Self.showsChart(id: id, style: style)), id: \.self) {
-                    Text($0).font(.caption2).foregroundStyle(.secondary)
-                }
+            if !inlineCaption {
+                ForEach(captions, id: \.self) { Text($0).font(.caption2).foregroundStyle(.secondary) }
             }
             if Self.showsChart(id: id, style: style) {
                 chart
@@ -120,7 +124,7 @@ extension PowerMetricCard {
             scale: MetricChartScale.scale(forMetric: id, values: series.points.map(\.value)),
             window: model.overviewChartWindow,
             unit: Self.chartUnit(id: id, readingUnit: reading?.unit, fahrenheit: fahrenheit),
-            density: .full,
+            density: model.overviewPreferences.chartSize.density,
             emptyMessage: Self.chartEmptyMessage(id: id, adapterConnected: adapterConnected))
     }
 }
