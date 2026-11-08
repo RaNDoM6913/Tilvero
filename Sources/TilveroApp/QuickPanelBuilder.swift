@@ -124,7 +124,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
                     OverviewHero(model: model, openCharge: nil)
                     Divider()
                     if model.sleepTimer.isActive { SleepTimerActiveRow(model: model).disabled(true) }
-                    if model.keepAwake.hasOwnedAssertion { passiveSession }
+                    if model.keepAwake.hasOwnedAssertion, model.overviewPreferences.hidden.contains(.keepAwake) { passiveSession }
                     OverviewMetricsPanel(model: model)
                 case .charge: charge
                 case .modes: modes

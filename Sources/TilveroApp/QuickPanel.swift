@@ -114,8 +114,9 @@ struct QuickPanel: View {
             OverviewHero(model: model, openCharge: { section = .charge })
             Divider()
             if model.sleepTimer.isActive { SleepTimerActiveRow(model: model, open: { section = .awake }); Divider() }
-            if model.keepAwake.hasOwnedAssertion { KeepAwakeActivePanel(service: model.keepAwake).id(model.language) }
-            OverviewMetricsPanel(model: model, allowsAwakeActions: true)
+            // The Keep Awake block carries its own running session; the stop row only stands in while that block is hidden.
+            if model.keepAwake.hasOwnedAssertion, model.overviewPreferences.hidden.contains(.keepAwake) { KeepAwakeActivePanel(service: model.keepAwake).id(model.language) }
+            OverviewMetricsPanel(model: model, allowsAwakeActions: true, openSleep: { model.selectedSleepPage = .awake; section = .awake })
         }
     }
 

@@ -9,6 +9,8 @@ import PowerCore
     @Environment(\.studioPresentation) private var studioPresentation
     @ObservedObject var model: TilveroModel
     var allowsAwakeActions = false
+    /// Opens the Sleep page from the Keep Awake block; `nil` in the passive preview.
+    var openSleep: (@MainActor () -> Void)?
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             ForEach(model.visibleOverviewMetrics) { item in
@@ -24,12 +26,7 @@ import PowerCore
                         }
                     }.font(.subheadline)
                         .help(L10n.text("Extrapolated from a recent continuous discharge. Changing the workload changes the forecast."))
-                case .keepAwake:
-                    // Owned sessions have a separate Overview row, independent of hidden widgets.
-                    if !model.keepAwake.hasOwnedAssertion {
-                        if allowsAwakeActions { KeepAwakePanel(model: model, compact: true).id(model.language) }
-                        else { KeepAwakeSummary(service: model.keepAwake).id(model.language) }
-                    }
+                case .keepAwake: OverviewKeepAwake(model: model, openSleep: openSleep).id(model.language)
                 case .power: PowerMetricCard(model: model, title: "Battery power", symbol: "bolt", id: "038", style: model.overviewPreferences.chartStyle(for: .power))
                 case .temperature: PowerMetricCard(model: model, title: "Temperature", symbol: "thermometer.medium", id: "039", color: .red, style: model.overviewPreferences.chartStyle(for: .temperature))
                 case .applications: ProcessActivityPanel(model: model, compact: true, allowsNavigation: allowsAwakeActions).id(model.language)
