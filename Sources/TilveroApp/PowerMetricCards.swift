@@ -95,7 +95,7 @@ enum PowerMetricHistory {
                 Spacer(minLength: 8)
                 StudioText(reading.map { CatalogDataPresentation.value($0, reveal: false, fahrenheit: model.fahrenheit) } ?? "—", id: "powerMetric." + id + ".value").monospacedDigit()
                 if reading?.freshness == .stale { Text(L10n.text("Stale")).font(.caption2).foregroundStyle(.orange) }
-            }.font(.subheadline)
+            }.font(.system(size: 13, weight: .medium))
             if !inlineCaption {
                 ForEach(captions, id: \.self) { Text($0).font(.caption2).foregroundStyle(.secondary) }
             }

@@ -6294,13 +6294,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Keep Mac Awake"
+            "value": "Keep Awake"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Не давать Mac уснуть"
+            "value": "Не засыпать"
           }
         }
       }
@@ -6310,13 +6310,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Keep Mac Awake…"
+            "value": "Keep Awake…"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Не давать Mac уснуть…"
+            "value": "Не засыпать…"
           }
         }
       }

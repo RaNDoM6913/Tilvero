@@ -115,7 +115,8 @@ import SwiftUI
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var extensionsExpanded = false
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { _ in
+        TimelineView(.periodic(from: .now, by: 1)) { tick in
+            let _ = tick.date   // the content must read the tick, or SwiftUI may keep the first rendering
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .center, spacing: 8) {
                     if service.isActive, service.expiry != .untilStopped {

@@ -24,11 +24,19 @@ import PowerCore
     /// "Until 22:21" while a timed session runs. An open-ended session names no end, so nothing is shown.
     static func endText(expiry: KeepAwakeExpiry?, endDate: Date?) -> String? {
         guard let endDate, let expiry, expiry != .untilStopped else { return nil }
-        return L10n.text("Until") + " " + SleepTimerInput.endTime(endDate)
+        return untilText(endDate)
+    }
+
+    /// "Until 22:21", with ", tomorrow" when the end is on the next day.
+    static func untilText(_ date: Date, calendar: Calendar = .current) -> String {
+        let formatter = DateFormatter(); formatter.locale = L10n.locale; formatter.timeStyle = .short
+        let suffix = calendar.isDateInTomorrow(date) ? ", " + L10n.text("tomorrow") : ""
+        return L10n.text("Until") + " " + formatter.string(from: date) + suffix
     }
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { _ in
+        TimelineView(.periodic(from: .now, by: 1)) { tick in
+            let _ = tick.date   // the content must read the tick, or SwiftUI may keep the first rendering
             let applied = SleepPillActions.awakeSelection(model)
             VStack(alignment: .leading, spacing: 10) {
                 header
@@ -75,12 +83,12 @@ import PowerCore
     private var header: some View {
         let token = service.ownedAssertionID.map(SleepControlToken.awake)
         return HStack(spacing: 8) {
-            Label(L10n.text("Keep Mac Awake"), systemImage: "cup.and.saucer").font(.subheadline)
+            Label(L10n.text("Keep Awake"), systemImage: "cup.and.saucer").font(.system(size: 14, weight: .semibold))
             Spacer(minLength: 8)
             if let end = Self.endText(expiry: service.expiry, endDate: service.isActive ? service.endDate : nil) {
                 Text(end).font(.caption).foregroundStyle(.secondary).lineLimit(1).monospacedDigit()
             }
-            Toggle(L10n.text("Keep Mac Awake"), isOn: Binding(get: { service.hasOwnedAssertion }, set: { setEnabled($0, token: token) }))
+            Toggle(L10n.text("Keep Awake"), isOn: Binding(get: { service.hasOwnedAssertion }, set: { setEnabled($0, token: token) }))
                 .toggleStyle(.switch).tint(Color.accentColor).controlSize(.regular).labelsHidden().fixedSize()
                 .disabled(!service.hasOwnedAssertion && !SleepPillActions.canChooseAwake(model))
                 .accessibilityIdentifier("overview-awake-master")

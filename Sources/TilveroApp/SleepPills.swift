@@ -237,7 +237,8 @@ enum SleepPillActionError: LocalizedError, Equatable {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             masterRow
-            TimelineView(.periodic(from: .now, by: 1)) { _ in
+            TimelineView(.periodic(from: .now, by: 1)) { tick in
+                let _ = tick.date   // the content must read the tick, or SwiftUI may keep the first rendering
                 let selection = SleepPillActions.timerSelection(model)
                 HStack(spacing: 6) {
                     ForEach([15, 30, 60], id: \.self) { minutes in
@@ -267,7 +268,8 @@ enum SleepPillActionError: LocalizedError, Equatable {
                     Text(L10n.text(service.phase == .preparing ? "Preparing for sleep…" : service.phase == .requesting ? "Requesting sleep…" : "Sleep requested; waiting for the system…"))
                         .font(.caption).foregroundStyle(.secondary)
                 } else if service.activePillMinutes == nil {
-                    TimelineView(.periodic(from: .now, by: 1)) { _ in
+                    TimelineView(.periodic(from: .now, by: 1)) { tick in
+                        let _ = tick.date   // the content must read the tick, or SwiftUI may keep the first rendering
                         Text(L10n.text("Time remaining") + ": " + KeepAwakePresentation.countdown(service.remainingSeconds))
                             .font(.caption).monospacedDigit().foregroundStyle(.secondary)
                     }
@@ -419,7 +421,8 @@ enum SleepPillActionError: LocalizedError, Equatable {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             masterRow
-            TimelineView(.periodic(from: .now, by: 1)) { _ in
+            TimelineView(.periodic(from: .now, by: 1)) { tick in
+                let _ = tick.date   // the content must read the tick, or SwiftUI may keep the first rendering
                 let applied = SleepPillActions.awakeSelection(model)
                 LazyVGrid(columns: columns, spacing: 6) {
                     ForEach(KeepAwakeDuration.allCases) { duration in
@@ -434,7 +437,8 @@ enum SleepPillActionError: LocalizedError, Equatable {
                 }
             }
             if SleepPillActions.awakeSelection(model) == .custom {
-                TimelineView(.periodic(from: .now, by: 1)) { _ in
+                TimelineView(.periodic(from: .now, by: 1)) { tick in
+                    let _ = tick.date   // the content must read the tick, or SwiftUI may keep the first rendering
                     StudioText(KeepAwakePresentation.countdown(service.remainingSeconds), id: "awake.custom.countdown")
                         .font(.system(size: 12, weight: .semibold)).monospacedDigit()
                         .foregroundStyle(.secondary)

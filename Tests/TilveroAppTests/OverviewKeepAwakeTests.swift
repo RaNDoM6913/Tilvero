@@ -19,4 +19,16 @@ import XCTest
         XCTAssertNil(OverviewKeepAwake.endText(expiry: nil, endDate: nil))
         XCTAssertNil(OverviewKeepAwake.endText(expiry: .until(end), endDate: nil))
     }
+
+    func testTheEndIsWrittenAsPlainUntilAndATime() {
+        let text = OverviewKeepAwake.untilText(Date().addingTimeInterval(1800))
+        XCTAssertTrue(text.hasPrefix(L10n.text("Until") + " "))
+        XCTAssertFalse(text.contains(L10n.text("Sleep at")), "a Keep Awake end is not a sleep time")
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date())!
+        XCTAssertTrue(OverviewKeepAwake.untilText(tomorrow).hasSuffix(L10n.text("tomorrow")))
+    }
+
+    func testOneNameForKeepAwakeOnOverviewAndTheSleepTab() {
+        XCTAssertEqual(L10n.text("Keep Mac Awake"), L10n.text("Keep Awake"))
+    }
 }

@@ -259,7 +259,8 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
     @ObservedObject var model: TilveroModel
     var open: (@MainActor () -> Void)? = nil
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { _ in
+        TimelineView(.periodic(from: .now, by: 1)) { tick in
+            let _ = tick.date   // the content must read the tick, or SwiftUI may keep the first rendering
             HStack(spacing: 10) {
                 Button {
                     if let open { open() }
