@@ -11,27 +11,20 @@ enum SleepPillSelection: Equatable {
     case preset(Int), custom, until, untilStopped
 }
 enum SleepPillConfirmation: Equatable {
-    case endAwake(UInt32), endTimer(UUID?), restartAwake(UInt32)
+    case endAwake(UInt32), endTimer(UUID?)
     var title: String {
         switch self {
         case .endAwake: L10n.text("End Keep Awake and start the sleep timer?")
         case .endTimer: L10n.text("Cancel the sleep timer and start Keep Awake?")
-        case .restartAwake: L10n.language == "ru" ? "Перезапустить текущий сеанс?" : "Restart the current session?"
         }
     }
     var action: String {
         switch self {
         case .endAwake: L10n.text("End Keep Awake and start")
         case .endTimer: L10n.text("Cancel timer and start Keep Awake")
-        case .restartAwake: L10n.language == "ru" ? "Остановить и запустить заново" : "Stop and restart"
         }
     }
     var explanation: String {
-        if case .restartAwake = self {
-            return L10n.language == "ru"
-                ? "Для смены типа сеанса текущее удержание будет остановлено, затем начнётся новое. Между ними возможен перерыв."
-                : "Changing the session type stops the current hold, then starts a new one. There may be a gap."
-        }
         return L10n.text("Confirm switching the active sleep mode first.")
     }
 }
@@ -157,15 +150,15 @@ enum SleepPillActionError: LocalizedError, Equatable {
             let needed = SleepPillConfirmation.endTimer(model.sleepTimer.sessionID)
             guard consent == needed else { throw SleepPillActionError.confirmation(needed) }
         }
-        if let id = model.keepAwake.ownedAssertionID {
+        if model.keepAwake.hasOwnedAssertion {
             if request == .untilStopped, model.keepAwake.expiry == .untilStopped { return }
             if case .duration(let minutes) = request, model.keepAwake.expiry != .untilStopped {
                 try model.keepAwake.replaceDuration(seconds: minutes * 60)
                 setDraft(model, request: request)
                 return
             }
-            let needed = SleepPillConfirmation.restartAwake(id)
-            guard consent == needed else { throw SleepPillActionError.confirmation(needed) }
+            // Choosing another kind of session (until stopped, a clock time, or back to a duration) is the user's
+            // intent: the current hold is stopped and the new one starts at once, with no question.
             try model.keepAwake.stop()
             guard !model.keepAwake.hasOwnedAssertion else { throw SleepPillActionError.blocked }
         }
