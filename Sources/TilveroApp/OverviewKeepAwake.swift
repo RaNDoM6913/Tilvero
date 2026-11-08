@@ -53,8 +53,10 @@ import PowerCore
                     }
                 }
                 if applied == .custom || applied == .until, service.isActive {
-                    Text(L10n.text("Time remaining") + " " + KeepAwakePresentation.countdown(service.remainingSeconds))
-                        .font(.caption).monospacedDigit().foregroundStyle(.secondary)
+                    HStack(spacing: 4) {
+                        Text(L10n.text("Time remaining"))
+                        AwakeCountdownText(service: service)
+                    }.font(.caption).foregroundStyle(.secondary)
                 }
                 if service.hasOwnedAssertion, !service.isActive {
                     Text(L10n.text("Check session")).font(.caption).foregroundStyle(.orange)
@@ -101,7 +103,7 @@ import PowerCore
                 let selected = applied == .preset(minutes)
                 Button { if !selected { apply(.duration(minutes)) } } label: {
                     Group {
-                        if selected { Text(KeepAwakePresentation.countdown(service.remainingSeconds)).font(.system(size: 12, weight: .semibold, design: .rounded)).monospacedDigit() }
+                        if selected { AwakeCountdownText(service: service).font(.system(size: 12, weight: .semibold, design: .rounded)) }
                         else { Text(Self.label(minutes)).font(.system(size: 12, weight: .medium)) }
                     }
                     .foregroundStyle(selected ? Color.white : Color.primary).lineLimit(1).minimumScaleFactor(0.8)
@@ -150,5 +152,17 @@ import PowerCore
             guard let captured = try? request ?? SleepPillActions.awakeDraftRequest(model) else { return }
             pending = .enable(captured); consent = needed; confirms = true
         } catch { self.error = error.localizedDescription }
+    }
+}
+
+/// A live countdown of a Keep Awake session. It owns its own one-second clock, so it keeps running wherever it sits
+/// (inside a pill, behind a button label, in a lazily evaluated ForEach) without relying on its parents to redraw.
+@MainActor struct AwakeCountdownText: View {
+    @ObservedObject var service: KeepAwakeService
+    @State private var now = Date()
+    var body: some View {
+        let _ = now
+        Text(KeepAwakePresentation.countdown(service.remainingSeconds)).monospacedDigit()
+            .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { now = $0 }
     }
 }
