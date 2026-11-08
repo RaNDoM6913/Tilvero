@@ -1,7 +1,7 @@
 ![Tilvero — Battery, power and activity. Swift 6, macOS 26+, Apple silicon. Source preview.](.github/assets/cover.png)
 
 <p align="center">
-  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.4.0-beta.1"><img src="https://img.shields.io/badge/source-preview-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Source preview" height="28"></a>
+  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.4.0"><img src="https://img.shields.io/badge/source-preview-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Source preview" height="28"></a>
   <a href="docs/GITHUB_TRAFFIC.md"><img src="https://img.shields.io/badge/zip%20%E2%80%A2%20clones%20%E2%80%A2%20unique-7%20%E2%80%A2%20945%20%E2%80%A2%20320-2F6E4B?style=for-the-badge&amp;labelColor=172A22" alt="Source ZIP downloads 7, Git clones 945, unique cloners 320" height="28"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="License: GPL-3.0-only" height="28"></a>
 </p>
@@ -12,9 +12,9 @@ Tilvero puts battery and power information in your menu bar, with a clear native
 window when you want the details. Follow charging, inspect battery health and
 understand changes over time, without an account or a cloud service.
 
-**0.4.0-beta.1 Source Preview for developers.**
-[Get the source](https://github.com/RaNDoM6913/Tilvero/releases/download/v0.4.0-beta.1/Tilvero-0.4.0-beta.1-source.zip)
-· [Release notes and checksums](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.4.0-beta.1)
+**0.4.0 Source Preview for developers.**
+[Get the source](https://github.com/RaNDoM6913/Tilvero/releases/download/v0.4.0/Tilvero-0.4.0-source.zip)
+· [Release notes and checksums](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.4.0)
 · [Build and run](#build-and-run) · [Roadmap](ROADMAP.md)
 
 Snapshot on **8 November 2026 UTC**. ZIP counts source downloads excluding project verification downloads. Clones and unique cloners cover **27 October–6 November UTC**. [Counts and methodology](docs/GITHUB_TRAFFIC.md).
@@ -61,7 +61,7 @@ You need **Apple silicon, macOS 26.0+ and a full Xcode installation** with a
 compatible macOS SDK and Swift 6. Command Line Tools alone are not the validated route.
 
 ```sh
-git clone --branch v0.4.0-beta.1 https://github.com/RaNDoM6913/Tilvero.git
+git clone --branch v0.4.0 https://github.com/RaNDoM6913/Tilvero.git
 cd Tilvero
 bash scripts/test.sh
 bash scripts/build-local-app.sh
