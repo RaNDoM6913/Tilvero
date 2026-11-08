@@ -43,7 +43,7 @@ import PowerCore
                 HStack(spacing: 6) {
                     strip(applied: applied)
                     roundButton(selected: applied == .untilStopped, id: "overview-awake-forever", label: L10n.text("Until stopped"),
-                                action: { if applied != .untilStopped { apply(.untilStopped) } }) {
+                                action: { if applied == .untilStopped { stopSession() } else { apply(.untilStopped) } }) {
                         Text("∞").font(.system(size: 15, weight: .semibold))
                     }
                     if let openSleep {
@@ -101,7 +101,7 @@ import PowerCore
         HStack(spacing: 2) {
             ForEach(Self.presets, id: \.self) { minutes in
                 let selected = applied == .preset(minutes)
-                Button { if !selected { apply(.duration(minutes)) } } label: {
+                Button { if selected { stopSession() } else { apply(.duration(minutes)) } } label: {
                     Group {
                         if selected { AwakeCountdownText(service: service).font(.system(size: 12, weight: .semibold, design: .rounded)) }
                         else { Text(Self.label(minutes)).font(.system(size: 12, weight: .medium)) }
@@ -112,6 +112,7 @@ import PowerCore
                     .contentShape(Capsule())
                 }.buttonStyle(.plain)
                     .disabled(!selected && !SleepPillActions.canChooseAwake(model))
+                    .help(selected ? Self.endSessionHelp : "")
                     .accessibilityLabel(Self.label(minutes)).accessibilityAddTraits(selected ? .isSelected : [])
                     .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: selected)
             }
@@ -133,6 +134,13 @@ import PowerCore
     /// 15 min, 30 min, 1 h, 4 h in the app's language.
     static func label(_ minutes: Int) -> String {
         minutes < 60 ? "\(minutes) " + L10n.text("min") : "\(minutes / 60) " + L10n.text("h")
+    }
+
+    static var endSessionHelp: String { L10n.language == "ru" ? "Завершить сеанс" : "End session" }
+
+    /// Tapping the running choice again ends the session, exactly like the selected pill of the Sleep tab.
+    private func stopSession() {
+        setEnabled(false, token: service.ownedAssertionID.map(SleepControlToken.awake))
     }
 
     private func apply(_ request: AwakePillRequest, consent confirmed: SleepPillConfirmation? = nil) {
