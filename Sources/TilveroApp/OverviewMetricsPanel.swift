@@ -39,13 +39,6 @@ import PowerCore
                 case .keyboardBacklight: KeyboardBacklightQuickRow(service: model.keyboardBacklight)
                 case .powerTiles: PowerTilesBlock(model: model)
                 case .powerCombined: PowerCombinedBlock(model: model)
-                case .chargeLimit:
-                    HStack {
-                        Label(L10n.text("Charge limit"), systemImage: "battery.100percent")
-                        Spacer()
-                        Text(model.nativeCharge.observed.flatMap { $0.isFresh && $0.policyMatches && $0.configuration.enabled ? "\($0.configuration.target)%" : nil } ?? "—")
-                            .monospacedDigit()
-                    }.font(.subheadline)
                 case .history:
                     VStack(alignment: .leading, spacing: 5) {
                         Text(L10n.text("Last hour")).font(.caption).foregroundStyle(.secondary)

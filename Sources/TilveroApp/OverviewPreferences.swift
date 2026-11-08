@@ -4,7 +4,7 @@
 import Foundation
 
 enum OverviewMetric: String, CaseIterable, Codable, Identifiable, Sendable {
-    case forecast, power, temperature, history, chargeLimit, keepAwake, systemPower, adapter, batteryHealth, applications, keyboardBacklight, powerTiles, powerCombined
+    case forecast, power, temperature, history, keepAwake, systemPower, adapter, batteryHealth, applications, keyboardBacklight, powerTiles, powerCombined
     var id: String { rawValue }
     var title: String {
         switch self {
@@ -12,7 +12,6 @@ enum OverviewMetric: String, CaseIterable, Codable, Identifiable, Sendable {
         case .power: "Battery power"
         case .temperature: "Temperature"
         case .history: "Last hour"
-        case .chargeLimit: "Charge limit"
         case .keepAwake: "Keep Mac Awake"
         case .systemPower: "System"
         case .adapter: "Adapter"
@@ -29,7 +28,6 @@ enum OverviewMetric: String, CaseIterable, Codable, Identifiable, Sendable {
         case .power: "bolt"
         case .temperature: "thermometer.medium"
         case .history: "chart.xyaxis.line"
-        case .chargeLimit: "battery.100percent"
         case .keepAwake: "cup.and.saucer"
         case .systemPower: "desktopcomputer"
         case .adapter: "powerplug"
@@ -85,7 +83,7 @@ extension OverviewMetric {
 
 struct OverviewPreferences: Codable, Equatable {
     var order = OverviewMetric.allCases
-    var hidden: Set<OverviewMetric> = [.chargeLimit, .keepAwake, .systemPower, .adapter, .batteryHealth, .applications, .keyboardBacklight, .powerTiles, .powerCombined]
+    var hidden: Set<OverviewMetric> = [.keepAwake, .systemPower, .adapter, .batteryHealth, .applications, .keyboardBacklight, .powerTiles, .powerCombined]
     /// Per-metric overrides; a metric without an entry uses `.sparkline`.
     var chartStyles: [OverviewMetric: MetricChartStyle] = [:]
     init() {}

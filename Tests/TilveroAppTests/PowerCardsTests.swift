@@ -12,7 +12,7 @@ import PowerTelemetry
 @MainActor final class PowerCardsTests: XCTestCase {
     func testNewPowerCardsAppendHiddenWithoutReplacingSavedComposition() {
         let saved = OverviewPreferences.load(Data(#"{"order":["history","power","temperature","forecast","chargeLimit","keepAwake"],"hidden":["temperature"]}"#.utf8))
-        XCTAssertEqual(Array(saved.order.prefix(6)).map(\.rawValue), ["history","power","temperature","forecast","chargeLimit","keepAwake"])
+        XCTAssertEqual(Array(saved.order.prefix(5)).map(\.rawValue), ["history","power","temperature","forecast","keepAwake"])  // the retired "chargeLimit" id is skipped, the rest keeps its order
         XCTAssertEqual(Array(saved.order.suffix(7)).map(\.rawValue), ["systemPower","adapter","batteryHealth","applications","keyboardBacklight","powerTiles","powerCombined"])
         XCTAssertEqual(saved.hidden.map(\.rawValue).sorted(), ["adapter","applications","batteryHealth","keyboardBacklight","powerCombined","powerTiles","systemPower","temperature"])
     }

@@ -121,19 +121,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
             VStack(alignment: .leading, spacing: 12) {
                 switch section {
                 case .overview:
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(model.chargeText).font(.system(size: 42, weight: .semibold, design: .rounded)).monospacedDigit()
-                            Text(model.chargingStateText).font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                        }
-                        Spacer(minLength: 12)
-                        Image(nsImage: NativeBatteryStatusImage.make(
-                            level: model.snapshot.chargePercent.availability == .available || model.snapshot.chargePercent.freshness == .stale ? ReadingPresentation.validLevel(model.snapshot.chargePercent.value) : nil,
-                            style: .iconOnly,
-                            externalPower: model.snapshot.isExternalPower.availability == .available && model.snapshot.isExternalPower.freshness != .stale && model.snapshot.isExternalPower.value == true))
-                            .resizable().interpolation(.high).frame(width: 54, height: 36).accessibilityHidden(true)
-                    }
-                    if model.snapshot.chargePercent.freshness == .stale { Text(L10n.text("Stale")).font(.caption).foregroundStyle(.orange) }
+                    OverviewHero(model: model, openCharge: nil)
                     Divider()
                     if model.sleepTimer.isActive { SleepTimerActiveRow(model: model).disabled(true) }
                     if model.keepAwake.hasOwnedAssertion { passiveSession }
