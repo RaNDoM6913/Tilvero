@@ -29,6 +29,91 @@ import Carbon
         XCTAssertEqual(driver.requests, 0)
         model.stop(); XCTAssertFalse(driver.hasIdleHold)
     }
+    /// A fake macOS: nothing here runs pmset, sudo or touches a power setting.
+    private final class ModelFakeLid: LidSleepSystem, @unchecked Sendable {
+        private let lock = NSLock()
+        private var disabled = false
+        var sleepDisabled: Bool { lock.withLock { disabled } }
+        var ruleFilePresent: Bool { true }
+        func readSleepDisabled() async -> Bool? { lock.withLock { disabled } }
+        func passwordlessPathWorks() async -> Bool { true }
+        func setSleepDisabledPasswordless(_ value: Bool) async -> Bool { lock.withLock { disabled = value }; return true }
+        func installRule() async -> Bool { true }
+        func removeRule() async -> Bool { true }
+        func restoreWithAuthorization() async -> Bool { lock.withLock { disabled = false }; return true }
+        func lidClosedWouldSleep() -> Bool { false }
+        func requestSleep() -> Bool { true }
+    }
+
+    func testTheTimerLidOptionSetsAndLiftsTheOverrideThroughTheModel() async throws {
+        let suite = "SleepTimerLid-\(UUID())", prefs = UserDefaults(suiteName: suite)!
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        let driver = IntegrationSleepDriver(), clock = IntegrationSleepClock(), system = ModelFakeLid()
+        let service = SleepTimerService(driver: driver, monotonic: { clock.value }, suspending: { clock.value }, sleeper: { _ in try await Task.sleep(for: .seconds(3600)) })
+        let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"),
+                                 sleepTimerService: service, lidSleepSystem: system)
+        defer { model.stop() }
+        await model.lidSleep.setPreferred(true, for: .scheduledSleep)
+        XCTAssertFalse(system.sleepDisabled, "The option alone sets nothing and starts no timer.")
+        XCTAssertFalse(service.isActive)
+        try model.selectSleepTimer(minutes: 15)
+        for _ in 0..<40 where !system.sleepDisabled { try await Task.sleep(for: .milliseconds(25)) }
+        XCTAssertTrue(system.sleepDisabled, "An armed timer with its switch on keeps the Mac awake with the lid closed.")
+        XCTAssertTrue(model.lidSleep.isOn)
+        service.cancel()
+        for _ in 0..<40 where system.sleepDisabled { try await Task.sleep(for: .milliseconds(25)) }
+        XCTAssertFalse(system.sleepDisabled, "Cancelling the timer restores normal sleep.")
+        XCTAssertFalse(model.lidSleep.isOn)
+    }
+    func testTheSameSwitchCoversSleepAtChargeThroughTheModel() async throws {
+        let suite = "SleepChargeLid-\(UUID())", prefs = UserDefaults(suiteName: suite)!
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        let driver = IntegrationSleepDriver(), system = ModelFakeLid()
+        let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"),
+                                 sleepTimerTransport: driver, lidSleepSystem: system)
+        defer { model.stop() }
+        await model.lidSleep.setPreferred(true, for: .scheduledSleep)
+        await model.sleepAtCharge.observe(percent: 64, fresh: true, externalPower: false)
+        XCTAssertFalse(system.sleepDisabled, "The switch alone sets nothing.")
+        try model.sleepAtCharge.arm(target: 20)
+        for _ in 0..<40 where !system.sleepDisabled { try await Task.sleep(for: .milliseconds(25)) }
+        XCTAssertTrue(system.sleepDisabled, "An armed Sleep at charge continues with the lid closed through the same switch.")
+        model.sleepAtCharge.stop()
+        for _ in 0..<40 where system.sleepDisabled { try await Task.sleep(for: .milliseconds(25)) }
+        XCTAssertFalse(system.sleepDisabled, "Cancelling restores normal sleep.")
+    }
+    /// Owner 2026-11-07: the "With lid closed" info is short (the old text was ~125 words) and has no "not verified" line.
+    func testTheLidInfoTextsAreShortAndExistInRussianAndEnglish() throws {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/TilveroApp/Resources/Localizable.xcstrings")
+        let root = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        let strings = try XCTUnwrap(root["strings"] as? [String: Any])
+        for mode in [LidMode.keepAwake, .scheduledSleep] {
+            let keys = LidSleepOverrideRow.infoKeys(for: mode)
+            XCTAssertEqual(keys.count, 2, "\(mode): what it does, then the permission and the warning - nothing else")
+            var words = [String: Int]()
+            for key in keys {
+                let entry = try XCTUnwrap(strings[key] as? [String: Any], "missing key: \(key.prefix(50))")
+                let localizations = try XCTUnwrap(entry["localizations"] as? [String: Any])
+                for language in ["en", "ru"] {
+                    let unit = (localizations[language] as? [String: Any])?["stringUnit"] as? [String: Any]
+                    XCTAssertEqual(unit?["state"] as? String, "translated", "\(language): \(key.prefix(50))")
+                    let value = unit?["value"] as? String ?? ""
+                    XCTAssertFalse(value.isEmpty)
+                    XCTAssertFalse(value.localizedCaseInsensitiveContains("verified") || value.contains("проверен"), "No caveat line: \(value)")
+                    words[language, default: 0] += value.split(separator: " ").count
+                }
+            }
+            XCTAssertLessThanOrEqual(words["ru"] ?? 999, 60, "\(mode): the Russian info must stay short")
+            XCTAssertLessThanOrEqual(words["en"] ?? 999, 60, "\(mode): the English info must stay short")
+        }
+        let timer = LidSleepOverrideRow.infoKeys(for: .scheduledSleep), awake = LidSleepOverrideRow.infoKeys(for: .keepAwake)
+        XCTAssertNotEqual(timer.first, awake.first)
+        XCTAssertEqual(timer.last, awake.last, "The permission and warning paragraph is shared")
+        XCTAssertTrue(try XCTUnwrap(timer.first).contains("Sleep at charge"), "The timer text names both functions")
+    }
     func testSavedNonPresetDurationRemainsSelectedAsCustomWithoutStarting() {
         let suite = "SleepCustomReload-\(UUID())", prefs = UserDefaults(suiteName: suite)!
         defer { prefs.removePersistentDomain(forName: suite) }

@@ -106,7 +106,7 @@ final class TilveroModel: ObservableObject {
     @Published private(set) var notice: String?
     @Published private(set) var isApplying = false
     @Published private(set) var storeError: String?
-    @Published private(set) var history: [HistorySample] = []
+    @Published private(set) var history: [HistorySample] = [] { didSet { seriesCacheKey = nil } }
     @Published private(set) var historySummary: HistorySummary?
     private var lastFullHistoryReload: Date?
     private var lastHistorySummary: Date?
@@ -520,6 +520,14 @@ final class TilveroModel: ObservableObject {
         closedLid.bind(keepAwake)
         lidSleep.awakeIsActive = { [weak self] in self?.keepAwake.hasOwnedAssertion ?? false }
         lidSleep.bind(keepAwake)
+        // One switch for the sleep timer and Sleep at charge: the override accompanies an armed timer (armed/warning) or an
+        // armed charge level, never the sleep request itself.
+        lidSleep.scheduledSleepIsActive = { [weak self] in
+            guard let self else { return false }
+            return self.sleepTimer.phase.isEditable || self.sleepAtCharge.isArmed
+        }
+        lidSleep.bindTimer(phases: sleepTimer.$phase.eraseToAnyPublisher())
+        lidSleep.bindSleepAtCharge(armed: sleepAtCharge.$target.map { $0 != nil }.removeDuplicates().eraseToAnyPublisher())
         lidSleepSubscription = lidSleep.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
         sleepTimer.prepare = { [weak self] in
             guard let self else { return false }
@@ -589,6 +597,33 @@ final class TilveroModel: ObservableObject {
         HistoryChart.points(history.filter { !$0.isAggregate && $0.collectedAt >= snapshot.collectedAt.addingTimeInterval(-3600) && $0.collectedAt <= snapshot.collectedAt }.map {
             ChartObservation(id: $0.id, date: $0.collectedAt, value: $0.chargePercent, continuityID: $0.segmentID.uuidString)
         })
+    }
+    /// Window of every overview chart: the last hour up to the newest snapshot.
+    var overviewChartWindow: ClosedRange<Date> {
+        snapshot.collectedAt.addingTimeInterval(-3600)...snapshot.collectedAt
+    }
+    /// What a cached series depends on: the window end, how much history there is and its newest sample.
+    /// `history` replaces itself wholesale (a full reload, an append after trimming the week, an erase), so the
+    /// count alone could repeat with different data; its newest sample id is added to the key. The `didSet` on
+    /// `history` is belt-and-braces beyond the key: stored samples are immutable, so no model API produces a
+    /// replacement with the same count and newest id but different older samples, and no test can isolate it.
+    private struct SeriesCacheKey: Equatable { let collectedAt: Date; let count: Int; let lastSampleID: UUID? }
+    private var seriesCacheKey: SeriesCacheKey?
+    private var seriesCache: [String: MetricChartSeries] = [:]
+    /// How many times a series was actually built (not read from the cache); tests assert it.
+    private(set) var metricSeriesComputations = 0
+    /// Last-hour series of one catalog metric for the overview charts. Cards, tiles and the combined chart ask for it
+    /// on every body evaluation, so it is memoised per metric until the snapshot or the history changes.
+    /// The cache is plain storage (not `@Published`): filling it never schedules a view update.
+    func metricSeries(id: String) -> MetricChartSeries {
+        let key = SeriesCacheKey(collectedAt: snapshot.collectedAt, count: history.count, lastSampleID: history.last?.id)
+        if key != seriesCacheKey { seriesCache.removeAll(keepingCapacity: true); seriesCacheKey = key }
+        if let cached = seriesCache[id] { return cached }
+        metricSeriesComputations += 1
+        let window = overviewChartWindow
+        let series = MetricChartSeries.make(points: PowerMetricHistory.points(history, id: id, since: window.lowerBound), window: window, now: snapshot.collectedAt)
+        seriesCache[id] = series
+        return series
     }
     var dischargeForecast: DischargeForecast.Estimate? {
         guard !isDemo else { return nil }

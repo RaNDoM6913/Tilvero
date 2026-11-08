@@ -77,18 +77,11 @@ enum SleepWheelValue: Equatable {
                 wheels.frame(maxWidth: .infinity).background { unifiedTray }
             }
 
-            if value(at: now) == nil {
-                StudioText(summary, id: "sleep.wheel.summary")
-                    .font(.system(size: 11)).monospacedDigit()
-                    .foregroundStyle(value(at: now) == nil ? Color.orange : Color.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, minHeight: 16, maxHeight: 16, alignment: .leading)
-            }
-
             actions.frame(height: 28)
         }
-        .padding(12).frame(width: 244,
-                           height: isCompact ? (value(at: now) == nil ? 262 : 238) : (value(at: now) == nil ? 244 : 220))
+        // An invalid time (for example 0 h 0 min) shows no warning line: the disabled Apply button is the only sign, so the
+        // picker never changes height.
+        .padding(12).frame(width: 244, height: isCompact ? 238 : 220)
         .opacity(appeared ? 1 : 0)
         .onAppear { withAnimation(reduceMotion ? nil : .easeOut(duration: 0.16)) { appeared = true } }
         .environment(\.calendar, calendar).environment(\.timeZone, calendar.timeZone)
@@ -178,20 +171,6 @@ enum SleepWheelValue: Equatable {
         } else if let tomorrow = calendar.date(byAdding: .day, value: 1, to: today),
                   let candidate = Self.concreteDate(day: tomorrow, hour: hours, minute: minutes, calendar: calendar) {
             selectedDay = candidate
-        }
-    }
-
-    private var summary: String {
-        guard let selected = value(at: now) else {
-            return mode == .duration
-                ? (L10n.language == "ru" ? "Выберите от 1 до 1440 минут." : "Choose 1–1440 minutes.")
-                : (L10n.language == "ru" ? "Выберите будущее время в пределах 24 часов." : "Choose a future time within 24 hours.")
-        }
-        switch selected {
-        case .duration(let total):
-            return "\(total / 60) " + L10n.text("h") + " " + "\(total % 60) " + L10n.text("min")
-        case .until(let target):
-            return KeepAwakePresentation.endTime(target, timeZone: calendar.timeZone)
         }
     }
 

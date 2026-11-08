@@ -48,6 +48,34 @@ import XCTest
         window.orderOut(nil)
     }
 
+    /// Owner decision 2026-11-07: a zero duration (or any value Apply refuses) shows no orange warning line and the picker
+    /// keeps the same height; the disabled Apply button is the only sign.
+    func testInvalidTimeShowsNoWarningLineAndKeepsItsHeight() async throws {
+        let target = Calendar.current.nextDate(after: Date(), matching: DateComponents(hour: 18, minute: 58), matchingPolicy: .nextTime)!
+        for mode in [SleepWheelMode.duration, .until] {
+            // Duration 0 is invalid. For "until" the wheels always roll to a future time, so only duration can be invalid.
+            let picker = SleepWheelPicker(mode: mode, initialMinutes: 0, initialDate: target, onCommit: { _ in }, onCancel: {})
+            let size = mode == .duration ? NSSize(width: 244, height: 238) : NSSize(width: 244, height: 220)
+            let host = NSHostingController(rootView: picker.frame(width: size.width, height: size.height + 40, alignment: .top)
+                .background(Color(white: 0.9)).environment(\.colorScheme, .light).environment(\.locale, L10n.locale))
+            let window = NSWindow(contentViewController: host)
+            window.appearance = NSAppearance(named: .aqua)
+            window.setContentSize(NSSize(width: size.width, height: size.height + 40)); window.orderFront(nil); host.view.layoutSubtreeIfNeeded()
+            try await Task.sleep(for: .milliseconds(150)); host.view.layoutSubtreeIfNeeded()
+            let bitmap = try XCTUnwrap(host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds))
+            host.view.cacheDisplay(in: host.view.bounds, to: bitmap)
+            var orange = 0
+            for y in stride(from: 0, to: bitmap.pixelsHigh, by: 1) { for x in stride(from: 0, to: bitmap.pixelsWide, by: 1) {
+                guard let c = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { continue }
+                var h: CGFloat = 0, sat: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+                c.getHue(&h, saturation: &sat, brightness: &b, alpha: &a)
+                if h > 0.05 && h < 0.12 && sat > 0.6 && b > 0.7 { orange += 1 }
+            } }
+            window.orderOut(nil)
+            XCTAssertEqual(orange, 0, "\(mode): no orange warning text may be drawn for an invalid time")
+        }
+    }
+
     func testPressOutsideThePickerWindowCancelsIt() async throws {
         var cancelled = 0
         let picker = SleepWheelPicker(mode: .until, initialMinutes: 30, initialDate: Date().addingTimeInterval(7200),

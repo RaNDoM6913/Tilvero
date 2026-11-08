@@ -84,7 +84,7 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
                         Label(L10n.text("Keeps your Mac awake until the timer ends."), systemImage: "moon")
                     }.font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     DisclosureGroup(L10n.text("How the timer works")) {
-                        Text(L10n.text("Tilvero prevents idle system sleep until the timer ends, then releases its hold and requests sleep. The display may turn off. Closing the lid, manual sleep and macOS safety actions still work. A quiet warning appears one minute before. Cancel or quit releases the hold. The timer never restarts after waking or reopening Tilvero."))
+                        Text(L10n.text("Tilvero prevents idle system sleep until the timer ends, then releases its hold and requests sleep. The display may turn off. Closing the lid, manual sleep and macOS safety actions still work, except that the With lid closed switch of the timer and Sleep at charge (in the menu) keeps the Mac running with the lid closed until the timer ends or the charge is reached. A quiet warning appears one minute before. Cancel or quit releases the hold. The timer never restarts after waking or reopening Tilvero."))
                             .font(.callout).foregroundStyle(.secondary).padding(.top, 8)
                     }.frame(maxWidth: 560).font(.system(size: 12))
                 case .awake:
@@ -259,7 +259,8 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
     @ObservedObject var model: TilveroModel
     var open: (@MainActor () -> Void)? = nil
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { _ in
+        TimelineView(.periodic(from: .now, by: 1)) { tick in
+            let _ = tick.date   // the content must read the tick, or SwiftUI may keep the first rendering
             HStack(spacing: 10) {
                 Button {
                     if let open { open() }

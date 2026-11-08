@@ -27,18 +27,45 @@ enum SettingsPage: String, CaseIterable, Identifiable {
             VStack(alignment: .leading, spacing: 20) { ProductSurface(studioID: "quick.builder") { controls }; preview.frame(width: 360) }
         }
     }
+    /// Only blocks that draw a metric card take a chart style (the tiles and combined blocks have a fixed form).
+    static func showsChartStylePicker(for item: OverviewMetric) -> Bool { item.supportsChartStyle }
+    /// Reads and writes `overviewPreferences.chartStyles`; the default `.sparkline` removes the key so untouched preferences stay unchanged.
+    static func chartStyleBinding(_ item: OverviewMetric, model: TilveroModel) -> Binding<MetricChartStyle> {
+        Binding(get: { model.overviewPreferences.chartStyle(for: item) }, set: {
+            if $0 == .sparkline { model.overviewPreferences.chartStyles.removeValue(forKey: item) } else { model.overviewPreferences.chartStyles[item] = $0 }
+        })
+    }
+    /// Order, visibility and chart styles all return to their defaults.
+    static func restoreLayoutDefaults(_ model: TilveroModel) { model.overviewPreferences = OverviewPreferences() }
     private var controls: some View {
         VStack(alignment: .leading, spacing: 12) {
             StudioText(L10n.text("Quick panel builder"), id: "builder.title").font(.title3).bold().fixedSize(horizontal: false, vertical: true)
             StudioText(L10n.text("Drag blocks to reorder. Switch off the ones you do not need."), id: "builder.subtitle")
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Text(L10n.text("Chart size")).font(.subheadline)
+                Spacer(minLength: 8)
+                Picker(L10n.text("Chart size"), selection: $model.overviewPreferences.chartSize) {
+                    ForEach(MetricChartSize.allCases, id: \.self) { Text(L10n.text($0.title)).tag($0) }
+                }.pickerStyle(.segmented).labelsHidden().controlSize(.small).frame(maxWidth: 230)
+                    .studioElement("builder.chartSize", label: "Chart size")
+            }
             VStack(spacing: 6) {
                 ForEach(model.overviewPreferences.order) { item in
                     HStack(spacing: 10) {
                         OverviewDragHandle(title: L10n.text(item.title), begin: { drag.begin(item).payload }, end: {
                             drag.end(); dropTarget = nil
                         }).frame(width: 20, height: 30)
-                        Label { StudioText(L10n.text(item.title), id: "builder.block." + item.rawValue + ".title") } icon: { Image(systemName: item.symbol) }
+                        VStack(alignment: .leading, spacing: 5) {
+                            Label { StudioText(L10n.text(item.title), id: "builder.block." + item.rawValue + ".title") } icon: { Image(systemName: item.symbol) }
+                            if Self.showsChartStylePicker(for: item) {
+                                Picker(L10n.text("Chart style") + ": " + L10n.text(item.title), selection: Self.chartStyleBinding(item, model: model)) {
+                                    Text(L10n.text("Sparkline")).tag(MetricChartStyle.sparkline)
+                                    Text(L10n.text("Chart")).tag(MetricChartStyle.chart)
+                                }.pickerStyle(.segmented).labelsHidden().controlSize(.small).frame(maxWidth: 170)
+                                    .studioElement("builder.block." + item.rawValue + ".chartStyle", label: "Chart style: " + item.title)
+                            }
+                        }
                         Spacer(minLength: 8)
                         Button { model.overviewPreferences.move(item, by: -1) } label: { Image(systemName: "chevron.up") }
                             .accessibilityLabel(L10n.text("Move up") + ": " + L10n.text(item.title)).studioElement("builder.block." + item.rawValue + ".up", label: "Move up: " + item.title)
@@ -56,7 +83,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
                         .onDrop(of: [UTType.text], delegate: OverviewBlockDropDelegate(model: model, target: item, drag: $drag, dropTarget: $dropTarget))
                 }
             }
-            StudioActionButton(L10n.text("Restore layout defaults"), id: "builder.reset") { model.overviewPreferences = .init() }
+            StudioActionButton(L10n.text("Restore layout defaults"), id: "builder.reset") { Self.restoreLayoutDefaults(model) }
         }
     }
     private var preview: some View {
@@ -102,22 +129,10 @@ enum SettingsPage: String, CaseIterable, Identifiable {
             VStack(alignment: .leading, spacing: 12) {
                 switch section {
                 case .overview:
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(model.chargeText).font(.system(size: 42, weight: .semibold, design: .rounded)).monospacedDigit()
-                            Text(model.chargingStateText).font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                        }
-                        Spacer(minLength: 12)
-                        Image(nsImage: NativeBatteryStatusImage.make(
-                            level: model.snapshot.chargePercent.availability == .available || model.snapshot.chargePercent.freshness == .stale ? ReadingPresentation.validLevel(model.snapshot.chargePercent.value) : nil,
-                            style: .iconOnly,
-                            externalPower: model.snapshot.isExternalPower.availability == .available && model.snapshot.isExternalPower.freshness != .stale && model.snapshot.isExternalPower.value == true))
-                            .resizable().interpolation(.high).frame(width: 54, height: 36).accessibilityHidden(true)
-                    }
-                    if model.snapshot.chargePercent.freshness == .stale { Text(L10n.text("Stale")).font(.caption).foregroundStyle(.orange) }
+                    OverviewHero(model: model, openCharge: nil)
                     Divider()
                     if model.sleepTimer.isActive { SleepTimerActiveRow(model: model).disabled(true) }
-                    if model.keepAwake.hasOwnedAssertion { passiveSession }
+                    if model.keepAwake.hasOwnedAssertion, model.overviewPreferences.hidden.contains(.keepAwake) { passiveSession }
                     OverviewMetricsPanel(model: model)
                 case .charge: charge
                 case .modes: modes

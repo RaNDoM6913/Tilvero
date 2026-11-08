@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.0-beta.1 — Overview and Keep Awake Source Preview — 2026-11-08
+
+- Overview: the macOS charge limit is shown in the battery block as an outlined capsule as wide as the battery icon (the confirmed target, 100 % while the limit is off, a blue dash while macOS has not confirmed it); tapping it opens the Charge page. The separate "Charge limit" block is gone.
+- Overview charts: the power, adapter, system and temperature charts come in three heights (Strip, Compact by default, Regular), a single-metric card, two-up tiles or one shared power chart. Value axis with units, zebra bands, hatched recording gaps and an honest dashed empty frame; battery power is marked as a V×A estimate and adapter input as a different boundary. The size is a setting in the quick panel builder.
+- Overview Keep Awake: one row with a switch, a strip of 15 min / 30 min / 1 h / 4 h, an until-stopped button and a way to the Sleep page. A choice starts at once, the chosen segment counts down and tapping it again ends the session. A timed session shows "Until HH:mm". Picking another kind of session restarts it without a question. The feature is named the same on Overview and in the Sleep tab.
+- Sleep: the timer has its own "With lid closed" switch; one switch covers the sleep timer and Sleep at charge.
+- Charge: a confirmed native charge limit is the system's own setting and survives quitting the app; stale and duplicated charge notices were removed.
+- Quick menu: larger headings, one shared battery block for the panel and the builder preview, power and adapter captions that name their boundary.
+
+This beta contains source for Apple silicon with macOS 26.0+ and full Xcode; it
+includes no app or DMG. The physical 85 % cutoff and the closed-lid override
+still need your own device check. Automatic installation remains gated.
+
 ## 0.3.0-beta.1 — Sleep and Charge Source Preview — 2026-11-06
 
 - Quick menu: tabs and sleep pills are one capsule control with a sliding accent pill (click or drag), cross-faded pages and one spring for page height and popover size. The menu no longer switches Spaces or raises the details window when it opens.

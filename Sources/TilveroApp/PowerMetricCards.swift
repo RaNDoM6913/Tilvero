@@ -40,19 +40,114 @@ enum PowerMetricHistory {
     let symbol: String
     let id: String
     var color: Color = .orange
+    /// The adapter card renders its own caption list so the absent message appears exactly once.
+    var showsCaptions = true
+    /// Replaces the default caption list (the adapter card adds its rated-capability line).
+    var captionOverride: [String]?
+    /// Sparkline (default, unchanged look) or the full chart with a value axis.
+    var style: MetricChartStyle = .sparkline
     private var reading: CatalogReading? { model.snapshot.catalog.first { $0.id == id } }
+    private var adapterConnected: Bool { model.snapshot.adapterIsConnected }
+    /// `absentInChart`: the chart's dashed frame already carries the adapter-absent message, so the list must not repeat it.
+    static func captionLines(id: String, reading: CatalogReading?, adapterConnected: Bool, absentInChart: Bool = false) -> [String] {
+        [absentInChart ? nil : MetricCaption.absent(for: id, adapterConnected: adapterConnected),
+         MetricCaption.boundary(for: id, reading: reading)].compactMap { $0 }
+    }
+    /// An adapter known to be unplugged has no input to draw: earlier history (including a measured 0 W) is not shown.
+    static func drawsHistory(id: String, adapterConnected: Bool) -> Bool { id != "054" || adapterConnected }
+    /// Message inside the dashed empty frame: the adapter-absent message for an unplugged adapter, otherwise the generic one.
+    static func chartEmptyMessage(id: String, adapterConnected: Bool) -> String {
+        MetricCaption.absent(for: id, adapterConnected: adapterConnected) ?? L10n.text("No recorded measurements yet")
+    }
+    /// Only battery power, system, adapter input and temperature can take the full chart.
+    static func showsChart(id: String, style: MetricChartStyle) -> Bool {
+        style == .chart && ["038", "043", "054", "039"].contains(id)
+    }
+    /// Temperature and capacity retention never had a sparkline on the quick page.
+    /// The rounded card chrome frames chart-style cards only; sparkline cards stay bare.
+    static func showsChrome(id: String, style: MetricChartStyle) -> Bool { showsChart(id: id, style: style) }
+    static func showsSparkline(id: String, style: MetricChartStyle) -> Bool {
+        id != "039" && id != "026" && !showsChart(id: id, style: style)
+    }
+    /// Axis unit: the reading's own unit (localised), the metric's natural unit when
+    /// the reading is missing, and Fahrenheit for a converted temperature.
+    static func chartUnit(id: String, readingUnit: String?, fahrenheit: Bool, language: String = L10n.language) -> String {
+        if id == "039" && fahrenheit { return "°F" }
+        return CatalogDataPresentation.unit(readingUnit ?? (id == "039" ? "°C" : "W"), language: language)
+    }
+    static func chartValue(_ value: Double, id: String, fahrenheit: Bool) -> Double {
+        id == "039" && fahrenheit ? value * 9 / 5 + 32 : value
+    }
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        content.modifier(OptionalCardChrome(isOn: Self.showsChrome(id: id, style: style)))
+    }
+    private var content: some View {
+        let captions = showsCaptions ? (captionOverride ?? Self.captionLines(id: id, reading: reading, adapterConnected: adapterConnected,
+                                                                             absentInChart: Self.showsChart(id: id, style: style))) : []
+        // A chart below regular height keeps its caption in the header line instead of a line of its own.
+        let inlineCaption = Self.showsChart(id: id, style: style) && model.overviewPreferences.chartSize != .regular
+        return VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
                 Label(L10n.text(title), systemImage: symbol)
+                if inlineCaption, !captions.isEmpty {
+                    Text(captions.joined(separator: " · ")).font(.caption2).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
+                }
                 Spacer(minLength: 8)
                 StudioText(reading.map { CatalogDataPresentation.value($0, reveal: false, fahrenheit: model.fahrenheit) } ?? "—", id: "powerMetric." + id + ".value").monospacedDigit()
                 if reading?.freshness == .stale { Text(L10n.text("Stale")).font(.caption2).foregroundStyle(.orange) }
-            }.font(.subheadline)
-            if id != "039" && id != "026" {
+            }.font(.system(size: 13, weight: .medium))
+            if !inlineCaption {
+                ForEach(captions, id: \.self) { Text($0).font(.caption2).foregroundStyle(.secondary) }
+            }
+            if Self.showsChart(id: id, style: style) {
+                chart
+            } else if Self.showsSparkline(id: id, style: style), Self.drawsHistory(id: id, adapterConnected: adapterConnected) {
                 MetricSparkline(model: model, id: id, color: color)
             }
         }.help(reading.map { L10n.text("Source") + ": " + $0.source + " · " + L10n.text("Freshness") + ": " + $0.freshness.rawValue + "\n" + L10n.text($0.reason ?? "Recorded observations during the last hour.") } ?? L10n.text("Unavailable"))
+    }
+}
+
+private struct OptionalCardChrome: ViewModifier {
+    let isOn: Bool
+    @ViewBuilder func body(content: Content) -> some View {
+        if isOn { content.metricCardChrome() } else { content }
+    }
+}
+
+extension PowerMetricCard {
+    @ViewBuilder fileprivate var chart: some View {
+        let fahrenheit = model.fahrenheit
+        let series = model.chartSeries(id: id).convertingValues { Self.chartValue($0, id: id, fahrenheit: fahrenheit) }
+        MetricChartView(
+            specs: [MetricChartSeriesSpec(id: id, series: series, color: color, endLabel: nil)],
+            scale: MetricChartScale.scale(forMetric: id, values: series.points.map(\.value)),
+            window: model.overviewChartWindow,
+            unit: Self.chartUnit(id: id, readingUnit: reading?.unit, fahrenheit: fahrenheit),
+            density: model.overviewPreferences.chartSize.density,
+            emptyMessage: Self.chartEmptyMessage(id: id, adapterConnected: adapterConnected))
+    }
+}
+
+extension TilveroModel {
+    /// Series the single-metric charts (variants A and B) draw. An adapter known to be unplugged gets an
+    /// empty series (dashed frame), not whatever 054 history the last hour holds; unknown external power draws it.
+    func chartSeries(id: String) -> MetricChartSeries {
+        guard PowerMetricCard.drawsHistory(id: id, adapterConnected: snapshot.adapterIsConnected) else {
+            return MetricChartSeries.make(points: [], window: overviewChartWindow, now: snapshot.collectedAt)
+        }
+        return metricSeries(id: id)
+    }
+}
+
+extension MetricChartSeries {
+    /// The same series with every value mapped (unit conversion); dates, gaps and state are untouched.
+    func convertingValues(_ transform: (Double) -> Double) -> MetricChartSeries {
+        func map(_ point: HistoryChartPoint) -> HistoryChartPoint {
+            HistoryChartPoint(id: point.id, date: point.date, value: transform(point.value), series: point.series)
+        }
+        return MetricChartSeries(points: points.map(map), gaps: gaps.map { .init(start: map($0.start), end: map($0.end)) },
+                                 isolatedPoints: isolatedPoints.map(map), staleSince: staleSince, state: state)
     }
 }
 
@@ -79,13 +174,29 @@ enum PowerMetricHistory {
 
 @MainActor struct AdapterMetricCard: View {
     @ObservedObject var model: TilveroModel
-    private var rating: String {
-        model.snapshot.catalog.first { $0.id == "050" }.map { CatalogDataPresentation.value($0, reveal: false, fahrenheit: false) } ?? "—"
+    var style: MetricChartStyle = .sparkline
+    private var inputReading: CatalogReading? { model.snapshot.catalog.first { $0.id == "054" } }
+    private var ratingReading: CatalogReading? { model.snapshot.catalog.first { $0.id == "050" } }
+    /// Unknown external-power state is not reported as "not connected".
+    private var adapterConnected: Bool { model.snapshot.adapterIsConnected }
+    /// Every caption line of the card body below the metric row, in display order. `absentInChart`: the chart frame carries the absent message.
+    static func captionLines(input: CatalogReading?, rating: CatalogReading?, adapterConnected: Bool, absentInChart: Bool = false) -> [String] {
+        let value = rating.map { CatalogDataPresentation.value($0, reveal: false, fahrenheit: false) } ?? "—"
+        return PowerMetricCard.captionLines(id: "054", reading: input, adapterConnected: adapterConnected, absentInChart: absentInChart)
+            + [L10n.text("Rated capability") + ": " + value]
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            PowerMetricCard(model: model, title: "Adapter input", symbol: "powerplug", id: "054", color: .blue)
-            Text(L10n.text("Rated capability") + ": " + rating).font(.caption2).foregroundStyle(.secondary)
+            if style == .chart {
+                // The captions sit under the title, above the chart, as in the sparkline-free layout.
+                PowerMetricCard(model: model, title: "Adapter input", symbol: "powerplug", id: "054", color: .blue,
+                                captionOverride: Self.captionLines(input: inputReading, rating: ratingReading, adapterConnected: adapterConnected, absentInChart: true), style: style)
+            } else {
+                PowerMetricCard(model: model, title: "Adapter input", symbol: "powerplug", id: "054", color: .blue, showsCaptions: false, style: style)
+                ForEach(Self.captionLines(input: inputReading, rating: ratingReading, adapterConnected: adapterConnected), id: \.self) {
+                    Text($0).font(.caption2).foregroundStyle(.secondary)
+                }
+            }
         }.help(L10n.text("Adapter input and battery power measure different electrical boundaries. Rated capability is not current consumption."))
     }
 }

@@ -111,38 +111,13 @@ struct QuickPanel: View {
 
     private var overview: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    StudioText(model.chargeText, id: "quick.charge.value").font(.system(size: 42, weight: .semibold, design: .rounded)).monospacedDigit()
-                    StudioText(model.chargingStateText, id: "quick.charge.status").font(.subheadline).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 12)
-                Image(nsImage: NativeBatteryStatusImage.make(
-                    level: model.snapshot.chargePercent.availability == .available || model.snapshot.chargePercent.freshness == .stale ? ReadingPresentation.validLevel(model.snapshot.chargePercent.value) : nil,
-                    style: .iconOnly,
-                    externalPower: model.snapshot.isExternalPower.availability == .available && model.snapshot.isExternalPower.freshness != .stale && model.snapshot.isExternalPower.value == true))
-                    .resizable().interpolation(.high).frame(width: 54, height: 36)
-                    .foregroundStyle(.secondary).accessibilityHidden(true)
-            }
-            if model.snapshot.chargePercent.freshness == .stale {
-                Text(L10n.text("Stale")).font(.caption).foregroundStyle(.orange)
-            }
+            OverviewHero(model: model, openCharge: { section = .charge })
             Divider()
             if model.sleepTimer.isActive { SleepTimerActiveRow(model: model, open: { section = .awake }); Divider() }
-            if model.keepAwake.hasOwnedAssertion { KeepAwakeActivePanel(service: model.keepAwake).id(model.language) }
-            OverviewMetricsPanel(model: model, allowsAwakeActions: true)
+            // The Keep Awake block carries its own running session; the stop row only stands in while that block is hidden.
+            if model.keepAwake.hasOwnedAssertion, model.overviewPreferences.hidden.contains(.keepAwake) { KeepAwakeActivePanel(service: model.keepAwake).id(model.language) }
+            OverviewMetricsPanel(model: model, allowsAwakeActions: true, openSleep: { model.selectedSleepPage = .awake; section = .awake })
         }
-    }
-
-    private func metric(_ title: String, symbol: String, reading: CatalogReading) -> some View {
-        HStack {
-            Label(L10n.text(title), systemImage: symbol)
-            Spacer()
-            Text(ReadingPresentation.display(reading, reveal: false, fahrenheit: model.fahrenheit)).monospacedDigit()
-            if reading.freshness == .stale { Text(L10n.text("Stale")).font(.caption2).foregroundStyle(.orange) }
-        }.font(.subheadline)
-            .help("\(L10n.text("Source")): \(reading.source) · \(L10n.text("Freshness")): \(reading.freshness.rawValue)")
     }
 
     @ViewBuilder private var charge: some View {

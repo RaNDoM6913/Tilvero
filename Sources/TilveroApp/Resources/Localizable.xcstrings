@@ -1,6 +1,54 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Chart": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chart"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "График"
+          }
+        }
+      }
+    },
+    "Chart: no data": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "no data"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "нет данных"
+          }
+        }
+      }
+    },
+    "No recording": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "no recording"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "нет записи"
+          }
+        }
+      }
+    },
     "Overview": {
       "localizations": {
         "en": {
@@ -6246,13 +6294,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Keep Mac Awake"
+            "value": "Keep Awake"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Не давать Mac уснуть"
+            "value": "Не засыпать"
           }
         }
       }
@@ -6262,13 +6310,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Keep Mac Awake…"
+            "value": "Keep Awake…"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Не давать Mac уснуть…"
+            "value": "Не засыпать…"
           }
         }
       }
@@ -12785,18 +12833,18 @@
         }
       }
     },
-    "Tilvero prevents idle system sleep until the timer ends, then releases its hold and requests sleep. The display may turn off. Closing the lid, manual sleep and macOS safety actions still work. A quiet warning appears one minute before. Cancel or quit releases the hold. The timer never restarts after waking or reopening Tilvero.": {
+    "Tilvero prevents idle system sleep until the timer ends, then releases its hold and requests sleep. The display may turn off. Closing the lid, manual sleep and macOS safety actions still work, except that the With lid closed switch of the timer and Sleep at charge (in the menu) keeps the Mac running with the lid closed until the timer ends or the charge is reached. A quiet warning appears one minute before. Cancel or quit releases the hold. The timer never restarts after waking or reopening Tilvero.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tilvero prevents idle system sleep until the timer ends, then releases its hold and requests sleep. The display may turn off. Closing the lid, manual sleep and macOS safety actions still work. A quiet warning appears one minute before. Cancel or quit releases the hold. The timer never restarts after waking or reopening Tilvero."
+            "value": "Tilvero prevents idle system sleep until the timer ends, then releases its hold and requests sleep. The display may turn off. Closing the lid, manual sleep and macOS safety actions still work, except that the With lid closed switch of the timer and Sleep at charge (in the menu) keeps the Mac running with the lid closed until the timer ends or the charge is reached. A quiet warning appears one minute before. Cancel or quit releases the hold. The timer never restarts after waking or reopening Tilvero."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tilvero не даёт Mac уснуть от бездействия до окончания таймера, затем снимает удержание и запрашивает сон. Экран может выключиться. Закрытие крышки, ручной сон и защитные действия macOS работают как обычно. За минуту появится тихое предупреждение. Отмена или выход снимают удержание. После пробуждения или перезапуска таймер не возобновляется."
+            "value": "Tilvero не даёт Mac уснуть от бездействия до окончания таймера, затем снимает удержание и запрашивает сон. Экран может выключиться. Закрытие крышки, ручной сон и защитные действия macOS работают как обычно, кроме случая, когда включён выключатель «С закрытой крышкой» у таймера и «Сна при заряде» (в меню): тогда Mac продолжает работать с закрытой крышкой до конца таймера или до достижения заряда. За минуту появится тихое предупреждение. Отмена или выход снимают удержание. После пробуждения или перезапуска таймер не возобновляется."
           }
         }
       }
@@ -15505,38 +15553,6 @@
         }
       }
     },
-    "Normal sleep returns when Keep Awake ends, when you quit Tilvero, before a sleep timer or charge sleep, and at the next launch if the app was killed. A closed Mac in a bag stays on and warm: use a hard, ventilated surface.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Normal sleep returns when Keep Awake ends, when you quit Tilvero, before a sleep timer or charge sleep, and at the next launch if the app was killed. A closed Mac in a bag stays on and warm: use a hard, ventilated surface."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Обычный сон возвращается, когда «Не засыпать» заканчивается, при выходе из Tilvero, перед сном по таймеру или заряду и при следующем запуске, если приложение было закрыто аварийно. Закрытый Mac в сумке остаётся включённым и греется: используйте жёсткую поверхность с вентиляцией."
-          }
-        }
-      }
-    },
-    "Not verified on every Mac and macOS version.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Not verified on every Mac and macOS version."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Работа проверена не на всех Mac и версиях macOS."
-          }
-        }
-      }
-    },
     "Sleep is already disabled by another tool or setting. Tilvero will not change it.": {
       "localizations": {
         "en": {
@@ -15549,22 +15565,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Сон уже отключён другой программой или настройкой. Tilvero её не изменит."
-          }
-        }
-      }
-    },
-    "An option for Keep Awake: with it on, a Keep Awake session also continues with the lid closed. It never starts Keep Awake by itself. The first time, macOS asks for the administrator password to allow one command, pmset disablesleep, without a password. Nothing else is allowed.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "An option for Keep Awake: with it on, a Keep Awake session also continues with the lid closed. It never starts Keep Awake by itself. The first time, macOS asks for the administrator password to allow one command, pmset disablesleep, without a password. Nothing else is allowed."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Опция для «Не засыпать»: когда она включена, сеанс «Не засыпать» продолжается и при закрытой крышке. Сама она «Не засыпать» не запускает. В первый раз macOS попросит пароль администратора, чтобы разрешить одну команду, pmset disablesleep, без пароля. Больше ничего не разрешается."
           }
         }
       }
@@ -15885,6 +15885,326 @@
           "stringUnit": {
             "state": "translated",
             "value": "Подключите зарядку для разовой проверки. После неё лимит работает и от батареи."
+          }
+        }
+      }
+    },
+    "battery · V×A estimate": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "battery · V×A estimate"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "батарея · оценка V×A"
+          }
+        }
+      }
+    },
+    "Adapter input — a different boundary": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adapter input — a different boundary"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вход адаптера — другая граница измерения"
+          }
+        }
+      }
+    },
+    "Adapter not connected — no reading": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adapter not connected — no reading"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Адаптер не подключён — чтения нет"
+          }
+        }
+      }
+    },
+    "Power tiles": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Power tiles"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Мощность: тайлы"
+          }
+        }
+      }
+    },
+    "Battery (short)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Battery"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Батарея"
+          }
+        }
+      }
+    },
+    "Power: combined chart": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Power: combined chart"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Мощность: общий график"
+          }
+        }
+      }
+    },
+    "Sparkline": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sparkline"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Линия"
+          }
+        }
+      }
+    },
+    "Chart style": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chart style"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Стиль графика"
+          }
+        }
+      }
+    },
+    "battery: V×A estimate, sign: + into the battery": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "battery: V×A estimate, sign: + into the battery"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "батарея: оценка V×A, знак: + в батарею"
+          }
+        }
+      }
+    },
+    "battery: sign: + into the battery": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "battery: sign: + into the battery"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "батарея: знак: + в батарею"
+          }
+        }
+      }
+    },
+    "adapter: input, a different boundary": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "adapter: input, a different boundary"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "адаптер: вход, другая граница"
+          }
+        }
+      }
+    },
+    "no reading from macOS": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "no reading from macOS"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "нет чтения от macOS"
+          }
+        }
+      }
+    },
+    "Adapter not connected — no adapter line": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adapter not connected — no adapter line"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Адаптер не подключён — линии адаптера нет"
+          }
+        }
+      }
+    },
+    "Keep Awake keeps running with the lid closed. Normal sleep returns by itself when the session ends, on stop and on quit.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep Awake keeps running with the lid closed. Normal sleep returns by itself when the session ends, on stop and on quit."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "«Не засыпать» продолжит работать и при закрытой крышке. Обычный сон вернётся сам, когда сеанс закончится, при остановке и при выходе."
+          }
+        }
+      }
+    },
+    "The sleep timer and Sleep at charge keep running with the lid closed; the Mac sleeps when they finish. Normal sleep returns by itself, also on cancel or quit.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The sleep timer and Sleep at charge keep running with the lid closed; the Mac sleeps when they finish. Normal sleep returns by itself, also on cancel or quit."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Таймер и «Сон при заряде» работают и при закрытой крышке: Mac уснёт, когда они закончатся. Обычный сон вернётся сам, в том числе при отмене и выходе."
+          }
+        }
+      }
+    },
+    "The first time, macOS asks for the administrator password; Tilvero can only turn sleep prevention on and off (pmset). A closed Mac gets warm: put it on a hard surface.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The first time, macOS asks for the administrator password; Tilvero can only turn sleep prevention on and off (pmset). A closed Mac gets warm: put it on a hard surface."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Первый раз macOS спросит пароль администратора; Tilvero сможет только запрещать и снова разрешать сон (pmset). Закрытый Mac греется: ставьте на твёрдую поверхность."
+          }
+        }
+      }
+    },
+    "Chart size": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chart size"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Размер графиков"
+          }
+        }
+      }
+    },
+    "Strip": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Strip"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Полоска"
+          }
+        }
+      }
+    },
+    "Compact": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compact"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Компактный"
+          }
+        }
+      }
+    },
+    "Regular": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regular"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обычный"
           }
         }
       }

@@ -71,26 +71,38 @@ import ClosedLidControl
 @MainActor struct LidSleepOverrideRow: View {
     @ObservedObject var model: TilveroModel
     @ObservedObject private var service: LidSleepOverrideService
-    init(model: TilveroModel) { self.model = model; service = model.lidSleep }
+    /// Keep Awake and the sleep timer each have their own switch; they share the permission and the override.
+    let mode: LidMode
+    init(model: TilveroModel, mode: LidMode = .keepAwake) { self.model = model; service = model.lidSleep; self.mode = mode }
+    private var isTimer: Bool { mode == .scheduledSleep }
+    private var preferred: Bool { isTimer ? service.isPreferredForScheduledSleep : service.isPreferred }
+    /// Two short paragraphs: what the switch does (differs by mode), then the permission and the warning (shared).
+    static func infoKeys(for mode: LidMode) -> [String] {
+        switch mode {
+        case .keepAwake: [
+            "Keep Awake keeps running with the lid closed. Normal sleep returns by itself when the session ends, on stop and on quit.",
+            "The first time, macOS asks for the administrator password; Tilvero can only turn sleep prevention on and off (pmset). A closed Mac gets warm: put it on a hard surface."]
+        case .scheduledSleep: [
+            "The sleep timer and Sleep at charge keep running with the lid closed; the Mac sleeps when they finish. Normal sleep returns by itself, also on cancel or quit.",
+            "The first time, macOS asks for the administrator password; Tilvero can only turn sleep prevention on and off (pmset). A closed Mac gets warm: put it on a hard surface."]
+        }
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                StudioText(L10n.text("With lid closed"), id: "awake.closedLid.heading")
+                StudioText(L10n.text("With lid closed"), id: isTimer ? "timer.closedLid.heading" : "awake.closedLid.heading")
                     .font(.system(size: 14, weight: .semibold)).fixedSize()
-                SectionInfoButton(title: L10n.text("With lid closed"), paragraphs: [
-                    L10n.text("An option for Keep Awake: with it on, a Keep Awake session also continues with the lid closed. It never starts Keep Awake by itself. The first time, macOS asks for the administrator password to allow one command, pmset disablesleep, without a password. Nothing else is allowed."),
-                    L10n.text("Normal sleep returns when Keep Awake ends, when you quit Tilvero, before a sleep timer or charge sleep, and at the next launch if the app was killed. A closed Mac in a bag stays on and warm: use a hard, ventilated surface."),
-                    L10n.text("Not verified on every Mac and macOS version."),
-                ], id: "closed-lid-info",
+                SectionInfoButton(title: L10n.text("With lid closed"), paragraphs: Self.infoKeys(for: mode).map { L10n.text($0) },
+                   id: isTimer ? "closed-lid-timer-info" : "closed-lid-info",
                    action: service.ruleFilePresent && !service.isOn && !service.needsRecovery
                     ? (L10n.text("Remove permission…"), { Task { await service.removePermission() } }) : nil)
                 Spacer(minLength: 8)
                 Toggle(L10n.text("With lid closed"), isOn: Binding(
-                    get: { service.isPreferred },
-                    set: { enabled in Task { await service.setPreferred(enabled) } }))
+                    get: { preferred },
+                    set: { enabled in Task { await service.setPreferred(enabled, for: mode) } }))
                     .toggleStyle(.switch).controlSize(.regular).labelsHidden().fixedSize()
-                    .disabled(!service.isAvailable || service.busy || (!service.isPreferred && service.needsRecovery))
-                    .accessibilityIdentifier("closed-lid-master")
+                    .disabled(!service.isAvailable || service.busy || (!preferred && service.needsRecovery))
+                    .accessibilityIdentifier(isTimer ? "closed-lid-timer-master" : "closed-lid-master")
             }
             .frame(height: 32)
             if let failure = service.failure {
@@ -100,6 +112,6 @@ import ClosedLidControl
                 Button(L10n.text("Restore sleep")) { Task { await service.restoreSleep() } }.font(.caption).disabled(service.busy)
             }
         }
-        .studioElement("awake.closedLid", kind: "container", label: "Closed-lid session controls")
+        .studioElement(isTimer ? "timer.closedLid" : "awake.closedLid", kind: "container", label: isTimer ? "Closed-lid timer controls" : "Closed-lid session controls")
     }
 }

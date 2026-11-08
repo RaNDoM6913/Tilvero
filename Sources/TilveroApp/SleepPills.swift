@@ -11,27 +11,20 @@ enum SleepPillSelection: Equatable {
     case preset(Int), custom, until, untilStopped
 }
 enum SleepPillConfirmation: Equatable {
-    case endAwake(UInt32), endTimer(UUID?), restartAwake(UInt32)
+    case endAwake(UInt32), endTimer(UUID?)
     var title: String {
         switch self {
         case .endAwake: L10n.text("End Keep Awake and start the sleep timer?")
         case .endTimer: L10n.text("Cancel the sleep timer and start Keep Awake?")
-        case .restartAwake: L10n.language == "ru" ? "Перезапустить текущий сеанс?" : "Restart the current session?"
         }
     }
     var action: String {
         switch self {
         case .endAwake: L10n.text("End Keep Awake and start")
         case .endTimer: L10n.text("Cancel timer and start Keep Awake")
-        case .restartAwake: L10n.language == "ru" ? "Остановить и запустить заново" : "Stop and restart"
         }
     }
     var explanation: String {
-        if case .restartAwake = self {
-            return L10n.language == "ru"
-                ? "Для смены типа сеанса текущее удержание будет остановлено, затем начнётся новое. Между ними возможен перерыв."
-                : "Changing the session type stops the current hold, then starts a new one. There may be a gap."
-        }
         return L10n.text("Confirm switching the active sleep mode first.")
     }
 }
@@ -157,15 +150,15 @@ enum SleepPillActionError: LocalizedError, Equatable {
             let needed = SleepPillConfirmation.endTimer(model.sleepTimer.sessionID)
             guard consent == needed else { throw SleepPillActionError.confirmation(needed) }
         }
-        if let id = model.keepAwake.ownedAssertionID {
+        if model.keepAwake.hasOwnedAssertion {
             if request == .untilStopped, model.keepAwake.expiry == .untilStopped { return }
             if case .duration(let minutes) = request, model.keepAwake.expiry != .untilStopped {
                 try model.keepAwake.replaceDuration(seconds: minutes * 60)
                 setDraft(model, request: request)
                 return
             }
-            let needed = SleepPillConfirmation.restartAwake(id)
-            guard consent == needed else { throw SleepPillActionError.confirmation(needed) }
+            // Choosing another kind of session (until stopped, a clock time, or back to a duration) is the user's
+            // intent: the current hold is stopped and the new one starts at once, with no question.
             try model.keepAwake.stop()
             guard !model.keepAwake.hasOwnedAssertion else { throw SleepPillActionError.blocked }
         }
@@ -244,7 +237,8 @@ enum SleepPillActionError: LocalizedError, Equatable {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             masterRow
-            TimelineView(.periodic(from: .now, by: 1)) { _ in
+            TimelineView(.periodic(from: .now, by: 1)) { tick in
+                let _ = tick.date   // the content must read the tick, or SwiftUI may keep the first rendering
                 let selection = SleepPillActions.timerSelection(model)
                 HStack(spacing: 6) {
                     ForEach([15, 30, 60], id: \.self) { minutes in
@@ -274,7 +268,8 @@ enum SleepPillActionError: LocalizedError, Equatable {
                     Text(L10n.text(service.phase == .preparing ? "Preparing for sleep…" : service.phase == .requesting ? "Requesting sleep…" : "Sleep requested; waiting for the system…"))
                         .font(.caption).foregroundStyle(.secondary)
                 } else if service.activePillMinutes == nil {
-                    TimelineView(.periodic(from: .now, by: 1)) { _ in
+                    TimelineView(.periodic(from: .now, by: 1)) { tick in
+                        let _ = tick.date   // the content must read the tick, or SwiftUI may keep the first rendering
                         Text(L10n.text("Time remaining") + ": " + KeepAwakePresentation.countdown(service.remainingSeconds))
                             .font(.caption).monospacedDigit().foregroundStyle(.secondary)
                     }
@@ -291,6 +286,11 @@ enum SleepPillActionError: LocalizedError, Equatable {
             }
             Divider().padding(.vertical, 2)
             SleepAtChargePanel(model: model)
+            // Its own switch, like Keep Awake's (the permission is shared): a running timer continues with the lid closed.
+            if model.lidSleep.isAvailable {
+                Divider().padding(.vertical, 2)
+                LidSleepOverrideRow(model: model, mode: .scheduledSleep)
+            }
         }
         .studioElement("timer.editor", kind: "container", label: "Sleep timer editor")
         .onChange(of: ObjectIdentifier(model)) { _, _ in
@@ -421,7 +421,8 @@ enum SleepPillActionError: LocalizedError, Equatable {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             masterRow
-            TimelineView(.periodic(from: .now, by: 1)) { _ in
+            TimelineView(.periodic(from: .now, by: 1)) { tick in
+                let _ = tick.date   // the content must read the tick, or SwiftUI may keep the first rendering
                 let applied = SleepPillActions.awakeSelection(model)
                 LazyVGrid(columns: columns, spacing: 6) {
                     ForEach(KeepAwakeDuration.allCases) { duration in
@@ -436,7 +437,8 @@ enum SleepPillActionError: LocalizedError, Equatable {
                 }
             }
             if SleepPillActions.awakeSelection(model) == .custom {
-                TimelineView(.periodic(from: .now, by: 1)) { _ in
+                TimelineView(.periodic(from: .now, by: 1)) { tick in
+                    let _ = tick.date   // the content must read the tick, or SwiftUI may keep the first rendering
                     StudioText(KeepAwakePresentation.countdown(service.remainingSeconds), id: "awake.custom.countdown")
                         .font(.system(size: 12, weight: .semibold)).monospacedDigit()
                         .foregroundStyle(.secondary)

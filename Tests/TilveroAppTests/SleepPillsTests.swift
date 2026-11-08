@@ -320,27 +320,20 @@ import XCTest
         XCTAssertTrue(f.model.sleepTimer.isActive)
     }
 
-    func testTypeChangeNeedsRestartConsentAndRepeatedInfinityDoesNothing() throws {
+    func testTypeChangeRestartsAtOnceWithoutAQuestionAndRepeatedInfinityDoesNothing() throws {
         let f = try PillFixture(); defer { f.cleanUp() }
         try SleepPillActions.awake(f.model, request: .duration(15))
-        let id = try XCTUnwrap(f.model.keepAwake.ownedAssertionID)
-        XCTAssertThrowsError(try SleepPillActions.awake(f.model, request: .untilStopped)) {
-            XCTAssertEqual($0 as? SleepPillActionError, .confirmation(.restartAwake(id)))
-        }
-        XCTAssertEqual(f.awake.releaseCount, 0)
-        try SleepPillActions.awake(f.model, request: .untilStopped, consent: .restartAwake(id))
+        try SleepPillActions.awake(f.model, request: .untilStopped)
         XCTAssertEqual(f.awake.createCount, 2)
         XCTAssertEqual(f.awake.releaseCount, 1)
         XCTAssertEqual(SleepPillActions.awakeSelection(f.model), .untilStopped)
         try SleepPillActions.awake(f.model, request: .untilStopped)
-        XCTAssertEqual(f.awake.createCount, 2)
-        let infiniteID = try XCTUnwrap(f.model.keepAwake.ownedAssertionID)
-        XCTAssertThrowsError(try SleepPillActions.awake(f.model, request: .duration(60)))
-        try SleepPillActions.awake(f.model, request: .duration(60), consent: .restartAwake(infiniteID))
-        let finiteID = try XCTUnwrap(f.model.keepAwake.ownedAssertionID)
-        let target = Date().addingTimeInterval(600)
-        XCTAssertThrowsError(try SleepPillActions.awake(f.model, request: .until(target)))
-        try SleepPillActions.awake(f.model, request: .until(target), consent: .restartAwake(finiteID))
+        XCTAssertEqual(f.awake.createCount, 2, "choosing the running until-stopped session again does nothing")
+        try SleepPillActions.awake(f.model, request: .duration(60))
+        XCTAssertEqual(f.awake.createCount, 3)
+        XCTAssertEqual(SleepPillActions.awakeSelection(f.model), .preset(60))
+        try SleepPillActions.awake(f.model, request: .until(Date().addingTimeInterval(600)))
+        XCTAssertEqual(f.awake.createCount, 4)
         XCTAssertEqual(SleepPillActions.awakeSelection(f.model), .until)
     }
 
@@ -445,19 +438,6 @@ import XCTest
         XCTAssertEqual(calendar.timeZone.secondsFromGMT(for: repeated), calendar.timeZone.secondsFromGMT(for: repeatedDay))
     }
 
-    func testStaleRestartConsentCannotStopAReplacementSession() throws {
-        let f = try PillFixture(); defer { f.cleanUp() }
-        try SleepPillActions.awake(f.model, request: .duration(15))
-        let previous = try XCTUnwrap(f.model.keepAwake.ownedAssertionID)
-        try f.model.keepAwake.stop()
-        try SleepPillActions.awake(f.model, request: .duration(30))
-        let replacement = try XCTUnwrap(f.model.keepAwake.ownedAssertionID)
-        XCTAssertThrowsError(try SleepPillActions.awake(f.model, request: .untilStopped, consent: .restartAwake(previous))) {
-            XCTAssertEqual($0 as? SleepPillActionError, .confirmation(.restartAwake(replacement)))
-        }
-        XCTAssertEqual(f.model.keepAwake.ownedAssertionID, replacement)
-        XCTAssertEqual(f.awake.releaseCount, 1)
-    }
 }
 
 @MainActor private final class PillFixture {
