@@ -543,7 +543,7 @@ private struct SettingsPanel: View {
                 HStack(alignment: .firstTextBaseline) {
                     StudioText(L10n.text("Temperature units"), id: "settings.temperatureUnits.title")
                     Spacer()
-                    Picker(L10n.text("Temperature units"), selection: $model.fahrenheit) { Text("°C").tag(false); Text("°F").tag(true) }.studioElement("settings.temperature", label: "Temperature units")
+                    Picker(L10n.text("Temperature units"), selection: $model.temperatureUnit) { Text(L10n.text("Follow system")).tag(TemperatureUnitSetting.system); Text("°C").tag(TemperatureUnitSetting.celsius); Text("°F").tag(TemperatureUnitSetting.fahrenheit) }.studioElement("settings.temperature", label: "Temperature units")
                         .labelsHidden().frame(width: 220)
                 }
                 Divider()

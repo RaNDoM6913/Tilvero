@@ -6,7 +6,7 @@ import PowerCore
 
 /// Overview variant C: one card, one shared watt axis, two lines - battery power
 /// ("038") and adapter input ("054"). Lines are named by end labels next to the
-/// newest points, never by a legend. The caption names both boundaries; an absent
+/// newest points, never by a legend (and there is no caption). An absent
 /// adapter draws no line, only one message under the plot.
 @MainActor struct PowerCombinedBlock: View {
     @ObservedObject var model: TilveroModel
@@ -14,7 +14,6 @@ import PowerCore
     /// Pure text and drawing decisions, so wording and which lines exist are testable without a view tree.
     struct Content: Equatable {
         let title: String
-        let caption: String
         /// "Battery −10,0": title and the number of the shared presentation; nil without a reading.
         let batteryLabel: String?
         let adapterLabel: String?
@@ -31,7 +30,6 @@ import PowerCore
     static func content(battery: CatalogReading?, adapter: CatalogReading?, adapterConnected: Bool, fahrenheit: Bool = false) -> Content {
         Content(
             title: L10n.text("Power"),
-            caption: MetricCaption.combined(batteryReading: battery),
             batteryLabel: endLabel(titleKey: "Battery (short)", reading: battery, fahrenheit: fahrenheit),
             adapterLabel: adapterConnected ? endLabel(titleKey: "Adapter", reading: adapter, fahrenheit: fahrenheit) : nil,
             drawsAdapter: adapterConnected,
@@ -77,10 +75,7 @@ import PowerCore
         let battery = model.metricSeries(id: "038")
         let adapter = content.drawsAdapter ? model.metricSeries(id: "054") : nil
         VStack(alignment: .leading, spacing: 6) {
-            VStack(alignment: .leading, spacing: 3) {
-                Label(content.title, systemImage: "bolt").font(.subheadline)
-                Text(content.caption).font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            }
+            Label(content.title, systemImage: "bolt").font(.subheadline).lineLimit(1)
             // A stale reading mutes the heading; the chart itself marks the stale tail.
             .opacity(content.isStale ? 0.6 : 1)
             MetricChartView(

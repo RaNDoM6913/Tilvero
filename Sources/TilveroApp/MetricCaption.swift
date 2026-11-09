@@ -9,49 +9,14 @@ extension BatterySnapshot {
     var adapterIsConnected: Bool { isExternalPower.value != false }
 }
 
-/// Honest boundary wording shown under overview metrics. Wording follows the
-/// reading's own provenance; the approximation prefix belongs to
-/// `CatalogDataPresentation.value`, never to these captions.
+/// Status messages of the overview charts. There are no explanatory captions any more (owner 2026-11-09: the title
+/// is enough; the "≈" in front of an estimated value already says so, and the source stays in the tooltip). Only the
+/// state "no adapter" is worded, inside the empty chart frame or as one line when no chart is drawn.
 enum MetricCaption {
-    static let batteryEstimateKey = "battery · V×A estimate"
-    static let adapterBoundaryKey = "Adapter input — a different boundary"
     static let adapterAbsentKey = "Adapter not connected — no reading"
-    static let allKeys = [batteryEstimateKey, adapterBoundaryKey, adapterAbsentKey]
-
-    // Combined power chart: one caption naming both boundaries, one "no adapter line" message.
-    static let combinedBatteryEstimateKey = "battery: V×A estimate, sign: + into the battery"
-    static let combinedBatterySignKey = "battery: sign: + into the battery"
-    static let combinedAdapterKey = "adapter: input, a different boundary"
-    static let combinedNoBatteryReadingKey = "no reading from macOS"
     static let combinedAdapterNoLineKey = "Adapter not connected — no adapter line"
-    static let combinedKeys = [combinedBatteryEstimateKey, combinedBatterySignKey, combinedAdapterKey,
-                               combinedNoBatteryReadingKey, combinedAdapterNoLineKey]
-
-    static func boundary(for id: String, reading: CatalogReading?) -> String? {
-        // A missing value names no estimate and no boundary: the provenance of a value-less reading says nothing.
-        guard let reading, hasValue(reading) else { return nil }
-        switch id {
-        case "038":
-            return [.estimated, .inferred].contains(reading.provenance) ? L10n.text(batteryEstimateKey) : nil
-        case "054":
-            return L10n.text(adapterBoundaryKey)
-        default:
-            return nil
-        }
-    }
-
-    /// Caption of the combined power chart. Without a battery reading there is nothing
-    /// to name a boundary for, so only the missing-reading line is shown; otherwise
-    /// both boundaries are named and the V×A estimate wording follows the provenance.
-    static func combined(batteryReading: CatalogReading?) -> String {
-        guard let batteryReading, hasValue(batteryReading) else { return L10n.text(combinedNoBatteryReadingKey) }
-        let battery = [.estimated, .inferred].contains(batteryReading.provenance) ? combinedBatteryEstimateKey : combinedBatterySignKey
-        return L10n.text(battery) + " · " + L10n.text(combinedAdapterKey)
-    }
-
-    private static func hasValue(_ reading: CatalogReading) -> Bool {
-        reading.value != nil && reading.availability == .available
-    }
+    static let allKeys = [adapterAbsentKey]
+    static let combinedKeys = [combinedAdapterNoLineKey]
 
     static func absent(for id: String, adapterConnected: Bool) -> String? {
         id == "054" && !adapterConnected ? L10n.text(adapterAbsentKey) : nil

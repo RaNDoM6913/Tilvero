@@ -137,7 +137,9 @@ final class TilveroModel: ObservableObject {
     @Published private(set) var modeReport: ModeApplicationReport?
     @Published var selectedMode: WorkMode = .economy
     @Published var language: String { didSet { preferences.set(language, forKey: "language"); onPresentationChange?() } }
-    @Published var fahrenheit: Bool { didSet { preferences.set(fahrenheit, forKey: "fahrenheit") } }
+    /// System (default), Celsius or Fahrenheit. Views read `fahrenheit`; it follows this setting.
+    @Published var temperatureUnit: TemperatureUnitSetting { didSet { preferences.set(temperatureUnit.rawValue, forKey: "temperatureUnit") } }
+    var fahrenheit: Bool { temperatureUnit.usesFahrenheit() }
     @Published private(set) var weeklyCapacity: WeeklyCapacity?
     @Published var historyEnabled: Bool { didSet {
         if !historyEnabled { weeklyCapacity = nil }
@@ -488,7 +490,7 @@ final class TilveroModel: ObservableObject {
         self.snapshotProvider = snapshotProvider ?? { await Task.detached(priority: .utility) { provider.readSnapshot() }.value }
         snapshot = isDemo ? .demo() : .unavailable(reason: "Waiting for first reading")
         language = preferences.string(forKey: "language") ?? "system"
-        fahrenheit = preferences.bool(forKey: "fahrenheit")
+        temperatureUnit = TemperatureUnitSetting.load(from: preferences)
         historyEnabled = preferences.object(forKey: "historyEnabled") as? Bool ?? true
         retentionDays = preferences.object(forKey: "retentionDays") as? Int ?? 30
         menuBarTextSize = MenuBarTextSize(rawValue: preferences.string(forKey: "menuBarTextSize") ?? "") ?? .system

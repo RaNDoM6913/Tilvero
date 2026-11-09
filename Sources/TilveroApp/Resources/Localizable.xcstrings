@@ -15889,38 +15889,6 @@
         }
       }
     },
-    "battery · V×A estimate": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "battery · V×A estimate"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "батарея · оценка V×A"
-          }
-        }
-      }
-    },
-    "Adapter input — a different boundary": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Adapter input — a different boundary"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Вход адаптера — другая граница измерения"
-          }
-        }
-      }
-    },
     "Adapter not connected — no reading": {
       "localizations": {
         "en": {
@@ -16013,70 +15981,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Стиль графика"
-          }
-        }
-      }
-    },
-    "battery: V×A estimate, sign: + into the battery": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "battery: V×A estimate, sign: + into the battery"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "батарея: оценка V×A, знак: + в батарею"
-          }
-        }
-      }
-    },
-    "battery: sign: + into the battery": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "battery: sign: + into the battery"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "батарея: знак: + в батарею"
-          }
-        }
-      }
-    },
-    "adapter: input, a different boundary": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "adapter: input, a different boundary"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "адаптер: вход, другая граница"
-          }
-        }
-      }
-    },
-    "no reading from macOS": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "no reading from macOS"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "нет чтения от macOS"
           }
         }
       }
@@ -16205,6 +16109,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Обычный"
+          }
+        }
+      }
+    },
+    "Follow system": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Follow system"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Как в системе"
           }
         }
       }
