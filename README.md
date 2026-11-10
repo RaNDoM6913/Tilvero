@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.4.0"><img src="https://img.shields.io/badge/source-preview-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Source preview" height="28"></a>
-  <a href="docs/GITHUB_TRAFFIC.md"><img src="https://img.shields.io/badge/zip%20%E2%80%A2%20clones%20%E2%80%A2%20unique-7%20%E2%80%A2%20945%20%E2%80%A2%20320-2F6E4B?style=for-the-badge&amp;labelColor=172A22" alt="Source ZIP downloads 7, Git clones 945, unique cloners 320" height="28"></a>
+  <a href="docs/GITHUB_TRAFFIC.md"><img src="https://img.shields.io/badge/zip%20%E2%80%A2%20clones%20%E2%80%A2%20unique-10%20%E2%80%A2%201302%20%E2%80%A2%20392-2F6E4B?style=for-the-badge&amp;labelColor=172A22" alt="Source ZIP downloads 10, Git clones 1302, unique cloners 392" height="28"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="License: GPL-3.0-only" height="28"></a>
 </p>
 
@@ -16,8 +16,6 @@ understand changes over time, without an account or a cloud service.
 [Get the source](https://github.com/RaNDoM6913/Tilvero/releases/download/v0.4.0/Tilvero-0.4.0-source.zip)
 · [Release notes and checksums](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.4.0)
 · [Build and run](#build-and-run) · [Roadmap](ROADMAP.md)
-
-Snapshot on **8 November 2026 UTC**. ZIP counts source downloads excluding project verification downloads. Clones and unique cloners cover **27 October–6 November UTC**. [Counts and methodology](docs/GITHUB_TRAFFIC.md).
 
 A signed, notarized Mac download is still in preparation. The planned
 **Monitoring Preview** DMG will be read-only; this repository also contains

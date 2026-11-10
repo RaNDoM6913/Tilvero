@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.4.0"><img src="https://img.shields.io/badge/source-preview-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Предварительная версия в исходниках" height="28"></a>
-  <a href="docs/GITHUB_TRAFFIC.md"><img src="https://img.shields.io/badge/zip%20%E2%80%A2%20clones%20%E2%80%A2%20unique-7%20%E2%80%A2%20945%20%E2%80%A2%20320-2F6E4B?style=for-the-badge&amp;labelColor=172A22" alt="Скачивания ZIP 7, клонирования Git 945, уникальные клонирующие 320" height="28"></a>
+  <a href="docs/GITHUB_TRAFFIC.md"><img src="https://img.shields.io/badge/zip%20%E2%80%A2%20clones%20%E2%80%A2%20unique-10%20%E2%80%A2%201302%20%E2%80%A2%20392-2F6E4B?style=for-the-badge&amp;labelColor=172A22" alt="Скачивания ZIP 10, клонирования Git 1302, уникальные клонирующие 392" height="28"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Лицензия GPL-3.0-only" height="28"></a>
 </p>
 
@@ -16,8 +16,6 @@ Tilvero показывает состояние батареи и питания
 [Получить исходники](https://github.com/RaNDoM6913/Tilvero/releases/download/v0.4.0/Tilvero-0.4.0-source.zip)
 · [Описание выпуска и контрольные суммы](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.4.0)
 · [Сборка и запуск](#сборка-и-запуск) · [План развития](ROADMAP.md)
-
-Снимок на **8 ноября 2026 г. (UTC)**. ZIP — скачивания исходников за вычетом проверочных скачиваний проекта. CLONES и UNIQUE — клонирования за **27 октября — 6 ноября (UTC)**. [Цифры и методика](docs/GITHUB_TRAFFIC.md).
 
 Подписанная и нотарифицированная версия для Mac готовится. Планируемый DMG
 **Monitoring Preview** будет работать только для чтения; в репозитории также
