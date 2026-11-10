@@ -49,3 +49,6 @@ xcuserdata/
 # Python tool caches, never release inputs.
 __pycache__/
 *.pyc
+
+# local-only GitHub traffic statistics
+/docs/GITHUB_TRAFFIC.md
