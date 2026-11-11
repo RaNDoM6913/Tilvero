@@ -75,7 +75,7 @@ import PowerCore
         let battery = model.metricSeries(id: "038")
         let adapter = content.drawsAdapter ? model.metricSeries(id: "054") : nil
         VStack(alignment: .leading, spacing: 6) {
-            Label(content.title, systemImage: "bolt").font(.subheadline).lineLimit(1)
+            Label(content.title, systemImage: "bolt").font(.system(size: 13, weight: .medium)).lineLimit(1)
             // A stale reading mutes the heading; the chart itself marks the stale tail.
             .opacity(content.isStale ? 0.6 : 1)
             MetricChartView(
