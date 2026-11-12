@@ -1,7 +1,7 @@
 ![Tilvero — Battery, power and activity. Swift 6, macOS 26+, Apple silicon. Source preview.](.github/assets/cover.png)
 
 <p align="center">
-  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.4.0"><img src="https://img.shields.io/badge/source-preview-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Source preview" height="28"></a>
+  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.5.0-beta.1"><img src="https://img.shields.io/badge/source-preview-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Source preview" height="28"></a>
   <a href="docs/GITHUB_TRAFFIC.md"><img src="https://img.shields.io/badge/zip%20%E2%80%A2%20clones%20%E2%80%A2%20unique-10%20%E2%80%A2%201308%20%E2%80%A2%20387-2F6E4B?style=for-the-badge&amp;labelColor=172A22" alt="Source ZIP downloads 10, Git clones 1308, unique cloners 387" height="28"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="License: GPL-3.0-only" height="28"></a>
 </p>
@@ -12,26 +12,32 @@ Tilvero lives in your menu bar. One quick menu shows your battery and power,
 keeps your Mac awake or sleeps it on a timer, and sets the macOS charge limit,
 with a clear native window when you want the details. No account, no cloud service.
 
-The quick menu is the heart of the app: Overview with Keep Awake, live charts and
-battery health; two Sleep pages (timer and Keep Awake); and Charge with the limit,
-a one-time full charge and charge by time.
-
 <img src=".github/assets/screenshots/quick-menu-dark.png" alt="Tilvero quick menu: Overview, Sleep timer, Keep Awake and Charge" width="100%">
 
 <sub>Overview · Sleep timer · Keep Awake · Charge. Rendered from source with injected demo readings; they do not
 establish hardware support or qualify a release binary.</sub>
 
-**0.4.0 Source Preview for developers** (the newest beta is
-[0.5.0-beta.1](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.5.0-beta.1)).
-[Get the source](https://github.com/RaNDoM6913/Tilvero/releases/download/v0.4.0/Tilvero-0.4.0-source.zip)
-· [Release notes and checksums](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.4.0)
+## What the quick menu does
+
+- **Overview:** the battery level and state, the macOS charge limit at a glance, Keep Awake in one tap, and live
+  charts for power, adapter input and temperature with battery health below. Blocks, order and chart size are yours to arrange.
+- **Sleep:** a sleep timer you can extend by 5 minutes, 15 minutes or an hour; Keep Awake for a set time or until you stop it,
+  with an optional **With lid closed** switch; and sleep or keep awake when the charge falls to a level you choose.
+- **Charge:** the macOS charge limit (80–100 %), a one-time charge to 100 %, and **charge by time**: pick a time and a level
+  and Tilvero lifts the limit just in time, waking a sleeping Mac on schedule (one optional administrator permission;
+  waking with the lid closed is still being verified on real hardware).
+
+**Latest: [0.5.0-beta.1 Source Preview](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.5.0-beta.1) for developers.**
+[Get the source](https://github.com/RaNDoM6913/Tilvero/releases/download/v0.5.0-beta.1/Tilvero-0.5.0-beta.1-source.zip)
+· [Release notes and checksums](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.5.0-beta.1)
 · [Build and run](#build-and-run) · [Roadmap](ROADMAP.md)
+· Stable: [0.4.0](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.4.0)
 
 A signed, notarized Mac download is still in preparation. The planned
 **Monitoring Preview** DMG will be read-only; this repository also contains
 separately gated development controls. [Availability and installation](docs/INSTALL.md).
 
-## A closer look at your Mac
+## More than the menu: a closer look at your Mac
 
 | See | What Tilvero shows |
 | --- | --- |
@@ -46,7 +52,7 @@ separately gated development controls. [Availability and installation](docs/INST
 The catalog describes **115 fields**. Your Mac determines which are available;
 missing values stay unavailable. Monitoring needs no administrator approval.
 
-## Inside Tilvero
+## The detail window
 
 Native interface rendered from source with injected demo data. Illustrations
 are schematic; these captures do not establish hardware support or qualify a
@@ -69,14 +75,14 @@ You need **Apple silicon, macOS 26.0+ and a full Xcode installation** with a
 compatible macOS SDK and Swift 6. Command Line Tools alone are not the validated route.
 
 ```sh
-git clone --branch v0.4.0 https://github.com/RaNDoM6913/Tilvero.git
+git clone --branch v0.5.0-beta.1 https://github.com/RaNDoM6913/Tilvero.git
 cd Tilvero
 bash scripts/test.sh
 bash scripts/build-local-app.sh
 bash scripts/run-local.sh
 ```
 
-The app opens in the menu bar. Click the battery item for the quick panel;
+Use `--branch v0.4.0` for the stable source. The app opens in the menu bar. Click the battery item for the quick menu;
 **History & reports…** opens the detail window, and the gear opens Settings.
 Inside Tilvero, **⌘⌥B** toggles the panel and **⌘,** opens Settings.
 
@@ -100,10 +106,12 @@ Impact is not implemented. Values never become zero merely because access is den
 nights from sample gaps or attribute their energy use to individual apps.
 
 **Controls have separate admission.** Development source includes Keep Mac Awake,
-saved modes and a native charge controller. Saving a plan does not apply it.
-Native charge changes require a local per-Mac setting/readback/restoration check;
-one-time full charging has an additional gate. Privileged charging, power-mode
-and fan writes remain unqualified. Fans default to System Auto.
+the sleep timer, saved modes and a native charge controller. Saving a plan does not apply it.
+The charge limit, the one-time full charge and charge by time use the macOS charge setting and
+a local per-Mac setting/readback/restoration check; your own limit wins over any plan.
+Charge by time can ask for one optional administrator permission (`pmset schedule wake`)
+to wake a sleeping Mac; on-device wake behaviour, with the lid closed as well, is still unverified.
+Privileged charging, power-mode and fan writes remain unqualified. Fans default to System Auto.
 
 The future Monitoring Preview configuration disables Keep Mac Awake and control
 actions and contains no privileged helper. A default source build is a development
