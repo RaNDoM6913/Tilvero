@@ -363,6 +363,9 @@ final class TilveroModel: ObservableObject {
     }
     let nativeCharge: NativeChargeService
     let chargeOnce: ChargeOnceStore
+    let chargeBy: ChargeByService
+    private var chargeByTimer: Timer?
+    private var chargeByEnvironment: ModelChargeByEnvironment?
     let keyboardBacklight: KeyboardBacklightService
     private var nativeSubscription: AnyCancellable?
     private var nativeMessageSubscription: AnyCancellable?
@@ -438,6 +441,7 @@ final class TilveroModel: ObservableObject {
         self.processActivityProvider = processActivityProvider ?? { await ProcessActivityProvider().read() }
         self.preferences = preferences
         chargeOnce = ChargeOnceStore(preferences: preferences)
+        chargeBy = ChargeByService(defaults: preferences, wake: isDemo || launchPolicy.monitoringOnly ? DisabledWakeScheduler() : NativeWakeScheduler())
         self.postWakeSettleSeconds = postWakeSettleSeconds
         self.sleepTracker = SleepSessionTracker(postWakeSettleSeconds: postWakeSettleSeconds)
         self.sideEffects = sideEffects ?? .native
@@ -702,6 +706,14 @@ final class TilveroModel: ObservableObject {
         updates.start()
         processMonitorStopped = false
         guard pollingTask == nil else { return }
+        if !isDemo {
+            let environment = ModelChargeByEnvironment(model: self)
+            chargeByEnvironment = environment; chargeBy.environment = environment
+            // A plan resumes after a relaunch, and a wake (scheduled or not) is noticed within seconds.
+            Task { @MainActor in await chargeBy.tick() }
+            let timer = Timer(timeInterval: 20, repeats: true) { [weak self] _ in Task { @MainActor in await self?.chargeBy.tick() } }
+            RunLoop.main.add(timer, forMode: .common); chargeByTimer = timer
+        }
         if !isDemo { Task { await lidSleep.recoverIfNeeded() } }
         if !isDemo { Task { await liveControl.start() }; observer.start { [weak self] in Task { await self?.refresh() } } }
         pollingTask = Task { @MainActor [weak self] in
@@ -720,6 +732,7 @@ final class TilveroModel: ObservableObject {
         }
     }
     func stop() {
+        chargeByTimer?.invalidate(); chargeByTimer = nil
         updates.stop()
         sleepTimer.stop()
         sleepAtCharge.stop(); keepAwakeUntilCharge.stop()
@@ -731,6 +744,7 @@ final class TilveroModel: ObservableObject {
     }
     func setSleeping(_ value: Bool) {
         if value { sleepTimer.systemWillSleep(); sleepAtCharge.systemWillSleep(); keepAwakeUntilCharge.systemWillSleep() } else { sleepTimer.systemDidWake(); sleepAtCharge.systemDidWake(); keepAwakeUntilCharge.systemDidWake() }
+        if !isDemo { Task { @MainActor in if value { await chargeBy.systemWillSleep() } else { await chargeBy.systemDidWake() } } }
         if value && sleeping { return }
         if !value && !sleeping && observedWake { return }
         lifecycleEpoch &+= 1
@@ -915,12 +929,13 @@ final class TilveroModel: ObservableObject {
 
     // MARK: One-time charge to 100 % on the native path (the slider's own apply; the previous limit is put back afterwards)
     /// The limit macOS reports right now (100 when the limit is off), nil until read.
-    private var observedNativeLimit: Int? {
+    var observedNativeLimit: Int? {
         nativeCharge.observed.map { $0.configuration.enabled ? $0.configuration.target : NativeChargeAdmission.unlimitedTarget }
     }
     var isChargeOnceRunning: Bool { chargeOnce.isActive }
+    var chargeByObservation: ChargeByObservation { chargeByEnvironment?.observation() ?? ModelChargeByEnvironment(model: self).observation() }
     var canStartChargeOnce: Bool {
-        guard !isDemo, usesNativeCharge, canEdit, !chargeOnce.isActive, nativeCharge.canApplyTarget(100),
+        guard !isDemo, usesNativeCharge, canEdit, !chargeOnce.isActive, !chargeBy.isArmed, nativeCharge.canApplyTarget(100),
               let limit = observedNativeLimit, limit < NativeChargeAdmission.unlimitedTarget else { return false }
         return true
     }

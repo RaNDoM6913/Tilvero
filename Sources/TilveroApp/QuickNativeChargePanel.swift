@@ -22,6 +22,7 @@ import ChargeBackends
             if model.canShowChargeControls, !targets.isEmpty { controls(state) } else { validationHeader(state) }
             attention(state)
             footer(state)
+            ChargeByBlock(model: model, service: model.chargeBy)
         }
         .studioElement("charge.editor", kind: "container", label: "Charge limit editor")
         .task { await model.refreshNativeChargeIfStale() }
