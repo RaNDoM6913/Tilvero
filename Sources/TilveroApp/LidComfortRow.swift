@@ -57,6 +57,7 @@ import PowerCore
         .onTapGesture { withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.24)) { expanded.toggle() } }
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isButton)
+        .accessibilityAction { withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.24)) { expanded.toggle() } }
         .accessibilityValue(expanded ? L10n.text("Expanded") : L10n.text("Collapsed"))
     }
 

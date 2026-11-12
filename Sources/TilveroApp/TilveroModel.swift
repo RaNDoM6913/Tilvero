@@ -469,7 +469,8 @@ final class TilveroModel: ObservableObject {
         keepAwakeUntilCharge = SleepAtChargeService(driver: sleepTimerTransport ?? NativeSleepTimerTransport(), allowed: !isDemo && !monitoring, endAction: .release)
         closedLid = closedLidService ?? ClosedLidService(allowed: !isDemo && !monitoring)
         lidSleep = LidSleepOverrideService(system: lidSleepSystem ?? NativeLidSleepSystem(), defaults: preferences, allowed: !isDemo && !monitoring)
-        // A test that injects its own lid system never gets the native display/volume/lid transports by accident.
+        // A test that injects its own lid system gets a disabled comfort service. Even a native one never writes unless
+        // a real lid override is armed (display and audio are only touched at lid close).
         lidComfort = lidComfortService ?? LidComfortService(defaults: preferences, allowed: !isDemo && !monitoring && lidSleepSystem == nil)
         self.setupBundle = setupBundle
         let setupIdentity = try? ReleaseIdentity.current(bundle: setupBundle)

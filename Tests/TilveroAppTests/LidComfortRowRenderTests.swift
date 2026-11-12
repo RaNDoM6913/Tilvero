@@ -5,13 +5,32 @@ import XCTest
 import SwiftUI
 import AppKit
 import PowerCore
+import PowerTelemetry
+import ComfortBackends
 @testable import TilveroApp
+
+/// Render tests never reach the real display, audio or lid.
+private struct InertDisplay: DisplayBrightnessTransport {
+    func read() async throws -> DisplayBrightnessReading { throw ComfortBackendError.unavailable }
+    func set(_ value: Double, displayID: UInt32) async throws { throw ComfortBackendError.unavailable }
+}
+private struct InertAudio: OutputVolumeTransport {
+    private final class Sub: ComfortSubscription, @unchecked Sendable { func cancel() {} }
+    func defaultOutput() async throws -> OutputVolumeReading { throw ComfortBackendError.unavailable }
+    func volume(deviceUID: String) async throws -> Double? { throw ComfortBackendError.deviceMissing }
+    func setVolume(_ value: Double, deviceUID: String) async throws { throw ComfortBackendError.unavailable }
+    func observeDefaultOutputChanges(_ handler: @escaping @Sendable () -> Void) -> any ComfortSubscription { Sub() }
+}
+private final class InertClamshell: LidComfortClamshell, @unchecked Sendable {
+    private final class Sub: ComfortSubscription, @unchecked Sendable { func cancel() {} }
+    func sample() -> ClamshellSample { ClamshellSample(lidClosed: false, causesSleep: true) }
+    func observe(_ handler: @escaping @Sendable (ClamshellSample) -> Void) -> any ComfortSubscription { Sub() }
+}
 
 @MainActor final class LidComfortRowRenderTests: XCTestCase {
     private func model(prefs: UserDefaults) -> TilveroModel {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        // Nothing arms the service (the lid override stays off), so the native transports are never called.
-        let comfort = LidComfortService(defaults: prefs, allowed: true)
+        let comfort = LidComfortService(display: InertDisplay(), audio: InertAudio(), clamshell: InertClamshell(), defaults: prefs, allowed: true)
         return TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"), lidComfortService: comfort)
     }
     private func render<V: View>(_ view: V, scheme: ColorScheme, name: String) throws -> NSSize {

@@ -11,17 +11,21 @@ import ComfortBackends
 private final class FakeDisplay: DisplayBrightnessTransport, @unchecked Sendable {
     private let lock = NSLock()
     var brightness = 0.57
+    var id: UInt32 = 1
     var failWrites = false
     var onWrite: (() -> Void)?
     var writeSticks = true
     private(set) var writes: [Double] = []
-    func read() async throws -> DisplayBrightnessReading { DisplayBrightnessReading(displayID: 1, value: lock.withLock { brightness }) }
+    func read() async throws -> DisplayBrightnessReading { DisplayBrightnessReading(displayID: lock.withLock { id }, value: lock.withLock { brightness }) }
     func set(_ value: Double, displayID: UInt32) async throws {
+        guard displayID == lock.withLock({ id }) else { throw ComfortBackendError.noBuiltInDisplay }
         onWrite?()
         lock.withLock { writes.append(value); if writeSticks && !failWrites { brightness = value } }
         if failWrites { throw ComfortBackendError.writeRejected }
     }
     func user(_ value: Double) { lock.withLock { brightness = value } }
+    func setSticks(_ value: Bool) { lock.withLock { writeSticks = value } }
+    func setID(_ value: UInt32) { lock.withLock { id = value } }
 }
 
 private final class FakeAudio: OutputVolumeTransport, @unchecked Sendable {
@@ -73,12 +77,14 @@ private final class FakeClamshell: LidComfortClamshell, @unchecked Sendable {
         let service: LidComfortService, display: FakeDisplay, audio: FakeAudio, lid: FakeClamshell, defaults: UserDefaults
         let cleanUp: () -> Void
     }
-    fileprivate func make(allowed: Bool = true, consoleUserIsUs: Bool = true, journalFrom: UserDefaults? = nil) -> Rig {
+    fileprivate func make(allowed: Bool = true, consoleUserIsUs: Bool = true, journalFrom: UserDefaults? = nil,
+                          debounce: Duration = .milliseconds(5)) -> Rig {
         let suite = "LidComfort-\(UUID())"
         let defaults = journalFrom ?? UserDefaults(suiteName: suite)!
         let display = FakeDisplay(), audio = FakeAudio(), lid = FakeClamshell()
         let service = LidComfortService(display: display, audio: audio, clamshell: lid, defaults: defaults, allowed: allowed,
-                                        consoleUserIsUs: { consoleUserIsUs }, debounce: .milliseconds(5), retryDelay: .milliseconds(1))
+                                        consoleUserIsUs: { consoleUserIsUs }, debounce: debounce, retryDelay: .milliseconds(1),
+                                        restoreRetryDelay: .milliseconds(15))
         return Rig(service: service, display: display, audio: audio, lid: lid, defaults: defaults,
                    cleanUp: { defaults.removePersistentDomain(forName: suite) })
     }
@@ -324,5 +330,96 @@ private final class FakeClamshell: LidComfortClamshell, @unchecked Sendable {
 
     func testTheClamshellMessageConstantMatchesTheLidHelperObserver() {
         XCTAssertEqual(ClamshellStateObserver.stateChangeMessage, ClamshellNativeABI.stateMessage)
+    }
+
+    // MARK: Review fixes
+
+    func testAKeptEntryNeverBlocksTheNextCloseAndTheOldDeviceIsRetriedWhenItReturns() async {
+        let r = make(); defer { r.cleanUp() }
+        r.audio.devices["airpods"] = .init(volume: 0.6); r.audio.defaultUID = "airpods"
+        r.service.armedChanged(.keepAwake)
+        await close(r)
+        r.audio.devices["airpods"] = nil; r.audio.defaultUID = "speakers"
+        await open(r)
+        XCTAssertNotNil(r.defaults.data(forKey: LidComfortService.journalKey), "The AirPods entry waits for the device.")
+        await close(r)
+        XCTAssertEqual(r.audio.devices["speakers"]?.volume ?? 1, 0.25, accuracy: 0.001, "A later close still applies to the speakers.")
+        await open(r)
+        XCTAssertEqual(r.audio.devices["speakers"]?.volume ?? 0, 0.5, accuracy: 0.001)
+        // The device reappears with the lid open: its entry is restored, nothing new is capped.
+        r.audio.devices["airpods"] = .init(volume: 0.25); r.audio.switchDefault(to: "airpods"); await settle()
+        XCTAssertEqual(r.audio.devices["airpods"]?.volume ?? 0, 0.6, accuracy: 0.001)
+        XCTAssertNil(r.defaults.data(forKey: LidComfortService.journalKey))
+    }
+
+    func testAnOutputChangeWithTheLidOpenNeverCapsAnything() async {
+        let r = make(); defer { r.cleanUp() }
+        r.service.armedChanged(.keepAwake)
+        r.audio.devices["headphones"] = .init(volume: 0.9)
+        r.audio.switchDefault(to: "headphones"); await settle()
+        XCTAssertTrue(r.audio.writes.isEmpty)
+    }
+
+    func testAPendingDebounceCannotApplyInTheMiddleOfAReleaseAndTheNextArmingStartsClean() async {
+        let r = make(debounce: .milliseconds(150)); defer { r.cleanUp() }
+        let lidSleep = LidSleepOverrideService(defaults: UserDefaults(suiteName: "LidComfort-race-\(UUID())")!, allowed: true)
+        r.service.bind(lidSleep); await settle()
+        r.service.armedChanged(.keepAwake)
+        r.lid.set(closed: true); r.service.sampleChanged(r.lid.sample())      // debounce is running
+        await lidSleep.beforeRelease()                                         // the override is being released now
+        await settle(300)
+        XCTAssertTrue(r.display.writes.isEmpty, "Nothing is applied once the release has started.")
+        XCTAssertTrue(r.audio.writes.isEmpty)
+    }
+
+    func testAFailedRestoreIsRetriedUntilTheScreenComesBack() async {
+        let r = make(); defer { r.cleanUp() }
+        r.service.armedChanged(.keepAwake)
+        await close(r)
+        r.display.setSticks(false)                       // the panel refuses writes right after the lid opens
+        await open(r)
+        XCTAssertEqual(r.display.brightness, 0, "Still dark: the restore did not land yet.")
+        XCTAssertNotNil(r.defaults.data(forKey: LidComfortService.journalKey))
+        r.display.setSticks(true)
+        await settle(400)
+        XCTAssertEqual(r.display.brightness, 0.57, accuracy: 0.001, "A bounded retry brings it back without another event.")
+        XCTAssertNil(r.defaults.data(forKey: LidComfortService.journalKey))
+    }
+
+    func testARestoreUsesTheCurrentBuiltInDisplayIdNotTheJournaledOne() async {
+        let r = make(); defer { r.cleanUp() }
+        r.service.armedChanged(.keepAwake)
+        await close(r)
+        r.display.setID(7)                                // e.g. crash recovery after a reboot
+        await open(r)
+        XCTAssertEqual(r.display.brightness, 0.57, accuracy: 0.001)
+        XCTAssertNil(r.defaults.data(forKey: LidComfortService.journalKey))
+    }
+
+    func testAQuickReopenAndCloseIsAppliedAfterTheRestoreNotLost() async {
+        let r = make(); defer { r.cleanUp() }
+        r.service.armedChanged(.keepAwake)
+        await close(r)
+        r.lid.set(closed: false); r.service.sampleChanged(r.lid.sample())
+        r.lid.set(closed: true); r.service.sampleChanged(r.lid.sample())
+        await settle(300)
+        XCTAssertEqual(r.display.brightness, 0, "The second close is dimmed again.")
+        XCTAssertEqual(r.audio.devices["speakers"]?.volume ?? 1, 0.25, accuracy: 0.001)
+        XCTAssertTrue(r.service.isApplied)
+        await open(r)
+        XCTAssertEqual(r.display.brightness, 0.57, accuracy: 0.001)
+    }
+
+    func testAnOutputThatConnectsAfterANoOpApplyIsStillCapped() async {
+        let r = make(); defer { r.cleanUp() }
+        r.display.brightness = 0; r.audio.devices["speakers"]?.volume = 0.13   // nothing to lower at close
+        r.service.armedChanged(.keepAwake)
+        await close(r)
+        XCTAssertFalse(r.service.isApplied)
+        r.audio.devices["airpods"] = .init(volume: 0.8)
+        r.audio.switchDefault(to: "airpods"); await settle()
+        XCTAssertEqual(r.audio.devices["airpods"]?.volume ?? 1, 0.25, accuracy: 0.001)
+        await open(r)
+        XCTAssertEqual(r.audio.devices["airpods"]?.volume ?? 0, 0.8, accuracy: 0.001)
     }
 }
