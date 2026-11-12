@@ -362,6 +362,7 @@ final class TilveroModel: ObservableObject {
         if sleepTimer.isActive { sleepTimer.cancel() }
     }
     let nativeCharge: NativeChargeService
+    let chargeOnce: ChargeOnceStore
     let keyboardBacklight: KeyboardBacklightService
     private var nativeSubscription: AnyCancellable?
     private var nativeMessageSubscription: AnyCancellable?
@@ -436,6 +437,7 @@ final class TilveroModel: ObservableObject {
         self.launchPolicy = launchPolicy
         self.processActivityProvider = processActivityProvider ?? { await ProcessActivityProvider().read() }
         self.preferences = preferences
+        chargeOnce = ChargeOnceStore(preferences: preferences)
         self.postWakeSettleSeconds = postWakeSettleSeconds
         self.sleepTracker = SleepSessionTracker(postWakeSettleSeconds: postWakeSettleSeconds)
         self.sideEffects = sideEffects ?? .native
@@ -856,6 +858,7 @@ final class TilveroModel: ObservableObject {
         snapshot = snapshot.replacingCatalog(ControlCatalog.readings(state: chargeState, capabilities: liveControl.capabilities, fans: isDemo ? nil : liveControl.fanObservation, isDemo: isDemo, connected: liveControl.connected, at: snapshot.collectedAt))
         if !inspectedRaw.isEmpty { snapshot = snapshot.replacingCatalog(inspectedRaw) }
         await evaluateSchedule()
+        evaluateChargeOnce()
         onPresentationChange?()
     }
     func setSliderIndex(_ value: Double) {
@@ -909,6 +912,51 @@ final class TilveroModel: ObservableObject {
     }
     func applyDemoTarget() { guard canApply, validateTypedDraft(), let target = draftTarget else { return }; perform(.setCeiling(percent: target)) }
     func toggleOneShotDemo() { perform(isOneShotDemo ? .cancelOneShot : .chargeToFullOnce) }
+
+    // MARK: One-time charge to 100 % on the native path (the slider's own apply; the previous limit is put back afterwards)
+    /// The limit macOS reports right now (100 when the limit is off), nil until read.
+    private var observedNativeLimit: Int? {
+        nativeCharge.observed.map { $0.configuration.enabled ? $0.configuration.target : NativeChargeAdmission.unlimitedTarget }
+    }
+    var isChargeOnceRunning: Bool { chargeOnce.isActive }
+    var canStartChargeOnce: Bool {
+        guard !isDemo, usesNativeCharge, canEdit, !chargeOnce.isActive, nativeCharge.canApplyTarget(100),
+              let limit = observedNativeLimit, limit < NativeChargeAdmission.unlimitedTarget else { return false }
+        return true
+    }
+    func startChargeOnce() {
+        guard canStartChargeOnce, let previous = observedNativeLimit else { return }
+        let percent = snapshot.chargePercent.value
+        let fresh = snapshot.chargePercent.availability == .available && snapshot.chargePercent.freshness == .fresh
+        runNative { [weak self] service in
+            try await service.apply(100, batteryPercent: percent, batteryFresh: fresh)
+            self?.chargeOnce.begin(previous: previous)
+        }
+    }
+    func cancelChargeOnce() {
+        guard let previous = chargeOnce.previousTarget else { return }
+        restoreAfterChargeOnce(previous)
+    }
+    private func restoreAfterChargeOnce(_ previous: Int) {
+        let percent = snapshot.chargePercent.value
+        let fresh = snapshot.chargePercent.availability == .available && snapshot.chargePercent.freshness == .fresh
+        runNative { [weak self] service in
+            try await service.apply(previous, batteryPercent: percent, batteryFresh: fresh)
+            self?.chargeOnce.clear()
+        }
+    }
+    /// After every reading: the charge is over (full, or the adapter was unplugged) or the limit was changed elsewhere.
+    private func evaluateChargeOnce() {
+        guard !isDemo, !sleeping, !isApplying, !nativeCharge.isBusy, let previous = chargeOnce.previousTarget else { return }
+        let usable = { (reading: TelemetryReading<Bool>) in reading.availability == .available && reading.freshness != .stale ? reading.value : nil }
+        let level = snapshot.chargePercent.availability == .available && snapshot.chargePercent.freshness != .stale ? snapshot.chargePercent.value : nil
+        switch ChargeOnceRule.decide(previous: previous, observedTarget: observedNativeLimit, percent: level,
+                                     isCharging: usable(snapshot.isCharging), externalPower: usable(snapshot.isExternalPower)) {
+        case .keep: break
+        case .drop: chargeOnce.clear()
+        case .restore(let target): restoreAfterChargeOnce(target)
+        }
+    }
     func releaseControl() { perform(.returnToSystemControl) }
     func cancelPendingDemo() {
         if isDemo { runSimulation { simulator in try await simulator.cancelPendingCharge() } }

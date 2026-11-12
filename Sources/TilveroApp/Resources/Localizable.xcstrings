@@ -16128,6 +16128,38 @@
           }
         }
       }
+    },
+    "Charging to 100%": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charging to 100%"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Заряд до 100%"
+          }
+        }
+      }
+    },
+    "Charge to 100% once lifts the limit until the battery is full or the adapter is unplugged, then your previous limit returns. Tap the button again to cancel.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charge to 100% once lifts the limit until the battery is full or the adapter is unplugged, then your previous limit returns. Tap the button again to cancel."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "«Зарядить до 100% один раз» снимает лимит, пока батарея не заполнится или адаптер не отключат, затем прежний лимит возвращается. Нажмите кнопку ещё раз, чтобы отменить."
+          }
+        }
+      }
     }
   },
   "version": "1.0"
