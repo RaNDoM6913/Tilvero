@@ -39,6 +39,10 @@ enum KeyboardBacklightAvailability: Equatable {
     @Published private(set) var isBusy = false
     @Published private(set) var requestedBrightness: Double?
     @Published private(set) var lastAppliedBrightness: Double?
+    /// While a slider or switch operation is in flight (pre-read, write, readback) the UI keeps showing what the user
+    /// asked for instead of the old observation: no jump back and forth.
+    @Published private(set) var pendingBrightness: Double?
+    @Published private(set) var pendingEnabled: Bool?
     /// A requested fallback for a previously unseen off keyboard, never an observed reading.
     let fallbackOnBrightness = 0.25
     var brightness: Double? { observation?.brightness }
@@ -47,10 +51,23 @@ enum KeyboardBacklightAvailability: Equatable {
     private let driver: any KeyboardBacklightTransport
     private let storage: any KeyboardBacklightPreferenceStorage
     private let allowed: Bool
+    /// The keyboard backlight fades to a new level; a readback right after the write may still show a step on the way.
+    private let settleDelay: Duration
     init(driver: any KeyboardBacklightTransport = NativeKeyboardBacklightTransport(),
          storage: any KeyboardBacklightPreferenceStorage = UserDefaultsKeyboardBacklightStorage(),
-         allowed: Bool = true) {
-        self.driver = driver; self.storage = storage; self.allowed = allowed
+         allowed: Bool = true, settleDelay: Duration = .milliseconds(100)) {
+        self.driver = driver; self.storage = storage; self.allowed = allowed; self.settleDelay = settleDelay
+    }
+    /// Reads back after a write; a level still on its way (a fade) is read again a few times before it counts as unconfirmed.
+    private func readbackSettling(matching matches: (KeyboardBacklightObservation) -> Bool) async throws -> KeyboardBacklightObservation {
+        var observed = try await driver.read()
+        var attempts = 0
+        while !matches(observed), attempts < 5 {
+            attempts += 1
+            try? await Task.sleep(for: settleDelay)
+            observed = try await driver.read()
+        }
+        return observed
     }
     func refresh() async {
         guard !isBusy else { return }
@@ -64,7 +81,8 @@ enum KeyboardBacklightAvailability: Equatable {
         guard !isBusy else { return }
         guard allowed else { invalidate(.disabledInSimulation); return }
         isBusy = true; error = nil; lastAppliedBrightness = nil; requestedBrightness = nil
-        defer { isBusy = false }
+        pendingEnabled = enabled
+        defer { isBusy = false; pendingEnabled = nil }
         let before: KeyboardBacklightObservation
         do { before = try await driver.read(); accept(before) }
         catch { invalidate(Self.typed(error)); return }
@@ -82,7 +100,10 @@ enum KeyboardBacklightAvailability: Equatable {
             return
         }
         do {
-            let after = try await driver.read(); accept(after)
+            let after = try await readbackSettling { observed in
+                (target == 0 ? observed.brightness == 0 : abs(observed.brightness - target) <= 0.005) && observed.isEnabled == enabled
+            }
+            accept(after)
             guard after.keyboardID == before.keyboardID else { error = .unconfirmedWrite; return }
             guard after.automaticBrightness == before.automaticBrightness else { error = .automaticPolicyChanged; return }
             // Off must be zero. On permits <=0.5 percentage-point readback quantization,
@@ -99,7 +120,8 @@ enum KeyboardBacklightAvailability: Equatable {
         guard requested.isFinite else { error = .invalidBrightness; return }
         let target = min(1, max(0, requested))
         isBusy = true; error = nil; lastAppliedBrightness = nil; requestedBrightness = nil
-        defer { isBusy = false }
+        pendingBrightness = target
+        defer { isBusy = false; pendingBrightness = nil }
         let before: KeyboardBacklightObservation
         do { before = try await driver.read(); accept(before) }
         catch { invalidate(Self.typed(error)); return }
@@ -113,7 +135,8 @@ enum KeyboardBacklightAvailability: Equatable {
             return
         }
         do {
-            let after = try await driver.read(); accept(after)
+            let after = try await readbackSettling { target == 0 ? $0.brightness == 0 : abs($0.brightness - target) <= 0.005 }
+            accept(after)
             guard after.keyboardID == before.keyboardID else { error = .unconfirmedWrite; return }
             guard after.automaticBrightness == before.automaticBrightness else { error = .automaticPolicyChanged; return }
             guard target == 0 ? after.brightness == 0 : abs(after.brightness - target) <= 0.005 else { error = .unconfirmedWrite; return }
