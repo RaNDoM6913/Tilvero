@@ -70,7 +70,7 @@ import PowerCore
     private func levelLabel(on: Bool, icon: String, offIcon: String, text: String) -> some View {
         HStack(spacing: 4) {
             Image(systemName: on ? icon : offIcon).font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
-            Text(on ? text : L10n.text("Off")).font(.system(size: 13, weight: .semibold, design: .rounded)).monospacedDigit()
+            Text(on ? text : L10n.text("Off (short)")).font(.system(size: 13, weight: .semibold, design: .rounded)).monospacedDigit()
                 .foregroundStyle(on ? Color.primary : Color.secondary)
         }
     }
@@ -97,7 +97,7 @@ import PowerCore
                         Image(systemName: icon).font(.system(size: 14, weight: .semibold)).foregroundStyle(isOn && shown > 0.08 ? Color.primary : Color.secondary)
                         Text(name).font(.system(size: 13, weight: .medium)).foregroundStyle(isOn ? Color.primary : Color.secondary)
                         Spacer(minLength: 0)
-                        Text(isOn ? "\(Int((shown * 100).rounded())) %" : L10n.text("Off"))
+                        Text(isOn ? "\(Int((shown * 100).rounded())) %" : L10n.text("Off (short)"))
                             .font(.system(size: 14, weight: .semibold, design: .rounded)).monospacedDigit()
                             .foregroundStyle(isOn ? Color.primary : Color.secondary)
                     }.padding(.horizontal, 14)
@@ -116,7 +116,7 @@ import PowerCore
             .frame(height: 40)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(name)
-            .accessibilityValue(isOn ? "\(Int((shown * 100).rounded())) %" : L10n.text("Off"))
+            .accessibilityValue(isOn ? "\(Int((shown * 100).rounded())) %" : L10n.text("Off (short)"))
             .accessibilityAdjustableAction { direction in
                 guard isOn else { return }
                 let step = direction == .increment ? 0.05 : -0.05

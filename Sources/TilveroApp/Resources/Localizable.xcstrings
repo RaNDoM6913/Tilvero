@@ -16624,6 +16624,22 @@
           }
         }
       }
+    },
+    "Off (short)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выкл"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -79,7 +79,7 @@ private final class InertClamshell: LidComfortClamshell, @unchecked Sendable {
     }
 
     func testEveryNewStringHasARussianTranslation() {
-        for key in ["Screen and sound", "Screen brightness", "Volume", "When the lid is closed", "Expanded", "Collapsed",
+        for key in ["Screen and sound", "Screen brightness", "Volume", "When the lid is closed", "Expanded", "Collapsed", "Off (short)",
                     "When you close the lid, Tilvero turns the screen down and keeps the sound no louder than the levels you choose. A quieter setting is never raised.",
                     "When you open the lid, both return to what they were, unless you changed them meanwhile. The keyboard backlight turns off by itself. Keep Awake and the timer have separate settings."] {
             let saved = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
