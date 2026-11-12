@@ -76,39 +76,67 @@ enum SleepControlToken: Equatable, Identifiable {
         let remaining = isAwake ? model.keepAwake.remainingSeconds : model.sleepTimer.remainingSeconds
         return remaining > 0 ? min(1440, max(1, (remaining + 59) / 60)) : 30
     }
+    /// The extension steps of this session: a sleep timer also takes five minutes (it restarts with the longer total,
+    /// exactly like the wheel's Apply); Keep Awake keeps its verified 15 and 60.
+    private var steps: [Int] { isAwake ? [15, 60] : [5, 15, 60] }
+    private func label(_ minutes: Int) -> String { minutes < 60 ? "+\(minutes) " + L10n.text("min") : "+\(minutes / 60) " + L10n.text("h") }
+    private func canStep(_ minutes: Int) -> Bool {
+        if minutes == 5 { return sameSession && model.sleepPillActionsAllowed && model.sleepTimer.remainingSeconds > 0 && model.sleepTimer.remainingSeconds <= 86_400 - 300 }
+        return SleepPillActions.canExtend(model, token: token, minutes: minutes)
+    }
+    private func step(_ minutes: Int) {
+        if minutes == 5 {
+            guard canStep(5) else { error = SleepPillActionError.blocked.localizedDescription; return }
+            let total = min(1440, (model.sleepTimer.remainingSeconds + 59) / 60 + 5)
+            onClose()
+            Task { @MainActor in
+                await Task.yield()
+                guard SleepPillActions.controlToken(model, awake: false) == token else { return }
+                onSetTime?(.duration(total))
+            }
+            return
+        }
+        do { try SleepPillActions.extend(model, token: token, minutes: minutes); error = nil; revision += 1 }
+        catch { self.error = error.localizedDescription }
+    }
     var body: some View {
-        VStack(spacing: 2) {
+        VStack(spacing: 10) {
             HStack(spacing: 8) {
-                ForEach([15, 60], id: \.self) { minutes in
-                    Button(minutes == 15 ? "+15 " + L10n.text("min") : "+1 " + L10n.text("h")) {
-                        do {
-                            try SleepPillActions.extend(model, token: token, minutes: minutes)
-                            error = nil; revision += 1
-                        } catch { self.error = error.localizedDescription }
+                ForEach(steps, id: \.self) { minutes in
+                    Button { step(minutes) } label: {
+                        Text(label(minutes)).font(.subheadline.weight(.medium)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.85)
+                            .frame(maxWidth: .infinity).padding(.vertical, 7)
+                            .foregroundStyle(Color.primary)
+                            .background(Capsule().fill(Color.primary.opacity(0.07)))
+                            .contentShape(Capsule())
                     }
-                    .buttonStyle(.bordered).frame(maxWidth: .infinity)
-                    .disabled(!SleepPillActions.canExtend(model, token: token, minutes: minutes))
+                    .buttonStyle(.plain).disabled(!canStep(minutes)).opacity(canStep(minutes) ? 1 : 0.45)
                     .studioElement("sleep.extend.\(minutes)", label: "Extend \(minutes) minutes")
                 }
-                Button {
-                    do { try SleepPillActions.finish(model, token: token); onClose() }
-                    catch { self.error = error.localizedDescription }
-                } label: {
-                    Image(systemName: "power").font(.system(size: 13, weight: .semibold))
-                        .frame(width: 28, height: 28).background(Color.red.opacity(0.08), in: Circle())
-                }
-                .buttonStyle(.plain).foregroundStyle(.red).disabled(!sameSession)
-                .accessibilityLabel(L10n.language == "ru" ? "Завершить сеанс" : "End session")
-                .help(L10n.language == "ru" ? "Завершить сеанс" : "End session")
-                .studioElement("sleep.finish", label: "End session")
-            }.padding(.horizontal, 12).frame(height: 34)
-            Text(error.map(L10n.text) ?? (L10n.language == "ru" ? "Изменить оставшееся время" : "Edit remaining time"))
-                .font(.system(size: 10)).foregroundStyle(error == nil ? Color.secondary : Color.orange)
-                .lineLimit(2).frame(height: 22).padding(.horizontal, 12).help(error ?? "")
+            }.padding(.horizontal, 12)
+            if let error {
+                Text(L10n.text(error)).font(.caption).foregroundStyle(.orange).lineLimit(2).padding(.horizontal, 12)
+            }
             SleepWheelPicker(mode: mode, initialMinutes: initialMinutes,
                 initialDate: (isAwake ? model.keepAwake.endDate : model.sleepTimer.endDate) ?? Date().addingTimeInterval(1800),
                 onCommit: commit, onCancel: onClose)
                 .id(revision).disabled(!sameSession)
+            Button {
+                do { try SleepPillActions.finish(model, token: token); onClose() }
+                catch { self.error = error.localizedDescription }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "power").font(.system(size: 12, weight: .semibold))
+                    Text(L10n.text(isAwake ? "End Keep Awake" : "End timer"))
+                }
+                .font(.subheadline.weight(.medium)).foregroundStyle(.red)
+                .frame(maxWidth: .infinity).padding(.vertical, 7)
+                .background(Capsule().fill(Color.red.opacity(0.12)))
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.plain).disabled(!sameSession).padding(.horizontal, 12)
+            .accessibilityLabel(L10n.text(isAwake ? "End Keep Awake" : "End timer"))
+            .studioElement("sleep.finish", label: "End session")
         }
         .frame(width: 244)
         .opacity(appeared ? 1 : 0)

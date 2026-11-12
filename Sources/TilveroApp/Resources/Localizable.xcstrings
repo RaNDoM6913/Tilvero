@@ -16160,6 +16160,38 @@
           }
         }
       }
+    },
+    "End timer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "End timer"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Завершить таймер"
+          }
+        }
+      }
+    },
+    "End Keep Awake": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "End Keep Awake"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Завершить «Не засыпать»"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
