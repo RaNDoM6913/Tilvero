@@ -100,7 +100,7 @@ enum SleepControlToken: Equatable, Identifiable {
         catch { self.error = error.localizedDescription }
     }
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 8) {
             HStack(spacing: 8) {
                 ForEach(steps, id: \.self) { minutes in
                     Button { step(minutes) } label: {
@@ -113,7 +113,21 @@ enum SleepControlToken: Equatable, Identifiable {
                     .buttonStyle(.plain).disabled(!canStep(minutes)).opacity(canStep(minutes) ? 1 : 0.45)
                     .studioElement("sleep.extend.\(minutes)", label: "Extend \(minutes) minutes")
                 }
-            }.padding(.horizontal, 12)
+                // Off: the red power pill closes the row (5 · 15 · 1 h · off).
+                Button {
+                    do { try SleepPillActions.finish(model, token: token); onClose() }
+                    catch { self.error = error.localizedDescription }
+                } label: {
+                    Image(systemName: "power").font(.system(size: 13, weight: .semibold)).foregroundStyle(.red)
+                        .frame(width: 40).padding(.vertical, 7)
+                        .background(Capsule().fill(Color.red.opacity(0.14)))
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain).disabled(!sameSession)
+                .help(L10n.text(isAwake ? "End Keep Awake" : "End timer"))
+                .accessibilityLabel(L10n.text(isAwake ? "End Keep Awake" : "End timer"))
+                .studioElement("sleep.finish", label: "End session")
+            }.padding(.horizontal, 12).padding(.top, 4)
             if let error {
                 Text(L10n.text(error)).font(.caption).foregroundStyle(.orange).lineLimit(2).padding(.horizontal, 12)
             }
@@ -121,22 +135,6 @@ enum SleepControlToken: Equatable, Identifiable {
                 initialDate: (isAwake ? model.keepAwake.endDate : model.sleepTimer.endDate) ?? Date().addingTimeInterval(1800),
                 onCommit: commit, onCancel: onClose)
                 .id(revision).disabled(!sameSession)
-            Button {
-                do { try SleepPillActions.finish(model, token: token); onClose() }
-                catch { self.error = error.localizedDescription }
-            } label: {
-                HStack(spacing: 5) {
-                    Image(systemName: "power").font(.system(size: 12, weight: .semibold))
-                    Text(L10n.text(isAwake ? "End Keep Awake" : "End timer"))
-                }
-                .font(.subheadline.weight(.medium)).foregroundStyle(.red)
-                .frame(maxWidth: .infinity).padding(.vertical, 7)
-                .background(Capsule().fill(Color.red.opacity(0.12)))
-                .contentShape(Capsule())
-            }
-            .buttonStyle(.plain).disabled(!sameSession).padding(.horizontal, 12)
-            .accessibilityLabel(L10n.text(isAwake ? "End Keep Awake" : "End timer"))
-            .studioElement("sleep.finish", label: "End session")
         }
         .frame(width: 244)
         .opacity(appeared ? 1 : 0)
