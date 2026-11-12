@@ -49,9 +49,8 @@ enum PowerMetricHistory {
     private var reading: CatalogReading? { model.snapshot.catalog.first { $0.id == id } }
     private var adapterConnected: Bool { model.snapshot.adapterIsConnected }
     /// `absentInChart`: the chart's dashed frame already carries the adapter-absent message, so the list must not repeat it.
-    static func captionLines(id: String, reading: CatalogReading?, adapterConnected: Bool, absentInChart: Bool = false) -> [String] {
-        [absentInChart ? nil : MetricCaption.absent(for: id, adapterConnected: adapterConnected),
-         MetricCaption.boundary(for: id, reading: reading)].compactMap { $0 }
+    static func captionLines(id: String, adapterConnected: Bool, absentInChart: Bool = false) -> [String] {
+        [absentInChart ? nil : MetricCaption.absent(for: id, adapterConnected: adapterConnected)].compactMap { $0 }
     }
     /// An adapter known to be unplugged has no input to draw: earlier history (including a measured 0 W) is not shown.
     static func drawsHistory(id: String, adapterConnected: Bool) -> Bool { id != "054" || adapterConnected }
@@ -82,23 +81,19 @@ enum PowerMetricHistory {
         content.modifier(OptionalCardChrome(isOn: Self.showsChrome(id: id, style: style)))
     }
     private var content: some View {
-        let captions = showsCaptions ? (captionOverride ?? Self.captionLines(id: id, reading: reading, adapterConnected: adapterConnected,
+        let captions = showsCaptions ? (captionOverride ?? Self.captionLines(id: id, adapterConnected: adapterConnected,
                                                                              absentInChart: Self.showsChart(id: id, style: style))) : []
-        // A chart below regular height keeps its caption in the header line instead of a line of its own.
-        let inlineCaption = Self.showsChart(id: id, style: style) && model.overviewPreferences.chartSize != .regular
+        // The header is the title and the value, nothing else: the title stays on one line (it shrinks a little before it
+        // would wrap) and the value is never cut.
         return VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
-                Label(L10n.text(title), systemImage: symbol)
-                if inlineCaption, !captions.isEmpty {
-                    Text(captions.joined(separator: " · ")).font(.caption2).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
-                }
+                Label(L10n.text(title), systemImage: symbol).lineLimit(1).minimumScaleFactor(0.85)
                 Spacer(minLength: 8)
-                StudioText(reading.map { CatalogDataPresentation.value($0, reveal: false, fahrenheit: model.fahrenheit) } ?? "—", id: "powerMetric." + id + ".value").monospacedDigit()
-                if reading?.freshness == .stale { Text(L10n.text("Stale")).font(.caption2).foregroundStyle(.orange) }
+                StudioText(reading.map { CatalogDataPresentation.value($0, reveal: false, fahrenheit: model.fahrenheit) } ?? "—", id: "powerMetric." + id + ".value")
+                    .monospacedDigit().lineLimit(1).fixedSize()
+                if reading?.freshness == .stale { Text(L10n.text("Stale")).font(.caption2).foregroundStyle(.orange).lineLimit(1).fixedSize() }
             }.font(.system(size: 13, weight: .medium))
-            if !inlineCaption {
-                ForEach(captions, id: \.self) { Text($0).font(.caption2).foregroundStyle(.secondary) }
-            }
+            ForEach(captions, id: \.self) { Text($0).font(.caption2).foregroundStyle(.secondary) }
             if Self.showsChart(id: id, style: style) {
                 chart
             } else if Self.showsSparkline(id: id, style: style), Self.drawsHistory(id: id, adapterConnected: adapterConnected) {
@@ -182,7 +177,7 @@ extension MetricChartSeries {
     /// Every caption line of the card body below the metric row, in display order. `absentInChart`: the chart frame carries the absent message.
     static func captionLines(input: CatalogReading?, rating: CatalogReading?, adapterConnected: Bool, absentInChart: Bool = false) -> [String] {
         let value = rating.map { CatalogDataPresentation.value($0, reveal: false, fahrenheit: false) } ?? "—"
-        return PowerMetricCard.captionLines(id: "054", reading: input, adapterConnected: adapterConnected, absentInChart: absentInChart)
+        return PowerMetricCard.captionLines(id: "054", adapterConnected: adapterConnected, absentInChart: absentInChart)
             + [L10n.text("Rated capability") + ": " + value]
     }
     var body: some View {

@@ -137,7 +137,9 @@ final class TilveroModel: ObservableObject {
     @Published private(set) var modeReport: ModeApplicationReport?
     @Published var selectedMode: WorkMode = .economy
     @Published var language: String { didSet { preferences.set(language, forKey: "language"); onPresentationChange?() } }
-    @Published var fahrenheit: Bool { didSet { preferences.set(fahrenheit, forKey: "fahrenheit") } }
+    /// System (default), Celsius or Fahrenheit. Views read `fahrenheit`; it follows this setting.
+    @Published var temperatureUnit: TemperatureUnitSetting { didSet { preferences.set(temperatureUnit.rawValue, forKey: "temperatureUnit") } }
+    var fahrenheit: Bool { temperatureUnit.usesFahrenheit() }
     @Published private(set) var weeklyCapacity: WeeklyCapacity?
     @Published var historyEnabled: Bool { didSet {
         if !historyEnabled { weeklyCapacity = nil }
@@ -360,6 +362,10 @@ final class TilveroModel: ObservableObject {
         if sleepTimer.isActive { sleepTimer.cancel() }
     }
     let nativeCharge: NativeChargeService
+    let chargeOnce: ChargeOnceStore
+    let chargeBy: ChargeByService
+    private var chargeByTimer: Timer?
+    private var chargeByEnvironment: ModelChargeByEnvironment?
     let keyboardBacklight: KeyboardBacklightService
     private var nativeSubscription: AnyCancellable?
     private var nativeMessageSubscription: AnyCancellable?
@@ -434,6 +440,8 @@ final class TilveroModel: ObservableObject {
         self.launchPolicy = launchPolicy
         self.processActivityProvider = processActivityProvider ?? { await ProcessActivityProvider().read() }
         self.preferences = preferences
+        chargeOnce = ChargeOnceStore(preferences: preferences)
+        chargeBy = ChargeByService(defaults: preferences, wake: isDemo || launchPolicy.monitoringOnly ? DisabledWakeScheduler() : NativeWakeScheduler())
         self.postWakeSettleSeconds = postWakeSettleSeconds
         self.sleepTracker = SleepSessionTracker(postWakeSettleSeconds: postWakeSettleSeconds)
         self.sideEffects = sideEffects ?? .native
@@ -488,7 +496,7 @@ final class TilveroModel: ObservableObject {
         self.snapshotProvider = snapshotProvider ?? { await Task.detached(priority: .utility) { provider.readSnapshot() }.value }
         snapshot = isDemo ? .demo() : .unavailable(reason: "Waiting for first reading")
         language = preferences.string(forKey: "language") ?? "system"
-        fahrenheit = preferences.bool(forKey: "fahrenheit")
+        temperatureUnit = TemperatureUnitSetting.load(from: preferences)
         historyEnabled = preferences.object(forKey: "historyEnabled") as? Bool ?? true
         retentionDays = preferences.object(forKey: "retentionDays") as? Int ?? 30
         menuBarTextSize = MenuBarTextSize(rawValue: preferences.string(forKey: "menuBarTextSize") ?? "") ?? .system
@@ -698,6 +706,14 @@ final class TilveroModel: ObservableObject {
         updates.start()
         processMonitorStopped = false
         guard pollingTask == nil else { return }
+        if !isDemo {
+            let environment = ModelChargeByEnvironment(model: self)
+            chargeByEnvironment = environment; chargeBy.environment = environment
+            // A plan resumes after a relaunch, and a wake (scheduled or not) is noticed within seconds.
+            Task { @MainActor in await chargeBy.tick() }
+            let timer = Timer(timeInterval: 20, repeats: true) { [weak self] _ in Task { @MainActor in await self?.chargeBy.tick() } }
+            RunLoop.main.add(timer, forMode: .common); chargeByTimer = timer
+        }
         if !isDemo { Task { await lidSleep.recoverIfNeeded() } }
         if !isDemo { Task { await liveControl.start() }; observer.start { [weak self] in Task { await self?.refresh() } } }
         pollingTask = Task { @MainActor [weak self] in
@@ -716,6 +732,7 @@ final class TilveroModel: ObservableObject {
         }
     }
     func stop() {
+        chargeByTimer?.invalidate(); chargeByTimer = nil
         updates.stop()
         sleepTimer.stop()
         sleepAtCharge.stop(); keepAwakeUntilCharge.stop()
@@ -727,6 +744,7 @@ final class TilveroModel: ObservableObject {
     }
     func setSleeping(_ value: Bool) {
         if value { sleepTimer.systemWillSleep(); sleepAtCharge.systemWillSleep(); keepAwakeUntilCharge.systemWillSleep() } else { sleepTimer.systemDidWake(); sleepAtCharge.systemDidWake(); keepAwakeUntilCharge.systemDidWake() }
+        if !isDemo { Task { @MainActor in if value { await chargeBy.systemWillSleep() } else { await chargeBy.systemDidWake() } } }
         if value && sleeping { return }
         if !value && !sleeping && observedWake { return }
         lifecycleEpoch &+= 1
@@ -854,6 +872,7 @@ final class TilveroModel: ObservableObject {
         snapshot = snapshot.replacingCatalog(ControlCatalog.readings(state: chargeState, capabilities: liveControl.capabilities, fans: isDemo ? nil : liveControl.fanObservation, isDemo: isDemo, connected: liveControl.connected, at: snapshot.collectedAt))
         if !inspectedRaw.isEmpty { snapshot = snapshot.replacingCatalog(inspectedRaw) }
         await evaluateSchedule()
+        evaluateChargeOnce()
         onPresentationChange?()
     }
     func setSliderIndex(_ value: Double) {
@@ -907,6 +926,52 @@ final class TilveroModel: ObservableObject {
     }
     func applyDemoTarget() { guard canApply, validateTypedDraft(), let target = draftTarget else { return }; perform(.setCeiling(percent: target)) }
     func toggleOneShotDemo() { perform(isOneShotDemo ? .cancelOneShot : .chargeToFullOnce) }
+
+    // MARK: One-time charge to 100 % on the native path (the slider's own apply; the previous limit is put back afterwards)
+    /// The limit macOS reports right now (100 when the limit is off), nil until read.
+    var observedNativeLimit: Int? {
+        nativeCharge.observed.map { $0.configuration.enabled ? $0.configuration.target : NativeChargeAdmission.unlimitedTarget }
+    }
+    var isChargeOnceRunning: Bool { chargeOnce.isActive }
+    var chargeByObservation: ChargeByObservation { chargeByEnvironment?.observation() ?? ModelChargeByEnvironment(model: self).observation() }
+    var canStartChargeOnce: Bool {
+        guard !isDemo, usesNativeCharge, canEdit, !chargeOnce.isActive, !chargeBy.isArmed, nativeCharge.canApplyTarget(100),
+              let limit = observedNativeLimit, limit < NativeChargeAdmission.unlimitedTarget else { return false }
+        return true
+    }
+    func startChargeOnce() {
+        guard canStartChargeOnce, let previous = observedNativeLimit else { return }
+        let percent = snapshot.chargePercent.value
+        let fresh = snapshot.chargePercent.availability == .available && snapshot.chargePercent.freshness == .fresh
+        runNative { [weak self] service in
+            try await service.apply(100, batteryPercent: percent, batteryFresh: fresh)
+            self?.chargeOnce.begin(previous: previous)
+        }
+    }
+    func cancelChargeOnce() {
+        guard let previous = chargeOnce.previousTarget else { return }
+        restoreAfterChargeOnce(previous)
+    }
+    private func restoreAfterChargeOnce(_ previous: Int) {
+        let percent = snapshot.chargePercent.value
+        let fresh = snapshot.chargePercent.availability == .available && snapshot.chargePercent.freshness == .fresh
+        runNative { [weak self] service in
+            try await service.apply(previous, batteryPercent: percent, batteryFresh: fresh)
+            self?.chargeOnce.clear()
+        }
+    }
+    /// After every reading: the charge is over (full, or the adapter was unplugged) or the limit was changed elsewhere.
+    private func evaluateChargeOnce() {
+        guard !isDemo, !sleeping, !isApplying, !nativeCharge.isBusy, let previous = chargeOnce.previousTarget else { return }
+        let usable = { (reading: TelemetryReading<Bool>) in reading.availability == .available && reading.freshness != .stale ? reading.value : nil }
+        let level = snapshot.chargePercent.availability == .available && snapshot.chargePercent.freshness != .stale ? snapshot.chargePercent.value : nil
+        switch ChargeOnceRule.decide(previous: previous, observedTarget: observedNativeLimit, percent: level,
+                                     isCharging: usable(snapshot.isCharging), externalPower: usable(snapshot.isExternalPower)) {
+        case .keep: break
+        case .drop: chargeOnce.clear()
+        case .restore(let target): restoreAfterChargeOnce(target)
+        }
+    }
     func releaseControl() { perform(.returnToSystemControl) }
     func cancelPendingDemo() {
         if isDemo { runSimulation { simulator in try await simulator.cancelPendingCharge() } }

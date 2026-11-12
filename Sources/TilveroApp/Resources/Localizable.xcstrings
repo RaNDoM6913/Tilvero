@@ -15889,38 +15889,6 @@
         }
       }
     },
-    "battery · V×A estimate": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "battery · V×A estimate"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "батарея · оценка V×A"
-          }
-        }
-      }
-    },
-    "Adapter input — a different boundary": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Adapter input — a different boundary"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Вход адаптера — другая граница измерения"
-          }
-        }
-      }
-    },
     "Adapter not connected — no reading": {
       "localizations": {
         "en": {
@@ -16013,70 +15981,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Стиль графика"
-          }
-        }
-      }
-    },
-    "battery: V×A estimate, sign: + into the battery": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "battery: V×A estimate, sign: + into the battery"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "батарея: оценка V×A, знак: + в батарею"
-          }
-        }
-      }
-    },
-    "battery: sign: + into the battery": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "battery: sign: + into the battery"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "батарея: знак: + в батарею"
-          }
-        }
-      }
-    },
-    "adapter: input, a different boundary": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "adapter: input, a different boundary"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "адаптер: вход, другая граница"
-          }
-        }
-      }
-    },
-    "no reading from macOS": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "no reading from macOS"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "нет чтения от macOS"
           }
         }
       }
@@ -16205,6 +16109,390 @@
           "stringUnit": {
             "state": "translated",
             "value": "Обычный"
+          }
+        }
+      }
+    },
+    "Follow system": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Follow system"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Как в системе"
+          }
+        }
+      }
+    },
+    "Charging to 100%": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charging to 100%"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Заряд до 100%"
+          }
+        }
+      }
+    },
+    "Charge to 100% once lifts the limit until the battery is full or the adapter is unplugged, then your previous limit returns. Tap the button again to cancel.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charge to 100% once lifts the limit until the battery is full or the adapter is unplugged, then your previous limit returns. Tap the button again to cancel."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "«Зарядить до 100% один раз» снимает лимит, пока батарея не заполнится или адаптер не отключат, затем прежний лимит возвращается. Нажмите кнопку ещё раз, чтобы отменить."
+          }
+        }
+      }
+    },
+    "End timer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "End timer"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Завершить таймер"
+          }
+        }
+      }
+    },
+    "End Keep Awake": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "End Keep Awake"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Завершить «Не засыпать»"
+          }
+        }
+      }
+    },
+    "Charge by time": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charge by time"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Зарядить к времени"
+          }
+        }
+      }
+    },
+    "Pick a time": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pick a time"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выбрать время"
+          }
+        }
+      }
+    },
+    "Cancel plan": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel plan"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отменить план"
+          }
+        }
+      }
+    },
+    "Today": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Today"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сегодня"
+          }
+        }
+      }
+    },
+    "Tomorrow": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tomorrow"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Завтра"
+          }
+        }
+      }
+    },
+    "Choose a later time.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a later time."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выберите время позже."
+          }
+        }
+      }
+    },
+    "Not enough battery data yet.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not enough battery data yet."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пока мало данных о батарее."
+          }
+        }
+      }
+    },
+    "Starts at {start} · {level}% by {ready}": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Starts at {start} · {level}% by {ready}"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Старт в {start} · к {ready} будет {level} %"
+          }
+        }
+      }
+    },
+    "Charging to {level}% · ready by {ready}": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charging to {level}% · ready by {ready}"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Идёт зарядка до {level} % · к {ready}"
+          }
+        }
+      }
+    },
+    "Connect the adapter: without it the charge will not be ready by {time}": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect the adapter: without it the charge will not be ready by {time}"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подключите адаптер: без него к {time} не зарядится"
+          }
+        }
+      }
+    },
+    "May not make it: about {level}% by {ready}": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "May not make it: about {level}% by {ready}"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не успеет: к {ready} будет около {level} %"
+          }
+        }
+      }
+    },
+    "Allow charging during sleep…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow charging during sleep…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешить зарядку во сне…"
+          }
+        }
+      }
+    },
+    "The wake was not scheduled; the charge starts when the Mac goes to sleep": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The wake was not scheduled; the charge starts when the Mac goes to sleep"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пробуждение не запланировано: зарядка начнётся, когда Mac соберётся спать"
+          }
+        }
+      }
+    },
+    "The charge limit could not be raised. Tilvero will try again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The charge limit could not be raised. Tilvero will try again."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось поднять лимит зарядки. Tilvero попробует снова."
+          }
+        }
+      }
+    },
+    "The charge limit could not be restored. Tilvero will try again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The charge limit could not be restored. Tilvero will try again."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось вернуть лимит зарядки. Tilvero попробует снова."
+          }
+        }
+      }
+    },
+    "Your Mac keeps its charge limit and Tilvero lifts it just in time, so the battery reaches the chosen level 10 minutes before the time you set.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your Mac keeps its charge limit and Tilvero lifts it just in time, so the battery reaches the chosen level 10 minutes before the time you set."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac держит ваш лимит заряда, а Tilvero поднимает его вовремя, чтобы батарея достигла выбранного уровня за 10 минут до заданного времени."
+          }
+        }
+      }
+    },
+    "While the Mac sleeps it wakes on a schedule, lifts the limit and goes back to sleep. This needs one permission; without it the limit is lifted when the Mac is about to sleep.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "While the Mac sleeps it wakes on a schedule, lifts the limit and goes back to sleep. This needs one permission; without it the limit is lifted when the Mac is about to sleep."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Во сне Mac просыпается по расписанию, Tilvero поднимает лимит, и Mac засыпает снова. Нужно одно разрешение; без него лимит поднимется, когда Mac соберётся спать."
+          }
+        }
+      }
+    },
+    "The start is an estimate from the adapter's power and what the Mac draws. Your previous limit returns when you unplug the adapter.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The start is an estimate from the adapter's power and what the Mac draws. Your previous limit returns when you unplug the adapter."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Время старта — оценка по мощности адаптера и расходу Mac. Прежний лимит вернётся, когда вы отключите адаптер."
+          }
+        }
+      }
+    },
+    "Tilvero asks to allow scheduling one wake, so a Mac asleep overnight can start charging on time.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero asks to allow scheduling one wake, so a Mac asleep overnight can start charging on time."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero просит разрешить планирование одного пробуждения, чтобы Mac, спящий ночью, начал зарядку вовремя."
           }
         }
       }

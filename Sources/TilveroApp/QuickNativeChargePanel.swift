@@ -22,6 +22,7 @@ import ChargeBackends
             if model.canShowChargeControls, !targets.isEmpty { controls(state) } else { validationHeader(state) }
             attention(state)
             footer(state)
+            ChargeByBlock(model: model, service: model.chargeBy)
         }
         .studioElement("charge.editor", kind: "container", label: "Charge limit editor")
         .task { await model.refreshNativeChargeIfStale() }
@@ -37,6 +38,7 @@ import ChargeBackends
                 L10n.text("The same limit as macOS Battery settings: charging stops at the chosen level. Letting go of the slider applies it."),
                 L10n.text("A level below the current charge takes effect when the battery discharges to it."),
                 L10n.text("100% means no limit. Verified levels: 80%, 85%, 90%, 95% and 100%."),
+                L10n.text("Charge to 100% once lifts the limit until the battery is full or the adapter is unplugged, then your previous limit returns. Tap the button again to cancel."),
             ], id: "charge-limit-info")
             Spacer(minLength: 8)
             // A fixed slot: a native read or an apply comes and goes without moving the row.
@@ -183,11 +185,24 @@ import ChargeBackends
     }
 
     @ViewBuilder private func footer(_ state: NativeChargePresentation) -> some View {
+        // Always present with the controls (dimmed when it cannot start) so applying a limit never resizes the page.
         if model.canShowChargeControls {
-            if model.canChargeToFullOnce || model.isOneShotDemo {
-                StudioActionButton(L10n.text(model.isOneShotDemo ? "Cancel one-time charge" : "Charge to 100% once"), id: "charge.once") { model.toggleOneShotDemo() }
-                    .disabled(model.isApplying)
-            }
+            let running = model.isChargeOnceRunning
+            // The app's pill: grey to start, accent while it runs; tapping it again cancels.
+            Button { if running { model.cancelChargeOnce() } else { model.startChargeOnce() } } label: {
+                StudioText(running ? L10n.text("Charging to 100%") + (model.snapshot.chargePercent.value.map { " · \($0)%" } ?? "") : L10n.text("Charge to 100% once"), id: "charge.once.caption")
+                    .font(running ? .system(.subheadline, design: .rounded).weight(.semibold) : .subheadline.weight(.medium)).monospacedDigit()
+                    .lineLimit(1).minimumScaleFactor(0.85)
+                    .frame(maxWidth: .infinity).padding(.vertical, 7)
+                    .foregroundStyle(running ? Color.white : Color.primary)
+                    .background(Capsule().fill(running ? Color.accentColor : Color.primary.opacity(0.07)))
+                    .contentShape(Capsule())
+            }.buttonStyle(.plain)
+                .disabled(model.isApplying || model.nativeCharge.isBusy || (!running && !model.canStartChargeOnce))
+                .opacity(running || model.canStartChargeOnce ? 1 : 0.45)
+                .accessibilityLabel(L10n.text(running ? "Cancel one-time charge" : "Charge to 100% once"))
+                .accessibilityAddTraits(running ? .isSelected : [])
+                .studioElement("charge.once", label: running ? "Cancel one-time charge" : "Charge to 100% once")
         }
     }
 }

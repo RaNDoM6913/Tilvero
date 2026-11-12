@@ -39,29 +39,24 @@ import PowerTelemetry
         // No reading, adapter known absent: dash value, the absent message exactly once (in the dashed chart frame, not as a caption).
         let none = PowerTilesBlock.tileLines(id: "054", reading: nil, adapterConnected: false)
         XCTAssertEqual(none.value, "—")
-        XCTAssertEqual(none.captions, [])
         XCTAssertEqual(none.absentMessage, absent)
         XCTAssertFalse(none.isStale)
         // A reading that is not available is a dash, never a zero, and the absent message still appears once.
         let unavailable = CatalogReading(definition: BatteryCatalog.definition("054"), value: nil, source: "fixture", keyPath: "input")
         let missing = PowerTilesBlock.tileLines(id: "054", reading: unavailable, adapterConnected: false)
         XCTAssertEqual(missing.value, "—")
-        XCTAssertEqual(missing.captions, [])
         XCTAssertEqual(missing.absentMessage, absent)
         // Unknown external-power state (nil) is treated as connected: no "not connected" claim without evidence.
         let unknown = PowerTilesBlock.tileLines(id: "054", reading: nil, adapterConnected: true)
         XCTAssertEqual(unknown.value, "—")
-        XCTAssertFalse(unknown.captions.contains(absent))
         XCTAssertNil(unknown.absentMessage)
-        // Connected with a reading: the value and the boundary caption.
+        // Connected with a reading: the value; no caption of any kind.
         let live = PowerTilesBlock.tileLines(id: "054", reading: reading("054", value: 7.8, provenance: .measured), adapterConnected: true)
-        XCTAssertEqual(live.captions, [L10n.text("Adapter input — a different boundary")])
         XCTAssertNil(live.absentMessage)
         XCTAssertNotEqual(live.value, "—")
-        // The battery tile carries the V×A estimate caption and the approximation prefix from the shared presentation.
+        // The battery tile carries the approximation prefix from the shared presentation and nothing else.
         let battery = PowerTilesBlock.tileLines(id: "038", reading: reading("038", value: -10, provenance: .estimated), adapterConnected: false)
         XCTAssertTrue(battery.value.hasPrefix("≈ "), battery.value)
-        XCTAssertEqual(battery.captions, [L10n.text("battery · V×A estimate")], "Battery tile never shows the adapter message.")
         XCTAssertNil(battery.absentMessage)
         XCTAssertEqual(PowerTilesBlock.tileLines(id: "038", reading: nil, adapterConnected: false).value, "—")
         // The empty chart of that tile is the dashed frame (no scale, no axis), not a flat zero line.
@@ -126,11 +121,7 @@ import PowerTelemetry
         XCTAssertEqual(content.batteryLabel, "Батарея -10,4")
         XCTAssertEqual(content.adapterLabel, "Адаптер 38,2")
         XCTAssertEqual(content.title, "Мощность")
-        XCTAssertEqual(content.caption, "батарея: оценка V×A, знак: + в батарею · адаптер: вход, другая граница")
-        // A measured battery reading does not claim an estimate.
-        let measured = PowerCombinedBlock.content(battery: reading("038", value: -10, provenance: .measured), adapter: nil, adapterConnected: true)
-        XCTAssertFalse(measured.caption.contains("V×A"))
-        XCTAssertTrue(measured.caption.contains("адаптер"))
+        XCTAssertNil(content.absentMessage, "No caption and no message while the adapter is connected: the title is enough.")
     }
     func testRussianEndLabelsFitTheLabelFrameAt360() {
         let saved = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
@@ -165,7 +156,6 @@ import PowerTelemetry
             let content = PowerCombinedBlock.content(battery: reading("038", value: -10.4, provenance: .estimated), adapter: adapterReading, adapterConnected: false)
             XCTAssertEqual(content.absentMessage, absent, "The message appears exactly once.")
             XCTAssertNil(content.adapterLabel)
-            XCTAssertFalse(content.caption.contains(absent))
             // Even if the history still holds earlier adapter samples, an unplugged adapter draws no line and does not widen the axis.
             let specs = PowerCombinedBlock.specs(content: content, battery: battery, adapter: adapter)
             XCTAssertEqual(specs.map(\.id), ["038"], "Only the battery series is drawn, never a zero adapter line.")
@@ -176,9 +166,8 @@ import PowerTelemetry
         let unknown = PowerCombinedBlock.content(battery: reading("038", value: -10.4, provenance: .estimated), adapter: nil, adapterConnected: true)
         XCTAssertNil(unknown.absentMessage)
         XCTAssertEqual(PowerCombinedBlock.specs(content: unknown, battery: battery, adapter: adapter).map(\.id), ["038", "054"])
-        // No battery reading: the missing-reading caption, never a zero.
+        // No battery reading: no label at all, never a zero.
         let nothing = PowerCombinedBlock.content(battery: nil, adapter: nil, adapterConnected: true)
-        XCTAssertEqual(nothing.caption, L10n.text("no reading from macOS"))
         XCTAssertNil(nothing.batteryLabel)
     }
     func testNoLegendIsRendered() {
@@ -252,11 +241,6 @@ import PowerTelemetry
             let tag = tile.isStale ? 4 + width(L10n.text("Stale"), size: 10) : 0
             XCTAssertLessThanOrEqual(width(tile.title, size: 11) + tag, inner, "title row of \(tile.title)")
             XCTAssertLessThanOrEqual(width(tile.value, size: 15, weight: .semibold), inner, "value \(tile.value)")
-            // Captions may wrap, but never inside a word.
-            XCTAssertLessThanOrEqual(tile.captions.count, 1)
-            for caption in tile.captions {
-                for word in caption.split(separator: " ") { XCTAssertLessThanOrEqual(width(String(word), size: 10), inner, "word \(word)") }
-            }
         }
         XCTAssertTrue(tiles[2].isStale)
         // The rendered block is not blank and is exactly the offered width, with two tiles filling the row.
@@ -384,24 +368,20 @@ import PowerTelemetry
     private func reading(_ id: String, value: Double?, provenance: TelemetryProvenance) -> CatalogReading {
         .init(definition: BatteryCatalog.definition(id), value: value.map(CatalogValue.decimal), source: "fixture", keyPath: "input", provenance: provenance)
     }
-    func testEstimateCaptionFollowsProvenance() {
-        let estimated = reading("038", value: 12.5, provenance: .estimated)
-        let inferred = reading("038", value: 12.5, provenance: .inferred)
-        let measured = reading("038", value: 12.5, provenance: .measured)
-        XCTAssertEqual(MetricCaption.boundary(for: "038", reading: estimated), L10n.text("battery · V×A estimate"))
-        // A value-less reading is still `.estimated`, but there is nothing to call an estimate or a boundary.
-        XCTAssertNil(MetricCaption.boundary(for: "038", reading: reading("038", value: nil, provenance: .estimated)))
-        XCTAssertNil(MetricCaption.boundary(for: "038", reading: reading("038", value: nil, provenance: .inferred)))
-        XCTAssertNil(MetricCaption.boundary(for: "054", reading: reading("054", value: nil, provenance: .measured)))
-        XCTAssertEqual(MetricCaption.combined(batteryReading: reading("038", value: nil, provenance: .estimated)), L10n.text("no reading from macOS"),
-                       "A value-less battery reading is no reading for the combined caption either.")
-        XCTAssertEqual(MetricCaption.boundary(for: "038", reading: inferred), L10n.text("battery · V×A estimate"))
-        XCTAssertNil(MetricCaption.boundary(for: "038", reading: measured), "A measured reading carries no estimate wording")
-        XCTAssertNil(MetricCaption.boundary(for: "038", reading: nil))
-        XCTAssertFalse(MetricCaption.boundary(for: "038", reading: estimated)?.contains("≈") ?? false, "The value formatter owns the approximation prefix")
-        XCTAssertEqual(MetricCaption.boundary(for: "054", reading: reading("054", value: 30, provenance: .measured)), L10n.text("Adapter input — a different boundary"))
-        XCTAssertNil(MetricCaption.boundary(for: "054", reading: nil))
-        XCTAssertNil(MetricCaption.boundary(for: "043", reading: reading("043", value: 9, provenance: .estimated)))
+    /// Owner 2026-11-09: the title is enough. No estimate or boundary caption exists any more; the approximation mark in
+    /// front of an estimated value (from the reading's provenance) is the only sign.
+    func testNoExplanatoryCaptionsRemainAndTheApproximationMarkComesFromProvenance() {
+        XCTAssertEqual(PowerMetricCard.captionLines(id: "038", adapterConnected: true), [])
+        XCTAssertEqual(PowerMetricCard.captionLines(id: "038", adapterConnected: false), [], "Battery power never says anything about the adapter.")
+        XCTAssertEqual(PowerMetricCard.captionLines(id: "054", adapterConnected: true), [])
+        XCTAssertEqual(PowerMetricCard.captionLines(id: "043", adapterConnected: true), [])
+        XCTAssertEqual(PowerMetricCard.captionLines(id: "039", adapterConnected: true), [])
+        let estimated = CatalogDataPresentation.value(reading("038", value: 12.5, provenance: .estimated), reveal: false, fahrenheit: false)
+        let inferred = CatalogDataPresentation.value(reading("038", value: 12.5, provenance: .inferred), reveal: false, fahrenheit: false)
+        let measured = CatalogDataPresentation.value(reading("038", value: 12.5, provenance: .measured), reveal: false, fahrenheit: false)
+        XCTAssertTrue(estimated.hasPrefix("≈ "), estimated)
+        XCTAssertTrue(inferred.hasPrefix("≈ "), inferred)
+        XCTAssertFalse(measured.hasPrefix("≈"), measured)
     }
     func testAdapterAbsentMessageAppearsOnce() {
         let message = L10n.text("Adapter not connected — no reading")
@@ -416,10 +396,11 @@ import PowerTelemetry
         let inChart = AdapterMetricCard.captionLines(input: nil, rating: rating, adapterConnected: false, absentInChart: true)
         XCTAssertFalse(inChart.contains(message))
         XCTAssertEqual(PowerMetricCard.chartEmptyMessage(id: "054", adapterConnected: false), message)
-        XCTAssertEqual(PowerMetricCard.captionLines(id: "054", reading: nil, adapterConnected: false, absentInChart: true), [])
+        XCTAssertEqual(PowerMetricCard.captionLines(id: "054", adapterConnected: false, absentInChart: true), [])
         let connected = AdapterMetricCard.captionLines(input: reading("054", value: 30, provenance: .measured), rating: rating, adapterConnected: true)
         XCTAssertFalse(connected.contains(message))
-        XCTAssertTrue(connected.contains(L10n.text("Adapter input — a different boundary")))
+        XCTAssertEqual(connected, [L10n.text("Rated capability") + ": " + CatalogDataPresentation.value(rating, reveal: false, fahrenheit: false)],
+                       "A connected adapter card keeps only its rated-capability data line, no explanation.")
     }
     // MARK: Known-unplugged adapter is handled the same way in A, B and C
 
@@ -473,7 +454,6 @@ import PowerTelemetry
         // B: the tile series is empty, the message sits in the chart frame and not in a caption.
         let tile = PowerTilesBlock.tileLines(id: "054", reading: model.snapshot.catalog.first { $0.id == "054" }, adapterConnected: false)
         XCTAssertEqual(tile.absentMessage, absent)
-        XCTAssertFalse(tile.captions.contains(absent))
         // C: no adapter series, the message once.
         let content = PowerCombinedBlock.content(battery: model.snapshot.catalog.first { $0.id == "038" }, adapter: model.snapshot.catalog.first { $0.id == "054" },
                                                  adapterConnected: model.snapshot.adapterIsConnected)
@@ -523,7 +503,7 @@ import PowerTelemetry
                 XCTAssertFalse(value.isEmpty, "\(key) \(language)")
             }
         }
-        XCTAssertEqual(Set(MetricCaption.allKeys).count, 3)
+        XCTAssertEqual(Set(MetricCaption.allKeys).count, 1)
     }
     func testTemperatureHasNoChartInSparklineStyle() {
         XCTAssertFalse(PowerMetricCard.showsChart(id: "039", style: .sparkline))

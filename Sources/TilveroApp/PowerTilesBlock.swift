@@ -5,8 +5,8 @@ import SwiftUI
 import PowerCore
 
 /// Overview variant B: two equal compact tiles, battery power ("038") and adapter
-/// input ("054"). Each tile is a title, the value, one boundary caption and a
-/// compact chart; no data gives a dashed frame, never a zero.
+/// input ("054"). Each tile is a title, the value and a compact chart (no caption);
+/// no data gives a dashed frame, never a zero.
 @MainActor struct PowerTilesBlock: View {
     @ObservedObject var model: TilveroModel
 
@@ -14,8 +14,6 @@ import PowerCore
     struct TileContent: Equatable {
         let title: String
         let value: String
-        /// Zero or one boundary line; the adapter tile shows the absent message instead of the boundary, never both.
-        let captions: [String]
         /// The adapter-absent message of a known-unplugged adapter. It is drawn once, inside the dashed chart frame, never as a caption.
         let absentMessage: String?
         let isStale: Bool
@@ -28,8 +26,7 @@ import PowerCore
         let title = L10n.text(id == "054" ? "Adapter" : "Battery (short)")
         let value = reading.map { CatalogDataPresentation.value($0, reveal: false, fahrenheit: fahrenheit) } ?? "—"
         let absent = MetricCaption.absent(for: id, adapterConnected: adapterConnected)
-        let caption = absent == nil ? MetricCaption.boundary(for: id, reading: reading) : nil
-        return TileContent(title: title, value: value, captions: caption.map { [$0] } ?? [], absentMessage: absent, isStale: reading?.freshness == .stale)
+        return TileContent(title: title, value: value, absentMessage: absent, isStale: reading?.freshness == .stale)
     }
 
     var body: some View {
@@ -59,9 +56,6 @@ import PowerCore
             }
             StudioText(content.value, id: "powerTile." + id + ".value")
                 .font(.title3.weight(.semibold)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.8)
-            ForEach(content.captions, id: \.self) {
-                Text($0).font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            }
             chart(absentMessage: content.absentMessage)
         }
         // Equal tiles: the shorter one stretches to the taller one before the card chrome draws its background.

@@ -80,7 +80,7 @@ import KeyboardBackends
                             .disabled(service.isBusy)
                             .accessibilityIdentifier("quick-keyboard-backlight-toggle")
                             .studioElement("quick.keyboard.toggle", label: "Keyboard backlight switch")
-                    }.font(.subheadline)
+                    }.font(.system(size: 13, weight: .medium))
                     HStack(spacing: 6) {
                         Image(systemName: "light.min").foregroundStyle(.secondary).accessibilityHidden(true)
                         Slider(value: Binding(get: { editing ? draft : observation.brightness }, set: { draft = $0 }), in: 0...1,
@@ -95,10 +95,6 @@ import KeyboardBackends
                         Image(systemName: "light.max").foregroundStyle(.secondary).accessibilityHidden(true)
                         Text((editing ? draft : observation.brightness).formatted(.percent.locale(L10n.locale).precision(.fractionLength(0))))
                             .font(.caption).monospacedDigit().foregroundStyle(.secondary).frame(width: 38, alignment: .trailing)
-                    }
-                    if observation.automaticBrightness {
-                        Text(L10n.text("Automatic keyboard brightness remains enabled in macOS."))
-                            .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     }
                     if let error = service.error {
                         Text(L10n.text(error.localizedDescription)).font(.caption2).foregroundStyle(.orange)
