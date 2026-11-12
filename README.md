@@ -36,6 +36,20 @@ separately gated development controls. [Availability and installation](docs/INST
 The catalog describes **115 fields**. Your Mac determines which are available;
 missing values stay unavailable. Monitoring needs no administrator approval.
 
+## Quick menu
+
+The menu bar popover is the heart of Tilvero: Overview with live charts and the
+charge limit, two Sleep pages (timer and Keep Awake) and Charge with the limit,
+a one-time full charge and charge by time.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/screenshots/quick-menu-dark.png">
+  <img src=".github/assets/screenshots/quick-menu-light.png" alt="Tilvero quick menu: Overview, Sleep timer, Keep Awake and Charge" width="100%">
+</picture>
+
+<sub>Overview · Sleep timer · Keep Awake · Charge. Rendered from source with injected demo readings; they do not
+establish hardware support or qualify a release binary.</sub>
+
 ## Inside Tilvero
 
 Native interface rendered from source with injected demo data. Illustrations
