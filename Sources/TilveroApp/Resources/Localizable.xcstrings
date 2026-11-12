@@ -16609,18 +16609,18 @@
         }
       }
     },
-    "Live battery power is estimated: adapter input minus system power.": {
+    "Battery power stays recorded once a minute.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Live battery power is estimated: adapter input minus system power."
+            "value": "Battery power stays recorded once a minute."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Живая мощность батареи — оценка: вход адаптера минус мощность системы."
+            "value": "Мощность батареи по-прежнему записывается раз в минуту."
           }
         }
       }

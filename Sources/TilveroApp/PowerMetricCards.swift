@@ -95,7 +95,7 @@ enum PowerMetricHistory {
             }.font(.system(size: 13, weight: .medium))
             ForEach(captions, id: \.self) { Text($0).font(.caption2).foregroundStyle(.secondary) }
             if Self.showsChart(id: id, style: style) {
-                chart
+                LiveRefresh(store: model.live) { chart }
             } else if Self.showsSparkline(id: id, style: style), Self.drawsHistory(id: id, adapterConnected: adapterConnected) {
                 MetricSparkline(model: model, id: id, color: color)
             }
@@ -103,9 +103,8 @@ enum PowerMetricHistory {
     }
     /// The newest minutes of a chart come from live SMC readings; say so (and that battery power is derived).
     private var liveNote: String {
-        guard model.wantsLiveCharts, !model.liveTail.points(id: id).isEmpty else { return "" }
+        guard model.wantsLiveCharts, !model.live.tail.points(id: id).isEmpty else { return "" }
         return "\n" + L10n.text("Newest minutes: live SMC readings, about once a second.")
-            + (id == "038" ? "\n" + L10n.text("Live battery power is estimated: adapter input minus system power.") : "")
     }
 }
 

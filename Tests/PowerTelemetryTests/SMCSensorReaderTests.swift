@@ -20,16 +20,12 @@ final class SMCSensorReaderTests: XCTestCase {
         XCTAssertEqual(SMCSensorDecoding.celsius(33.2), 33.2)
         XCTAssertNil(SMCSensorDecoding.celsius(-273)); XCTAssertNil(SMCSensorDecoding.celsius(.infinity))
     }
-    func testBatteryPowerIsAdapterMinusSystemAndNeedsBoth() {
-        let now = Date()
-        XCTAssertEqual(LivePowerSample(collectedAt: now, systemWatts: 7.3, adapterWatts: 6.7, temperatureCelsius: nil).batteryWatts ?? 0, -0.6, accuracy: 1e-9)
-        XCTAssertEqual(LivePowerSample(collectedAt: now, systemWatts: 5, adapterWatts: 20, temperatureCelsius: nil).batteryWatts ?? 0, 15, accuracy: 1e-9)
-        XCTAssertNil(LivePowerSample(collectedAt: now, systemWatts: 5, adapterWatts: nil, temperatureCelsius: nil).batteryWatts)
-    }
     func testMetricMapping() {
         let s = LivePowerSample(collectedAt: Date(), systemWatts: 8, adapterWatts: 10, temperatureCelsius: 33)
         XCTAssertEqual(s.value(metricID: "043"), 8); XCTAssertEqual(s.value(metricID: "054"), 10)
-        XCTAssertEqual(s.value(metricID: "039"), 33); XCTAssertEqual(s.value(metricID: "038") ?? 0, 2, accuracy: 1e-9)
+        XCTAssertEqual(s.value(metricID: "039"), 33)
+        XCTAssertNil(s.value(metricID: "038"), "No derived battery power: it would be noise.")
+        XCTAssertEqual(LivePowerSample.metricIDs, ["039", "043", "054"])
         XCTAssertNil(s.value(metricID: "001"))
     }
     func testOnlyTheAllowListedSensorKeysExist() {

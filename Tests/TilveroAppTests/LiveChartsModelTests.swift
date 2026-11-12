@@ -18,7 +18,7 @@ private final class Counter: @unchecked Sendable {
         let model = TilveroModel(isDemo: isDemo, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"),
                                  liveSampler: {
                                      let i = counter.next()
-                                     return LivePowerSample(collectedAt: Date(timeIntervalSince1970: 1_800_000_000 + Double(i)),
+                                     return LivePowerSample(collectedAt: Date().addingTimeInterval(0.01 * Double(i)),
                                                             systemWatts: Double(i), adapterWatts: 10, temperatureCelsius: 33)
                                  })
         return (model, { model.stop(); prefs.removePersistentDomain(forName: suite) })
@@ -35,8 +35,8 @@ private final class Counter: @unchecked Sendable {
         for _ in 0..<3 { await model.liveTick() }
         XCTAssertGreaterThanOrEqual(counter.value, 3)
         let series = model.metricSeries(id: "043")
-        XCTAssertEqual(series.points.last?.value, Double(model.liveTail.points(id: "043").count), "The newest chart point is the newest live reading.")
-        XCTAssertEqual(model.overviewChartWindow.upperBound, model.liveTail.latest, "The window follows the live data.")
+        XCTAssertEqual(series.points.last?.value, Double(model.live.tail.points(id: "043").count), "The newest chart point is the newest live reading.")
+        XCTAssertEqual(model.overviewChartWindow.upperBound, model.live.tail.latest, "The window follows the live data.")
         XCTAssertEqual(series.state, .data)
 
         let before = counter.value
@@ -54,7 +54,7 @@ private final class Counter: @unchecked Sendable {
         XCTAssertFalse(model.wantsLiveCharts)
         await model.liveTick()
         XCTAssertEqual(counter.value, 0)
-        XCTAssertTrue(model.liveTail.isEmpty)
+        XCTAssertTrue(model.live.tail.isEmpty)
     }
 
     func testEachLivePointInvalidatesTheSeriesCacheOnce() async {
@@ -66,6 +66,23 @@ private final class Counter: @unchecked Sendable {
         await model.liveTick()
         _ = model.metricSeries(id: "043"); _ = model.metricSeries(id: "043")
         XCTAssertEqual(model.metricSeriesComputations, afterFirst + 1, "Rebuilt once per tick, then served from the cache.")
+    }
+
+    func testALiveTickPublishesNothingOnTheModelAndNeverRecomputesRecordedPoints() async {
+        let counter = Counter(); let (model, cleanUp) = make(counter: counter); defer { cleanUp() }
+        model.isPopoverVisible = true; model.quickPanelSection = .overview
+        await model.liveTick(); _ = model.metricSeries(id: "043")
+        var modelChanges = 0
+        let subscription = model.objectWillChange.sink { modelChanges += 1 }
+        defer { subscription.cancel() }
+        let recordedBefore = model.recordedPointComputations
+        var storeChanges = 0
+        let storeSubscription = model.live.objectWillChange.sink { storeChanges += 1 }
+        defer { storeSubscription.cancel() }
+        for _ in 0..<5 { await model.liveTick(); _ = model.metricSeries(id: "043") }
+        XCTAssertEqual(modelChanges, 0, "A live tick must not re-render the whole panel or resize the popover.")
+        XCTAssertGreaterThanOrEqual(storeChanges, 5, "Only the chart views observe the live store.")
+        XCTAssertEqual(model.recordedPointComputations, recordedBefore, "The week-long history is not sorted again per tick.")
     }
 
     func testOneTickIsCheap() async {

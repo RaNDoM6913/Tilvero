@@ -68,12 +68,16 @@ import PowerCore
     private var batteryReading: CatalogReading? { model.snapshot.catalog.first { $0.id == "038" } }
     private var adapterReading: CatalogReading? { model.snapshot.catalog.first { $0.id == "054" } }
 
+    /// The newest minutes of the adapter line are live SMC readings; battery power is not (it stays recorded).
+    private var liveNote: String {
+        guard model.wantsLiveCharts, !model.live.tail.points(id: "054").isEmpty else { return "" }
+        return L10n.text("Newest minutes: live SMC readings, about once a second.") + "\n" + L10n.text("Battery power stays recorded once a minute.")
+    }
+
     var body: some View {
         // Unknown external-power state is not reported as "not connected".
         let content = Self.content(battery: batteryReading, adapter: adapterReading,
                                    adapterConnected: model.snapshot.adapterIsConnected, fahrenheit: model.fahrenheit)
-        let battery = model.metricSeries(id: "038")
-        let adapter = content.drawsAdapter ? model.metricSeries(id: "054") : nil
         VStack(alignment: .leading, spacing: 6) {
             // The chart has no unit row of its own: the unit sits at the right of the heading (there is no single value here).
             HStack(alignment: .firstTextBaseline) {
@@ -83,14 +87,19 @@ import PowerCore
             }.font(.system(size: 13, weight: .medium))
             // A stale reading mutes the heading; the chart itself marks the stale tail.
             .opacity(content.isStale ? 0.6 : 1)
-            MetricChartView(
-                specs: Self.specs(content: content, battery: battery, adapter: adapter),
-                scale: Self.combinedScale(battery: battery, adapter: adapter),
-                window: model.overviewChartWindow,
-                unit: PowerMetricCard.chartUnit(id: "038", readingUnit: batteryReading?.unit, fahrenheit: false),
-                density: model.overviewPreferences.chartSize.density,
-                emptyMessage: L10n.text("No recorded measurements yet"),
-                fillsSingleSeries: false)
+            LiveRefresh(store: model.live) {
+                // Read inside the live wrapper: the series follow every live tick.
+                let battery = model.metricSeries(id: "038")
+                let adapter = content.drawsAdapter ? model.metricSeries(id: "054") : nil
+                MetricChartView(
+                    specs: Self.specs(content: content, battery: battery, adapter: adapter),
+                    scale: Self.combinedScale(battery: battery, adapter: adapter),
+                    window: model.overviewChartWindow,
+                    unit: PowerMetricCard.chartUnit(id: "038", readingUnit: batteryReading?.unit, fahrenheit: false),
+                    density: model.overviewPreferences.chartSize.density,
+                    emptyMessage: L10n.text("No recorded measurements yet"),
+                    fillsSingleSeries: false)
+            }.help(liveNote)
             if let message = content.absentMessage {
                 Text(message).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }

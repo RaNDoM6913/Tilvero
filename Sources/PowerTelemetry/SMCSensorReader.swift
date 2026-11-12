@@ -17,23 +17,18 @@ public struct LivePowerSample: Equatable, Sendable {
     public init(collectedAt: Date, systemWatts: Double?, adapterWatts: Double?, temperatureCelsius: Double?) {
         self.collectedAt = collectedAt; self.systemWatts = systemWatts; self.adapterWatts = adapterWatts; self.temperatureCelsius = temperatureCelsius
     }
-    /// Estimated, not a battery-rail reading: DC-in minus system load. Positive while the battery charges, negative while
-    /// it supplies power (checked 2026-11-12 against the registry's `BatteryPower`, which is 0 at the charge limit).
-    public var batteryWatts: Double? {
-        guard let adapterWatts, let systemWatts else { return nil }
-        return adapterWatts - systemWatts
-    }
-    /// The catalog metric id each live value feeds: 038 battery power (estimated), 039 temperature, 043 system, 054 adapter.
+    /// The catalog metric id each live value feeds: 039 temperature, 043 system, 054 adapter input. Battery power (038)
+    /// is NOT derived: `PSTR` trails `PDTR` by one update, so their difference is noise (measured 2026-11-12), and the
+    /// battery power chart keeps its recorded one-minute readings.
     public func value(metricID: String) -> Double? {
         switch metricID {
-        case "038": batteryWatts
         case "039": temperatureCelsius
         case "043": systemWatts
         case "054": adapterWatts
         default: nil
         }
     }
-    public static let metricIDs = ["038", "039", "043", "054"]
+    public static let metricIDs = ["039", "043", "054"]
 }
 
 /// Value decoding and plausibility, tested without hardware.

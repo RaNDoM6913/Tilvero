@@ -309,6 +309,15 @@ enum SleepPillActionError: LocalizedError, Equatable {
         } message: { Text(consent?.explanation ?? "") }
     }
     private var masterRow: some View {
+        // A running timer's header is crowded (chips, end clock and switch): in a wide clock format ("10:18 PM") the info
+        // button gives way, so the switch always stays inside the row.
+        ViewThatFits(in: .horizontal) {
+            masterRowContent(showsInfo: true)
+            masterRowContent(showsInfo: false)
+        }
+        .frame(height: 32)
+    }
+    private func masterRowContent(showsInfo: Bool) -> some View {
         // A failed release keeps the switch on. Acquisition failures without a
         // session UUID retain the explicit recovery action instead of inventing one.
         let token = service.isActive ? service.sessionID.map(SleepControlToken.timer) : nil
@@ -316,10 +325,12 @@ enum SleepPillActionError: LocalizedError, Equatable {
         return HStack(spacing: 3) {
             StudioText(L10n.text("Sleep timer"), id: "timer.heading")
                 .font(.system(size: 14, weight: .semibold)).fixedSize()
-            SectionInfoButton(title: L10n.text("Sleep timer"), paragraphs: [
-                L10n.text("Choose a time to start immediately."),
-                L10n.text("Keeps Mac awake until the timer ends, then requests sleep."),
-            ], id: "sleep-timer-info")
+            if showsInfo {
+                SectionInfoButton(title: L10n.text("Sleep timer"), paragraphs: [
+                    L10n.text("Choose a time to start immediately."),
+                    L10n.text("Keeps Mac awake until the timer ends, then requests sleep."),
+                ], id: "sleep-timer-info")
+            }
             Spacer(minLength: 0)
             if service.isActive, !service.needsHoldRelease, let end = service.endDate {
                 HStack(spacing: 2) {
@@ -337,7 +348,6 @@ enum SleepPillActionError: LocalizedError, Equatable {
                 .accessibilityIdentifier("sleep-timer-master")
                 .studioElement("timer.master", label: "Sleep timer master switch")
         }
-        .frame(height: 32)
         .studioElement("timer.header", kind: "container", label: "Sleep timer controls")
     }
     /// "+5 min" / "+15 min" next to the end time of a running timer. Fifteen uses the verified extension; five restarts with the longer total.
