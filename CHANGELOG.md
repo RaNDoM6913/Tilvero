@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0-beta.1 — Charge by Time Source Preview — 2026-11-12
+
+- Charge by time: pick a time and a level (85, 90, 95 or 100 %) on the Charge page. The Mac keeps your charge limit and Tilvero lifts it just in time, so the battery reaches the level 10 minutes before the time you set. The start comes from the adapter's power, what the Mac itself draws, a taper above 80 % and a safety margin; the page shows when charging starts and says so when the target cannot be reached. While the Mac sleeps it wakes on a schedule, lifts the limit and goes back to sleep (one optional administrator permission, `pmset schedule wake`; without it the limit is lifted when the Mac is about to sleep). Your previous limit returns when you unplug the adapter or an hour after the time once the battery is full; a limit you change in macOS always wins.
+- Charge to 100 % once: one capsule under the slider lifts the limit until the battery is full or the adapter is unplugged, then your limit returns; tap it again to cancel.
+- Sleep timer: the running pill opens a cleaner editor with +5 min, +15 min and +1 h pills, the custom-time wheel and an End timer pill; the explanatory line is gone.
+- Overview: the power, adapter, system and temperature cards always draw the chart (the Sparkline option is removed); cards show only a title and a value; temperature follows the system unit (new setting System, °C or °F); the keyboard backlight row and the combined power chart use the same heading style as the other cards, and the auto-brightness caption is gone.
+
+This beta contains source for Apple silicon with macOS 26.0+ and full Xcode; it
+includes no app or DMG. Waking a sleeping Mac on schedule, with the lid closed
+as well, still needs your own device check, and so does lifting the limit from
+that wake. Automatic installation remains gated.
+
 ## 0.4.0 — Overview and Keep Awake Source Preview — 2026-11-08
 
 The first stable release of the 0.4 line. It contains everything of 0.4.0-beta.1 (the Overview charge-limit
