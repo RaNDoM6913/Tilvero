@@ -16592,6 +16592,38 @@
           }
         }
       }
+    },
+    "Newest minutes: live SMC readings, about once a second.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Newest minutes: live SMC readings, about once a second."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Последние минуты: живые показания SMC, примерно раз в секунду."
+          }
+        }
+      }
+    },
+    "Live battery power is estimated: adapter input minus system power.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Live battery power is estimated: adapter input minus system power."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Живая мощность батареи — оценка: вход адаптера минус мощность системы."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

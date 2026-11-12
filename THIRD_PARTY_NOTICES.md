@@ -14,6 +14,8 @@ The original Tilvero source, documentation and repository artwork are licensed u
 
 The local native/SMC adapters contain researched ABI/key layouts adapted with MIT attribution. Full immutable references, affected local scope and complete notices are retained in [Helper/THIRD_PARTY_NOTICES.md](Helper/THIRD_PARTY_NOTICES.md). Those notices must travel with any redistributed app/source. No GPL smc binary or unlicensed GlassFan implementation is bundled.
 
+The read-only SMC sensor reader (`Sources/PowerTelemetry/SMCSensorReader.swift`, power and battery-temperature keys `PSTR`, `PDTR`, `TB0T`, `TB1T`, `TB2T` only, no write command) reuses the same AppleSMC message layout adapted from the MIT-licensed Stats project (revision and notice as above).
+
 Telemetry normalization was independently implemented from installed IOPS headers and source contracts. Consulted-only sources include Apple PowerManagement `d415e45501842834a280930c3eed9186544a67f0`, Apple XNU `IOPMPowerSource.h`, Ampere `843498d7beb711c0e1b18e48c8520debe67f6e3f`, and Stats `5cf09a8cb0561ff24c28be4e5374d579d0601818`. Source-qualified encodings do not establish sensor calibration or physical hardware-control support.
 
 

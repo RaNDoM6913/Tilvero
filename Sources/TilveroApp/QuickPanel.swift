@@ -85,6 +85,8 @@ struct QuickPanel: View {
             }
             .animation(reduceMotion ? nil : Self.pageFade, value: section)
             .onChange(of: section) { _, _ in model.dismissActionNotice() }
+            .onChange(of: section) { _, new in model.quickPanelSection = new }
+            .onAppear { model.quickPanelSection = section }
             .fixedSize(horizontal: false, vertical: true)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { pageMotion.naturalHeightChanged($0, animated: !reduceMotion) }
             .quickPageArea(pageMotion)

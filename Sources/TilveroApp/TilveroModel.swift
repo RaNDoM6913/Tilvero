@@ -376,7 +376,9 @@ final class TilveroModel: ObservableObject {
     private var liveSubscription: AnyCancellable?
     let isDemo: Bool
     let launchPolicy: AppLaunchPolicy
-    var isPopoverVisible = false
+    var isPopoverVisible = false { didSet { if oldValue != isPopoverVisible { updateLiveCharts() } } }
+    /// The quick panel's page (reported by the panel itself): live charts run only on Overview.
+    var quickPanelSection: QuickPanelSection = .overview { didSet { if oldValue != quickPanelSection { updateLiveCharts() } } }
     var isDetailVisible = false
     var openDetails: (@MainActor () -> Void)?
     var onPresentationChange: (@MainActor () -> Void)?
@@ -419,6 +421,7 @@ final class TilveroModel: ObservableObject {
          closedLidService: ClosedLidService? = nil,
          lidSleepSystem: (any LidSleepSystem)? = nil,
          lidComfortService: LidComfortService? = nil,
+         liveSampler: (@Sendable () -> LivePowerSample?)? = nil,
          updateIdentity: UpdateIdentity? = nil,
          updateEvidence: (() -> [UpdateEvidenceProbe.Result])? = nil,
          updateLeaseDirectory: URL? = nil,
@@ -545,6 +548,7 @@ final class TilveroModel: ObservableObject {
         lidSleep.bindSleepAtCharge(armed: sleepAtCharge.$target.map { $0 != nil }.removeDuplicates().eraseToAnyPublisher())
         lidSleepSubscription = lidSleep.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
         lidComfort.bind(lidSleep)
+        self.liveSampler = liveSampler
         lidComfortSubscription = lidComfort.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
         sleepTimer.prepare = { [weak self] in
             guard let self else { return false }
@@ -617,14 +621,50 @@ final class TilveroModel: ObservableObject {
     }
     /// Window of every overview chart: the last hour up to the newest snapshot.
     var overviewChartWindow: ClosedRange<Date> {
-        snapshot.collectedAt.addingTimeInterval(-3600)...snapshot.collectedAt
+        // While live points exist the window ends at the newest of them (the chart scrolls with the data).
+        let end = max(snapshot.collectedAt, liveTail.latest ?? snapshot.collectedAt)
+        return end.addingTimeInterval(-3600)...end
+    }
+    // MARK: Live charts (about 1 Hz while the quick menu is open on Overview; in memory only)
+    private(set) var liveTail = LiveMetricTail()
+    /// Bumped on every live point: views and the series cache follow it.
+    @Published private(set) var liveRevision = 0
+    private var liveTimer: Timer?
+    private var liveReading = false
+    private var smcReader: SMCSensorReader?
+    private var liveSampler: (@Sendable () -> LivePowerSample?)?
+    /// Seconds between live points (the SMC sensors change about once a second).
+    static let liveInterval: TimeInterval = 1
+    var wantsLiveCharts: Bool { !isDemo && isPopoverVisible && quickPanelSection == .overview && !sleeping }
+    func updateLiveCharts() {
+        if wantsLiveCharts {
+            guard liveTimer == nil else { return }
+            if liveSampler == nil, smcReader == nil { smcReader = SMCSensorReader() }
+            guard liveSampler != nil || smcReader != nil else { return }
+            Task { await liveTick() }
+            let timer = Timer(timeInterval: Self.liveInterval, repeats: true) { [weak self] _ in Task { @MainActor in await self?.liveTick() } }
+            RunLoop.main.add(timer, forMode: .common); liveTimer = timer
+        } else {
+            liveTimer?.invalidate(); liveTimer = nil
+        }
+    }
+    /// One sensor read (about 1 ms, off the main actor) appended to the tail.
+    func liveTick() async {
+        guard wantsLiveCharts, !liveReading else { return }
+        liveReading = true
+        let sampler = liveSampler ?? { [reader = smcReader] in reader?.read() }
+        let sample = await Task.detached(priority: .utility) { sampler() }.value
+        liveReading = false
+        guard wantsLiveCharts, let sample else { return }
+        liveTail.append(sample)
+        liveRevision &+= 1
     }
     /// What a cached series depends on: the window end, how much history there is and its newest sample.
     /// `history` replaces itself wholesale (a full reload, an append after trimming the week, an erase), so the
     /// count alone could repeat with different data; its newest sample id is added to the key. The `didSet` on
     /// `history` is belt-and-braces beyond the key: stored samples are immutable, so no model API produces a
     /// replacement with the same count and newest id but different older samples, and no test can isolate it.
-    private struct SeriesCacheKey: Equatable { let collectedAt: Date; let count: Int; let lastSampleID: UUID? }
+    private struct SeriesCacheKey: Equatable { let collectedAt: Date; let count: Int; let lastSampleID: UUID?; let liveRevision: Int }
     private var seriesCacheKey: SeriesCacheKey?
     private var seriesCache: [String: MetricChartSeries] = [:]
     /// How many times a series was actually built (not read from the cache); tests assert it.
@@ -633,12 +673,15 @@ final class TilveroModel: ObservableObject {
     /// on every body evaluation, so it is memoised per metric until the snapshot or the history changes.
     /// The cache is plain storage (not `@Published`): filling it never schedules a view update.
     func metricSeries(id: String) -> MetricChartSeries {
-        let key = SeriesCacheKey(collectedAt: snapshot.collectedAt, count: history.count, lastSampleID: history.last?.id)
+        let key = SeriesCacheKey(collectedAt: snapshot.collectedAt, count: history.count, lastSampleID: history.last?.id, liveRevision: liveRevision)
         if key != seriesCacheKey { seriesCache.removeAll(keepingCapacity: true); seriesCacheKey = key }
         if let cached = seriesCache[id] { return cached }
         metricSeriesComputations += 1
         let window = overviewChartWindow
-        let series = MetricChartSeries.make(points: PowerMetricHistory.points(history, id: id, since: window.lowerBound), window: window, now: snapshot.collectedAt)
+        var points = PowerMetricHistory.points(history, id: id, since: window.lowerBound)
+        let live = liveTail.points(id: id).filter { window.contains($0.date) }
+        if !live.isEmpty { points = LiveChartMerge.merge(persisted: points, live: live) }
+        let series = MetricChartSeries.make(points: points, window: window, now: window.upperBound)
         seriesCache[id] = series
         return series
     }
@@ -742,6 +785,7 @@ final class TilveroModel: ObservableObject {
     }
     func stop() {
         chargeByTimer?.invalidate(); chargeByTimer = nil
+        liveTimer?.invalidate(); liveTimer = nil
         updates.stop()
         sleepTimer.stop()
         sleepAtCharge.stop(); keepAwakeUntilCharge.stop()
@@ -760,6 +804,7 @@ final class TilveroModel: ObservableObject {
         processRevision &+= 1; processSampler.reset(); processActivity = nil; lastProcessRefreshUptime = nil
         processHighlights.reset(); highCPUApplications = []
         sleeping = value
+        updateLiveCharts()
         systemChargeLimit = nil
         if value {
             observedWake = false
