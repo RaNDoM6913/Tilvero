@@ -76,6 +76,29 @@ import PowerCore
     }
 }
 
+/// Maps a 0...1 level to the width of a capsule fill and back. 0 is empty; any positive level starts at `minimum` (the icon
+/// blob) and grows linearly to the full width, so every 5 % step is visibly different (a plain clamp to `minimum` hid
+/// everything below about 16 % on a 250 pt capsule).
+struct CapsuleFillScale: Equatable {
+    let minimum: CGFloat
+    var step = 0.05
+
+    func width(for level: Double, in total: CGFloat) -> CGFloat {
+        let level = min(1, max(0, level))
+        guard level > 0, total > 0 else { return 0 }
+        let floor = min(minimum, total)
+        return floor + (total - floor) * CGFloat(level)
+    }
+
+    /// The drag's inverse: the x position under the cursor becomes the nearest step, so the fill edge follows the cursor.
+    func value(atX x: CGFloat, in total: CGFloat) -> Double {
+        let floor = min(minimum, total), span = total - floor
+        guard span > 0 else { return 0 }
+        let raw = Double((x - floor) / span)
+        return min(1, max(0, (raw / step).rounded() * step))
+    }
+}
+
 /// A full-width capsule that is also the slider (5 % steps), with its own switch to the right.
 @MainActor struct LidComfortCapsule: View {
     let icon: String
@@ -86,15 +109,16 @@ import PowerCore
     let onCommit: (Double) -> Void
     @State private var dragging: Double?
     private var shown: Double { dragging ?? level }
+    private let scale = CapsuleFillScale(minimum: 40)
 
     var body: some View {
         HStack(spacing: 10) {
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.primary.opacity(isOn ? 0.09 : 0.05))
-                    if isOn { Capsule().fill(Color.accentColor.opacity(0.5)).frame(width: max(shown > 0 ? 40 : 0, proxy.size.width * shown)) }
+                    if isOn { Capsule().fill(Color.accentColor.opacity(0.5)).frame(width: scale.width(for: shown, in: proxy.size.width)) }
                     HStack(spacing: 8) {
-                        Image(systemName: icon).font(.system(size: 14, weight: .semibold)).foregroundStyle(isOn && shown > 0.08 ? Color.primary : Color.secondary)
+                        Image(systemName: icon).font(.system(size: 14, weight: .semibold)).foregroundStyle(isOn && shown > 0 ? Color.primary : Color.secondary)
                         Text(name).font(.system(size: 13, weight: .medium)).foregroundStyle(isOn ? Color.primary : Color.secondary)
                         Spacer(minLength: 0)
                         Text(isOn ? "\(Int((shown * 100).rounded())) %" : L10n.text("Off (short)"))
@@ -106,7 +130,7 @@ import PowerCore
                 .gesture(DragGesture(minimumDistance: 0)
                     .onChanged { value in
                         guard isOn, proxy.size.width > 0 else { return }
-                        dragging = min(1, max(0, (value.location.x / proxy.size.width * 20).rounded() / 20))
+                        dragging = scale.value(atX: value.location.x, in: proxy.size.width)
                     }
                     .onEnded { _ in
                         if let dragging { onCommit(dragging) }
