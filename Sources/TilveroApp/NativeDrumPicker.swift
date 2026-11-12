@@ -23,6 +23,8 @@ struct NativeDrumPicker: View {
     let unit: String
     let accessibilityName: String
     var style: Style = .regular
+    /// Column width; nil keeps the style's own (100 pt for the compact and unified wheels).
+    var width: CGFloat? = nil
     /// A cyclic wheel: after the last value it continues with the first (and the other way round).
     var wraps = false
     var onSubmit: () -> Void = {}
@@ -31,7 +33,7 @@ struct NativeDrumPicker: View {
     var body: some View {
         DrumSurface(selection: $selection, range: range, unit: unit, name: accessibilityName, style: style, wraps: wraps,
                     onSubmit: onSubmit, onCancel: onCancel)
-            .frame(width: style.size.width, height: style.size.height)
+            .frame(width: width ?? style.size.width, height: style.size.height)
     }
 }
 

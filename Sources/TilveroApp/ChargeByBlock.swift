@@ -88,7 +88,7 @@ import PowerCore
                 }.buttonStyle(.plain).padding(.horizontal, 12)
             }
         }
-        .frame(width: 244).padding(.vertical, 10)
+        .frame(width: SleepWheelPicker.defaultWidth).padding(.vertical, 10)
     }
 
     // MARK: Level row

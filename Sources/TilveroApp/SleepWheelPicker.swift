@@ -15,6 +15,8 @@ enum SleepWheelValue: Equatable {
 /// follow a commit; opening or scrolling this view never changes a sleep mode.
 @MainActor struct SleepWheelPicker: View {
     let mode: SleepWheelMode
+    /// Outer width of the picker; the columns and wheels follow it.
+    let width: CGFloat
     let onCommit: (SleepWheelValue) -> Void
     let onCancel: () -> Void
     private let calendar: Calendar
@@ -28,9 +30,12 @@ enum SleepWheelValue: Equatable {
     @State private var appeared = false
     private var isCompact: Bool { mode == .duration }
 
-    init(mode: SleepWheelMode, initialMinutes: Int, initialDate: Date,
+    static let defaultWidth: CGFloat = 200
+
+    init(mode: SleepWheelMode, initialMinutes: Int, initialDate: Date, width: CGFloat = SleepWheelPicker.defaultWidth,
          onCommit: @escaping (SleepWheelValue) -> Void, onCancel: @escaping () -> Void) {
         self.mode = mode
+        self.width = width
         self.onCommit = onCommit
         self.onCancel = onCancel
         let calendar = Calendar.current
@@ -65,14 +70,14 @@ enum SleepWheelValue: Equatable {
             if isCompact {
                 VStack(spacing: 4) {
                     HStack(spacing: 12) {
-                        Text(L10n.language == "ru" ? "Часы" : "Hours").frame(width: 100)
-                        Text(L10n.language == "ru" ? "Минуты" : "Minutes").frame(width: 100)
+                        Text(L10n.language == "ru" ? "Часы" : "Hours").frame(width: columnWidth)
+                        Text(L10n.language == "ru" ? "Минуты" : "Minutes").frame(width: columnWidth)
                     }
                     .font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
                     .frame(height: 16)
                     wheels
                         .background { unifiedTray }
-                }.frame(width: 220)
+                }.frame(width: width - 24)
             } else {
                 wheels.frame(maxWidth: .infinity).background { unifiedTray }
             }
@@ -81,7 +86,7 @@ enum SleepWheelValue: Equatable {
         }
         // An invalid time (for example 0 h 0 min) shows no warning line: the disabled Apply button is the only sign, so the
         // picker never changes height.
-        .padding(12).frame(width: 244, height: isCompact ? 238 : 220)
+        .padding(12).frame(width: width, height: isCompact ? 238 : 220)
         .opacity(appeared ? 1 : 0)
         .onAppear { withAnimation(reduceMotion ? nil : .easeOut(duration: 0.16)) { appeared = true } }
         .environment(\.calendar, calendar).environment(\.timeZone, calendar.timeZone)
@@ -109,18 +114,20 @@ enum SleepWheelValue: Equatable {
     }
 
     private var wheelStyle: NativeDrumPicker.Style { .unified }
+    /// Each of the two wheels (and the label above it): the wheels area is `width - 32` wide with a 12 pt gap.
+    private var columnWidth: CGFloat { (width - 32 - 12) / 2 }
 
     private var wheels: some View {
         HStack(spacing: 12) {
             NativeDrumPicker(selection: hourSelection, range: mode == .duration ? 0...24 : 0...23,
                 unit: L10n.text("h"), accessibilityName: L10n.language == "ru" ? "Часы" : "Hours",
-                style: wheelStyle, wraps: mode == .until, onSubmit: commit, onCancel: cancel)
+                style: wheelStyle, width: columnWidth, wraps: mode == .until, onSubmit: commit, onCancel: cancel)
                 .studioElement("sleep.wheel.hours", label: "Hours wheel")
             NativeDrumPicker(selection: minuteSelection, range: mode == .duration && hours == 24 ? 0...0 : 0...59,
                 unit: L10n.text("min"), accessibilityName: L10n.language == "ru" ? "Минуты" : "Minutes",
-                style: wheelStyle, wraps: mode == .until, onSubmit: commit, onCancel: cancel)
+                style: wheelStyle, width: columnWidth, wraps: mode == .until, onSubmit: commit, onCancel: cancel)
                 .studioElement("sleep.wheel.minutes", label: "Minutes wheel")
-        }.frame(width: 212, height: 126)
+        }.frame(width: width - 32, height: 126)
     }
 
     /// iOS/macOS 27 style: no tray, one neutral translucent capsule behind the selected row of both wheels.

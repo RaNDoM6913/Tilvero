@@ -313,17 +313,21 @@ enum SleepPillActionError: LocalizedError, Equatable {
         // session UUID retain the explicit recovery action instead of inventing one.
         let token = service.isActive ? service.sessionID.map(SleepControlToken.timer) : nil
         let canStop = token != nil && (service.needsHoldRelease || service.isEditable || service.phase == .preparing)
-        return HStack(spacing: 6) {
+        return HStack(spacing: 3) {
             StudioText(L10n.text("Sleep timer"), id: "timer.heading")
                 .font(.system(size: 14, weight: .semibold)).fixedSize()
             SectionInfoButton(title: L10n.text("Sleep timer"), paragraphs: [
                 L10n.text("Choose a time to start immediately."),
                 L10n.text("Keeps Mac awake until the timer ends, then requests sleep."),
             ], id: "sleep-timer-info")
-            Spacer(minLength: 8)
+            Spacer(minLength: 2)
             if service.isActive, !service.needsHoldRelease, let end = service.endDate {
-                Text(SleepTimerInput.endTime(end)).font(.system(size: 12)).foregroundStyle(.secondary)
-                    .lineLimit(1).minimumScaleFactor(0.8).monospacedDigit()
+                HStack(spacing: 3) {
+                    addChip(5, token: token); addChip(15, token: token)
+                }
+                Text(SleepTimerInput.clock(end)).font(.system(size: 13, weight: .semibold, design: .rounded)).monospacedDigit()
+                    .lineLimit(1).fixedSize().padding(.leading, 3).padding(.trailing, 3)
+                    .studioElement("timer.endClock", label: "Sleep time")
             }
             Toggle(L10n.text("Sleep timer"), isOn: Binding(
                 get: { service.isActive },
@@ -336,25 +340,42 @@ enum SleepPillActionError: LocalizedError, Equatable {
         .frame(height: 32)
         .studioElement("timer.header", kind: "container", label: "Sleep timer controls")
     }
+    /// "+5 min" / "+15 min" next to the end time of a running timer. Fifteen uses the verified extension; five restarts with the longer total.
+    private func addChip(_ minutes: Int, token: SleepControlToken?) -> some View {
+        let enabled = token != nil && canAdd(minutes, token: token)
+        return Button { addMinutes(minutes, token: token) } label: {
+            Text("+\(minutes) " + L10n.text("min")).font(.system(size: 10.5, weight: .medium)).monospacedDigit().lineLimit(1).fixedSize()
+                .foregroundStyle(Color.primary).padding(.horizontal, 5).padding(.vertical, 5)
+                .background(Capsule().fill(Color.primary.opacity(0.07))).contentShape(Capsule())
+        }
+        .buttonStyle(.plain).disabled(!enabled).opacity(enabled ? 1 : 0.45)
+        .accessibilityLabel("+\(minutes) " + L10n.text("min"))
+        .studioElement("timer.add.\(minutes)", label: "Add \(minutes) minutes")
+    }
+    private func canAdd(_ minutes: Int, token: SleepControlToken?) -> Bool {
+        guard let token else { return false }
+        if minutes == 15 { return SleepPillActions.canExtend(model, token: token, minutes: 15) }
+        return model.sleepPillActionsAllowed && service.isEditable && service.remainingSeconds > 0 && service.remainingSeconds <= 86_400 - minutes * 60
+    }
+    private func addMinutes(_ minutes: Int, token: SleepControlToken?) {
+        guard let token, canAdd(minutes, token: token) else { return }
+        if minutes == 15 {
+            do { try SleepPillActions.extend(model, token: token, minutes: 15); error = nil } catch { self.error = error.localizedDescription }
+        } else {
+            apply(minutes: min(1440, (service.remainingSeconds + 59) / 60 + minutes), custom: true)
+        }
+    }
     private func pill(_ title: String, selection: SleepPillSelection, applied: SleepPillSelection?,
                       id: String, action: @escaping () -> Void) -> some View {
         let selected = applied == selection
         return SleepDurationPill(title: title, selected: selected,
             countdown: selected ? KeepAwakePresentation.countdown(service.remainingSeconds) : nil,
             id: id, captionID: id + ".caption", action: {
-                if selected { activeControlToken = SleepPillActions.controlToken(model, awake: false) }
+                // Tapping the running pill ends the timer (like the Overview Keep Awake strip); the others start it.
+                if selected { setEnabled(false, token: SleepPillActions.controlToken(model, awake: false)) }
                 else { action() }
             })
             .disabled(!selected && !SleepPillActions.canChooseTimer(model))
-            .popover(isPresented: Binding(get: { selected && activeControlToken != nil }, set: { if !$0 { activeControlToken = nil } }),
-                     attachmentAnchor: .rect(.bounds), arrowEdge: .bottom) {
-                if selected, let token = activeControlToken {
-                    SleepActiveControls(model: model, token: token, onClose: { activeControlToken = nil }, onSetTime: { value in
-                        if case .duration(let minutes) = value { apply(minutes: minutes, custom: true) }
-                    })
-                        .studioSubpresentation("timer.activeControls")
-                }
-            }
     }
     private var wheelAnchor: some View {
         let identity = PopoverCloseIdentity(owner: ObjectIdentifier(model), presentation: wheelPresentationID)

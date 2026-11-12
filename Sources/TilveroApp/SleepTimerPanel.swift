@@ -24,6 +24,11 @@ enum SleepTimerInput {
               let value = Int(text), (1...1440).contains(value) else { return nil }
         return value
     }
+    /// Just the clock, for the running timer's header.
+    static func clock(_ date: Date) -> String {
+        let formatter = DateFormatter(); formatter.locale = L10n.locale; formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
     static func endTime(_ date: Date) -> String {
         let formatter = DateFormatter(); formatter.locale = L10n.locale; formatter.timeStyle = .short
         let suffix = Calendar.current.isDateInTomorrow(date) ? ", " + L10n.text("tomorrow") : ""

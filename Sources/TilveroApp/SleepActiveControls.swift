@@ -136,7 +136,7 @@ enum SleepControlToken: Equatable, Identifiable {
                 onCommit: commit, onCancel: onClose)
                 .id(revision).disabled(!sameSession)
         }
-        .frame(width: 244)
+        .frame(width: SleepWheelPicker.defaultWidth)
         .opacity(appeared ? 1 : 0)
         .onAppear { withAnimation(reduceMotion ? nil : .easeOut(duration: 0.16)) { appeared = true } }
         .onExitCommand(perform: onClose)
