@@ -12,7 +12,8 @@ enum QuickPanelSection: String, CaseIterable, Identifiable {
     /// Tabs still in development (Modes) are shown only in debug and laboratory builds, never in a release.
     static var showsDevelopmentSections: Bool {
         #if DEBUG
-        true
+        // Screenshots of the public look hide the tab: `-TilveroReleaseTabs YES` (never set in a release build).
+        !UserDefaults.standard.bool(forKey: "TilveroReleaseTabs")
         #else
         Bundle.main.object(forInfoDictionaryKey: "TilveroDataScope") as? String == "laboratory"
         #endif

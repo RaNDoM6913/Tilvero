@@ -186,7 +186,7 @@ struct MetricChartView: View {
                               width: max(proxy.size.width - axisWidth - gutter - endLabelWidth, 1), height: plotHeight)
             let domain = scale.domain
             let spread = Self.endLabelPositions(specs: specs, scale: scale, plotHeight: plotHeight)
-            let tickLabels = scale.tickLabels()
+            let tickLabels = scale.tickLabels(locale: L10n.locale)
             ZStack(alignment: .topLeading) {
                 Canvas { context, _ in draw(&context, rect: rect, scale: scale) }
                 ForEach(Self.labelledTickIndices(count: scale.ticks.count, density: density), id: \.self) { index in
