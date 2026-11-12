@@ -239,6 +239,9 @@ final class TilveroModel: ObservableObject {
     let closedLid: ClosedLidService
     /// Ordinary builds: closed-lid Keep Awake through the `pmset disablesleep` override (trial/lab builds keep `closedLid`).
     let lidSleep: LidSleepOverrideService
+    /// Brightness and volume while the lid is closed under the lid override (restored before the override is released).
+    let lidComfort: LidComfortService
+    private var lidComfortSubscription: AnyCancellable?
     private var lidSleepSubscription: AnyCancellable?
     private var sleepTimerSubscription: AnyCancellable?
     @Published var selectedSleepPage: SleepPage = .timer
@@ -415,6 +418,7 @@ final class TilveroModel: ObservableObject {
          sleepTimerService: SleepTimerService? = nil,
          closedLidService: ClosedLidService? = nil,
          lidSleepSystem: (any LidSleepSystem)? = nil,
+         lidComfortService: LidComfortService? = nil,
          updateIdentity: UpdateIdentity? = nil,
          updateEvidence: (() -> [UpdateEvidenceProbe.Result])? = nil,
          updateLeaseDirectory: URL? = nil,
@@ -465,6 +469,8 @@ final class TilveroModel: ObservableObject {
         keepAwakeUntilCharge = SleepAtChargeService(driver: sleepTimerTransport ?? NativeSleepTimerTransport(), allowed: !isDemo && !monitoring, endAction: .release)
         closedLid = closedLidService ?? ClosedLidService(allowed: !isDemo && !monitoring)
         lidSleep = LidSleepOverrideService(system: lidSleepSystem ?? NativeLidSleepSystem(), defaults: preferences, allowed: !isDemo && !monitoring)
+        // A test that injects its own lid system never gets the native display/volume/lid transports by accident.
+        lidComfort = lidComfortService ?? LidComfortService(defaults: preferences, allowed: !isDemo && !monitoring && lidSleepSystem == nil)
         self.setupBundle = setupBundle
         let setupIdentity = try? ReleaseIdentity.current(bundle: setupBundle)
         canShowSetup = !isDemo && setupIdentity?.isLaboratory == false && !closedLid.isFixture && !closedLid.isLiveTrial
@@ -537,6 +543,8 @@ final class TilveroModel: ObservableObject {
         lidSleep.bindTimer(phases: sleepTimer.$phase.eraseToAnyPublisher())
         lidSleep.bindSleepAtCharge(armed: sleepAtCharge.$target.map { $0 != nil }.removeDuplicates().eraseToAnyPublisher())
         lidSleepSubscription = lidSleep.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
+        lidComfort.bind(lidSleep)
+        lidComfortSubscription = lidComfort.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
         sleepTimer.prepare = { [weak self] in
             guard let self else { return false }
             guard await self.closedLid.prepareForTermination() else { return false }
@@ -714,7 +722,7 @@ final class TilveroModel: ObservableObject {
             let timer = Timer(timeInterval: 20, repeats: true) { [weak self] _ in Task { @MainActor in await self?.chargeBy.tick() } }
             RunLoop.main.add(timer, forMode: .common); chargeByTimer = timer
         }
-        if !isDemo { Task { await lidSleep.recoverIfNeeded() } }
+        if !isDemo { Task { await lidSleep.recoverIfNeeded(); await lidComfort.recoverIfNeeded() } }
         if !isDemo { Task { await liveControl.start() }; observer.start { [weak self] in Task { await self?.refresh() } } }
         pollingTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
@@ -763,6 +771,7 @@ final class TilveroModel: ObservableObject {
             observedWake = true
             try? keepAwake.reconcile()
             Task { await lidSleep.reconcileAfterWake() }
+            lidComfort.systemDidWake()
             if !isDemo && historyEnabled { saveSleepChanges(sleepTracker.accept(.didWake(stamp: sleepStamp(), epoch: lifecycleEpoch))) }
             queuedWakeRefresh = true
             Task { await refresh() }
@@ -1043,6 +1052,7 @@ final class TilveroModel: ObservableObject {
         if !(await lidSleep.prepareForTermination()) {
             if !systemInitiated { selectedSleepPage = .awake; return false }
         }
+        await lidComfort.prepareForTermination()   // brightness and volume back, whether or not the override was on
         sleepAtCharge.stop(); keepAwakeUntilCharge.stop()   // release their awake holds before any termination or update install
         if systemInitiated { sleepTimer.stop() }
         else {
