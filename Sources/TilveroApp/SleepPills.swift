@@ -320,13 +320,13 @@ enum SleepPillActionError: LocalizedError, Equatable {
                 L10n.text("Choose a time to start immediately."),
                 L10n.text("Keeps Mac awake until the timer ends, then requests sleep."),
             ], id: "sleep-timer-info")
-            Spacer(minLength: 2)
+            Spacer(minLength: 0)
             if service.isActive, !service.needsHoldRelease, let end = service.endDate {
-                HStack(spacing: 3) {
+                HStack(spacing: 2) {
                     addChip(5, token: token); addChip(15, token: token)
                 }
                 Text(SleepTimerInput.clock(end)).font(.system(size: 13, weight: .semibold, design: .rounded)).monospacedDigit()
-                    .lineLimit(1).fixedSize().padding(.leading, 3).padding(.trailing, 3)
+                    .lineLimit(1).fixedSize().padding(.horizontal, 2)
                     .studioElement("timer.endClock", label: "Sleep time")
             }
             Toggle(L10n.text("Sleep timer"), isOn: Binding(
