@@ -8,11 +8,21 @@
 
 <p align="center"><strong>English</strong> · <a href="README.ru.md">Русский</a></p>
 
-Tilvero puts battery and power information in your menu bar, with a clear native
-window when you want the details. Follow charging, inspect battery health and
-understand changes over time, without an account or a cloud service.
+Tilvero lives in your menu bar. One quick menu shows your battery and power,
+keeps your Mac awake or sleeps it on a timer, and sets the macOS charge limit,
+with a clear native window when you want the details. No account, no cloud service.
 
-**0.4.0 Source Preview for developers.**
+The quick menu is the heart of the app: Overview with Keep Awake, live charts and
+battery health; two Sleep pages (timer and Keep Awake); and Charge with the limit,
+a one-time full charge and charge by time.
+
+<img src=".github/assets/screenshots/quick-menu-dark.png" alt="Tilvero quick menu: Overview, Sleep timer, Keep Awake and Charge" width="100%">
+
+<sub>Overview · Sleep timer · Keep Awake · Charge. Rendered from source with injected demo readings; they do not
+establish hardware support or qualify a release binary.</sub>
+
+**0.4.0 Source Preview for developers** (the newest beta is
+[0.5.0-beta.1](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.5.0-beta.1)).
 [Get the source](https://github.com/RaNDoM6913/Tilvero/releases/download/v0.4.0/Tilvero-0.4.0-source.zip)
 · [Release notes and checksums](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.4.0)
 · [Build and run](#build-and-run) · [Roadmap](ROADMAP.md)
@@ -35,17 +45,6 @@ separately gated development controls. [Availability and installation](docs/INST
 
 The catalog describes **115 fields**. Your Mac determines which are available;
 missing values stay unavailable. Monitoring needs no administrator approval.
-
-## Quick menu
-
-The menu bar popover is the heart of Tilvero: Overview with Keep Awake, live
-charts and battery health, two Sleep pages (timer and Keep Awake) and Charge with
-the limit, a one-time full charge and charge by time.
-
-<img src=".github/assets/screenshots/quick-menu-dark.png" alt="Tilvero quick menu: Overview, Sleep timer, Keep Awake and Charge" width="100%">
-
-<sub>Overview · Sleep timer · Keep Awake · Charge. Rendered from source with injected demo readings; they do not
-establish hardware support or qualify a release binary.</sub>
 
 ## Inside Tilvero
 
