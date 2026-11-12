@@ -108,6 +108,8 @@ import ClosedLidControl
             if let failure = service.failure {
                 Text(failure).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
             }
+            // The levels only matter while this mode's lid switch is on.
+            if preferred { LidComfortRow(model: model, mode: isTimer ? .scheduledSleep : .keepAwake) }
             if service.needsRecovery {
                 Button(L10n.text("Restore sleep")) { Task { await service.restoreSleep() } }.font(.caption).disabled(service.busy)
             }

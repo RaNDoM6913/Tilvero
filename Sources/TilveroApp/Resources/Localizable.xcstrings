@@ -16496,6 +16496,102 @@
           }
         }
       }
+    },
+    "Screen and sound": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Screen and sound"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Экран и звук"
+          }
+        }
+      }
+    },
+    "Screen brightness": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Screen brightness"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Яркость экрана"
+          }
+        }
+      }
+    },
+    "Volume": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volume"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Громкость"
+          }
+        }
+      }
+    },
+    "When the lid is closed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When the lid is closed"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Когда крышка закрыта"
+          }
+        }
+      }
+    },
+    "When you close the lid, Tilvero turns the screen down and keeps the sound no louder than the levels you choose. A quieter setting is never raised.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When you close the lid, Tilvero turns the screen down and keeps the sound no louder than the levels you choose. A quieter setting is never raised."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Когда вы закрываете крышку, Tilvero убавляет яркость экрана и ограничивает громкость выбранным уровнем. Более тихое значение не повышается."
+          }
+        }
+      }
+    },
+    "When you open the lid, both return to what they were, unless you changed them meanwhile. The keyboard backlight turns off by itself. Keep Awake and the timer have separate settings.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When you open the lid, both return to what they were, unless you changed them meanwhile. The keyboard backlight turns off by itself. Keep Awake and the timer have separate settings."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Когда вы открываете крышку, всё возвращается как было, если вы ничего не меняли. Подсветка клавиатуры гаснет сама. Для «Не засыпать» и таймера настройки отдельные."
+          }
+        }
+      }
     }
   },
   "version": "1.0"
