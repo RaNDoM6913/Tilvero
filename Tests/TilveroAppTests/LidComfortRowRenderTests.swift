@@ -34,12 +34,12 @@ private final class InertClamshell: LidComfortClamshell, @unchecked Sendable {
         return TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"), lidComfortService: comfort)
     }
     private func render<V: View>(_ view: V, scheme: ColorScheme, name: String) throws -> NSSize {
-        let host = NSHostingController(rootView: view.padding(20).frame(width: 360, alignment: .leading)
+        let host = NSHostingController(rootView: view.padding(QuickPanelMetrics.padding).frame(width: QuickPanelMetrics.width, alignment: .leading)
             .background(Color(nsColor: .windowBackgroundColor)).environment(\.colorScheme, scheme).environment(\.locale, L10n.locale))
         let window = NSWindow(contentViewController: host); window.isReleasedWhenClosed = false
         window.appearance = NSAppearance(named: scheme == .dark ? .darkAqua : .aqua)
         defer { window.close() }
-        let size = host.sizeThatFits(in: NSSize(width: 360, height: 900))
+        let size = host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 900))
         window.setContentSize(size); window.makeKeyAndOrderFront(nil); host.view.layoutSubtreeIfNeeded()
         RunLoop.main.run(until: Date().addingTimeInterval(0.2))
         let bitmap = try XCTUnwrap(host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds))
@@ -62,7 +62,7 @@ private final class InertClamshell: LidComfortClamshell, @unchecked Sendable {
                 let closed = try render(LidComfortRow(model: m, mode: .scheduledSleep), scheme: scheme, name: "closed-\(language)-\(scheme)")
                 let open = try render(LidComfortRow(model: m, mode: .scheduledSleep, startsExpanded: true), scheme: scheme, name: "open-\(language)-\(scheme)")
                 XCTAssertGreaterThan(open.height, closed.height + 60, "Two capsules appear when the row is expanded.")
-                XCTAssertGreaterThanOrEqual(closed.height, 72, "The collapsed row keeps the standard 32 pt height plus padding.")
+                XCTAssertGreaterThanOrEqual(closed.height, 32 + 2 * QuickPanelMetrics.padding - 1, "The collapsed row keeps the standard 32 pt height plus padding.")
             }
         }
     }

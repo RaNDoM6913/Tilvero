@@ -326,7 +326,7 @@ enum SleepPillActionError: LocalizedError, Equatable {
                     addChip(5, token: token); addChip(15, token: token)
                 }
                 Text(SleepTimerInput.clock(end)).font(.system(size: 13, weight: .semibold, design: .rounded)).monospacedDigit()
-                    .lineLimit(1).fixedSize().padding(.horizontal, 2)
+                    .lineLimit(1).fixedSize()
                     .studioElement("timer.endClock", label: "Sleep time")
             }
             Toggle(L10n.text("Sleep timer"), isOn: Binding(
@@ -345,7 +345,7 @@ enum SleepPillActionError: LocalizedError, Equatable {
         let enabled = token != nil && canAdd(minutes, token: token)
         return Button { addMinutes(minutes, token: token) } label: {
             Text("+\(minutes) " + L10n.text("min")).font(.system(size: 10.5, weight: .medium)).monospacedDigit().lineLimit(1).fixedSize()
-                .foregroundStyle(Color.primary).padding(.horizontal, 5).padding(.vertical, 5)
+                .foregroundStyle(Color.primary).padding(.horizontal, 4).padding(.vertical, 5)
                 .background(Capsule().fill(Color.primary.opacity(0.07))).contentShape(Capsule())
         }
         .buttonStyle(.plain).disabled(!enabled).opacity(enabled ? 1 : 0.45)

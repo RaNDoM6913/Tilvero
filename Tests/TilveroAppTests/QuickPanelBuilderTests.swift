@@ -112,7 +112,7 @@ import SwiftUI
         window.isReleasedWhenClosed = false
         window.appearance = NSAppearance(named: scheme == .dark ? .darkAqua : .aqua)
         defer { window.close() }
-        let size = host.sizeThatFits(in: NSSize(width: 360, height: 8000))
+        let size = host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 8000))
         XCTAssertTrue(size.width.isFinite && size.height.isFinite)
         window.setContentSize(size)
         host.view.layoutSubtreeIfNeeded()

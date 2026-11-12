@@ -75,7 +75,12 @@ import PowerCore
         let battery = model.metricSeries(id: "038")
         let adapter = content.drawsAdapter ? model.metricSeries(id: "054") : nil
         VStack(alignment: .leading, spacing: 6) {
-            Label(content.title, systemImage: "bolt").font(.system(size: 13, weight: .medium)).lineLimit(1)
+            // The chart has no unit row of its own: the unit sits at the right of the heading (there is no single value here).
+            HStack(alignment: .firstTextBaseline) {
+                Label(content.title, systemImage: "bolt").lineLimit(1)
+                Spacer(minLength: 8)
+                Text(PowerMetricCard.chartUnit(id: "038", readingUnit: batteryReading?.unit, fahrenheit: false)).foregroundStyle(.secondary).lineLimit(1).fixedSize()
+            }.font(.system(size: 13, weight: .medium))
             // A stale reading mutes the heading; the chart itself marks the stale tail.
             .opacity(content.isStale ? 0.6 : 1)
             MetricChartView(

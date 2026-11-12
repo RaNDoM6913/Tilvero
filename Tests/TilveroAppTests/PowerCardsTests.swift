@@ -127,8 +127,8 @@ import PowerTelemetry
         let saved = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
         UserDefaults.standard.setVolatileDomain(saved.merging(["language": "ru"]) { _, value in value }, forName: UserDefaults.argumentDomain)
         defer { UserDefaults.standard.setVolatileDomain(saved, forName: UserDefaults.argumentDomain) }
-        // 360 pt popover minus panel padding 2 x 20 and card padding 2 x 12, then axis, gutter and the label column.
-        let inner: CGFloat = 360 - 2 * 20 - 2 * 12
+        // Popover width minus the panel padding on both sides and card padding 2 x 12, then axis, gutter and the label column.
+        let inner: CGFloat = QuickPanelMetrics.width - 2 * QuickPanelMetrics.padding - 2 * 12
         let plot = inner - 30 - 6 - MetricChartView.endLabelColumnWidth
         XCTAssertGreaterThanOrEqual(plot, 140, "The plot keeps a usable width after the wider label column.")
         let frame = MetricChartView.endLabelFrameWidth
@@ -214,19 +214,19 @@ import PowerTelemetry
             XCTAssertEqual(two.size.width, 320)
         }
     }
-    /// 360 pt popover minus the panel's 2 x 20 pt padding, two tiles and the gap between them.
-    private var tileWidth: CGFloat { (360 - 40 - PowerTilesBlock.spacing) / 2 }
+    /// Popover width minus the panel's padding on both sides, two tiles and the gap between them.
+    private var tileWidth: CGFloat { (QuickPanelMetrics.width - 2 * QuickPanelMetrics.padding - PowerTilesBlock.spacing) / 2 }
     private func width(_ text: String, size: CGFloat, weight: NSFont.Weight = .regular) -> CGFloat {
         ceil((text as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: size, weight: weight)]).width)
     }
-    func testTileTextFitsAt360InRussian() async throws {
+    func testTileTextFitsAtThePanelWidthInRussian() async throws {
         // Volatile argument domain only: nothing is written to disk, and the saved domain is restored on exit.
         let saved = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
         UserDefaults.standard.setVolatileDomain(saved.merging(["language": "ru"]) { _, value in value }, forName: UserDefaults.argumentDomain)
         defer { UserDefaults.standard.setVolatileDomain(saved, forName: UserDefaults.argumentDomain) }
         XCTAssertEqual(L10n.language, "ru")
         let inner = tileWidth - 2 * 10 - 1   // tile chrome padding 10 pt, hairline
-        XCTAssertEqual(tileWidth, 156)
+        XCTAssertEqual(tileWidth, 152, "340 pt panel, 14 pt padding, 8 pt gap")
         let estimated = reading("038", value: -100.5, provenance: .estimated)
         let stale = CatalogReading(definition: BatteryCatalog.definition("054"), value: .decimal(7.8), source: "fixture", keyPath: "input", freshness: .stale)
         let tiles = [

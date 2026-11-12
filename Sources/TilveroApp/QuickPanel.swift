@@ -33,6 +33,13 @@ enum QuickPanelSection: String, CaseIterable, Identifiable {
     }
 }
 
+/// Geometry shared by the quick panel and its popover host. Owner decision 2026-11-12: 340 pt wide with 14 pt side
+/// padding, like the system menus (Battery ~338, Wi-Fi ~307, Weather ~300 pt; their margins are 14 pt).
+enum QuickPanelMetrics {
+    static let width: CGFloat = 340
+    static let padding: CGFloat = 14
+}
+
 @MainActor
 struct QuickPanel: View {
     @Environment(\.studioPresentation) private var studioPresentation
@@ -44,7 +51,7 @@ struct QuickPanel: View {
 
     var body: some View {
         QuickPanelViewport(maximumHeight: maximumHeight) { content }
-        .frame(width: 360)
+        .frame(width: QuickPanelMetrics.width)
         .environment(\.locale, L10n.locale)
         .studioElement("quick.canvas", kind: "container", label: "Quick panel canvas")
         .studioScope("page." + section.rawValue)
@@ -97,7 +104,7 @@ struct QuickPanel: View {
                 }.frame(maxWidth: .infinity)
             }.buttonStyle(.borderless).studioElement("quick.openDetails", label: "Open details")
 
-        }.padding(20).frame(width: 360, alignment: .leading)
+        }.padding(QuickPanelMetrics.padding).frame(width: QuickPanelMetrics.width, alignment: .leading)
     }
 
     private var contextualNotice: String? {
@@ -250,8 +257,8 @@ struct QuickPanelViewport<Content: View>: View {
 private struct QuickPanelLayout: Layout {
     let maximumHeight: CGFloat
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let ideal = subviews[0].sizeThatFits(ProposedViewSize(width: 360, height: nil))
-        return CGSize(width: 360, height: min(ideal.height, max(1, maximumHeight)))
+        let ideal = subviews[0].sizeThatFits(ProposedViewSize(width: QuickPanelMetrics.width, height: nil))
+        return CGSize(width: QuickPanelMetrics.width, height: min(ideal.height, max(1, maximumHeight)))
     }
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         subviews[0].place(at: bounds.origin, proposal: ProposedViewSize(bounds.size))

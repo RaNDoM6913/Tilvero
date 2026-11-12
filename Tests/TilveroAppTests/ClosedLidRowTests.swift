@@ -33,7 +33,7 @@ import XCTest
         let host = NSHostingController(rootView: KeepAwakePillsPanel(model: fixture.model).frame(width: 320).padding(20))
         let window = NSWindow(contentViewController: host)
         defer { window.orderOut(nil) }
-        window.setContentSize(host.sizeThatFits(in: NSSize(width: 360, height: 900)))
+        window.setContentSize(host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 900)))
         host.view.layoutSubtreeIfNeeded()
         try await Task.sleep(for: .milliseconds(100))
         func all(_ v: NSView) -> [NSView] { [v] + v.subviews.flatMap(all) }
@@ -81,11 +81,11 @@ extension ClosedLidRowTests {
             UserDefaults.standard.setVolatileDomain(saved.merging(["language": language]) { _, v in v }, forName: UserDefaults.argumentDomain)
             defer { UserDefaults.standard.setVolatileDomain(saved, forName: UserDefaults.argumentDomain) }
             for (name, section) in [("awake", QuickPanelSection.awake)] {
-                let host = NSHostingController(rootView: QuickPanel(model: model, section: section).frame(width: 360)
+                let host = NSHostingController(rootView: QuickPanel(model: model, section: section).frame(width: QuickPanelMetrics.width)
                     .background(Color(nsColor: .windowBackgroundColor)).environment(\.colorScheme, .dark)
                     .environment(\.controlActiveState, .key).environment(\.locale, L10n.locale))
                 let window = NSWindow(contentViewController: host); window.appearance = NSAppearance(named: .darkAqua)
-                window.setContentSize(host.sizeThatFits(in: NSSize(width: 360, height: 1000))); host.view.layoutSubtreeIfNeeded()
+                window.setContentSize(host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 1000))); host.view.layoutSubtreeIfNeeded()
                 try await Task.sleep(for: .milliseconds(300))
                 // second tab of the Sleep page = Keep Awake
                 func all(_ v: NSView) -> [NSView] { [v] + v.subviews.flatMap(all) }
@@ -93,7 +93,7 @@ extension ClosedLidRowTests {
                     tabs.selectedSegment = 1; _ = tabs.sendAction(tabs.action, to: tabs.target)
                     try await Task.sleep(for: .milliseconds(300))
                 }
-                window.setContentSize(host.sizeThatFits(in: NSSize(width: 360, height: 1000))); host.view.layoutSubtreeIfNeeded()
+                window.setContentSize(host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 1000))); host.view.layoutSubtreeIfNeeded()
                 try await Task.sleep(for: .milliseconds(200))
                 let bitmap = try XCTUnwrap(host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds))
                 host.view.cacheDisplay(in: host.view.bounds, to: bitmap)

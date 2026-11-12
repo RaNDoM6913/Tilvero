@@ -19,7 +19,7 @@ import AppKit
         XCTAssertNil(model.processActivity)
         XCTAssertTrue(model.highCPUApplications.isEmpty)
         let host = NSHostingController(rootView: ProcessActivityPanel(model: model, compact: true))
-        XCTAssertLessThan(host.sizeThatFits(in: NSSize(width: 360, height: 1000)).height, 1)
+        XCTAssertLessThan(host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 1000)).height, 1)
     }
     func testHighLoadFlowsIntoCompactPanelAndSleepClearsIt() async throws {
         let suite = "TilveroHighCPU-\(UUID())", prefs = UserDefaults(suiteName: suite)!
@@ -31,12 +31,12 @@ import AppKit
         for _ in 0..<3 {
             await model.refreshProcessActivity(force: true)
             XCTAssertTrue(model.highCPUApplications.isEmpty)
-            XCTAssertLessThan(host.sizeThatFits(in: NSSize(width: 360, height: 1000)).height, 1)
+            XCTAssertLessThan(host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 1000)).height, 1)
         }
         await model.refreshProcessActivity(force: true)
         XCTAssertEqual(model.highCPUApplications.map(\.name), ["Fixture app"])
         try await Task.sleep(for: .milliseconds(30))
-        XCTAssertGreaterThan(host.sizeThatFits(in: NSSize(width: 360, height: 1000)).height, 20)
+        XCTAssertGreaterThan(host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 1000)).height, 20)
         model.setSleeping(true)
         XCTAssertTrue(model.highCPUApplications.isEmpty)
         model.stop()
@@ -50,11 +50,11 @@ import AppKit
         await model.refreshProcessActivity(force: true)
         XCTAssertTrue(model.processActivity?.isWarmingUp == true)
         let host = NSHostingController(rootView: ProcessActivityPanel(model: model, compact: true))
-        XCTAssertLessThan(host.sizeThatFits(in: NSSize(width: 360, height: 1000)).height, 1)
+        XCTAssertLessThan(host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 1000)).height, 1)
         await model.refreshProcessActivity(force: true)
         XCTAssertEqual(model.processActivity?.rows.first?.name, "SENSITIVE_PROCESS_FIXTURE")
         XCTAssertTrue(model.highCPUApplications.isEmpty)
-        XCTAssertLessThan(host.sizeThatFits(in: NSSize(width: 360, height: 1000)).height, 1)
+        XCTAssertLessThan(host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 1000)).height, 1)
         XCTAssertFalse(String(describing: prefs.dictionaryRepresentation()).contains("SENSITIVE_PROCESS_FIXTURE"))
         model.setSleeping(true)
         XCTAssertNil(model.processActivity)
