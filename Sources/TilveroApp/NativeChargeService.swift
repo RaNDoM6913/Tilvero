@@ -218,6 +218,13 @@ enum NativeChargeServiceError: Error, LocalizedError {
     }
     var canApply: Bool { isAvailable && !isBusy && !isQualifying && !recoveryRequired && !restorationPending }
     func canApplyTarget(_ target: Int) -> Bool { canApply && acceptedTargets.contains(target) && authorizedPersistentTargets.contains(target) }
+    /// Whether the target is on offer at all, ignoring momentary states (a read or an apply in flight, a pending operation, a
+    /// lapsed freshness window). Controls take their look from this so they never blink while a limit is being applied; the
+    /// tap itself is still gated by `canApplyTarget`.
+    func offersTarget(_ target: Int) -> Bool {
+        admitted && !monitoringOnly && !journalInvalid && !recoveryRequired && !restorationPending
+            && acceptedTargets.contains(target) && authorizedPersistentTargets.contains(target)
+    }
     /// Cached state readiness only. qualify() obtains its own fresh battery and
     /// native preflight before granting the two finite transitions.
     var canRequestQualification: Bool {
@@ -267,9 +274,14 @@ enum NativeChargeServiceError: Error, LocalizedError {
                     && (80...100).contains(saved.baseline.target) && (80...100).contains(saved.lastVerified.target)
                     && (saved.plannedTarget.map({ (80...100).contains($0) }) ?? true)
                 guard trustedLegacy || saved.hasPersistentScope(environment: environment) else { throw NativeChargeServiceError.recoveryRequired }
+                // A waiting target that never wrote anything leaves nothing to review: the user's macOS setting is untouched.
+                if saved.version == 2, !saved.hasWritten, saved.phase == .pendingTarget {
+                    try FileManager.default.removeItem(at: journalURL)
+                } else {
                 journal = saved; recoveryRequired = true; reviewReason = .sessionReview
                 restorationPending = saved.phase == .restorationPending
                 message = "A previous native charge session needs review. Saved intent was not reapplied."
+                }
             } catch {
                 journalInvalid = true; recoveryRequired = true; reviewReason = .sessionReview
                 message = "The saved native charge session cannot be read safely. It was preserved."
@@ -488,6 +500,12 @@ enum NativeChargeServiceError: Error, LocalizedError {
                 || !NativeChargeAdmission.persistentTargets.contains(value.configuration.target)
                 || value.supportedTargets != journal.baselineSnapshot?.supportedTargets
                 || (journal.expectedMutation == nil && value.configuration != journal.lastVerified)) {
+                if !journal.hasWritten {
+                    // Nothing was written: a target was only waiting, and the limit has since been changed elsewhere.
+                    // There is nothing to recover, so the waiting target is dropped and the new setting is simply observed.
+                    try? relinquish()
+                    return
+                }
                 recoveryRequired = true
                 message = "The current macOS state is outside the verified persistent session. Its recovery journal was preserved without a write."
                 return
@@ -543,10 +561,11 @@ enum NativeChargeServiceError: Error, LocalizedError {
             }
             transaction.sessionID = journal?.sessionID
             journal?.plannedTarget = target
-            // One percentage point guards the rounded UI reading. An already-active
+            // Only a limit below the charge level waits for natural discharge (it could make macOS drain the battery). A limit
+            // equal to the level is applied at once, as System Settings does: the battery simply stops there. An already-active
             // limit is handled above, without reasserting any hardware setting.
             let safeFloor = current.configuration.enabled ? target : min(target, current.configuration.target)
-            if percent >= safeFloor {
+            if percent > safeFloor {
                 journal?.phase = .pendingTarget; try saveJournal()
                 pendingTarget = target
                 message = "Waiting for natural discharge before applying the lower native limit. The current system setting remains active."
@@ -599,7 +618,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
             try? await cancelOneShot(batteryPercent: percent, batteryFresh: true)
         } else if restorationPending {
             _ = try? await restore(batteryPercent: percent, batteryFresh: true)
-        } else if let target = pendingTarget, percent < target {
+        } else if let target = pendingTarget, percent <= target {
             do { try await apply(target, batteryPercent: percent, batteryFresh: true) }
             catch { message = error.localizedDescription }
         }
@@ -722,7 +741,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
         self.batteryPercent = percent; self.batteryFresh = true
         let transaction = makeTransaction()
         do {
-            guard percent < saved.baseline.target else {
+            guard percent <= saved.baseline.target else {
                 journal?.phase = .restorationPending; restorationPending = true
                 try saveJournal()
                 message = "Restoring the persistent baseline is waiting for natural discharge."
@@ -807,15 +826,15 @@ enum NativeChargeServiceError: Error, LocalizedError {
         let fresh = battery?.fresh ?? batteryFresh
         let percent = battery != nil ? battery!.percent : batteryPercent
         guard fresh, let percent else { throw NativeChargeServiceError.staleBattery }
-        if expected.enabled && expected.target != before.configuration.target && percent >= expected.target {
+        if expected.enabled && expected.target != before.configuration.target && percent > expected.target {
             throw NativeChargeServiceError.unsafeEnable
         }
-        if expected.enabled && !before.configuration.enabled && percent >= before.configuration.target {
+        if expected.enabled && !before.configuration.enabled && percent > before.configuration.target {
             throw NativeChargeServiceError.unsafeEnable
         }
         let recalledBaseline = allowRestoredBaseline && saved.phase == .restoring && !before.configuration.enabled
             && before.configuration.target == 100 && saved.baseline.enabled ? saved.baseline : nil
-        if let recalledBaseline, percent >= recalledBaseline.target {
+        if let recalledBaseline, percent > recalledBaseline.target {
             throw NativeChargeServiceError.unsafeEnable
         }
         // Write-ahead state includes even intermediate enable/disable operations.

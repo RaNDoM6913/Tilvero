@@ -16337,18 +16337,34 @@
         }
       }
     },
-    "Connect the adapter: without it the charge will not be ready by {time}": {
+    "Connect the adapter: not ready by {time}": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Connect the adapter: without it the charge will not be ready by {time}"
+            "value": "Connect the adapter: not ready by {time}"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Подключите адаптер: без него к {time} не зарядится"
+            "value": "Подключите адаптер: к {time} не зарядится"
+          }
+        }
+      }
+    },
+    "Move to {time}": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move to {time}"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сдвинуть на {time}"
           }
         }
       }

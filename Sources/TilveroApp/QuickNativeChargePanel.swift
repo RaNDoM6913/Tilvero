@@ -198,8 +198,8 @@ import ChargeBackends
                     .background(Capsule().fill(running ? Color.accentColor : Color.primary.opacity(0.07)))
                     .contentShape(Capsule())
             }.buttonStyle(.plain)
-                .disabled(model.isApplying || model.nativeCharge.isBusy || (!running && !model.canStartChargeOnce))
-                .opacity(running || model.canStartChargeOnce ? 1 : 0.45)
+                // Steady look: a read or an apply in flight ignores taps but never dims the pill (it used to blink on every limit change).
+                .steadyControl(SteadyControlLook(offered: running || model.chargeOnceOffered, busy: model.isApplying || model.nativeCharge.isBusy))
                 .accessibilityLabel(L10n.text(running ? "Cancel one-time charge" : "Charge to 100% once"))
                 .accessibilityAddTraits(running ? .isSelected : [])
                 .studioElement("charge.once", label: running ? "Cancel one-time charge" : "Charge to 100% once")
