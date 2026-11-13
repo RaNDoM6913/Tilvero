@@ -4,8 +4,8 @@ Snapshot collected on 13 November 2026 UTC from the GitHub API.
 
 | Metric | Value | Scope |
 | --- | ---: | --- |
-| Git clones | 1286 | GitHub Traffic window, 29 October through 11 November 2026 UTC |
-| Unique cloners | 381 | GitHub's `uniques` value for the same window |
+| Git clones | 1341 | Sum of the daily counts below, 27 October (repository creation) through 11 November 2026 UTC; GitHub itself only returns the latest 14 days, so older days are kept in a local file |
+| Unique cloners | 392 | The highest `uniques` value GitHub returned for any 14-day window (27 October through 9 November); unique cloners cannot be summed across days, so this is a lower bound for the whole period |
 | Source ZIP downloads | 17 | All seven published custom source ZIPs |
 | Source ZIP downloads excluding verification | 12 | The seventeen reported downloads minus five project verification downloads (the published `v0.2.0`, `v0.3.0-beta.1`, `v0.4.0-beta.1`, `v0.4.0` and `v0.5.0-beta.1` archives were re-downloaded to check them) |
 | Downloads of uploaded release assets | 38 | Seventeen source ZIP downloads, ten manifest downloads and eleven checksum downloads |
