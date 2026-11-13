@@ -275,13 +275,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         #if TILVERO_LAB_STUDIO
         showDetails()
         #else
-        if model.canShowSetup && !model.hasReviewedSetup {
-            model.selectedSettingsPage = .setup
-            model.selectedSection = .settings
-            showDetails()
-        } else if CommandLine.arguments.contains("--show-details") {
-            showDetails()
-        }
+        if LaunchPresentation.opensDetailsAtLaunch(arguments: CommandLine.arguments) { showDetails() }
         #endif
     }
 

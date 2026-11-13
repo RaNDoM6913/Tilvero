@@ -22,9 +22,9 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         ViewThatFits(in: .horizontal) {
             HStack(alignment: .top, spacing: 24) {
                 ProductSurface(studioID: "quick.builder") { controls }.frame(minWidth: 300, idealWidth: 340, maxWidth: .infinity)
-                preview.frame(width: 360)
+                preview.frame(width: QuickPanelMetrics.width)
             }
-            VStack(alignment: .leading, spacing: 20) { ProductSurface(studioID: "quick.builder") { controls }; preview.frame(width: 360) }
+            VStack(alignment: .leading, spacing: 20) { ProductSurface(studioID: "quick.builder") { controls }; preview.frame(width: QuickPanelMetrics.width) }
         }
     }
     /// Order and visibility return to their defaults.
@@ -132,7 +132,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
                 Spacer()
                 Image(systemName: "chevron.right").font(.caption)
             }.font(.callout).foregroundStyle(.secondary)
-        }.padding(20).frame(width: 360, alignment: .leading)
+        }.padding(QuickPanelMetrics.padding).frame(width: QuickPanelMetrics.width, alignment: .leading)
             .tint(.blue).accentColor(.blue)
             .environment(\.locale, L10n.locale)
     }

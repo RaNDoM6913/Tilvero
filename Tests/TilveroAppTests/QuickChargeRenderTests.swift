@@ -42,7 +42,7 @@ private actor RenderChargeTransport: NativeChargeTransport {
         m.setDraft(95)
         let host = NSHostingController(rootView: QuickPanel(model: m, section: .charge).frame(width: 360))
         let window = NSWindow(contentViewController: host)
-        window.setContentSize(host.sizeThatFits(in: NSSize(width: 360, height: 900))); host.view.layoutSubtreeIfNeeded()
+        window.setContentSize(host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 900))); host.view.layoutSubtreeIfNeeded()
         try await Task.sleep(for: .milliseconds(200))
         func all(_ v: NSView) -> [NSView] { [v] + v.subviews.flatMap(all) }
         let texts = all(host.view).compactMap { ($0 as? NSTextField)?.stringValue }
@@ -72,9 +72,9 @@ private actor RenderChargeTransport: NativeChargeTransport {
                     .background(Color(nsColor: .windowBackgroundColor)).environment(\.colorScheme, .dark)
                     .environment(\.controlActiveState, .key).environment(\.locale, L10n.locale))
                 let window = NSWindow(contentViewController: host); window.appearance = NSAppearance(named: .darkAqua)
-                window.setContentSize(host.sizeThatFits(in: NSSize(width: 360, height: 900))); host.view.layoutSubtreeIfNeeded()
+                window.setContentSize(host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 900))); host.view.layoutSubtreeIfNeeded()
                 try await Task.sleep(for: .milliseconds(300))
-                window.setContentSize(host.sizeThatFits(in: NSSize(width: 360, height: 900))); host.view.layoutSubtreeIfNeeded()
+                window.setContentSize(host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 900))); host.view.layoutSubtreeIfNeeded()
                 try await Task.sleep(for: .milliseconds(150))
                 let bitmap = try XCTUnwrap(host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds))
                 host.view.cacheDisplay(in: host.view.bounds, to: bitmap)

@@ -47,3 +47,11 @@ struct AppLaunchPolicy: Equatable {
         monitoringOnly ? self : Self(reason: .leaseUnavailable, lidTrialOnly: lidTrialOnly)
     }
 }
+
+/// What a launch puts on screen. Tilvero is a menu bar app: it starts quietly in the background and never raises a
+/// window over the user's work by itself. The details window opens only from the user's own action (the menu bar
+/// icon's menu, reopening the app) or the explicit `--show-details` flag. The first-run setup is a Settings page,
+/// not a launch-time window.
+enum LaunchPresentation {
+    static func opensDetailsAtLaunch(arguments: [String]) -> Bool { arguments.contains("--show-details") }
+}

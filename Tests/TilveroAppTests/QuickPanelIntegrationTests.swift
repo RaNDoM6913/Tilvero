@@ -39,7 +39,7 @@ import ChargeBackends
             _ = modes.sendAction(modes.action, to: modes.target)
             try await Task.sleep(for: .milliseconds(30))
             host.view.layoutSubtreeIfNeeded()
-            XCTAssertEqual(host.preferredContentSize.width, 360)
+            XCTAssertEqual(host.preferredContentSize.width, QuickPanelMetrics.width)
             XCTAssertLessThan(host.preferredContentSize.height, 620, "Flexible Awake remains bounded in the native panel")
             XCTAssertGreaterThan(host.preferredContentSize.height, 180)
             XCTAssertFalse(fixture.model.keepAwake.hasOwnedAssertion)
@@ -53,7 +53,7 @@ import ChargeBackends
         defer { fixture.cleanUp() }
         let awakeHost = NSHostingController(rootView: QuickPanel(model: fixture.model, maximumHeight: 900, section: .awake))
         let awakeWindow = NSWindow(contentViewController: awakeHost)
-        awakeWindow.setContentSize(awakeHost.sizeThatFits(in: NSSize(width: 360, height: 900)))
+        awakeWindow.setContentSize(awakeHost.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 900)))
         awakeHost.view.layoutSubtreeIfNeeded()
         try await Task.sleep(for: .milliseconds(30))
         for option in [15, 30, 60, 120, 240, 480, -1, -2, 0] {
@@ -76,7 +76,7 @@ import ChargeBackends
         defer { reopened.stop() }
         XCTAssertEqual(reopened.keepAwakeDuration, .twoHours)
         let settingsAwake = NSHostingController(rootView: KeepAwakePanel(model: reopened))
-        _ = settingsAwake.sizeThatFits(in: NSSize(width: 360, height: 600))
+        _ = settingsAwake.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 600))
         XCTAssertFalse(reopened.keepAwake.isAvailable, "Simulation keeps the shared Start unavailable")
         XCTAssertFalse(reopened.keepAwake.hasOwnedAssertion)
         XCTAssertTrue(fixture.driver.assertions.isEmpty, "No opening, duration change or preview may acquire an assertion")
@@ -90,7 +90,7 @@ import ChargeBackends
         var saved = model.modeLibrary.plan(.economy); saved.chargeTarget = 90; saved.brightnessPercent = 40
         try model.saveMode(saved)
         let host = NSHostingController(rootView: QuickPanel(model: model, maximumHeight: 1000, section: .modes))
-        let size = host.sizeThatFits(in: NSSize(width: 360, height: 1200))
+        let size = host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 1200))
         let window = NSWindow(contentViewController: host); window.setContentSize(size)
         host.view.layoutSubtreeIfNeeded()
         let views = descendants(host.view)

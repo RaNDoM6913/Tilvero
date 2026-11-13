@@ -177,7 +177,7 @@ import PowerCore
         for tab in QuickPanelSection.allCases {
             let host = NSHostingController(rootView: PassiveQuickPanelPreview(model: model, section: tab))
             let window = NSWindow(contentViewController: host)
-            window.setContentSize(host.sizeThatFits(in: NSSize(width: 360, height: 1400)))
+            window.setContentSize(host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 1400)))
             host.view.layoutSubtreeIfNeeded()
             let controls = descendants(host.view).compactMap { $0 as? NSControl }
             XCTAssertFalse(controls.contains { $0.identifier?.rawValue == "keep-awake-start" || $0.identifier?.rawValue == "keep-awake-stop" })
@@ -210,7 +210,7 @@ import PowerCore
         for tab in QuickPanelSection.allCases {
             let host = NSHostingController(rootView: PassiveQuickPanelPreview(model: model, section: tab))
             let window = NSWindow(contentViewController: host)
-            window.setContentSize(host.sizeThatFits(in: NSSize(width: 360, height: 1200)))
+            window.setContentSize(host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 1200)))
             host.view.layoutSubtreeIfNeeded()
             XCTAssertFalse(descendants(host.view).compactMap { $0 as? NSButton }.contains { $0.isEnabled },
                            "Only local tab selection is interactive; action-looking controls must be disabled")
@@ -223,7 +223,7 @@ import PowerCore
         try model.keepAwake.start(seconds: 900)
         let active = NSHostingController(rootView: PassiveQuickPanelPreview(model: model, section: .awake))
         let activeWindow = NSWindow(contentViewController: active)
-        activeWindow.setContentSize(active.sizeThatFits(in: NSSize(width: 360, height: 1200)))
+        activeWindow.setContentSize(active.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 1200)))
         active.view.layoutSubtreeIfNeeded()
         XCTAssertFalse(descendants(active.view).compactMap { $0 as? NSButton }.contains { $0.isEnabled })
         XCTAssertTrue(model.keepAwake.hasOwnedAssertion)

@@ -1,8 +1,8 @@
 ![Tilvero — Battery, power and activity. Swift 6, macOS 26+, Apple silicon. Source preview.](.github/assets/cover.png)
 
 <p align="center">
-  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.5.0-beta.1"><img src="https://img.shields.io/badge/source-preview-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Source preview" height="28"></a>
-  <a href="docs/GITHUB_TRAFFIC.md"><img src="https://img.shields.io/badge/zip%20%E2%80%A2%20clones%20%E2%80%A2%20unique-10%20%E2%80%A2%201308%20%E2%80%A2%20387-2F6E4B?style=for-the-badge&amp;labelColor=172A22" alt="Source ZIP downloads 10, Git clones 1308, unique cloners 387" height="28"></a>
+  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.6.0"><img src="https://img.shields.io/badge/source-preview-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Source preview" height="28"></a>
+  <a href="docs/GITHUB_TRAFFIC.md"><img src="https://img.shields.io/badge/zip%20%E2%80%A2%20clones%20%E2%80%A2%20unique-12%20%E2%80%A2%201286%20%E2%80%A2%20381-2F6E4B?style=for-the-badge&amp;labelColor=172A22" alt="Source ZIP downloads 12, Git clones 1286, unique cloners 381" height="28"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="License: GPL-3.0-only" height="28"></a>
 </p>
 
@@ -14,7 +14,7 @@ with a clear native window when you want the details. No account, no cloud servi
 
 <img src=".github/assets/screenshots/quick-menu-dark.png" alt="Tilvero quick menu: Overview, Sleep timer, Keep Awake and Charge" width="100%">
 
-<sub>Overview · Sleep timer · Keep Awake · Charge. Rendered from source with injected demo readings; they do not
+<sub>Overview · Sleep timer · Keep Awake with the new Screen and sound row · Charge. Rendered from source with injected demo readings; they do not
 establish hardware support or qualify a release binary.</sub>
 
 ## What the quick menu does
@@ -22,20 +22,44 @@ establish hardware support or qualify a release binary.</sub>
 - **Overview:** the battery level and state, the macOS charge limit at a glance, Keep Awake in one tap, and live
   charts for power, adapter input and temperature with battery health below. Blocks, order and chart size are yours to arrange.
 - **Sleep:** a sleep timer you can extend by 5 minutes, 15 minutes or an hour; Keep Awake for a set time or until you stop it,
-  with an optional **With lid closed** switch; and sleep or keep awake when the charge falls to a level you choose.
+  with an optional **With lid closed** switch that also turns the screen down and caps the volume while the lid is shut; and
+  sleep or keep awake when the charge falls to a level you choose.
 - **Charge:** the macOS charge limit (80–100 %), a one-time charge to 100 %, and **charge by time**: pick a time and a level
   and Tilvero lifts the limit just in time, waking a sleeping Mac on schedule (one optional administrator permission;
   waking with the lid closed is still being verified on real hardware).
 
-**Latest: [0.5.0-beta.1 Source Preview](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.5.0-beta.1) for developers.**
-[Get the source](https://github.com/RaNDoM6913/Tilvero/releases/download/v0.5.0-beta.1/Tilvero-0.5.0-beta.1-source.zip)
-· [Release notes and checksums](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.5.0-beta.1)
+**Latest: [0.6.0 Source Preview](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.6.0) for developers.**
+[Get the source](https://github.com/RaNDoM6913/Tilvero/releases/download/v0.6.0/Tilvero-0.6.0-source.zip)
+· [Release notes and checksums](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.6.0)
 · [Build and run](#build-and-run) · [Roadmap](ROADMAP.md)
-· Stable: [0.4.0](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.4.0)
+· Earlier: [0.5.0-beta.1](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.5.0-beta.1),
+[0.4.0](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.4.0)
 
 A signed, notarized Mac download is still in preparation. The planned
 **Monitoring Preview** DMG will be read-only; this repository also contains
 separately gated development controls. [Availability and installation](docs/INSTALL.md).
+
+## What's new in 0.6.0
+
+**New**
+- **Screen and sound with the lid closed.** While Keep Awake or the sleep timer holds the Mac awake with the lid shut,
+  Tilvero turns the built-in screen down (0 % by default) and keeps the volume no louder than 25 %; a quieter setting is
+  never raised. Open the lid or end the session and both return to what they were, unless you changed them meanwhile.
+  The row sits under **With lid closed** and expands into two sliders in 5 % steps, each with its own switch.
+- **Live charts.** With the menu open on Overview, power and temperature charts update about once a second. Live points stay
+  in memory and are never written to history.
+- **A roomier menu.** The quick menu is 340 pt wide with taller chart plots.
+
+**Improved**
+- The keyboard backlight row shows a larger percent figure, and its slider and switch no longer jump back while a change is applied.
+- The **With lid closed** switch no longer snaps back or greys out while the administrator permission is checked.
+
+**Fixed**
+- **Memory at launch:** reading months of history left up to ~500 MB of temporary data in the heap (peak about 730 MB). The peak is now about 85 MB on the same history.
+- **A quiet start:** Tilvero no longer opens Settings or raises a window over your apps at launch. It starts in the menu bar; the window opens only when you ask.
+- The screen and volume sliders showed the same fill for every value below about 16 %; the fill now grows over the whole range.
+
+Full history: [CHANGELOG](CHANGELOG.md).
 
 ## More than the menu: a closer look at your Mac
 
@@ -75,14 +99,14 @@ You need **Apple silicon, macOS 26.0+ and a full Xcode installation** with a
 compatible macOS SDK and Swift 6. Command Line Tools alone are not the validated route.
 
 ```sh
-git clone --branch v0.5.0-beta.1 https://github.com/RaNDoM6913/Tilvero.git
+git clone --branch v0.6.0 https://github.com/RaNDoM6913/Tilvero.git
 cd Tilvero
 bash scripts/test.sh
 bash scripts/build-local-app.sh
 bash scripts/run-local.sh
 ```
 
-Use `--branch v0.4.0` for the stable source. The app opens in the menu bar. Click the battery item for the quick menu;
+The app opens in the menu bar. Click the battery item for the quick menu;
 **History & reports…** opens the detail window, and the gear opens Settings.
 Inside Tilvero, **⌘⌥B** toggles the panel and **⌘,** opens Settings.
 

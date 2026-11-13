@@ -14,9 +14,9 @@ final class QuickPanelLayoutTests: XCTestCase {
         defer { fixture.cleanUp() }
         await fixture.model.refresh()
         let host = NSHostingController(rootView: QuickPanel(model: fixture.model))
-        let size = host.sizeThatFits(in: NSSize(width: 360, height: 1000))
+        let size = host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 1000))
         print("Live overview fitted size: \(size)")
-        XCTAssertEqual(size.width, 360, accuracy: 1)
+        XCTAssertEqual(size.width, QuickPanelMetrics.width, accuracy: 1)
         XCTAssertLessThan(size.height, 620, "Forecast and real history may grow the overview; its height still follows content and remains screen-bounded.")
         XCTAssertGreaterThan(size.height, 180)
     }
@@ -31,7 +31,7 @@ final class QuickPanelLayoutTests: XCTestCase {
         fixture.model.setDraft(80); fixture.model.applyDemoTarget()
         for _ in 0..<100 where fixture.model.isApplying { await Task.yield() }
         let host = NSHostingController(rootView: QuickPanel(model: fixture.model, maximumHeight: 1000, section: .charge))
-        let size = host.sizeThatFits(in: NSSize(width: 360, height: 1200))
+        let size = host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 1200))
         print("Russian pending charge natural height: \(size.height)")
         XCTAssertLessThanOrEqual(size.height, 470, "The quick charge surface needs state and actions without an explanatory tail")
         XCTAssertEqual(fixture.model.control?.charge.pendingTarget, 80)
@@ -48,8 +48,8 @@ final class QuickPanelLayoutTests: XCTestCase {
         for _ in 0..<100 where fixture.model.isApplying { await Task.yield() }
         XCTAssertEqual(fixture.model.pendingTarget, 80)
         let host = NSHostingController(rootView: QuickPanel(model: fixture.model, maximumHeight: 240, section: .charge))
-        let size = host.sizeThatFits(in: NSSize(width: 360, height: 1000))
-        XCTAssertEqual(size.width, 360, accuracy: 1)
+        let size = host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 1000))
+        XCTAssertEqual(size.width, QuickPanelMetrics.width, accuracy: 1)
         XCTAssertLessThanOrEqual(size.height, 240)
         let window = NSWindow(contentViewController: host)
         window.setContentSize(size)
@@ -129,8 +129,8 @@ final class QuickPanelLayoutTests: XCTestCase {
         XCTAssertEqual(L10n.language, "ru")
         for section in [QuickPanelSection.charge, .modes] {
             let host = NSHostingController(rootView: QuickPanel(model: fixture.model, maximumHeight: 280, section: section))
-            let size = host.sizeThatFits(in: NSSize(width: 360, height: 1000))
-            XCTAssertEqual(size.width, 360, accuracy: 1)
+            let size = host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 1000))
+            XCTAssertEqual(size.width, QuickPanelMetrics.width, accuracy: 1)
             XCTAssertLessThanOrEqual(size.height, 280)
             XCTAssertGreaterThan(size.height, 180)
         }

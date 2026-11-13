@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.6.0 — Closed Lid Comfort and Live Charts Source Preview — 2026-11-13
+
+The first stable release of the 0.6 line. It contains everything of 0.5.0-beta.1 (charge by time, the one-time charge to
+100 %, the new sleep timer editor) plus:
+
+**New**
+- Screen and sound with the lid closed: while Keep Awake or the sleep timer holds the Mac awake with the lid closed, Tilvero
+  turns the built-in screen down (to 0 % by default) and keeps the volume no louder than 25 %. A quieter setting is never raised.
+  Open the lid, or end the session, and both return to what they were, unless you changed them meanwhile. The new row sits
+  under the "With lid closed" switch and expands into two sliders in 5 % steps, each with its own switch; Keep Awake and the
+  timer have separate settings.
+- Live charts: while the quick menu is open on Overview, power and temperature charts update about once a second. The live
+  points live in memory only and are never written to history.
+- A roomier quick menu: 340 pt wide with 14 pt padding, and taller chart plots in the same cards.
+
+**Improved**
+- Keyboard backlight row: a larger percent figure, and the slider and switch no longer jump back while a change is being applied.
+- The "With lid closed" switch no longer snaps back or greys out while the administrator permission is checked.
+- Running sleep timer header drops its info button instead of crowding the row.
+
+**Fixed**
+- Launch memory: reading months of history at launch left up to ~500 MB of temporary data in the heap (peak about 730 MB, and some
+  launches stayed at 655 MB). The peak is now about 85 MB on the same history.
+- Launch no longer opens Settings or raises a window over your other apps. Tilvero starts quietly in the menu bar; the window opens
+  only when you ask for it (the first-run setup is still a page under Settings).
+- Settings > Setup showed the keyboard backlight as "status unknown" until the quick menu had been opened once; Setup now reads it itself (read-only).
+- The screen and volume sliders showed the same blue blob for every value below about 16 %; the fill now grows over the whole range.
+
+This release contains source for Apple silicon with macOS 26.0+ and full Xcode; it
+includes no app or DMG. The screen and volume handling with the lid closed, Keep Awake, the sleep timer and the keyboard
+backlight were checked on a real Mac. Waking a sleeping Mac on schedule for charge by time, with the lid closed as well,
+still needs your own device check. Automatic installation remains gated.
+
 ## 0.5.0-beta.1 — Charge by Time Source Preview — 2026-11-12
 
 - Charge by time: pick a time and a level (85, 90, 95 or 100 %) on the Charge page. The Mac keeps your charge limit and Tilvero lifts it just in time, so the battery reaches the level 10 minutes before the time you set. The start comes from the adapter's power, what the Mac itself draws, a taper above 80 % and a safety margin; the page shows when charging starts and says so when the target cannot be reached. While the Mac sleeps it wakes on a schedule, lifts the limit and goes back to sleep (one optional administrator permission, `pmset schedule wake`; without it the limit is lifted when the Mac is about to sleep). Your previous limit returns when you unplug the adapter or an hour after the time once the battery is full; a limit you change in macOS always wins.

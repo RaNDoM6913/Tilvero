@@ -56,7 +56,11 @@ enum LidMode: Equatable { case keepAwake, scheduledSleep }
     var awakeIsActive: @MainActor () -> Bool
     /// A sleep timer is armed (running, before it prepares to sleep) or Sleep at charge is armed. Set by the model.
     var scheduledSleepIsActive: @MainActor () -> Bool
-    private var activeMode: LidMode?
+    /// Which switch's session the override currently serves (nil while it is off).
+    @Published private(set) var activeMode: LidMode?
+    /// Awaited before the override is released, on every end path (stop, timer sleep, switch off, quit): the lid-close
+    /// comfort service puts brightness and volume back first, so the Mac never sleeps with the screen still dimmed.
+    var beforeRelease: @MainActor () async -> Void = {}
     private var timerRunning = false, chargeArmed = false
     private var timerSubscription: AnyCancellable?, chargeSubscription: AnyCancellable?
     private let lidSleepRetryDelay: Duration
@@ -243,6 +247,7 @@ enum LidMode: Equatable { case keepAwake, scheduledSleep }
 
     private func restoreInline(userInitiated: Bool, sleepIfLidClosed: Bool = false) async {
         generation &+= 1
+        await beforeRelease()
         var restored = false
         let wrote = await system.setSleepDisabledPasswordless(false)
         var reading = await system.readSleepDisabled()
@@ -283,6 +288,7 @@ enum LidMode: Equatable { case keepAwake, scheduledSleep }
         for _ in 0..<100 where busy { try? await Task.sleep(for: .milliseconds(50)) }
         guard !busy else { return false }
         guard isOn || defaults.bool(forKey: Self.recoveryKey) else { pendingEnd = false; return true }
+        await beforeRelease()
         _ = await system.setSleepDisabledPasswordless(false)
         guard await system.readSleepDisabled() == false else {
             needsRecovery = true

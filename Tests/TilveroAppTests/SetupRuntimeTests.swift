@@ -3,7 +3,16 @@
 
 import XCTest
 import PowerPrivileged
+import KeyboardBackends
 @testable import TilveroApp
+
+@MainActor private final class SetupKeyboardMemory: KeyboardBacklightPreferenceStorage { var lastNonzeroBrightness: Double? }
+@MainActor private final class SetupKeyboardTransport: KeyboardBacklightTransport {
+    func read() async throws -> KeyboardBacklightObservation {
+        try KeyboardBacklightObservation(keyboardID: 1, brightness: 0.5, automaticBrightness: true, suppressed: false, dimmed: false, observedAt: Date())
+    }
+    func setBrightness(_ value: Double, keyboardID: UInt64) async throws {}
+}
 
 @MainActor final class SetupRuntimeTests: XCTestCase {
     func testSetupReadAndReviewHaveNoActionAuthority() async throws {
@@ -29,6 +38,18 @@ import PowerPrivileged
         XCTAssertTrue(result.readiness.inputs.hasReviewedSetup)
         XCTAssertEqual(result.readiness.item(for: .launchAtLogin).status, .needsOSApproval)
         XCTAssertEqual(fixture.effects, [])
+    }
+
+    func testSetupRefreshReadsTheKeyboardBacklightSoItIsNeverLeftUnknown() async throws {
+        // The keyboard was only read when the quick menu opened, so Settings > Setup right after a launch said "unknown".
+        let fixture = try Fixture()
+        defer { fixture.cleanUp() }
+        let keyboard = KeyboardBacklightService(driver: SetupKeyboardTransport(), storage: SetupKeyboardMemory())
+        let model = fixture.model(keyboardBacklight: keyboard)
+        XCTAssertEqual(String(describing: keyboard.availability), "unknown")
+        let readiness = await model.setupCoordinator.refresh()
+        XCTAssertTrue(keyboard.isAvailable)
+        XCTAssertEqual(readiness.inputs.keyboardBacklight, .available)
     }
 
     func testEnableLoginAndHistoryUseExplicitStateAndApprovalIsSeparate() async throws {
@@ -122,11 +143,12 @@ import PowerPrivileged
                 openApprovalSettings: { self.effects.append("approval") })
         }
 
-        func model(bundle: Bundle? = nil, demo: Bool = false) -> TilveroModel {
+        func model(bundle: Bundle? = nil, demo: Bool = false, keyboardBacklight: KeyboardBacklightService? = nil) -> TilveroModel {
             let helper = LiveControlService(preferences: preferences, trustVerified: false, registration: self,
                 makeTransport: { throw LiveControlError.unavailable }, discovery: { LiveControlDiscovery(capabilities: []) })
             return TilveroModel(isDemo: demo, launchPolicy: .resolve(metadata: [:]), preferences: preferences,
                 historyURL: root.appendingPathComponent("History.sqlite"), liveControl: helper,
+                keyboardBacklight: keyboardBacklight,
                 sideEffects: .init(loginStatus: { "Fixture" }, toggleLogin: { self.effects.append("toggle") },
                     openBatterySettings: {}, rawCatalog: { [] }, setupLogin: loginPort), setupBundle: bundle ?? appBundle)
         }
