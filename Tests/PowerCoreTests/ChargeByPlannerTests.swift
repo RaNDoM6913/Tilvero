@@ -3,8 +3,8 @@ import XCTest
 
 final class ChargeByPlannerTests: XCTestCase {
     private let now = Date(timeIntervalSince1970: 1_800_000_000)
-    private func input(current: Double = 80, target: Int = 100, adapter: Double? = 67, draw: Double = 3, wh: Double = 70, hours: Double = 8) -> ChargeByPlanner.Input {
-        .init(now: now, deadline: now.addingTimeInterval(hours * 3600), currentPercent: current, targetPercent: target, adapterWatts: adapter, systemDrawWatts: draw, fullEnergyWh: wh)
+    private func input(current: Double = 80, target: Int = 100, adapter: Double? = 67, draw: Double = 3, wh: Double = 70, hours: Double = 8, systemETA: TimeInterval? = nil) -> ChargeByPlanner.Input {
+        .init(now: now, deadline: now.addingTimeInterval(hours * 3600), currentPercent: current, targetPercent: target, adapterWatts: adapter, systemDrawWatts: draw, fullEnergyWh: wh, systemTimeToFullSeconds: systemETA)
     }
     func testFinishesTenMinutesBeforeTheRequestedTimeWithSafetyMargin() throws {
         let plan = try XCTUnwrap(ChargeByPlanner.plan(input()))
@@ -64,6 +64,22 @@ final class ChargeByPlannerTests: XCTestCase {
         let plan = try XCTUnwrap(ChargeByPlanner.plan(input(current: 76, target: 100, adapter: 30, draw: 3, wh: wh, hours: 4)))
         XCTAssertTrue(plan.reachesTarget)
         XCTAssertLessThan(plan.startAt, now.addingTimeInterval(3 * 3600), "76 % to 100 % at 30 W needs well under three hours.")
+    }
+    /// Owner idea 2026-11-13: once the Mac is charging, macOS publishes its own time to full; use it (plus a margin) instead of the model.
+    func testMacOSTimeToFullReplacesTheModelWhileChargingToFull() throws {
+        let plan = try XCTUnwrap(ChargeByPlanner.plan(input(adapter: 30, wh: 58.4, hours: 1.5, systemETA: 55 * 60)))
+        XCTAssertTrue(plan.usedSystemEstimate)
+        XCTAssertEqual(plan.chargeSeconds, 55 * 60 * ChargeByPlanner.systemEstimateMargin, accuracy: 0.5)
+        XCTAssertTrue(plan.reachesTarget, "55 min from macOS plus 15 % fits in the 80 minutes that remain before the 10-minute reserve")
+        let late = try XCTUnwrap(ChargeByPlanner.plan(input(adapter: 30, wh: 58.4, hours: 1.0, systemETA: 55 * 60)))
+        XCTAssertFalse(late.reachesTarget)
+        XCTAssertLessThan(late.expectedPercentAtReady, 100); XCTAssertGreaterThan(late.expectedPercentAtReady, 80)
+    }
+    func testSystemTimeToFullIsIgnoredForOtherTargetsAndBadValues() throws {
+        XCTAssertFalse(try XCTUnwrap(ChargeByPlanner.plan(input(target: 90, systemETA: 600))).usedSystemEstimate, "macOS reports time to 100 %, not to 90 %")
+        XCTAssertFalse(try XCTUnwrap(ChargeByPlanner.plan(input(systemETA: 0))).usedSystemEstimate)
+        XCTAssertFalse(try XCTUnwrap(ChargeByPlanner.plan(input(systemETA: .nan))).usedSystemEstimate)
+        XCTAssertFalse(try XCTUnwrap(ChargeByPlanner.plan(input(systemETA: nil))).usedSystemEstimate)
     }
     func testPercentInverseMatchesForwardEstimate() {
         let seconds = ChargeByPlanner.chargeSeconds(from: 60, to: 95, bulkWatts: 50, fullEnergyWh: 70)

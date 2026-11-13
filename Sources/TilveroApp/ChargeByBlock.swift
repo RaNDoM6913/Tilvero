@@ -55,21 +55,38 @@ import PowerCore
         }
     }
 
+    /// The chosen time as a capsule. While a plan exists a small ✕ inside it cancels the plan in one tap (no menu); the time
+    /// itself opens the wheel to change it. While the plan is charging, only the ✕ is live.
     private var timePill: some View {
         let active = service.isArmed
-        return Button { service.message = nil; showsWheel = true } label: {
-            StudioText(active ? Self.dayText(service.state!.deadline) : L10n.text("Pick a time"), id: "charge.by.time")
-                .font(.system(size: 13, weight: .medium)).monospacedDigit().lineLimit(1).fixedSize()
-                .padding(.horizontal, 12).padding(.vertical, 6)
-                .foregroundStyle(active ? Color.white : Color.primary)
-                .background(Capsule().fill(active ? Color.accentColor : Color.primary.opacity(0.07)))
-                .contentShape(Capsule())
+        let opensWheel = service.state?.phase != .charging
+        let look = SteadyControlLook(offered: active || (!chargeOnceBlocks && !levels.isEmpty), busy: service.isWorking || model.isApplying)
+        return HStack(spacing: 8) {
+            Button { service.message = nil; showsWheel = true } label: {
+                StudioText(active ? Self.dayText(service.state!.deadline) : L10n.text("Pick a time"), id: "charge.by.time")
+                    .font(.system(size: 13, weight: .medium)).monospacedDigit().lineLimit(1).fixedSize()
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.plain).allowsHitTesting(opensWheel)
+            .accessibilityLabel(L10n.text("Charge by time"))
+            .studioElement("charge.by.pill", label: "Charge by time")
+            if active {
+                Button { showsWheel = false; Task { await service.cancel() } } label: {
+                    Image(systemName: "xmark").font(.system(size: 9, weight: .bold))
+                        .frame(width: 18, height: 18)
+                        .background(Circle().fill(Color.white.opacity(0.28)))
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(L10n.text("Cancel plan"))
+                .studioElement("charge.by.cancel", label: "Cancel plan")
+            }
         }
-        .buttonStyle(.plain)
-        .steadyControl(SteadyControlLook(offered: active || (!chargeOnceBlocks && !levels.isEmpty), busy: service.isWorking || model.isApplying))
+        .padding(.leading, 12).padding(.trailing, active ? 7 : 12).padding(.vertical, active ? 5 : 6)
+        .foregroundStyle(active ? Color.white : Color.primary)
+        .background(Capsule().fill(active ? Color.accentColor : Color.primary.opacity(0.07)))
+        .steadyControl(look)
         .background { wheelAnchor }
-        .accessibilityLabel(L10n.text("Charge by time"))
-        .studioElement("charge.by.pill", label: "Charge by time")
     }
     private var chargeOnceBlocks: Bool { model.chargeOnce.isActive }
 
@@ -81,31 +98,18 @@ import PowerCore
             .allowsHitTesting(false)
     }
 
+    /// The picker itself, with no wrapper (as in Keep Awake); cancelling a plan lives in the pill's ✕.
     @ViewBuilder private var popover: some View {
-        let picker = SleepWheelPicker(mode: .until, initialMinutes: 30, initialDate: service.state?.deadline ?? Self.defaultDeadline(),
+        SleepWheelPicker(mode: .until, initialMinutes: 30, initialDate: service.state?.deadline ?? Self.defaultDeadline(),
             onCommit: { committedWheelValue = $0; showsWheel = false },
             onCancel: { committedWheelValue = nil; showsWheel = false })
-        Group {
-            if service.isArmed {
-                VStack(spacing: 8) {
-                    picker
-                    Button { committedWheelValue = nil; showsWheel = false; Task { await service.cancel() } } label: {
-                        Text(L10n.text("Cancel plan")).font(.subheadline.weight(.medium)).foregroundStyle(.red)
-                            .frame(maxWidth: .infinity).padding(.vertical, 7)
-                            .background(Capsule().fill(Color.red.opacity(0.12))).contentShape(Capsule())
-                    }.buttonStyle(.plain).padding(.horizontal, 12).padding(.bottom, 10)
-                }
-            } else {
-                picker
+            .studioSubpresentation("charge.wheel")
+            .onDisappear {
+                guard let value = committedWheelValue else { return }
+                committedWheelValue = nil
+                guard case .until(let date) = value else { return }
+                Task { if service.isArmed { await service.setDeadline(date) } else { await service.arm(deadline: date, target: selected) } }
             }
-        }
-        .studioSubpresentation("charge.wheel")
-        .onDisappear {
-            guard let value = committedWheelValue else { return }
-            committedWheelValue = nil
-            guard case .until(let date) = value else { return }
-            Task { if service.isArmed { await service.setDeadline(date) } else { await service.arm(deadline: date, target: selected) } }
-        }
     }
 
     // MARK: Level row

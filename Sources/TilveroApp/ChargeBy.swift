@@ -77,6 +77,8 @@ struct ChargeByObservation: Equatable {
     var fullEnergyWh: Double?
     /// The Mac's own draw now (W), nil when unknown.
     var systemWatts: Double?
+    /// macOS's own time to a full charge (seconds); present only while the Mac is charging and macOS has an estimate.
+    var systemTimeToFullSeconds: Double?
 }
 
 @MainActor protocol ChargeByEnvironment: AnyObject {
@@ -175,6 +177,7 @@ struct ChargeByObservation: Equatable {
         guard !isWorking, let environment, let current = state else { return }
         let observation = environment.observation()
         if current.phase == .armed { await replan(force: false, observation: observation) }
+        else if let computed = computePlan(for: current, observation: observation) { plan = computed }   // the charge in progress: macOS's own estimate keeps the status honest
         guard let latest = state else { return }
         let action = ChargeByRule.decide(latest, now: now(), observedLimit: observation.observedLimit, percent: observation.percent.map { Int($0.rounded()) },
                                          isCharging: observation.isCharging, externalPower: observation.externalPower,
@@ -189,7 +192,8 @@ struct ChargeByObservation: Equatable {
         guard let percent = observation.percent, let wh = observation.fullEnergyWh else { return nil }
         let draw = min(15, max(ChargeByPlanner.defaultSleepDrawWatts, observation.systemWatts ?? ChargeByPlanner.defaultSleepDrawWatts))
         return ChargeByPlanner.plan(.init(now: now(), deadline: state.deadline, currentPercent: percent, targetPercent: state.target,
-                                          adapterWatts: observation.adapterWatts, systemDrawWatts: draw, fullEnergyWh: wh))
+                                          adapterWatts: observation.adapterWatts, systemDrawWatts: draw, fullEnergyWh: wh,
+                                          systemTimeToFullSeconds: observation.isCharging == true ? observation.systemTimeToFullSeconds : nil))
     }
 
     private func replan(force: Bool, observation: ChargeByObservation? = nil) async {

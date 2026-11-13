@@ -82,6 +82,18 @@ import XCTest
         return (service, defaults, holder)
     }
 
+    func testPlanUsesMacOSTimeToFullWhileChargingAndKeepsItFreshInTheChargingPhase() async throws {
+        let env = Env(); env.obs.isCharging = true; env.obs.systemTimeToFullSeconds = 55 * 60
+        let (service, _, _) = makeService(env: env) { self.now }
+        let armed = await service.arm(deadline: now.addingTimeInterval(60 * 60), target: 100)
+        XCTAssertTrue(armed)
+        XCTAssertEqual(service.plan?.usedSystemEstimate, true)
+        XCTAssertEqual(service.state?.phase, .charging, "The charge is already due, so the limit is lifted at once")
+        env.obs.systemTimeToFullSeconds = 20 * 60
+        await service.tick()
+        XCTAssertEqual(service.plan?.chargeSeconds ?? 0, 20 * 60 * 1.15, accuracy: 0.5, "The status follows macOS's estimate while charging")
+    }
+
     func testArmSchedulesTheWakeBeforeTheStartAndSurvivesRelaunch() async throws {
         let env = Env(), wake = Wake(); var clock = now
         let (service, defaults, _) = makeService(env: env, wake: wake) { clock }

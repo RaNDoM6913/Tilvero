@@ -17,7 +17,8 @@ import PowerCore
         let percent = snapshot.chargePercent.availability == .available && snapshot.chargePercent.freshness != .stale ? snapshot.chargePercent.value.map(Double.init) : nil
         return ChargeByObservation(observedLimit: model.observedNativeLimit, percent: percent, isCharging: usable(snapshot.isCharging),
                                    externalPower: usable(snapshot.isExternalPower), adapterWatts: catalog("050"),
-                                   fullEnergyWh: Self.fullEnergyWh(catalog: catalog), systemWatts: catalog("043"))
+                                   fullEnergyWh: Self.fullEnergyWh(catalog: catalog), systemWatts: catalog("043"),
+                                   systemTimeToFullSeconds: catalog("069").flatMap { $0 > 0 ? $0 : nil })
     }
 
     /// No provider publishes 034/033 (Wh), so the plan's energy comes from the full capacity (030, mAh) and the pack voltage (035).

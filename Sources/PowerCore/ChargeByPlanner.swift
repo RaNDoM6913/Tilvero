@@ -24,6 +24,8 @@ public enum ChargeByPlanner {
     /// Average charging power above 80 % relative to the bulk rate.
     public static let taperPowerFactor = 0.4
     public static let safetyFactor = 1.2
+    /// macOS's own time to full is a measurement of the charge in progress; only a little is added on top of it.
+    public static let systemEstimateMargin = 1.15
 
     /// 3-cell lithium-ion nominal pack voltage, the floor for the planning estimate below.
     public static let nominalPackVolts = 11.4
@@ -48,10 +50,14 @@ public enum ChargeByPlanner {
         public var systemDrawWatts: Double
         /// Energy of a full battery.
         public var fullEnergyWh: Double
+        /// macOS's own time to a full charge (seconds), published only while the Mac is charging; nil when unknown.
+        public var systemTimeToFullSeconds: TimeInterval?
         public init(now: Date, deadline: Date, currentPercent: Double, targetPercent: Int, adapterWatts: Double?,
-                    systemDrawWatts: Double = ChargeByPlanner.defaultSleepDrawWatts, fullEnergyWh: Double) {
+                    systemDrawWatts: Double = ChargeByPlanner.defaultSleepDrawWatts, fullEnergyWh: Double,
+                    systemTimeToFullSeconds: TimeInterval? = nil) {
             self.now = now; self.deadline = deadline; self.currentPercent = currentPercent; self.targetPercent = targetPercent
             self.adapterWatts = adapterWatts; self.systemDrawWatts = systemDrawWatts; self.fullEnergyWh = fullEnergyWh
+            self.systemTimeToFullSeconds = systemTimeToFullSeconds
         }
     }
 
@@ -71,6 +77,8 @@ public enum ChargeByPlanner {
         public let adapterAssumed: Bool
         /// The battery is already at or above the target: nothing has to be done.
         public let alreadyReached: Bool
+        /// The duration comes from macOS's own time to full (plus a margin), not from the model.
+        public let usedSystemEstimate: Bool
     }
 
     public static func plan(_ input: Input) -> Plan? {
@@ -85,18 +93,25 @@ public enum ChargeByPlanner {
         let target = Double(input.targetPercent)
         if input.currentPercent >= target {
             return Plan(startAt: readyBy, expectedPercentAtReady: input.currentPercent, readyBy: readyBy, chargeSeconds: 0,
-                        mustStartNow: false, reachesTarget: true, netChargeWatts: net, adapterAssumed: assumed, alreadyReached: true)
+                        mustStartNow: false, reachesTarget: true, netChargeWatts: net, adapterAssumed: assumed, alreadyReached: true, usedSystemEstimate: false)
         }
-        let seconds = chargeSeconds(from: input.currentPercent, to: target, bulkWatts: bulk, fullEnergyWh: input.fullEnergyWh) * safetyFactor
+        let systemETA = input.targetPercent == 100 ? input.systemTimeToFullSeconds.flatMap { $0.isFinite && $0 > 0 ? $0 : nil } : nil
+        let seconds = systemETA.map { $0 * systemEstimateMargin }
+            ?? chargeSeconds(from: input.currentPercent, to: target, bulkWatts: bulk, fullEnergyWh: input.fullEnergyWh) * safetyFactor
         let startAt = readyBy.addingTimeInterval(-seconds)
         let reaches = startAt >= input.now
         var expected = target
         if !reaches {
-            let available = max(0, readyBy.timeIntervalSince(input.now)) / safetyFactor
-            expected = min(target, percent(from: input.currentPercent, after: available, bulkWatts: bulk, fullEnergyWh: input.fullEnergyWh))
+            let available = max(0, readyBy.timeIntervalSince(input.now))
+            if systemETA != nil {
+                expected = min(target, input.currentPercent + (target - input.currentPercent) * min(1, available / seconds))
+            } else {
+                expected = min(target, percent(from: input.currentPercent, after: available / safetyFactor, bulkWatts: bulk, fullEnergyWh: input.fullEnergyWh))
+            }
         }
         return Plan(startAt: reaches ? startAt : input.now, expectedPercentAtReady: expected, readyBy: readyBy, chargeSeconds: seconds,
-                    mustStartNow: !reaches, reachesTarget: reaches, netChargeWatts: net, adapterAssumed: assumed, alreadyReached: false)
+                    mustStartNow: !reaches, reachesTarget: reaches, netChargeWatts: net, adapterAssumed: assumed, alreadyReached: false,
+                    usedSystemEstimate: systemETA != nil)
     }
 
     /// Seconds of charging from `start` to `end` percent (no safety factor).
