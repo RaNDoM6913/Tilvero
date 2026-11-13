@@ -73,6 +73,7 @@ import ClosedLidControl
     @ObservedObject private var service: LidSleepOverrideService
     /// Keep Awake and the sleep timer each have their own switch; they share the permission and the override.
     let mode: LidMode
+    @State private var requested: Bool?
     init(model: TilveroModel, mode: LidMode = .keepAwake) { self.model = model; service = model.lidSleep; self.mode = mode }
     private var isTimer: Bool { mode == .scheduledSleep }
     private var preferred: Bool { isTimer ? service.isPreferredForScheduledSleep : service.isPreferred }
@@ -97,17 +98,22 @@ import ClosedLidControl
                    action: service.ruleFilePresent && !service.isOn && !service.needsRecovery
                     ? (L10n.text("Remove permission…"), { Task { await service.removePermission() } }) : nil)
                 Spacer(minLength: 8)
+                // The switch shows what was asked from the tap until the permission check and the system write are done
+                // (a refusal then returns it): no snap back and no greying while the work is in flight.
                 Toggle(L10n.text("With lid closed"), isOn: Binding(
-                    get: { preferred },
-                    set: { enabled in Task { await service.setPreferred(enabled, for: mode) } }))
+                    get: { requested ?? preferred },
+                    set: { enabled in requested = enabled; Task { await service.setPreferred(enabled, for: mode); requested = nil } }))
                     .toggleStyle(.switch).controlSize(.regular).labelsHidden().fixedSize()
-                    .disabled(!service.isAvailable || service.busy || (!preferred && service.needsRecovery))
+                    .disabled(!service.isAvailable || (!preferred && service.needsRecovery))
+                    .allowsHitTesting(!service.busy)
                     .accessibilityIdentifier(isTimer ? "closed-lid-timer-master" : "closed-lid-master")
             }
             .frame(height: 32)
             if let failure = service.failure {
                 Text(failure).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
             }
+            // The levels only matter while this mode's lid switch is on.
+            if preferred { LidComfortRow(model: model, mode: isTimer ? .scheduledSleep : .keepAwake) }
             if service.needsRecovery {
                 Button(L10n.text("Restore sleep")) { Task { await service.restoreSleep() } }.font(.caption).disabled(service.busy)
             }

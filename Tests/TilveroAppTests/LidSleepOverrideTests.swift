@@ -453,4 +453,31 @@ private final class FakeLidSystem: LidSleepSystem, @unchecked Sendable {
         XCTAssertFalse(system.sleepDisabled)
         XCTAssertTrue(system.calls.contains("sleep"))
     }
+
+    // MARK: beforeRelease (lid comfort restores before the Mac may sleep)
+
+    func testBeforeReleaseRunsWhileTheOverrideIsStillSetOnEveryEndPath() async throws {
+        let system = FakeLidSystem()
+        let (service, _, _, cleanUp) = make(system); defer { cleanUp() }
+        var seenSetBeforeHook: [Bool] = []
+        service.beforeRelease = { seenSetBeforeHook.append(system.sleepDisabled) }
+        await service.setPreferred(true)
+        XCTAssertEqual(service.activeMode, .keepAwake, "The serving mode is published for the comfort service.")
+        await service.setPreferred(false)                 // switch off with a running session
+        XCTAssertNil(service.activeMode)
+        await service.setPreferred(true)
+        let prepared = await service.prepareForTermination()   // quit / timer's own sleep request
+        XCTAssertTrue(prepared)
+        XCTAssertEqual(seenSetBeforeHook, [true, true], "Both releases ran the hook before pmset was cleared.")
+    }
+
+    func testBeforeReleaseDoesNotRunWhenNothingIsHeld() async throws {
+        let system = FakeLidSystem()
+        let (service, _, _, cleanUp) = make(system); defer { cleanUp() }
+        var runs = 0
+        service.beforeRelease = { runs += 1 }
+        let prepared = await service.prepareForTermination()
+        XCTAssertTrue(prepared)
+        XCTAssertEqual(runs, 0)
+    }
 }

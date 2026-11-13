@@ -169,7 +169,13 @@ final class TilveroModel: ObservableObject {
     private let setupLogin: SetupLoginPort?
     private let setupUsesNativeHost: Bool
     lazy var setupCoordinator = SetupActionCoordinator(ports: .init(
-        readInputs: { [weak self] in self?.readSetupInputs() ?? SetupReadinessInputs(launchPolicy: .monitoringOnly) },
+        readInputs: { [weak self] in
+            guard let self else { return SetupReadinessInputs(launchPolicy: .monitoringOnly) }
+            // The backlight is otherwise read only when the quick menu opens, so Setup right after a quiet launch said "unknown".
+            // This is the same read-only status read; nothing is written.
+            if self.canShowSetup, self.keyboardBacklight.availability == .unknown { await self.keyboardBacklight.refresh() }
+            return self.readSetupInputs()
+        },
         viewRequirements: { [weak self] in try self?.showSetupRequirements($0) },
         openApprovalSettings: { [weak self] in try self?.openSetupApprovalSettings($0) },
         registerHelper: { [weak self] in try await self?.registerSetupHelper() },
@@ -239,6 +245,9 @@ final class TilveroModel: ObservableObject {
     let closedLid: ClosedLidService
     /// Ordinary builds: closed-lid Keep Awake through the `pmset disablesleep` override (trial/lab builds keep `closedLid`).
     let lidSleep: LidSleepOverrideService
+    /// Brightness and volume while the lid is closed under the lid override (restored before the override is released).
+    let lidComfort: LidComfortService
+    private var lidComfortSubscription: AnyCancellable?
     private var lidSleepSubscription: AnyCancellable?
     private var sleepTimerSubscription: AnyCancellable?
     @Published var selectedSleepPage: SleepPage = .timer
@@ -373,7 +382,9 @@ final class TilveroModel: ObservableObject {
     private var liveSubscription: AnyCancellable?
     let isDemo: Bool
     let launchPolicy: AppLaunchPolicy
-    var isPopoverVisible = false
+    var isPopoverVisible = false { didSet { if oldValue != isPopoverVisible { updateLiveCharts() } } }
+    /// The quick panel's page (reported by the panel itself): live charts run only on Overview.
+    var quickPanelSection: QuickPanelSection = .overview { didSet { if oldValue != quickPanelSection { updateLiveCharts() } } }
     var isDetailVisible = false
     var openDetails: (@MainActor () -> Void)?
     var onPresentationChange: (@MainActor () -> Void)?
@@ -415,6 +426,8 @@ final class TilveroModel: ObservableObject {
          sleepTimerService: SleepTimerService? = nil,
          closedLidService: ClosedLidService? = nil,
          lidSleepSystem: (any LidSleepSystem)? = nil,
+         lidComfortService: LidComfortService? = nil,
+         liveSampler: (@Sendable () -> LivePowerSample?)? = nil,
          updateIdentity: UpdateIdentity? = nil,
          updateEvidence: (() -> [UpdateEvidenceProbe.Result])? = nil,
          updateLeaseDirectory: URL? = nil,
@@ -465,6 +478,9 @@ final class TilveroModel: ObservableObject {
         keepAwakeUntilCharge = SleepAtChargeService(driver: sleepTimerTransport ?? NativeSleepTimerTransport(), allowed: !isDemo && !monitoring, endAction: .release)
         closedLid = closedLidService ?? ClosedLidService(allowed: !isDemo && !monitoring)
         lidSleep = LidSleepOverrideService(system: lidSleepSystem ?? NativeLidSleepSystem(), defaults: preferences, allowed: !isDemo && !monitoring)
+        // A test that injects its own lid system gets a disabled comfort service. Even a native one never writes unless
+        // a real lid override is armed (display and audio are only touched at lid close).
+        lidComfort = lidComfortService ?? LidComfortService(defaults: preferences, allowed: !isDemo && !monitoring && lidSleepSystem == nil)
         self.setupBundle = setupBundle
         let setupIdentity = try? ReleaseIdentity.current(bundle: setupBundle)
         canShowSetup = !isDemo && setupIdentity?.isLaboratory == false && !closedLid.isFixture && !closedLid.isLiveTrial
@@ -537,6 +553,9 @@ final class TilveroModel: ObservableObject {
         lidSleep.bindTimer(phases: sleepTimer.$phase.eraseToAnyPublisher())
         lidSleep.bindSleepAtCharge(armed: sleepAtCharge.$target.map { $0 != nil }.removeDuplicates().eraseToAnyPublisher())
         lidSleepSubscription = lidSleep.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
+        lidComfort.bind(lidSleep)
+        self.liveSampler = liveSampler
+        lidComfortSubscription = lidComfort.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
         sleepTimer.prepare = { [weak self] in
             guard let self else { return false }
             guard await self.closedLid.prepareForTermination() else { return false }
@@ -608,28 +627,92 @@ final class TilveroModel: ObservableObject {
     }
     /// Window of every overview chart: the last hour up to the newest snapshot.
     var overviewChartWindow: ClosedRange<Date> {
-        snapshot.collectedAt.addingTimeInterval(-3600)...snapshot.collectedAt
+        // While live points exist the window ends at the newest of them (the chart scrolls with the data); a clock that
+        // jumped backwards cannot hold the end in the future.
+        let end = max(snapshot.collectedAt, min(live.tail.latest ?? snapshot.collectedAt, Date().addingTimeInterval(5)))
+        return end.addingTimeInterval(-3600)...end
+    }
+    // MARK: Live charts (about 1 Hz while the quick menu is open on Overview; in memory only)
+    /// Observed only by the chart views (`LiveRefresh`), never by the model's own subscribers.
+    let live = LiveMetricStore()
+    private var liveTimer: Timer?
+    private var liveReading = false
+    private var smcReader: SMCSensorReader?
+    private var liveSampler: (@Sendable () -> LivePowerSample?)?
+    private var lastWakeAt: Date?
+    /// Seconds between live points (the SMC sensors change about once a second).
+    static let liveInterval: TimeInterval = 1
+    var wantsLiveCharts: Bool { !isDemo && isPopoverVisible && quickPanelSection == .overview && !sleeping }
+    func updateLiveCharts() {
+        if wantsLiveCharts {
+            guard liveTimer == nil else { return }
+            if liveSampler == nil, smcReader == nil { smcReader = SMCSensorReader() }
+            guard liveSampler != nil || smcReader != nil else { return }
+            live.clearIfStale(now: Date())
+            Task { await liveTick() }
+            let timer = Timer(timeInterval: Self.liveInterval, repeats: true) { [weak self] _ in Task { @MainActor in await self?.liveTick() } }
+            RunLoop.main.add(timer, forMode: .common); liveTimer = timer
+        } else {
+            liveTimer?.invalidate(); liveTimer = nil
+        }
+    }
+    /// One sensor read (about 1 ms, off the main actor) appended to the tail.
+    func liveTick() async {
+        guard wantsLiveCharts, !liveReading else { return }
+        liveReading = true
+        let sampler = liveSampler ?? { [reader = smcReader] in reader?.read() }
+        let sample = await Task.detached(priority: .utility) { sampler() }.value
+        liveReading = false
+        guard wantsLiveCharts, let sample else { return }
+        // A power-source change or a sleep starts a new segment; a segment continues the recorded line only when nothing
+        // of that kind happened since the last recorded point.
+        let boundary = "\(lifecycleEpoch)|\(String(describing: snapshot.isExternalPower.value))"
+        let joins = lastPersisted.map { recorded in
+            sample.collectedAt.timeIntervalSince(recorded.collectedAt) <= 120
+                && recorded.isExternalPower.value == snapshot.isExternalPower.value
+                && (lastWakeAt.map { $0 <= recorded.collectedAt } ?? true)
+        } ?? false
+        live.append(sample, boundary: boundary, adapterConnected: snapshot.adapterIsConnected, joinsRecorded: joins)
     }
     /// What a cached series depends on: the window end, how much history there is and its newest sample.
     /// `history` replaces itself wholesale (a full reload, an append after trimming the week, an erase), so the
     /// count alone could repeat with different data; its newest sample id is added to the key. The `didSet` on
     /// `history` is belt-and-braces beyond the key: stored samples are immutable, so no model API produces a
     /// replacement with the same count and newest id but different older samples, and no test can isolate it.
-    private struct SeriesCacheKey: Equatable { let collectedAt: Date; let count: Int; let lastSampleID: UUID? }
+    private struct RecordedKey: Equatable { let collectedAt: Date; let count: Int; let lastSampleID: UUID? }
+    private struct SeriesCacheKey: Equatable { let recorded: RecordedKey; let liveRevision: Int }
+    private var recordedKey: RecordedKey?
+    private var recordedCache: [String: [HistoryChartPoint]] = [:]
     private var seriesCacheKey: SeriesCacheKey?
     private var seriesCache: [String: MetricChartSeries] = [:]
     /// How many times a series was actually built (not read from the cache); tests assert it.
     private(set) var metricSeriesComputations = 0
+    /// How many times the recorded points of a metric were extracted from the history (a full sort); live ticks must not
+    /// repeat that.
+    private(set) var recordedPointComputations = 0
+    private func recordedPoints(id: String, key: RecordedKey) -> [HistoryChartPoint] {
+        if key != recordedKey { recordedCache.removeAll(keepingCapacity: true); recordedKey = key }
+        if let cached = recordedCache[id] { return cached }
+        recordedPointComputations += 1
+        // A margin beyond the hour: the window end may move ahead of the newest snapshot while live points arrive.
+        let points = PowerMetricHistory.points(history, id: id, since: snapshot.collectedAt.addingTimeInterval(-3600 - 600))
+        recordedCache[id] = points
+        return points
+    }
     /// Last-hour series of one catalog metric for the overview charts. Cards, tiles and the combined chart ask for it
-    /// on every body evaluation, so it is memoised per metric until the snapshot or the history changes.
+    /// on every body evaluation, so it is memoised per metric until the snapshot, the history or the live tail changes.
     /// The cache is plain storage (not `@Published`): filling it never schedules a view update.
     func metricSeries(id: String) -> MetricChartSeries {
-        let key = SeriesCacheKey(collectedAt: snapshot.collectedAt, count: history.count, lastSampleID: history.last?.id)
+        let recordedKey = RecordedKey(collectedAt: snapshot.collectedAt, count: history.count, lastSampleID: history.last?.id)
+        let key = SeriesCacheKey(recorded: recordedKey, liveRevision: live.revision)
         if key != seriesCacheKey { seriesCache.removeAll(keepingCapacity: true); seriesCacheKey = key }
         if let cached = seriesCache[id] { return cached }
         metricSeriesComputations += 1
         let window = overviewChartWindow
-        let series = MetricChartSeries.make(points: PowerMetricHistory.points(history, id: id, since: window.lowerBound), window: window, now: snapshot.collectedAt)
+        var points = recordedPoints(id: id, key: recordedKey)
+        let tail = live.tail.points(id: id).filter { window.contains($0.date) }
+        if !tail.isEmpty { points = LiveChartMerge.merge(persisted: points, live: tail, joinable: live.tail.joinable) }
+        let series = MetricChartSeries.make(points: points, window: window, now: window.upperBound)
         seriesCache[id] = series
         return series
     }
@@ -714,7 +797,7 @@ final class TilveroModel: ObservableObject {
             let timer = Timer(timeInterval: 20, repeats: true) { [weak self] _ in Task { @MainActor in await self?.chargeBy.tick() } }
             RunLoop.main.add(timer, forMode: .common); chargeByTimer = timer
         }
-        if !isDemo { Task { await lidSleep.recoverIfNeeded() } }
+        if !isDemo { Task { await lidSleep.recoverIfNeeded(); await lidComfort.recoverIfNeeded() } }
         if !isDemo { Task { await liveControl.start() }; observer.start { [weak self] in Task { await self?.refresh() } } }
         pollingTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
@@ -733,6 +816,8 @@ final class TilveroModel: ObservableObject {
     }
     func stop() {
         chargeByTimer?.invalidate(); chargeByTimer = nil
+        liveTimer?.invalidate(); liveTimer = nil
+        live.clear()
         updates.stop()
         sleepTimer.stop()
         sleepAtCharge.stop(); keepAwakeUntilCharge.stop()
@@ -751,6 +836,7 @@ final class TilveroModel: ObservableObject {
         processRevision &+= 1; processSampler.reset(); processActivity = nil; lastProcessRefreshUptime = nil
         processHighlights.reset(); highCPUApplications = []
         sleeping = value
+        updateLiveCharts()
         systemChargeLimit = nil
         if value {
             observedWake = false
@@ -761,8 +847,10 @@ final class TilveroModel: ObservableObject {
             do { try store?.markGap(reason: .sleep) } catch { storeError = String(describing: error) }
         } else {
             observedWake = true
+            lastWakeAt = Date()
             try? keepAwake.reconcile()
             Task { await lidSleep.reconcileAfterWake() }
+            lidComfort.systemDidWake()
             if !isDemo && historyEnabled { saveSleepChanges(sleepTracker.accept(.didWake(stamp: sleepStamp(), epoch: lifecycleEpoch))) }
             queuedWakeRefresh = true
             Task { await refresh() }
@@ -1043,6 +1131,7 @@ final class TilveroModel: ObservableObject {
         if !(await lidSleep.prepareForTermination()) {
             if !systemInitiated { selectedSleepPage = .awake; return false }
         }
+        await lidComfort.prepareForTermination()   // brightness and volume back, whether or not the override was on
         sleepAtCharge.stop(); keepAwakeUntilCharge.stop()   // release their awake holds before any termination or update install
         if systemInitiated { sleepTimer.stop() }
         else {

@@ -30,8 +30,8 @@ import XCTest
                 }
                 let quick = QuickPanel(model: model, section: .awake)
                 let host = NSHostingController(rootView: quick)
-                let quickSize = host.sizeThatFits(in: NSSize(width: 360, height: 700))
-                XCTAssertEqual(quickSize.width, 360, accuracy: 1)
+                let quickSize = host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 700))
+                XCTAssertEqual(quickSize.width, QuickPanelMetrics.width, accuracy: 1)
                 XCTAssertLessThan(quickSize.height, 620)
                 try await render(quick, size: quickSize, name: "\(language)-quick-\(running ? "running" : "setup")", dark: true)
             }

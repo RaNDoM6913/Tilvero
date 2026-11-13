@@ -48,7 +48,7 @@ include automation, and GitHub reports these counts without identifying people.
 | `v0.5.0-beta.1` | 3 | 2 | 2 |
 
 The `v0.2.0`, `v0.3.0-beta.1`, `v0.4.0-beta.1`, `v0.4.0` and `v0.5.0-beta.1` source ZIP counts each include the download used to check the published
-archive (as does `v0.5.0-beta.1`); GitHub may update these counters with a delay. The releases contain source and metadata. GitHub lists no uploaded app
+archive; GitHub may update these counters with a delay. The releases contain source and metadata. GitHub lists no uploaded app
 or DMG for this snapshot, and the asset counts exclude GitHub's generated source
 archives. Successful installations are unmeasured.
 

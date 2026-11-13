@@ -194,17 +194,17 @@ import XCTest
             UserDefaults.standard.setVolatileDomain(saved.merging(["language": language]) { _, v in v }, forName: UserDefaults.argumentDomain)
             defer { UserDefaults.standard.setVolatileDomain(saved, forName: UserDefaults.argumentDomain) }
             for (section, name) in [(QuickPanelSection.awake, "sleep")] {
-            let host = NSHostingController(rootView: QuickPanel(model: model, section: section).frame(width: 360)
+            let host = NSHostingController(rootView: QuickPanel(model: model, section: section).frame(width: QuickPanelMetrics.width)
                 .background(Color(nsColor: .windowBackgroundColor)).environment(\.colorScheme, .dark)
                 .environment(\.controlActiveState, .key).environment(\.locale, L10n.locale))
-            let size = host.sizeThatFits(in: NSSize(width: 360, height: 900))
+            let size = host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 900))
             let window = NSWindow(contentViewController: host); window.appearance = NSAppearance(named: .darkAqua)
             window.setContentSize(size); host.view.layoutSubtreeIfNeeded()
             try await Task.sleep(for: .milliseconds(300))
             host.view.layoutSubtreeIfNeeded()
-            XCTAssertLessThan(host.sizeThatFits(in: NSSize(width: 360, height: 900)).height, 700, "The extra block still fits the quick panel")
+            XCTAssertLessThan(host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 900)).height, 700, "The extra block still fits the quick panel")
             if let folder = ProcessInfo.processInfo.environment["TILVERO_LOOK_DIR"] {
-                window.setContentSize(host.sizeThatFits(in: NSSize(width: 360, height: 900))); host.view.layoutSubtreeIfNeeded()
+                window.setContentSize(host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 900))); host.view.layoutSubtreeIfNeeded()
                 try await Task.sleep(for: .milliseconds(100))
                 let bitmap = try XCTUnwrap(host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds))
                 host.view.cacheDisplay(in: host.view.bounds, to: bitmap)

@@ -177,8 +177,12 @@ import PowerCore
             let request = request(kind: "sample", ascending: false, limit: min(100000, max(1, limit)))
             if let since { request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [request.predicate!, NSPredicate(format: "atDate >= %@", since as NSDate)]) }
             return try context.fetch(request).reversed().map { object in
-                let light = readingsSince.map { cutoff in (object.value(forKey: "atDate") as? Date).map { $0 < cutoff } ?? false } ?? false
-                return try decode(HistorySample.self, object: object, light: light)
+                try autoreleasepool {
+                    let light = readingsSince.map { cutoff in (object.value(forKey: "atDate") as? Date).map { $0 < cutoff } ?? false } ?? false
+                    let sample = try decode(HistorySample.self, object: object, light: light)
+                    if !object.hasChanges { context.refresh(object, mergeChanges: false) }
+                    return sample
+                }
             }
         } catch { throw clean(error) }
     }
@@ -210,12 +214,15 @@ import PowerCore
         var byDay: [Date: [Double]] = [:]
         var first: Date?, last: Date?
         for object in try context.fetch(candidates) {
-            let sample = try decode(HistorySample.self, object: object)
-            guard !sample.isAggregate,
-                  let estimate = Self.capacityEstimate(sample.readings.first { $0.id == "026" }) else { continue }
-            byDay[calendar.startOfDay(for: sample.collectedAt), default: []].append(estimate)
-            first = min(first ?? sample.collectedAt, sample.collectedAt)
-            last = max(last ?? sample.collectedAt, sample.collectedAt)
+            try autoreleasepool {
+                let sample = try decode(HistorySample.self, object: object)
+                if !object.hasChanges { context.refresh(object, mergeChanges: false) }
+                guard !sample.isAggregate,
+                      let estimate = Self.capacityEstimate(sample.readings.first { $0.id == "026" }) else { return }
+                byDay[calendar.startOfDay(for: sample.collectedAt), default: []].append(estimate)
+                first = min(first ?? sample.collectedAt, sample.collectedAt)
+                last = max(last ?? sample.collectedAt, sample.collectedAt)
+            }
         }
         guard let first, let last else { weeklyCapacityMiss = (identity, start); return nil }
         let result = WeeklyCapacity(percent: Self.median(byDay.values.map(Self.median)), observedDays: byDay.count,
@@ -326,6 +333,7 @@ import PowerCore
             kind == "charging" ? sample.isCharging : kind == "externalPower" ? sample.isExternalPower : sample.isExternalPower.map { !$0 }
         }
         for object in try records(kind: "sample", ascending: true, limit: configuration.maximumSamples) {
+            try autoreleasepool {
             let sample = try decode(HistorySample.self, object: object, light: true)
             if start == nil { start = sample.observedFrom }
             count += sample.aggregateCount; covered += sample.coveredSeconds
@@ -355,6 +363,7 @@ import PowerCore
             previous = sample
             // Release loaded binary payloads instead of retaining a full year of envelopes.
             if !object.hasChanges { context.refresh(object, mergeChanges: false) }
+            }
         }
         sessions += current.values
         let gaps = try records(kind: "gap", ascending: true, limit: 1000).map { try decode(HistoryGap.self, object: $0) }
@@ -449,10 +458,13 @@ import PowerCore
                 initial = cached.initial
             } else {
                 let first = try records(kind: "sample", ascending: true, limit: configuration.maximumSamples).first { object in
-                    guard let sample = try? decode(HistorySample.self, object: object) else { return false }
-                    return sample.segmentID == last.segmentID && sample.cycleCount != nil
+                    autoreleasepool {
+                        defer { if !object.hasChanges { context.refresh(object, mergeChanges: false) } }
+                        guard let sample = try? decode(HistorySample.self, object: object, light: true) else { return false }
+                        return sample.segmentID == last.segmentID && sample.cycleCount != nil
+                    }
                 }
-                initial = try first.flatMap { try decode(HistorySample.self, object: $0).cycleCount }
+                initial = try first.flatMap { try decode(HistorySample.self, object: $0, light: true).cycleCount }
                 cycleBaseline = (last.segmentID, initial, sequence)
             }
             if let initial, final >= initial { fields.append(reading("082", .integer(Int64(final - initial)))) }
@@ -484,6 +496,7 @@ import PowerCore
         let data = try JSONEncoder().encode(value)
         object.setValue(try (data as NSData).compressed(using: .lzfse) as Data, forKey: "payload")
     }
+    private struct EnergyEvidenceProbe: Decodable { let energyEvidenceVersion: Int? }
     private func decode<T: Decodable>(_ type: T.Type, object: NSManagedObject, light: Bool = false) throws -> T {
         guard let payload = object.value(forKey: "payload") as? Data, payload.count <= 2_000_000 else { throw HistoryStoreError.corruptRecord }
         do {
@@ -491,7 +504,9 @@ import PowerCore
             guard data.count <= 8_000_000 else { throw HistoryStoreError.corruptRecord }
             let decoder = JSONDecoder()
             if light { decoder.userInfo[.skipHistoryReadings] = true }
-            if type == HistorySample.self,
+            // A tiny probe tells current payloads from early ones without building a Foundation object tree of the
+            // whole payload (its autoreleased copy of every reading cost ~500 MB while summarising a month of samples).
+            if type == HistorySample.self, (try? decoder.decode(EnergyEvidenceProbe.self, from: data))?.energyEvidenceVersion != 1,
                var legacy = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                legacy["energyEvidenceVersion"] as? Int != 1 {
                 // Early payloads encoded absence as zero. Retain their measurements,

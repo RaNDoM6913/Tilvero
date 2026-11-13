@@ -145,7 +145,12 @@ struct MetricChartView: View {
 
     // MARK: View
 
-    private var plotHeight: CGFloat { density.plotHeight }
+    /// The unit ("W", "°C") lives in the card header next to the value, not on a row of its own: the plot takes the
+    /// height that row used (`plotGain` taller, `topInset` of air above it for the top axis label), so the whole
+    /// chart keeps exactly the height it had. The empty (dashed) frame keeps its own height.
+    nonisolated static let plotGain: CGFloat = 10
+    nonisolated static let topInset: CGFloat = 6
+    private var plotHeight: CGFloat { density.plotHeight + Self.plotGain }
     private let axisWidth: CGFloat = 30
     private let gutter: CGFloat = 6
     /// Column reserved right of the plot for end labels: an 8 pt lead-in plus a label frame wide enough
@@ -169,12 +174,11 @@ struct MetricChartView: View {
         if layout.isDashedEmpty {
             RoundedRectangle(cornerRadius: 6)
                 .strokeBorder(Color.primary.opacity(0.25), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
-                .frame(height: plotHeight)
+                .frame(height: density.plotHeight)
                 .overlay(Text(emptyMessage ?? "—").font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center).padding(.horizontal, 8))
         } else if let scale {
             VStack(alignment: .leading, spacing: 3) {
-                Text(unit).font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
-                plot(layout: layout, scale: scale).frame(height: plotHeight)
+                plot(layout: layout, scale: scale).frame(height: plotHeight).padding(.top, Self.topInset)
                 timeLabels(layout: layout)
             }
         }

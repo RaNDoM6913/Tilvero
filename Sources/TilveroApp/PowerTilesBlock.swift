@@ -63,15 +63,22 @@ import PowerCore
         .metricCardChrome(padding: 10)
     }
 
+    /// Only adapter input (054) has live points among the tiles; battery power stays recorded once a minute.
+    private var liveNote: String {
+        guard model.wantsLiveCharts, !model.live.tail.points(id: id).isEmpty else { return "" }
+        return L10n.text("Newest minutes: live SMC readings, about once a second.")
+    }
     @ViewBuilder private func chart(absentMessage: String?) -> some View {
-        let series = model.chartSeries(id: id)
-        MetricChartView(
-            specs: [MetricChartSeriesSpec(id: id, series: series, color: color, endLabel: nil)],
-            scale: MetricChartScale.scale(forMetric: id, values: series.points.map(\.value)),
-            window: model.overviewChartWindow,
-            unit: PowerMetricCard.chartUnit(id: id, readingUnit: reading?.unit, fahrenheit: false),
-            density: .compact,
-            emptyMessage: absentMessage ?? L10n.text("Chart: no data"))
+        LiveRefresh(store: model.live) {
+            let series = model.chartSeries(id: id)
+            MetricChartView(
+                specs: [MetricChartSeriesSpec(id: id, series: series, color: color, endLabel: nil)],
+                scale: MetricChartScale.scale(forMetric: id, values: series.points.map(\.value)),
+                window: model.overviewChartWindow,
+                unit: PowerMetricCard.chartUnit(id: id, readingUnit: reading?.unit, fahrenheit: false),
+                density: .compact,
+                emptyMessage: absentMessage ?? L10n.text("Chart: no data"))
+        }.help(liveNote)
     }
 }
 // tlv-origin:b4e07a19d3c258f6

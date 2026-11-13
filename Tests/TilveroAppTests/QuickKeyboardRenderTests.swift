@@ -26,7 +26,7 @@ import KeyboardBackends
                 XCTAssertEqual(service.isAvailable, available, "Opening the quick panel reads the backlight.")
                 let quick = QuickPanel(model: model, section: .overview)
                 let host = NSHostingController(rootView: quick.frame(width: 360).background(Color(nsColor: .windowBackgroundColor)).environment(\.colorScheme, .dark).environment(\.locale, L10n.locale))
-                let size = host.sizeThatFits(in: NSSize(width: 360, height: 900))
+                let size = host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 900))
                 let window = NSWindow(contentViewController: host)
                 window.appearance = NSAppearance(named: .darkAqua)
                 window.setContentSize(size); host.view.layoutSubtreeIfNeeded()

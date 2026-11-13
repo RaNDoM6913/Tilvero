@@ -79,13 +79,13 @@ final class QuickPanelHostingController: NSHostingController<QuickPanelHostedRoo
     }
 
     func resizeToFit() {
-        contentSizeChanged(sizeThatFits(in: NSSize(width: 360, height: rootView.maximumHeight)))
+        contentSizeChanged(sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: rootView.maximumHeight)))
     }
 
     private func contentSizeChanged(_ size: CGSize) {
         guard size.height.isFinite, size.height > 0 else { return }
         lastGeometryReport = CFAbsoluteTimeGetCurrent()
-        let bounded = NSSize(width: 360, height: min(ceil(size.height), rootView.maximumHeight))
+        let bounded = NSSize(width: QuickPanelMetrics.width, height: min(ceil(size.height), rootView.maximumHeight))
         // The owner applies the size first (without AppKit's window animation); the popover then already has it
         // when the preferred size is published.
         if lastReportedSize != bounded {

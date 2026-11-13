@@ -18,7 +18,7 @@ import XCTest
             for dark in [false, true] {
                 let host = NSHostingView(rootView: QuickPanel(model: fixture.model, section: .awake)
                     .environment(\.colorScheme, dark ? .dark : .light))
-                let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 360, height: 700), styleMask: [.borderless], backing: .buffered, defer: false)
+                let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: QuickPanelMetrics.width, height: 700), styleMask: [.borderless], backing: .buffered, defer: false)
                 window.contentView = host
                 defer { window.orderOut(nil) }
                 host.layoutSubtreeIfNeeded()
@@ -30,8 +30,8 @@ import XCTest
                 for control in [upper, lower] {
                     let frame = control.convert(control.bounds, to: host)
                     print("tab-geometry \(language) \(dark ? "dark" : "light") segments=\(control.segmentCount) frame=\(frame)")
-                    XCTAssertEqual(frame.width, 320, accuracy: 0.5, "The native tabs must fill the panel's padded content width.")
-                    XCTAssertEqual(frame.minX, 20, accuracy: 0.5)
+                    XCTAssertEqual(frame.width, QuickPanelMetrics.width - 2 * QuickPanelMetrics.padding, accuracy: 0.5, "The native tabs must fill the panel's padded content width.")
+                    XCTAssertEqual(frame.minX, QuickPanelMetrics.padding, accuracy: 0.5)
                     XCTAssertEqual(control.segmentDistribution, .fillEqually)
                     XCTAssertEqual(control.controlSize, .regular)
                 }

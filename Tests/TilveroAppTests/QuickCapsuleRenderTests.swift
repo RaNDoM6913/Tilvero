@@ -25,8 +25,8 @@ import XCTest
         let out = ProcessInfo.processInfo.environment["TILVERO_LOOK_DIR"] ?? NSTemporaryDirectory() + "TilveroCapsuleRender"
         try? FileManager.default.createDirectory(atPath: out, withIntermediateDirectories: true)
         func shot(_ name: String, _ section: QuickPanelSection, awakeTab: Bool = false) async throws {
-            let host = NSHostingController(rootView: QuickPanel(model: model, section: section).frame(width: 360).background(Color(nsColor: .windowBackgroundColor)).environment(\.colorScheme, .dark).environment(\.controlActiveState, .key).environment(\.locale, L10n.locale))
-            let size = host.sizeThatFits(in: NSSize(width: 360, height: 900))
+            let host = NSHostingController(rootView: QuickPanel(model: model, section: section).frame(width: QuickPanelMetrics.width).background(Color(nsColor: .windowBackgroundColor)).environment(\.colorScheme, .dark).environment(\.controlActiveState, .key).environment(\.locale, L10n.locale))
+            let size = host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 900))
             let window = NSWindow(contentViewController: host); window.appearance = NSAppearance(named: .darkAqua)
             window.setContentSize(size); host.view.layoutSubtreeIfNeeded()
             try await Task.sleep(for: .milliseconds(200))
@@ -37,7 +37,7 @@ import XCTest
                 try await Task.sleep(for: .milliseconds(250))
             }
             host.view.layoutSubtreeIfNeeded()
-            let size2 = host.sizeThatFits(in: NSSize(width: 360, height: 900)); window.setContentSize(size2); host.view.layoutSubtreeIfNeeded()
+            let size2 = host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 900)); window.setContentSize(size2); host.view.layoutSubtreeIfNeeded()
             try await Task.sleep(for: .milliseconds(100))
             let bitmap = try XCTUnwrap(host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds))
             host.view.cacheDisplay(in: host.view.bounds, to: bitmap)
