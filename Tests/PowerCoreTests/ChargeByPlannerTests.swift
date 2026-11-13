@@ -69,10 +69,10 @@ final class ChargeByPlannerTests: XCTestCase {
     func testMacOSTimeToFullReplacesTheModelWhileChargingToFull() throws {
         let plan = try XCTUnwrap(ChargeByPlanner.plan(input(adapter: 30, wh: 58.4, hours: 1.5, systemETA: 55 * 60)))
         XCTAssertTrue(plan.usedSystemEstimate)
-        XCTAssertEqual(plan.chargeSeconds, 55 * 60 * ChargeByPlanner.systemEstimateMargin, accuracy: 0.5)
+        XCTAssertEqual(plan.chargeSeconds, 65 * 60, accuracy: 0.5, "macOS's 55 minutes plus 10")
         let short = try XCTUnwrap(ChargeByPlanner.plan(input(adapter: 30, wh: 58.4, hours: 1.5, systemETA: 10 * 60)))
-        XCTAssertEqual(short.chargeSeconds, 15 * 60, accuracy: 0.5, "A short remainder still gets at least 5 minutes")
-        XCTAssertTrue(plan.reachesTarget, "55 min from macOS plus 15 % fits in the 80 minutes that remain before the 10-minute reserve")
+        XCTAssertEqual(short.chargeSeconds, 20 * 60, accuracy: 0.5, "Every estimate gets the same 10 minutes")
+        XCTAssertTrue(plan.reachesTarget, "55 min from macOS plus 10 min fits in the 80 minutes that remain before the 10-minute reserve")
         let late = try XCTUnwrap(ChargeByPlanner.plan(input(adapter: 30, wh: 58.4, hours: 1.0, systemETA: 55 * 60)))
         XCTAssertFalse(late.reachesTarget)
         XCTAssertLessThan(late.expectedPercentAtReady, 100); XCTAssertGreaterThan(late.expectedPercentAtReady, 80)

@@ -92,7 +92,7 @@ import PowerCore
         XCTAssertEqual(service.state?.phase, .charging, "The charge is already due, so the limit is lifted at once")
         env.obs.systemTimeToFullSeconds = 20 * 60
         await service.tick()
-        XCTAssertEqual(service.plan?.chargeSeconds ?? 0, 25 * 60, accuracy: 0.5, "The status follows macOS's estimate while charging")
+        XCTAssertEqual(service.plan?.chargeSeconds ?? 0, 30 * 60, accuracy: 0.5, "The status follows macOS's estimate while charging")
     }
 
     func testLatePlanSuggestsTheEarliestWorkingTimeAndShiftingItWorksWhileCharging() async throws {
