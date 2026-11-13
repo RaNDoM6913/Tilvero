@@ -218,6 +218,13 @@ enum NativeChargeServiceError: Error, LocalizedError {
     }
     var canApply: Bool { isAvailable && !isBusy && !isQualifying && !recoveryRequired && !restorationPending }
     func canApplyTarget(_ target: Int) -> Bool { canApply && acceptedTargets.contains(target) && authorizedPersistentTargets.contains(target) }
+    /// Whether the target is on offer at all, ignoring momentary states (a read or an apply in flight, a pending operation, a
+    /// lapsed freshness window). Controls take their look from this so they never blink while a limit is being applied; the
+    /// tap itself is still gated by `canApplyTarget`.
+    func offersTarget(_ target: Int) -> Bool {
+        admitted && !monitoringOnly && !journalInvalid && !recoveryRequired && !restorationPending
+            && acceptedTargets.contains(target) && authorizedPersistentTargets.contains(target)
+    }
     /// Cached state readiness only. qualify() obtains its own fresh battery and
     /// native preflight before granting the two finite transitions.
     var canRequestQualification: Bool {

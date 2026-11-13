@@ -1016,6 +1016,12 @@ final class TilveroModel: ObservableObject {
     }
     var isChargeOnceRunning: Bool { chargeOnce.isActive }
     var chargeByObservation: ChargeByObservation { chargeByEnvironment?.observation() ?? ModelChargeByEnvironment(model: self).observation() }
+    /// The one-time charge is on offer (steady look); `canStartChargeOnce` adds the momentary gates and decides the tap.
+    var chargeOnceOffered: Bool {
+        guard !isDemo, usesNativeCharge, !controlsAreSuspended, !chargeOnce.isActive, !chargeBy.isArmed, nativeCharge.offersTarget(100),
+              let limit = observedNativeLimit, limit < NativeChargeAdmission.unlimitedTarget else { return false }
+        return true
+    }
     var canStartChargeOnce: Bool {
         guard !isDemo, usesNativeCharge, canEdit, !chargeOnce.isActive, !chargeBy.isArmed, nativeCharge.canApplyTarget(100),
               let limit = observedNativeLimit, limit < NativeChargeAdmission.unlimitedTarget else { return false }

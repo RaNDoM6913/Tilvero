@@ -25,6 +25,18 @@ public enum ChargeByPlanner {
     public static let taperPowerFactor = 0.4
     public static let safetyFactor = 1.2
 
+    /// 3-cell lithium-ion nominal pack voltage, the floor for the planning estimate below.
+    public static let nominalPackVolts = 11.4
+
+    /// The battery's full-charge energy for planning only, from the registry's full capacity (mAh) and the pack voltage.
+    /// Not published as a measurement: the catalog's Wh fields stay unavailable without a verified nominal-voltage mapping.
+    /// The voltage never goes below nominal, so the estimate errs towards a longer charge (an earlier start), never a shorter one.
+    public static func estimatedFullEnergyWh(fullCapacityMAh: Double?, packVolts: Double?) -> Double? {
+        guard let fullCapacityMAh, fullCapacityMAh.isFinite, fullCapacityMAh > 500, fullCapacityMAh <= 100_000 else { return nil }
+        let measured = packVolts.flatMap { $0.isFinite ? $0 : nil } ?? nominalPackVolts
+        return fullCapacityMAh * min(13.5, max(nominalPackVolts, measured)) / 1000
+    }
+
     public struct Input: Equatable, Sendable {
         public var now: Date
         public var deadline: Date

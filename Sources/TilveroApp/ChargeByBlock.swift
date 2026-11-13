@@ -11,6 +11,9 @@ import PowerCore
     @ObservedObject var model: TilveroModel
     @ObservedObject var service: ChargeByService
     @State private var showsWheel = false
+    /// The wheel's result waits for the popover to close before it is applied (as in Keep Awake), so the pill changing
+    /// behind it never moves the popover while it goes away.
+    @State private var committedWheelValue: SleepWheelValue?
 
     private static let strip = [85, 90, 95]
     private var limit: Int? { model.observedNativeLimit }
@@ -62,39 +65,52 @@ import PowerCore
                 .background(Capsule().fill(active ? Color.accentColor : Color.primary.opacity(0.07)))
                 .contentShape(Capsule())
         }
-        .buttonStyle(.plain).disabled(service.isWorking || model.isApplying || (!active && (chargeOnceBlocks || levels.isEmpty)))
-        .opacity(active || !levels.isEmpty ? 1 : 0.45)
-        .popover(isPresented: $showsWheel, attachmentAnchor: .rect(.bounds), arrowEdge: .bottom) { popover }
+        .buttonStyle(.plain)
+        .steadyControl(SteadyControlLook(offered: active || (!chargeOnceBlocks && !levels.isEmpty), busy: service.isWorking || model.isApplying))
+        .background { wheelAnchor }
         .accessibilityLabel(L10n.text("Charge by time"))
         .studioElement("charge.by.pill", label: "Charge by time")
     }
     private var chargeOnceBlocks: Bool { model.chargeOnce.isActive }
 
+    /// Same construction as Keep Awake's "Until…" wheel: a hidden anchor under the pill carries the popover, which shows the picker
+    /// itself with no extra frame or padding.
+    private var wheelAnchor: some View {
+        Color.clear
+            .popover(isPresented: $showsWheel, attachmentAnchor: .rect(.bounds), arrowEdge: .bottom) { popover }
+            .allowsHitTesting(false)
+    }
+
     @ViewBuilder private var popover: some View {
-        VStack(spacing: 10) {
-            if service.state?.phase != .charging {
-                SleepWheelPicker(mode: .until, initialMinutes: 30, initialDate: service.state?.deadline ?? Self.defaultDeadline(),
-                    onCommit: { value in
-                        showsWheel = false
-                        guard case .until(let date) = value else { return }
-                        Task { if service.isArmed { await service.setDeadline(date) } else { await service.arm(deadline: date, target: selected) } }
-                    }, onCancel: { showsWheel = false })
-            }
+        let picker = SleepWheelPicker(mode: .until, initialMinutes: 30, initialDate: service.state?.deadline ?? Self.defaultDeadline(),
+            onCommit: { committedWheelValue = $0; showsWheel = false },
+            onCancel: { committedWheelValue = nil; showsWheel = false })
+        Group {
             if service.isArmed {
-                Button { showsWheel = false; Task { await service.cancel() } } label: {
-                    Text(L10n.text("Cancel plan")).font(.subheadline.weight(.medium)).foregroundStyle(.red)
-                        .frame(maxWidth: .infinity).padding(.vertical, 7)
-                        .background(Capsule().fill(Color.red.opacity(0.12))).contentShape(Capsule())
-                }.buttonStyle(.plain).padding(.horizontal, 12)
+                VStack(spacing: 8) {
+                    picker
+                    Button { committedWheelValue = nil; showsWheel = false; Task { await service.cancel() } } label: {
+                        Text(L10n.text("Cancel plan")).font(.subheadline.weight(.medium)).foregroundStyle(.red)
+                            .frame(maxWidth: .infinity).padding(.vertical, 7)
+                            .background(Capsule().fill(Color.red.opacity(0.12))).contentShape(Capsule())
+                    }.buttonStyle(.plain).padding(.horizontal, 12).padding(.bottom, 10)
+                }
+            } else {
+                picker
             }
         }
-        .frame(width: SleepWheelPicker.defaultWidth).padding(.vertical, 10)
+        .studioSubpresentation("charge.wheel")
+        .onDisappear {
+            guard let value = committedWheelValue else { return }
+            committedWheelValue = nil
+            guard case .until(let date) = value else { return }
+            Task { if service.isArmed { await service.setDeadline(date) } else { await service.arm(deadline: date, target: selected) } }
+        }
     }
 
     // MARK: Level row
 
     private var levelRow: some View {
-        let editable = service.state?.phase != .charging && !service.isWorking
         return HStack(spacing: 8) {
             HStack(spacing: 2) {
                 ForEach(Self.strip, id: \.self) { level in
@@ -119,7 +135,7 @@ import PowerCore
             }.buttonStyle(.plain).disabled(!full).opacity(full ? 1 : 0.4)
                 .accessibilityLabel("100%").accessibilityAddTraits(selected == 100 ? .isSelected : [])
         }
-        .disabled(!editable).opacity(editable ? 1 : 0.6)
+        .steadyControl(SteadyControlLook(offered: service.state?.phase != .charging, busy: service.isWorking, dimmedOpacity: 0.6))
     }
     private func choose(_ level: Int) {
         service.draftTarget = level

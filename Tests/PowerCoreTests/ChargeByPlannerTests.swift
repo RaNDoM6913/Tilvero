@@ -48,6 +48,23 @@ final class ChargeByPlannerTests: XCTestCase {
         XCTAssertNil(ChargeByPlanner.plan(input(current: .nan)))
         XCTAssertNil(ChargeByPlanner.plan(input(draw: -1)))
     }
+    /// Regression (2026-11-13): no provider publishes catalog 033/034 (Wh), so the plan was never computable on a real Mac
+    /// ("Not enough battery data yet"). The planning energy comes from the full capacity in mAh and the pack voltage.
+    func testFullEnergyEstimateFromCapacityAndPackVoltage() throws {
+        // A 4622 mAh pack reading 12.629 V while charging: never below the 11.4 V nominal, so the estimate errs long, not short.
+        XCTAssertEqual(try XCTUnwrap(ChargeByPlanner.estimatedFullEnergyWh(fullCapacityMAh: 4622, packVolts: 12.629)), 58.4, accuracy: 0.1)
+        XCTAssertEqual(try XCTUnwrap(ChargeByPlanner.estimatedFullEnergyWh(fullCapacityMAh: 4622, packVolts: 10.0)), 52.7, accuracy: 0.1, "A sagging pack never lowers the estimate below nominal.")
+        XCTAssertEqual(try XCTUnwrap(ChargeByPlanner.estimatedFullEnergyWh(fullCapacityMAh: 4622, packVolts: nil)), 52.7, accuracy: 0.1, "Unknown voltage falls back to nominal.")
+        XCTAssertNil(ChargeByPlanner.estimatedFullEnergyWh(fullCapacityMAh: nil, packVolts: 12))
+        XCTAssertNil(ChargeByPlanner.estimatedFullEnergyWh(fullCapacityMAh: 0, packVolts: 12))
+        XCTAssertNil(ChargeByPlanner.estimatedFullEnergyWh(fullCapacityMAh: .nan, packVolts: 12))
+    }
+    func testOwnerScenarioFortyMinutesOfWorkIsPlannedInFourHours() throws {
+        let wh = try XCTUnwrap(ChargeByPlanner.estimatedFullEnergyWh(fullCapacityMAh: 4622, packVolts: 12.629))
+        let plan = try XCTUnwrap(ChargeByPlanner.plan(input(current: 76, target: 100, adapter: 30, draw: 3, wh: wh, hours: 4)))
+        XCTAssertTrue(plan.reachesTarget)
+        XCTAssertLessThan(plan.startAt, now.addingTimeInterval(3 * 3600), "76 % to 100 % at 30 W needs well under three hours.")
+    }
     func testPercentInverseMatchesForwardEstimate() {
         let seconds = ChargeByPlanner.chargeSeconds(from: 60, to: 95, bulkWatts: 50, fullEnergyWh: 70)
         XCTAssertEqual(ChargeByPlanner.percent(from: 60, after: seconds, bulkWatts: 50, fullEnergyWh: 70), 95, accuracy: 0.01)

@@ -46,6 +46,14 @@ import XCTest
         XCTAssertEqual(decide(charging, at: 7 * 3600, limit: 100, percent: 100, charging: false), .none, "Before the hour is up the battery stays full for the user.")
     }
 
+    func testPlanEnergyComesFromCapacityAndVoltageBecauseNoProviderPublishesWh() {
+        let readings: [String: Double] = ["030": 4622, "035": 12.629]
+        let wh = ModelChargeByEnvironment.fullEnergyWh(catalog: { readings[$0] })
+        XCTAssertEqual(wh ?? 0, 58.4, accuracy: 0.1)
+        XCTAssertEqual(ModelChargeByEnvironment.fullEnergyWh(catalog: { ["034": 70.0][$0] }), 70, "A published estimate wins.")
+        XCTAssertNil(ModelChargeByEnvironment.fullEnergyWh(catalog: { _ in nil }))
+    }
+
     // MARK: service with fakes
     @MainActor final class Env: ChargeByEnvironment {
         var obs = ChargeByObservation(observedLimit: 80, percent: 80, isCharging: false, externalPower: true, adapterWatts: 67, fullEnergyWh: 70, systemWatts: 3)
