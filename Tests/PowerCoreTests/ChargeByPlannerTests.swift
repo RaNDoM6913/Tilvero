@@ -70,6 +70,8 @@ final class ChargeByPlannerTests: XCTestCase {
         let plan = try XCTUnwrap(ChargeByPlanner.plan(input(adapter: 30, wh: 58.4, hours: 1.5, systemETA: 55 * 60)))
         XCTAssertTrue(plan.usedSystemEstimate)
         XCTAssertEqual(plan.chargeSeconds, 55 * 60 * ChargeByPlanner.systemEstimateMargin, accuracy: 0.5)
+        let short = try XCTUnwrap(ChargeByPlanner.plan(input(adapter: 30, wh: 58.4, hours: 1.5, systemETA: 10 * 60)))
+        XCTAssertEqual(short.chargeSeconds, 15 * 60, accuracy: 0.5, "A short remainder still gets at least 5 minutes")
         XCTAssertTrue(plan.reachesTarget, "55 min from macOS plus 15 % fits in the 80 minutes that remain before the 10-minute reserve")
         let late = try XCTUnwrap(ChargeByPlanner.plan(input(adapter: 30, wh: 58.4, hours: 1.0, systemETA: 55 * 60)))
         XCTAssertFalse(late.reachesTarget)

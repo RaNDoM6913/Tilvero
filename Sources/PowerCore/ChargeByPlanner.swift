@@ -24,8 +24,11 @@ public enum ChargeByPlanner {
     /// Average charging power above 80 % relative to the bulk rate.
     public static let taperPowerFactor = 0.4
     public static let safetyFactor = 1.2
-    /// macOS's own time to full is a measurement of the charge in progress; only a little is added on top of it.
+    /// macOS's own time to full is a measurement of the charge in progress; only a little is added on top of it: 15 %, but
+    /// never less than 5 minutes (a Mac in use charges 5-10 minutes slower than macOS says).
     public static let systemEstimateMargin = 1.15
+    public static let systemEstimateMinimumExtra: TimeInterval = 300
+    static func withSystemMargin(_ eta: TimeInterval) -> TimeInterval { max(eta * systemEstimateMargin, eta + systemEstimateMinimumExtra) }
 
     /// 3-cell lithium-ion nominal pack voltage, the floor for the planning estimate below.
     public static let nominalPackVolts = 11.4
@@ -96,7 +99,7 @@ public enum ChargeByPlanner {
                         mustStartNow: false, reachesTarget: true, netChargeWatts: net, adapterAssumed: assumed, alreadyReached: true, usedSystemEstimate: false)
         }
         let systemETA = input.targetPercent == 100 ? input.systemTimeToFullSeconds.flatMap { $0.isFinite && $0 > 0 ? $0 : nil } : nil
-        let seconds = systemETA.map { $0 * systemEstimateMargin }
+        let seconds = systemETA.map(withSystemMargin)
             ?? chargeSeconds(from: input.currentPercent, to: target, bulkWatts: bulk, fullEnergyWh: input.fullEnergyWh) * safetyFactor
         let startAt = readyBy.addingTimeInterval(-seconds)
         let reaches = startAt >= input.now
