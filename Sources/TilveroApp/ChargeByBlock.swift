@@ -44,14 +44,16 @@ import PowerCore
 
     private var titleRow: some View {
         HStack(spacing: 6) {
-            StudioText(L10n.text("Charge by time"), id: "charge.by.title").font(.system(size: 14, weight: .semibold)).fixedSize()
+            // The title may shrink a little so the pill (with the cross and "Завтра") always fits the row.
+            StudioText(L10n.text("Charge by time"), id: "charge.by.title").font(.system(size: 14, weight: .semibold))
+                .lineLimit(1).minimumScaleFactor(0.85)
             SectionInfoButton(title: L10n.text("Charge by time"), paragraphs: [
                 L10n.text("Your Mac keeps its charge limit and Tilvero lifts it just in time, so the battery reaches the chosen level 10 minutes before the time you set."),
                 L10n.text("While the Mac sleeps it wakes on a schedule, lifts the limit and goes back to sleep. This needs one permission; without it the limit is lifted when the Mac is about to sleep."),
                 L10n.text("The start is an estimate from the adapter's power and what the Mac draws. Your previous limit returns when you unplug the adapter."),
             ], id: "charge-by-info")
-            Spacer(minLength: 8)
-            timePill
+            Spacer(minLength: 6)
+            timePill.layoutPriority(1)
         }
     }
 
@@ -61,7 +63,7 @@ import PowerCore
         let active = service.isArmed
         let opensWheel = service.state?.phase != .charging
         let look = SteadyControlLook(offered: active || (!chargeOnceBlocks && !levels.isEmpty), busy: service.isWorking || model.isApplying)
-        return HStack(spacing: 8) {
+        return HStack(spacing: 6) {
             Button { service.message = nil; showsWheel = true } label: {
                 StudioText(active ? Self.dayText(service.state!.deadline) : L10n.text("Pick a time"), id: "charge.by.time")
                     .font(.system(size: 13, weight: .medium)).monospacedDigit().lineLimit(1).fixedSize()
@@ -72,8 +74,8 @@ import PowerCore
             .studioElement("charge.by.pill", label: "Charge by time")
             if active {
                 Button { showsWheel = false; Task { await service.cancel() } } label: {
-                    Image(systemName: "xmark").font(.system(size: 9, weight: .bold))
-                        .frame(width: 18, height: 18)
+                    Image(systemName: "xmark").font(.system(size: 8, weight: .bold))
+                        .frame(width: 16, height: 16)
                         .background(Circle().fill(Color.white.opacity(0.28)))
                         .contentShape(Circle())
                 }
@@ -82,7 +84,7 @@ import PowerCore
                 .studioElement("charge.by.cancel", label: "Cancel plan")
             }
         }
-        .padding(.leading, 12).padding(.trailing, active ? 7 : 12).padding(.vertical, active ? 5 : 6)
+        .padding(.leading, 11).padding(.trailing, active ? 6 : 11).padding(.vertical, 6)
         .foregroundStyle(active ? Color.white : Color.primary)
         .background(Capsule().fill(active ? Color.accentColor : Color.primary.opacity(0.07)))
         .steadyControl(look)
@@ -153,6 +155,13 @@ import PowerCore
             Label { Text(line.text).fixedSize(horizontal: false, vertical: true) } icon: { Image(systemName: line.symbol) }
                 .font(.system(size: 13, weight: .medium)).foregroundStyle(line.warning ? Color.orange : Color.primary)
         }
+        if service.isArmed, service.message == nil, model.chargeByObservation.externalPower != false, let later = service.suggestedDeadline {
+            Button { Task { await service.setDeadline(later) } } label: {
+                Text(Self.fill("Move to {time}", ["time": Self.clock(later)])).font(.subheadline.weight(.medium))
+                    .frame(maxWidth: .infinity).padding(.vertical, 7).foregroundStyle(Color.primary)
+                    .background(Capsule().fill(Color.primary.opacity(0.07))).contentShape(Capsule())
+            }.buttonStyle(.plain).studioElement("charge.by.shift", label: "Move the plan later")
+        }
         if service.isArmed, !service.wakePermitted {
             Button { Task { _ = await service.installWakePermission() } } label: {
                 Text(L10n.text("Allow charging during sleep…")).font(.subheadline.weight(.medium))
@@ -175,7 +184,7 @@ import PowerCore
             return Line(symbol: "bolt", text: Self.fill("Charging to {level}% · ready by {ready}", ["level": "\(state.target)", "ready": ready]), warning: false)
         }
         if observation.externalPower == false {
-            return Line(symbol: "powerplug", text: Self.fill("Connect the adapter: without it the charge will not be ready by {time}", ["time": ready]), warning: true)
+            return Line(symbol: "powerplug", text: Self.fill("Connect the adapter: not ready by {time}", ["time": ready]), warning: true)
         }
         if let plan = service.plan, !plan.reachesTarget {
             return Line(symbol: "exclamationmark.triangle", text: Self.fill("May not make it: about {level}% by {ready}", ["level": "\(Int(plan.expectedPercentAtReady.rounded()))", "ready": ready]), warning: true)
@@ -197,7 +206,8 @@ import PowerCore
     }
     static func dayText(_ date: Date, now: Date = Date(), calendar: Calendar = .current) -> String {
         let day: String
-        if calendar.isDate(date, inSameDayAs: now) { day = L10n.text("Today") }
+        // Today is the bare time: with the cancel cross the pill must still fit the row, and a plan is always within a day.
+        if calendar.isDate(date, inSameDayAs: now) { return clock(date) }
         else if let tomorrow = calendar.date(byAdding: .day, value: 1, to: now), calendar.isDate(date, inSameDayAs: tomorrow) { day = L10n.text("Tomorrow") }
         else { day = date.formatted(.dateTime.day().month(.abbreviated).locale(L10n.locale)) }
         return day + " " + clock(date)

@@ -148,10 +148,18 @@ struct ChargeByObservation: Equatable {
 
     /// A new time for an armed plan.
     func setDeadline(_ deadline: Date) async {
-        guard var current = state, current.phase == .armed, deadline > now().addingTimeInterval(ChargeByPlanner.reserveSeconds + 60) else { message = "Choose a later time."; return }
+        guard var current = state, deadline > now().addingTimeInterval(ChargeByPlanner.reserveSeconds + 60) else { message = "Choose a later time."; return }
         current.deadline = deadline; state = current; message = nil; save()
-        await replan(force: true)
-        await tick()
+        if current.phase == .armed { await replan(force: true) }
+        await tick()   // while charging the tick refreshes the plan against the new time
+    }
+
+    /// When the plan cannot make it, the earliest time that works (rounded up to 5 minutes), nil when the plan is fine.
+    var suggestedDeadline: Date? {
+        guard let state, let plan, !plan.reachesTarget else { return nil }
+        let raw = now().addingTimeInterval(plan.chargeSeconds + ChargeByPlanner.reserveSeconds).timeIntervalSinceReferenceDate
+        let rounded = Date(timeIntervalSinceReferenceDate: (raw / 300).rounded(.up) * 300)
+        return rounded > state.deadline ? rounded : nil
     }
 
     func setTarget(_ target: Int) async {
