@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.6.1 — Charge by Time Fixes Source Preview — 2026-11-13
+
+A bug-fix release; nothing else changes.
+
+**Fixed**
+- Charge by time always reported "Not enough battery data yet": the plan needs the battery's full-charge energy in Wh, which no
+  telemetry source publishes. The planning energy now comes from the full capacity (mAh) and the pack voltage, never below the
+  nominal voltage so the estimate errs towards an earlier start. While the Mac charges to 100 %, the plan uses macOS's own
+  time to full plus 10 minutes and refreshes it on every tick.
+- Choosing the charge limit that equals the charge level (80 % at 80 %) was refused as "waiting for natural discharge". Only a
+  limit below the charge level waits now; an equal one is applied at once, as System Settings does.
+- A waiting limit that had written nothing, combined with a limit changed in System Settings, left the Charge page in
+  "session needs review" with every new limit refused, and quitting was blocked. Such a journal is dropped at launch and when the
+  macOS limit changes elsewhere. Failure lines on the page expire after a few seconds.
+- "Charge to 100% once" and the time pill blinked on every limit change because the busy state dimmed them; busy now only
+  ignores taps.
+- The charge-by-time picker is built like Keep Awake's (no wrapper, applied after the popover closes). A cross in the time pill cancels the plan in one tap, the pill
+  fits the row (today shows the bare time), and when the plan cannot make it a button moves the time to the first one that works.
+
+Source for Apple silicon with macOS 26.0+ and full Xcode; no app or DMG. Waking a sleeping Mac on schedule for charge by time
+still needs your own device check.
+
 ## 0.6.0 — Closed Lid Comfort and Live Charts Source Preview — 2026-11-13
 
 The first stable release of the 0.6 line. It contains everything of 0.5.0-beta.1 (charge by time, the one-time charge to

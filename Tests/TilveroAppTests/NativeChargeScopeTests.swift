@@ -319,6 +319,51 @@ import PowerCore
         await f.assertWrites(["limit80", "limit85", "limit95", "limit100", "limit90"])
     }
 
+    /// Owner report 2026-11-13: at 80 % charge, choosing the 80 % limit was refused with "waiting for discharge" (macOS accepts it).
+    /// A limit equal to the charge level is applied at once; only a limit below the level waits.
+    func testLimitEqualToTheChargeIsAppliedAtOnce() async throws {
+        let f = ScopeFixture(initialTarget: 85); defer { f.cleanup() }
+        try await f.service.qualify()
+        let scope = try XCTUnwrap(NativeChargeAdmission.loadScope(from: f.admission, environment: "scope-fixture"))
+        let service = f.makeService(scope: scope)
+        await service.refresh()
+        await f.client.setMode("battery80")
+        try await service.apply(80, batteryPercent: 80, batteryFresh: true)
+        XCTAssertNil(service.pendingTarget, "80 % limit at 80 % charge is not a lower limit")
+        XCTAssertEqual(service.observed?.configuration.target, 80)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: f.journal.path))
+        await f.client.setMode("battery91")
+        try await service.apply(85, batteryPercent: 91, batteryFresh: true)
+        XCTAssertEqual(service.pendingTarget, 85, "A limit below the charge level still waits for natural discharge")
+    }
+
+    /// Owner report 2026-11-13: a waiting target (nothing written) plus a limit changed in System Settings left the panel
+    /// stuck in "session needs review" with every new limit refused.
+    func testWaitingTargetWithNothingWrittenNeverBecomesAReviewState() async throws {
+        let f = ScopeFixture(initialTarget: 85); defer { f.cleanup() }
+        try await f.service.qualify()
+        let scope = try XCTUnwrap(NativeChargeAdmission.loadScope(from: f.admission, environment: "scope-fixture"))
+        let service = f.makeService(scope: scope)
+        await service.refresh()
+        await f.client.setMode("battery91")
+        try await service.apply(80, batteryPercent: 91, batteryFresh: true)
+        XCTAssertEqual(service.pendingTarget, 80)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: f.journal.path))
+        // The next launch: nothing was written, so there is nothing to review.
+        let reopened = f.makeService(scope: scope)
+        XCTAssertFalse(reopened.recoveryRequired)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: f.journal.path))
+        // The user changes the limit in System Settings while a target waits.
+        try await service.apply(80, batteryPercent: 91, batteryFresh: true)
+        await f.client.external(target: 80)
+        await service.refresh()
+        XCTAssertFalse(service.recoveryRequired)
+        XCTAssertNil(service.pendingTarget)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: f.journal.path))
+        XCTAssertEqual(service.observed?.configuration.target, 80)
+        XCTAssertTrue(service.canApplyTarget(90) || service.needsApply(target: 90), "New limits are accepted again")
+    }
+
     func testQualificationFromAnotherPersistentBaselineRestoresThatBaseline() async throws {
         let f = ScopeFixture(initialTarget: 85); defer { f.cleanup() }
         await f.service.refresh()
@@ -425,6 +470,7 @@ private actor ScopeTransport: NativeChargeTransport {
     private var reads = 0
     init(mode: String, initialTarget: Int = 90) { self.mode = mode; target = initialTarget }
     func setMode(_ value: String) { mode = value }
+    func external(target value: Int) { target = value }
     func battery() -> ChargeObservation {
         batteryReads += 1
         return .init(percent: mode == "risingBefore95" && batteryReads >= 2 ? 89 : mode == "battery91" ? 91 : mode == "batteryMissing" ? nil : mode == "battery89" ? 89 : mode == "battery80" ? 80 : mode == "battery100" ? 100 : 60,

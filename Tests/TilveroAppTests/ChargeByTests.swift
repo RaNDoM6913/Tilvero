@@ -1,5 +1,6 @@
 import XCTest
 @testable import TilveroApp
+import PowerCore
 
 @MainActor final class ChargeByTests: XCTestCase {
     private let now = Date(timeIntervalSince1970: 1_800_000_000)
@@ -46,6 +47,14 @@ import XCTest
         XCTAssertEqual(decide(charging, at: 7 * 3600, limit: 100, percent: 100, charging: false), .none, "Before the hour is up the battery stays full for the user.")
     }
 
+    func testPlanEnergyComesFromCapacityAndVoltageBecauseNoProviderPublishesWh() {
+        let readings: [String: Double] = ["030": 4622, "035": 12.629]
+        let wh = ModelChargeByEnvironment.fullEnergyWh(catalog: { readings[$0] })
+        XCTAssertEqual(wh ?? 0, 58.4, accuracy: 0.1)
+        XCTAssertEqual(ModelChargeByEnvironment.fullEnergyWh(catalog: { ["034": 70.0][$0] }), 70, "A published estimate wins.")
+        XCTAssertNil(ModelChargeByEnvironment.fullEnergyWh(catalog: { _ in nil }))
+    }
+
     // MARK: service with fakes
     @MainActor final class Env: ChargeByEnvironment {
         var obs = ChargeByObservation(observedLimit: 80, percent: 80, isCharging: false, externalPower: true, adapterWatts: 67, fullEnergyWh: 70, systemWatts: 3)
@@ -74,6 +83,33 @@ import XCTest
         return (service, defaults, holder)
     }
 
+    func testPlanUsesMacOSTimeToFullWhileChargingAndKeepsItFreshInTheChargingPhase() async throws {
+        let env = Env(); env.obs.isCharging = true; env.obs.systemTimeToFullSeconds = 55 * 60
+        let (service, _, _) = makeService(env: env) { self.now }
+        let armed = await service.arm(deadline: now.addingTimeInterval(60 * 60), target: 100)
+        XCTAssertTrue(armed)
+        XCTAssertEqual(service.plan?.usedSystemEstimate, true)
+        XCTAssertEqual(service.state?.phase, .charging, "The charge is already due, so the limit is lifted at once")
+        env.obs.systemTimeToFullSeconds = 20 * 60
+        await service.tick()
+        XCTAssertEqual(service.plan?.chargeSeconds ?? 0, 30 * 60, accuracy: 0.5, "The status follows macOS's estimate while charging")
+    }
+
+    func testLatePlanSuggestsTheEarliestWorkingTimeAndShiftingItWorksWhileCharging() async throws {
+        let env = Env()
+        let (service, _, _) = makeService(env: env) { self.now }
+        let armed = await service.arm(deadline: now.addingTimeInterval(50 * 60), target: 100)
+        XCTAssertTrue(armed)
+        XCTAssertEqual(service.state?.phase, .charging)
+        XCTAssertEqual(service.plan?.reachesTarget, false)
+        let suggested = try XCTUnwrap(service.suggestedDeadline)
+        XCTAssertGreaterThanOrEqual(suggested.timeIntervalSince(now), (service.plan?.chargeSeconds ?? 0) + ChargeByPlanner.reserveSeconds)
+        XCTAssertEqual(suggested.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 300), 0, accuracy: 0.001, "Rounded up to 5 minutes")
+        await service.setDeadline(suggested)
+        XCTAssertEqual(service.state?.deadline, suggested)
+        XCTAssertEqual(service.plan?.reachesTarget, true)
+        XCTAssertNil(service.suggestedDeadline, "A plan that fits needs no suggestion")
+    }
     func testArmSchedulesTheWakeBeforeTheStartAndSurvivesRelaunch() async throws {
         let env = Env(), wake = Wake(); var clock = now
         let (service, defaults, _) = makeService(env: env, wake: wake) { clock }
