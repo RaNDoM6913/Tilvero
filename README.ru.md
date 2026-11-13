@@ -1,7 +1,7 @@
 ![Tilvero — батарея, питание и активность. Swift 6, macOS 26+, Apple silicon. Предварительная версия в исходниках.](.github/assets/cover.png)
 
 <p align="center">
-  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.6.0"><img src="https://img.shields.io/badge/source-preview-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Предварительная версия в исходниках" height="28"></a>
+  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.6.1"><img src="https://img.shields.io/badge/source-preview-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Предварительная версия в исходниках" height="28"></a>
   <a href="docs/GITHUB_TRAFFIC.md"><img src="https://img.shields.io/badge/zip%20%E2%80%A2%20clones%20%E2%80%A2%20unique-13%20%E2%80%A2%201432%20%E2%80%A2%20393-2F6E4B?style=for-the-badge&amp;labelColor=172A22" alt="Скачивания ZIP 13, клонирования Git 1432, уникальные клонирующие 393" height="28"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Лицензия GPL-3.0-only" height="28"></a>
 </p>
@@ -28,19 +28,30 @@ Tilvero живёт в строке меню. Одно быстрое меню п
   и Tilvero поднимет лимит как раз вовремя, разбудив спящий Mac по расписанию (одно необязательное разрешение администратора;
   пробуждение с закрытой крышкой ещё проверяется на реальном железе).
 
-**Новейшая версия: [исходники 0.6.0](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.6.0) для разработчиков.**
-[Получить исходники](https://github.com/RaNDoM6913/Tilvero/releases/download/v0.6.0/Tilvero-0.6.0-source.zip)
-· [Описание выпуска и контрольные суммы](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.6.0)
+**Новейшая версия: [исходники 0.6.1](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.6.1) для разработчиков.**
+[Получить исходники](https://github.com/RaNDoM6913/Tilvero/releases/download/v0.6.1/Tilvero-0.6.1-source.zip)
+· [Описание выпуска и контрольные суммы](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.6.1)
 · [Сборка и запуск](#сборка-и-запуск) · [План развития](ROADMAP.md)
-· Ранее: [0.5.0-beta.1](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.5.0-beta.1),
-[0.4.0](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.4.0)
+· Ранее: [0.6.0](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.6.0),
+[0.5.0-beta.1](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.5.0-beta.1)
 
 Подписанная и нотарифицированная версия для Mac готовится. Планируемый DMG
 **Monitoring Preview** будет работать только для чтения; в репозитории также
 есть управление для разработки с отдельными проверками допуска.
 [Доступность и установка](docs/INSTALL.md#русский).
 
-## Что нового в 0.6.0
+## Что нового в 0.6.1
+
+Выпуск с исправлением ошибок: зарядка к времени и лимит заряда.
+
+**Исправлено**
+- **«Зарядить к времени» теперь строит план.** Раньше всегда писало «Пока мало данных о батарее»: плану нужна энергия батареи, а её никто не публиковал. Теперь она считается по полной ёмкости и напряжению. Пока Mac заряжается до 100 %, план идёт по собственной оценке macOS плюс 10 минут.
+- **Лимит 80 % при заряде 80 % применяется сразу**, как в Системных настройках. Ждёт естественного разряда только лимит ниже заряда.
+- **Больше нет зависшего «сеанс требует проверки».** Ожидающий лимит, который ничего не записал, сбрасывается при запуске и при смене лимита в macOS, а не блокирует все новые лимиты. Строки с ошибками пропадают сами.
+- **Без морганий.** «Зарядить до 100% один раз» и плашка времени не мигают, пока применяется новый лимит.
+- **Аккуратный выбор времени**, как в «Не засыпать», и крестик в плашке времени, отменяющий план одним касанием. Если план не успевает, одна кнопка сдвигает время на ближайшее подходящее.
+
+## Что было нового в 0.6.0
 
 **Новое**
 - **Экран и звук с закрытой крышкой.** Пока «Не засыпать» или таймер сна держит Mac бодрствующим с закрытой крышкой, Tilvero
@@ -100,7 +111,7 @@ Tilvero живёт в строке меню. Одно быстрое меню п
 macOS SDK и Swift 6. Отдельные Command Line Tools не являются проверенным путём сборки.
 
 ```sh
-git clone --branch v0.6.0 https://github.com/RaNDoM6913/Tilvero.git
+git clone --branch v0.6.1 https://github.com/RaNDoM6913/Tilvero.git
 cd Tilvero
 bash scripts/test.sh
 bash scripts/build-local-app.sh
