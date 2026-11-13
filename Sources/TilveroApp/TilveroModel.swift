@@ -1096,8 +1096,20 @@ final class TilveroModel: ObservableObject {
             do {
                 try await action(nativeCharge); draftDirty = false
                 if !nativeCharge.isBusy { await nativeCharge.refresh() }
-                discardDraft(); notice = nativeCharge.message.map(L10n.text); lastNativeMirroredNotice = notice
-            } catch { notice = L10n.text(error.localizedDescription) }
+                // The confirmation is the slider and its readout, so only the explanation of a waiting target is kept (it goes
+                // when the target is applied or cancelled). Other service messages are not copied onto the page.
+                discardDraft(); notice = nativeCharge.pendingTarget != nil ? nativeCharge.message.map(L10n.text) : nil; lastNativeMirroredNotice = notice
+            } catch { showTransientNotice(L10n.text(error.localizedDescription)) }
+        }
+    }
+    private var noticeExpiry: Task<Void, Never>?
+    /// A failure line that goes away on its own, so a one-off refusal never stays on the Charge page.
+    private func showTransientNotice(_ text: String, seconds: Double = 6) {
+        notice = text; noticeExpiry?.cancel()
+        noticeExpiry = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(seconds))
+            guard !Task.isCancelled, let self, self.notice == text else { return }
+            self.notice = nil
         }
     }
     private func runSimulation(_ action: @escaping @Sendable (SimulationController) async throws -> Void) {

@@ -62,7 +62,7 @@ private actor RecallTransport: NativeChargeTransport {
     init(rising: Bool, invalid: String?) { self.rising = rising; self.invalid = invalid }
     func battery() -> ChargeObservation {
         batteryReads += 1
-        return .init(percent: rising && batteryReads >= 4 ? 80 : 68, externalPower: true)
+        return .init(percent: rising && batteryReads >= 4 ? 81 : 68, externalPower: true)
     }
     func read() -> NativeChargeSnapshot {
         .init(configuration: .init(enabled: enabled, target: target, optimizedCharging: optimized), supportedTargets: [80,85,90,95,100],
