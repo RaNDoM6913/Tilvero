@@ -25,11 +25,13 @@ The first stable release of the 0.6 line. It contains everything of 0.5.0-beta.1
   launches stayed at 655 MB). The peak is now about 85 MB on the same history.
 - Launch no longer opens Settings or raises a window over your other apps. Tilvero starts quietly in the menu bar; the window opens
   only when you ask for it (the first-run setup is still a page under Settings).
+- Settings > Setup showed the keyboard backlight as "status unknown" until the quick menu had been opened once; Setup now reads it itself (read-only).
 - The screen and volume sliders showed the same blue blob for every value below about 16 %; the fill now grows over the whole range.
 
 This release contains source for Apple silicon with macOS 26.0+ and full Xcode; it
-includes no app or DMG. Waking a sleeping Mac on schedule, with the lid closed
-as well, still needs your own device check. Automatic installation remains gated.
+includes no app or DMG. The screen and volume handling with the lid closed, Keep Awake, the sleep timer and the keyboard
+backlight were checked on a real Mac. Waking a sleeping Mac on schedule for charge by time, with the lid closed as well,
+still needs your own device check. Automatic installation remains gated.
 
 ## 0.5.0-beta.1 — Charge by Time Source Preview — 2026-11-12
 

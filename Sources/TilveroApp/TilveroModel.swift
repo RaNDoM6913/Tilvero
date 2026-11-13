@@ -169,7 +169,13 @@ final class TilveroModel: ObservableObject {
     private let setupLogin: SetupLoginPort?
     private let setupUsesNativeHost: Bool
     lazy var setupCoordinator = SetupActionCoordinator(ports: .init(
-        readInputs: { [weak self] in self?.readSetupInputs() ?? SetupReadinessInputs(launchPolicy: .monitoringOnly) },
+        readInputs: { [weak self] in
+            guard let self else { return SetupReadinessInputs(launchPolicy: .monitoringOnly) }
+            // The backlight is otherwise read only when the quick menu opens, so Setup right after a quiet launch said "unknown".
+            // This is the same read-only status read; nothing is written.
+            if self.canShowSetup, self.keyboardBacklight.availability == .unknown { await self.keyboardBacklight.refresh() }
+            return self.readSetupInputs()
+        },
         viewRequirements: { [weak self] in try self?.showSetupRequirements($0) },
         openApprovalSettings: { [weak self] in try self?.openSetupApprovalSettings($0) },
         registerHelper: { [weak self] in try await self?.registerSetupHelper() },
