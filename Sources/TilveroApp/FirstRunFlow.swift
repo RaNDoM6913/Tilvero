@@ -1,49 +1,45 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (c) 2026 RaNDoM6913
 
-import AppKit
+import Foundation
 
-/// The first-run scenes. The window explains *where* the app lives, the popover card explains *what* to choose.
+/// The steps of the one first-run window. Setup comes first; when it is done (or skipped) the window lands in the menu
+/// bar icon and the real quick menu opens.
 enum FirstRunStep: String, Equatable, CaseIterable {
-    /// The menu bar icon fills from 0 to the real level.
-    case iconFill
-    /// Window: drawn menu bar, a cursor clicks the icon (loops at most three times, then freezes).
-    case whereIcon
-    /// Window: the icon may be hidden behind the notch; ⌘-drag animation and "Open here".
-    case hiddenIcon
-    /// The card on top of the real Overview.
-    case card
-    /// The drawn Touch ID / password preview inside the card (1.2 s, skippable).
-    case confirmPreview
-    /// The macOS administrator prompt is up.
-    case systemPrompt
-    case done
-    /// Cancelled, denied or failed: calm state, locked features off, "Turn on" pills.
+    /// All five choices on one page; the main button starts.
+    case choosing
+    /// History and login are being applied (instant).
+    case applying
+    /// The macOS administrator dialog is up (Touch ID or password).
+    case waitingSystem
+    /// Terminal is open with everything prepared; the window detects the result by itself.
+    case waitingTerminal
+    /// The closed-lid option is being turned on after its permission.
+    case enablingLid
+    /// The dialog was dismissed or Terminal cancelled: calm, one "Try again".
     case declined
-    /// "Tilvero is here" bubble and two rings under the icon.
-    case bubble
+    case failed
+    /// Terminal did not finish within the waiting time.
+    case timedOut
+    /// Something needs one more look (login needs approval, the lid option refused) before the app opens.
+    case attention
+    /// Short success beat, then the window flies into the icon and the quick menu opens.
+    case done
+    /// The icon has no room in the menu bar (notch, many icons): the window says how to make room.
+    case iconHidden
     case finished
 }
 
-/// One line of the done / declined summary.
-struct FirstRunSummaryRow: Equatable, Identifiable {
-    enum Kind: Equatable { case enabled, needsApproval, notEnabled }
-    var id: String
-    var key: String
-    var kind: Kind
-}
-
-enum FirstRunPromptResult: Hashable{ case success(Set<PrivilegedFeature>), cancelled, failed }
 enum FirstRunLoginResult: Hashable { case enabled, requiresApproval, failed }
 
-/// What the user picked in the card. Defaults: login and history on, everything under "More" off.
+/// What the user picks. Defaults: everything that needs no password is on, so one click on the main button sets the
+/// app up; the two features that need the administrator password are opt-in.
 struct FirstRunChoices: Equatable {
     var launchAtLogin = true
     var keepHistory = true
-    var chargeLimit = false
+    var chargeLimit = true
     var lidClosed = false
     var chargeByTime = false
-    var moreExpanded = false
 
     var lockedFeatures: Set<PrivilegedFeature> {
         var set = Set<PrivilegedFeature>()
@@ -51,195 +47,179 @@ struct FirstRunChoices: Equatable {
         if chargeByTime { set.insert(.chargeByTime) }
         return set
     }
-    /// "Done" shows a lock glyph when it will ask macOS for the administrator permission.
-    var doneNeedsPermission: Bool { !lockedFeatures.isEmpty }
 }
 
 enum FirstRunEvent: Hashable {
-    case iconFilled
-    case skip
-    case showHidden
-    case backFromHidden
-    case statusItemClicked
-    /// "Open here": the card is hosted inside the first-run window.
-    case openHere
-    case done
-    case previewFinished
-    case cancelConfirmation
-    case promptFinished(FirstRunPromptResult)
-    case loginFinished(FirstRunLoginResult)
-    /// Result of turning the closed-lid option on after its permission was granted.
+    /// Main button: apply login and history, then one macOS dialog for the locked features (if any).
+    case start
+    /// Fallback link: the same, but the password is typed in a prepared Terminal window.
+    case useTerminal
+    case everydayApplied(FirstRunLoginResult?)
+    case permissionFinished(PrivilegedOutcome)
     case lidTurnedOn(Bool)
-    /// "Turn on" pill in the declined state, for one feature.
-    case enable(PrivilegedFeature)
-    case dismissCard
-    case popoverClosed
-    case bubbleFinished
+    /// While waiting: stop asking (locked features stay off).
+    case cancel
+    /// After a cancel or failure: open the app without the locked features.
+    case continueWithout
+    /// "Skip" or the window's close button: open the app, change nothing.
+    case skip
+    case openLoginSettings
+    case revealed
+    case iconHidden
+    case openDetails
 }
 
 enum FirstRunEffect: Equatable {
-    case markIntroduced
-    case showWindow
-    case closeWindow(intoIcon: Bool)
-    case showBeacon
-    case hideBeacon
-    case hostCardInWindow
-    case setPopoverBehavior(NSPopover.Behavior)
-    case ensurePopoverShown
-    case closePopover
-    /// History choice applied and login registered (only with the switch on) when "Done" is pressed.
-    case applyEverydayChoices(launchAtLogin: Bool, keepHistory: Bool)
-    /// Plays the drawn Touch ID preview; `previewFinished` follows after 1.2 s (or on a click).
-    case playConfirmPreview
-    case requestPermission(Set<PrivilegedFeature>)
+    case applyEveryday(launchAtLogin: Bool, keepHistory: Bool)
+    case requestPermission(Set<PrivilegedFeature>, PermissionRoute)
     case cancelPermissionRequest
-    case turnOnGranted(Set<PrivilegedFeature>)
-    /// "Allow" pill when macOS wants the login item approved.
+    case turnOnLid
     case openLoginItemsSettings
-    case showBubble
+    /// Close the window into the menu bar icon and open the real quick menu (after a short beat when a permission was
+    /// just granted). `coachChargeLimit` points at the Charge tab once.
+    case reveal(afterSuccess: Bool, coachChargeLimit: Bool)
+    case closeWindow
+    case openDetails
     case finish
 }
 
-/// Close requests the app delegate ignores while the first-run card holds the popover open. Explicit closes (the
-/// icon, Esc, the card's own X / Done, opening the details window) still close it.
-enum FirstRunPopoverPolicy {
-    static let ignoredWhileHeld: Set<String> = ["outside click", "application deactivated"]
+/// What still needs a look before the app opens.
+enum FirstRunAttention: String, Equatable, CaseIterable { case loginNeedsApproval, loginFailed, lidRefused }
+
+/// The buttons of a step, so the view only draws them (and tests read them).
+struct FirstRunButtons: Equatable {
+    enum Primary: Equatable { case start, allowAndStart, tryAgain, openApp }
+    enum Secondary: Equatable { case skip, cancel, withoutPassword, close }
+    var primary: Primary?
+    var secondary: Secondary?
+    var terminalLink = false
 }
 
 /// Pure state machine of the first run. Every event from every state is defined; unknown pairs are ignored.
 struct FirstRunFlow: Equatable {
-    private(set) var step: FirstRunStep = .iconFill
+    private(set) var step: FirstRunStep = .choosing
     var choices = FirstRunChoices()
-    private(set) var hostedInWindow = false
-    /// Features the current prompt asks for.
+    private(set) var route: PermissionRoute = .systemPrompt
+    /// Features the current request asks for.
     private(set) var requested: Set<PrivilegedFeature> = []
     private(set) var granted: Set<PrivilegedFeature> = []
-    private(set) var promptFailed = false
+    private(set) var failureCode: Int32?
     private(set) var loginResult: FirstRunLoginResult?
-    /// The closed-lid option really turned on after its permission (nil while that is still being done).
+    /// The closed-lid option really turned on after its permission (nil until that is known).
     private(set) var lidEnabled: Bool?
 
-    /// What the summary shows for the everyday choices: login per the real registration result, history.
-    var everydayRows: [FirstRunSummaryRow] {
-        var rows: [FirstRunSummaryRow] = []
-        if choices.launchAtLogin {
-            switch loginResult {
-            case .requiresApproval: rows.append(.init(id: "login", key: "firstRun.row.login", kind: .needsApproval))
-            case .failed: rows.append(.init(id: "login", key: "firstRun.row.login", kind: .notEnabled))
-            case .enabled, nil: rows.append(.init(id: "login", key: "firstRun.row.login", kind: .enabled))
-            }
-        }
-        if choices.keepHistory { rows.append(.init(id: "history", key: "firstRun.row.history", kind: .enabled)) }
-        return rows
-    }
-    /// Granted locked features; the lid row is checked only once the option really turned on.
-    var grantedRows: [FirstRunSummaryRow] {
-        var rows: [FirstRunSummaryRow] = []
-        if granted.contains(.lidClosed) && choices.lidClosed {
-            rows.append(.init(id: "lid", key: "firstRun.lidClosed", kind: lidEnabled == true ? .enabled : .notEnabled))
-        }
-        if granted.contains(.chargeByTime) && choices.chargeByTime { rows.append(.init(id: "chargeBy", key: "firstRun.chargeByTime", kind: .enabled)) }
-        return rows
+    /// The choices can change only while nothing is running.
+    var choicesEditable: Bool { [.choosing, .declined, .failed, .timedOut].contains(step) }
+    var missingLocked: Set<PrivilegedFeature> { choices.lockedFeatures.subtracting(granted) }
+    var isWaiting: Bool { step == .waitingSystem || step == .waitingTerminal }
+
+    var attention: [FirstRunAttention] {
+        var items: [FirstRunAttention] = []
+        if choices.launchAtLogin, loginResult == .requiresApproval { items.append(.loginNeedsApproval) }
+        if choices.launchAtLogin, loginResult == .failed { items.append(.loginFailed) }
+        if choices.lidClosed, granted.contains(.lidClosed), lidEnabled == false { items.append(.lidRefused) }
+        return items
     }
 
-    var cardVisible: Bool { [.card, .confirmPreview, .systemPrompt, .done, .declined].contains(step) }
-    var windowVisible: Bool { step == .whereIcon || step == .hiddenIcon || (hostedInWindow && cardVisible) }
-    /// The system prompt steals focus; while the card is up the popover must not close by itself.
-    var popoverBehavior: NSPopover.Behavior { cardVisible && !hostedInWindow ? .applicationDefined : .transient }
-    /// Locked features that are still off after a cancelled or failed prompt.
-    var missingLocked: [PrivilegedFeature] { choices.lockedFeatures.subtracting(granted).sorted() }
+    var buttons: FirstRunButtons {
+        let locked = !missingLocked.isEmpty
+        switch step {
+        case .choosing:
+            return FirstRunButtons(primary: locked ? .allowAndStart : .start, secondary: .skip, terminalLink: locked)
+        case .declined, .failed, .timedOut:
+            return locked ? FirstRunButtons(primary: .tryAgain, secondary: .withoutPassword, terminalLink: true)
+                : FirstRunButtons(primary: .start, secondary: .skip)
+        case .waitingSystem, .waitingTerminal: return FirstRunButtons(secondary: .cancel)
+        case .attention: return FirstRunButtons(primary: .start)
+        case .iconHidden: return FirstRunButtons(primary: .openApp, secondary: .close)
+        case .applying, .enablingLid, .done, .finished: return FirstRunButtons()
+        }
+    }
 
     @discardableResult mutating func handle(_ event: FirstRunEvent) -> [FirstRunEffect] {
         switch (step, event) {
-        case (.iconFill, .iconFilled):
-            step = .whereIcon
-            return [.markIntroduced, .showWindow, .showBeacon]
-        case (.iconFill, .skip):
-            step = .finished
-            return [.markIntroduced, .finish]
+        case (.choosing, .start), (.declined, .start), (.failed, .start), (.timedOut, .start):
+            return apply(route: .systemPrompt)
+        case (.choosing, .useTerminal), (.declined, .useTerminal), (.failed, .useTerminal), (.timedOut, .useTerminal):
+            guard !missingLocked.isEmpty else { return [] }
+            return apply(route: .terminal)
 
-        case (.whereIcon, .showHidden):
-            step = .hiddenIcon; return []
-        case (.hiddenIcon, .backFromHidden):
-            step = .whereIcon; return []
-        case (.whereIcon, .skip), (.hiddenIcon, .skip):
-            step = .bubble
-            return [.hideBeacon, .closeWindow(intoIcon: false), .showBubble]
-        case (.whereIcon, .statusItemClicked), (.hiddenIcon, .statusItemClicked):
-            step = .card
-            return [.hideBeacon, .closeWindow(intoIcon: true), .setPopoverBehavior(.applicationDefined)]
-        case (.hiddenIcon, .openHere), (.whereIcon, .openHere):
-            step = .card; hostedInWindow = true
-            return [.hideBeacon, .hostCardInWindow]
-
-        case (.card, .done):
-            let apply = FirstRunEffect.applyEverydayChoices(launchAtLogin: choices.launchAtLogin, keepHistory: choices.keepHistory)
-            guard choices.doneNeedsPermission else { step = .done; return [apply] }
-            requested = choices.lockedFeatures; step = .confirmPreview
-            return [apply, .playConfirmPreview]
-        case (.card, .dismissCard):
-            return closeCard()
-        case (.confirmPreview, .previewFinished):
-            step = .systemPrompt
-            return [.requestPermission(requested)]
-        case (.confirmPreview, .cancelConfirmation):
-            step = .declined; promptFailed = false
-            return []
-        case (.systemPrompt, .cancelConfirmation):
-            step = .declined; promptFailed = false
-            return [.cancelPermissionRequest]
-        case (.systemPrompt, .promptFinished(let result)):
-            switch result {
-            case .success(let features):
-                granted.formUnion(features)
-                step = missingLocked.isEmpty ? .done : .declined
-                promptFailed = false
-                return [.turnOnGranted(features.intersection(choices.lockedFeatures)), .ensurePopoverShown]
-            case .cancelled:
-                step = .declined; promptFailed = false
-                return [.ensurePopoverShown]
-            case .failed:
-                step = .declined; promptFailed = true
-                return [.ensurePopoverShown]
-            }
-        case (.declined, .enable(let feature)):
-            guard missingLocked.contains(feature) else { return [] }
-            requested = [feature]; step = .confirmPreview
-            return [.playConfirmPreview]
-        case (.done, .done), (.declined, .done), (.done, .dismissCard), (.declined, .dismissCard):
-            return closeCard()
-
-        case (.card, .popoverClosed), (.done, .popoverClosed), (.declined, .popoverClosed):
-            guard !hostedInWindow else { return [] }
-            step = .bubble
-            return [.setPopoverBehavior(.transient), .showBubble]
-        // The user closed the popover (the icon, Esc) before or during the macOS prompt: that is a cancel. No prompt
-        // appears afterwards, a running one is dismissed, locked features stay off and the popover is not reopened.
-        case (.confirmPreview, .popoverClosed), (.systemPrompt, .popoverClosed):
-            guard !hostedInWindow else { return [] }
-            let cancel: [FirstRunEffect] = step == .systemPrompt ? [.cancelPermissionRequest] : []
-            step = .bubble; promptFailed = false
-            return cancel + [.setPopoverBehavior(.transient), .showBubble]
-        case (.bubble, .bubbleFinished):
-            step = .finished
-            return [.finish]
-
-        case (_, .loginFinished(let result)):
+        case (.applying, .everydayApplied(let result)):
             loginResult = result
-            return []
+            let missing = missingLocked
+            guard !missing.isEmpty else { return finish(afterSuccess: false) }
+            requested = missing; failureCode = nil
+            step = route == .terminal ? .waitingTerminal : .waitingSystem
+            return [.requestPermission(missing, route)]
+
+        case (.waitingSystem, .permissionFinished(let outcome)), (.waitingTerminal, .permissionFinished(let outcome)):
+            switch outcome {
+            case .succeeded(let features):
+                granted.formUnion(features.intersection(requested))
+                guard missingLocked.isEmpty else { step = .failed; failureCode = nil; return [] }
+                if requested.contains(.lidClosed), choices.lidClosed { step = .enablingLid; return [.turnOnLid] }
+                return finish(afterSuccess: true)
+            case .cancelled: step = .declined; return []
+            case .failed(let code): step = .failed; failureCode = code; return []
+            case .timedOut: step = .timedOut; return []
+            }
+        case (.waitingSystem, .cancel), (.waitingTerminal, .cancel):
+            step = .declined
+            return [.cancelPermissionRequest]
+
+        case (.enablingLid, .lidTurnedOn(let enabled)):
+            lidEnabled = enabled
+            return finish(afterSuccess: true)
         case (_, .lidTurnedOn(let enabled)):
             lidEnabled = enabled
             return []
+
+        case (.declined, .continueWithout), (.failed, .continueWithout), (.timedOut, .continueWithout):
+            // The locked features stay off; what was granted earlier stays on.
+            choices.lidClosed = choices.lidClosed && granted.contains(.lidClosed)
+            choices.chargeByTime = choices.chargeByTime && granted.contains(.chargeByTime)
+            return finish(afterSuccess: false)
+
+        case (.attention, .start):
+            step = .done
+            return [.reveal(afterSuccess: false, coachChargeLimit: choices.chargeLimit)]
+        case (.attention, .openLoginSettings):
+            return [.openLoginItemsSettings]
+
+        case (.choosing, .skip), (.declined, .skip), (.failed, .skip), (.timedOut, .skip), (.attention, .skip):
+            step = .done
+            return [.reveal(afterSuccess: false, coachChargeLimit: false)]
+        case (.waitingSystem, .skip), (.waitingTerminal, .skip):
+            step = .done
+            return [.cancelPermissionRequest, .reveal(afterSuccess: false, coachChargeLimit: false)]
+
+        case (.done, .revealed):
+            step = .finished
+            return [.finish]
+        case (.done, .iconHidden):
+            step = .iconHidden
+            return []
+        case (.iconHidden, .openDetails):
+            step = .finished
+            return [.closeWindow, .openDetails, .finish]
+        case (.iconHidden, .skip):
+            step = .finished
+            return [.closeWindow, .finish]
+
         default:
             return []
         }
     }
 
-    private mutating func closeCard() -> [FirstRunEffect] {
-        if hostedInWindow {
-            step = .bubble
-            return [.closeWindow(intoIcon: true), .showBubble]
-        }
-        return [.closePopover]
+    private mutating func apply(route: PermissionRoute) -> [FirstRunEffect] {
+        self.route = route
+        step = .applying
+        return [.applyEveryday(launchAtLogin: choices.launchAtLogin, keepHistory: choices.keepHistory)]
+    }
+
+    private mutating func finish(afterSuccess: Bool) -> [FirstRunEffect] {
+        if !attention.isEmpty { step = .attention; return [] }
+        step = .done
+        return [.reveal(afterSuccess: afterSuccess, coachChargeLimit: choices.chargeLimit)]
     }
 }

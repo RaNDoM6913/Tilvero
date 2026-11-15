@@ -15505,38 +15505,6 @@
         }
       }
     },
-    "Tilvero asks to allow one command, pmset disablesleep, without a password, so Keep Awake can work with the lid closed.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tilvero asks to allow one command, pmset disablesleep, without a password, so Keep Awake can work with the lid closed."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tilvero просит разрешить одну команду, pmset disablesleep, без пароля, чтобы «Не засыпать» работало с закрытой крышкой."
-          }
-        }
-      }
-    },
-    "Tilvero asks to remove its closed-lid permission.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tilvero asks to remove its closed-lid permission."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tilvero просит отозвать своё разрешение для закрытой крышки."
-          }
-        }
-      }
-    },
     "Tilvero asks to restore normal sleep.": {
       "localizations": {
         "en": {
@@ -16497,22 +16465,6 @@
         }
       }
     },
-    "Tilvero asks to allow scheduling one wake, so a Mac asleep overnight can start charging on time.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tilvero asks to allow scheduling one wake, so a Mac asleep overnight can start charging on time."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tilvero просит разрешить планирование одного пробуждения, чтобы Mac, спящий ночью, начал зарядку вовремя."
-          }
-        }
-      }
-    },
     "Screen and sound": {
       "localizations": {
         "en": {
@@ -16657,150 +16609,6 @@
         }
       }
     },
-    "firstRun.window.title": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tilvero is in the menu bar"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tilvero в строке меню"
-          }
-        }
-      }
-    },
-    "firstRun.window.subtitle": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Click the icon"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Нажмите на значок"
-          }
-        }
-      }
-    },
-    "firstRun.window.hidden.title": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hold ⌘ and drag the icons"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Удерживайте ⌘ и перетащите значки"
-          }
-        }
-      }
-    },
-    "firstRun.window.hidden.subtitle": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Make room on the right"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Освободите место справа"
-          }
-        }
-      }
-    },
-    "firstRun.window.accessibility": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Animation: the Tilvero battery icon is on the right of the menu bar. Click it to open Tilvero."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Анимация: значок батареи Tilvero справа в строке меню. Нажмите на него, чтобы открыть Tilvero."
-          }
-        }
-      }
-    },
-    "firstRun.window.hidden.accessibility": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Animation: hold Command and drag menu bar icons to make room for Tilvero next to the notch."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Анимация: удерживайте Command и перетащите значки строки меню, чтобы освободить место для Tilvero рядом с вырезом."
-          }
-        }
-      }
-    },
-    "firstRun.cantSeeIcon": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "I don’t see the icon"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Не вижу значок"
-          }
-        }
-      }
-    },
-    "firstRun.back": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Back"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Назад"
-          }
-        }
-      }
-    },
-    "firstRun.openHere": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open here"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Открыть здесь"
-          }
-        }
-      }
-    },
     "firstRun.skip": {
       "localizations": {
         "en": {
@@ -16849,22 +16657,6 @@
         }
       }
     },
-    "firstRun.card.title": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tilvero is running"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tilvero работает"
-          }
-        }
-      }
-    },
     "firstRun.launchAtLogin": {
       "localizations": {
         "en": {
@@ -16886,61 +16678,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Keep history on this Mac"
+            "value": "Keep history"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Хранить историю на этом Mac"
-          }
-        }
-      }
-    },
-    "firstRun.more": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "More"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ещё"
-          }
-        }
-      }
-    },
-    "firstRun.expanded": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Expanded"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Развёрнуто"
-          }
-        }
-      }
-    },
-    "firstRun.collapsed": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Collapsed"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Свёрнуто"
+            "value": "Хранить историю"
           }
         }
       }
@@ -16993,22 +16737,6 @@
         }
       }
     },
-    "firstRun.needsPermission": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Needs administrator permission"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Нужно разрешение администратора"
-          }
-        }
-      }
-    },
     "firstRun.done": {
       "localizations": {
         "en": {
@@ -17025,50 +16753,18 @@
         }
       }
     },
-    "firstRun.confirm.title": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Confirm in macOS"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Подтвердите в macOS"
-          }
-        }
-      }
-    },
-    "firstRun.confirm.subtitle": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Only macOS sees your password"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Пароль видит только macOS"
-          }
-        }
-      }
-    },
     "firstRun.info.title": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "What is allowed"
+            "value": "Why the password"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Что разрешается"
+            "value": "Зачем пароль"
           }
         }
       }
@@ -17078,13 +16774,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Only the narrow pmset commands of the features you chose run without a password: four in total, two for the closed lid and two for waking in time to charge."
+            "value": "The closed lid and charging on time change sleep settings, so macOS asks for your password once."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Без пароля разрешаются только узкие команды pmset выбранных функций: всего их четыре, две для закрытой крышки и две для пробуждения к зарядке."
+            "value": "Закрытая крышка и зарядка к времени меняют настройки сна, поэтому macOS один раз спросит пароль."
           }
         }
       }
@@ -17094,13 +16790,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS shows its own prompt, Touch ID or password. Tilvero never receives it."
+            "value": "You type it in the macOS window or use Touch ID; Tilvero never sees it. Only two pmset commands are allowed; remove them in Settings."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Запрос показывает сама macOS: Touch ID или пароль. Tilvero его не получает."
+            "value": "Пароль вводится в окне macOS или по Touch ID — Tilvero его не видит. Разрешаются только две команды pmset; убрать их можно в Настройках."
           }
         }
       }
@@ -17121,166 +16817,6 @@
         }
       }
     },
-    "firstRun.done.title": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Done"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Готово"
-          }
-        }
-      }
-    },
-    "firstRun.row.login": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open at login"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Запуск при входе"
-          }
-        }
-      }
-    },
-    "firstRun.row.history": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "History"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "История"
-          }
-        }
-      }
-    },
-    "firstRun.allow": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Allow"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Разрешить"
-          }
-        }
-      }
-    },
-    "firstRun.check": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Check"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Проверить"
-          }
-        }
-      }
-    },
-    "firstRun.declined.title": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Not allowed"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Без разрешения"
-          }
-        }
-      }
-    },
-    "firstRun.failed.title": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Didn’t work"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Не получилось"
-          }
-        }
-      }
-    },
-    "firstRun.turnOn": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Turn On"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Включить"
-          }
-        }
-      }
-    },
-    "firstRun.limitCoach": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Limit check is here"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Проверка лимита — здесь"
-          }
-        }
-      }
-    },
-    "firstRun.bubble": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tilvero is here"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tilvero здесь"
-          }
-        }
-      }
-    },
     "Tilvero asks to allow narrow pmset commands without a password for the features you chose.": {
       "localizations": {
         "en": {
@@ -17293,6 +16829,822 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tilvero просит разрешить узкие команды pmset без пароля для выбранных функций."
+          }
+        }
+      }
+    },
+    "firstRun.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Welcome to Tilvero"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добро пожаловать в Tilvero"
+          }
+        }
+      }
+    },
+    "firstRun.subtitle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Battery, charging and sleep in your menu bar"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Батарея, зарядка и сон Mac — в строке меню"
+          }
+        }
+      }
+    },
+    "firstRun.launchAtLogin.detail": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Always ready in the menu bar"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero всегда под рукой в строке меню"
+          }
+        }
+      }
+    },
+    "firstRun.keepHistory.detail": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charge charts, kept only on this Mac"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Графики заряда, только на этом Mac"
+          }
+        }
+      }
+    },
+    "firstRun.chargeLimit.detail": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saves the battery. Set it in the Charge tab"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бережёт батарею. Настроите во вкладке «Заряд»"
+          }
+        }
+      }
+    },
+    "firstRun.lidClosed.detail": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep Awake also works with the lid closed"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "«Не засыпать» работает и при закрытой крышке"
+          }
+        }
+      }
+    },
+    "firstRun.chargeByTime.detail": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wakes the Mac to be charged on time"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac проснётся и зарядится к нужному часу"
+          }
+        }
+      }
+    },
+    "firstRun.badge.password": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "password"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "пароль"
+          }
+        }
+      }
+    },
+    "firstRun.badge.allowed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "allowed"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "разрешено"
+          }
+        }
+      }
+    },
+    "firstRun.passwordNote": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Asks for your Mac password once"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Попросим пароль от Mac — один раз"
+          }
+        }
+      }
+    },
+    "firstRun.readyNote": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No password needed"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пароль не нужен"
+          }
+        }
+      }
+    },
+    "firstRun.start": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Начать"
+          }
+        }
+      }
+    },
+    "firstRun.allowAndStart": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow and start"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешить и начать"
+          }
+        }
+      }
+    },
+    "firstRun.tryAgain": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try again"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Попробовать снова"
+          }
+        }
+      }
+    },
+    "firstRun.withoutPassword": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Without password"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Без пароля"
+          }
+        }
+      }
+    },
+    "firstRun.useTerminal": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use Terminal instead"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Через Терминал"
+          }
+        }
+      }
+    },
+    "firstRun.enabling": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turning on…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Включаю…"
+          }
+        }
+      }
+    },
+    "firstRun.waiting.system": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirm in the macOS window"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подтвердите в окне macOS"
+          }
+        }
+      }
+    },
+    "firstRun.waiting.terminal": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type your password in Terminal"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Введите пароль в Терминале"
+          }
+        }
+      }
+    },
+    "firstRun.showCommand": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What runs"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Что выполнится"
+          }
+        }
+      }
+    },
+    "firstRun.hideCommand": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hide"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Скрыть"
+          }
+        }
+      }
+    },
+    "firstRun.copy": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Скопировать"
+          }
+        }
+      }
+    },
+    "firstRun.declined": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No password entered"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пароль не введён"
+          }
+        }
+      }
+    },
+    "firstRun.failed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That did not work"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не получилось"
+          }
+        }
+      }
+    },
+    "firstRun.failed.password": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The password did not work"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пароль не подошёл"
+          }
+        }
+      }
+    },
+    "firstRun.timedOut": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminal did not answer"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Терминал не ответил"
+          }
+        }
+      }
+    },
+    "firstRun.attention.loginNeedsApproval": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow opening at login"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешите запуск при входе"
+          }
+        }
+      }
+    },
+    "firstRun.attention.loginFailed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open at login did not turn on"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запуск при входе не включился"
+          }
+        }
+      }
+    },
+    "firstRun.attention.lidRefused": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“With lid closed” did not turn on"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "«С закрытой крышкой» не включилось"
+          }
+        }
+      }
+    },
+    "firstRun.openSettings": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Settings"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть настройки"
+          }
+        }
+      }
+    },
+    "firstRun.iconHidden.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No room for the icon"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Значку не хватило места"
+          }
+        }
+      }
+    },
+    "firstRun.iconHidden.text": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hold ⌘ and drag other icons out of the menu bar."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удерживайте ⌘ и перетащите лишние значки из строки меню."
+          }
+        }
+      }
+    },
+    "firstRun.openApp": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Tilvero"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть Tilvero"
+          }
+        }
+      }
+    },
+    "firstRun.coach": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charge limit is here"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Лимит заряда — здесь"
+          }
+        }
+      }
+    },
+    "firstRun.script.header": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero: allow sleep settings without a password"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero: разрешить настройки сна без пароля"
+          }
+        }
+      }
+    },
+    "firstRun.script.removeHeader": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero: remove the passwordless permissions"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero: убрать разрешения без пароля"
+          }
+        }
+      }
+    },
+    "firstRun.script.password": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type your Mac password and press Return (it stays invisible)."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Введите пароль от Mac и нажмите Return (символы не видны)."
+          }
+        }
+      }
+    },
+    "firstRun.script.done": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done. Go back to Tilvero; you can close this window."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Готово. Вернитесь в Tilvero, это окно можно закрыть."
+          }
+        }
+      }
+    },
+    "firstRun.script.failed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That did not work. Go back to Tilvero and try again."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не получилось. Вернитесь в Tilvero и попробуйте снова."
+          }
+        }
+      }
+    },
+    "setup.permissions.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Features that need the password"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Функции с паролем"
+          }
+        }
+      }
+    },
+    "setup.permissions.allow": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешить…"
+          }
+        }
+      }
+    },
+    "setup.permissions.allowed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allowed"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешено"
+          }
+        }
+      }
+    },
+    "setup.permissions.notAllowed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not allowed"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не разрешено"
+          }
+        }
+      }
+    },
+    "setup.permissions.granted": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allowed"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешено"
+          }
+        }
+      }
+    },
+    "setup.permissions.removed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permissions removed"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешения убраны"
+          }
+        }
+      }
+    },
+    "setup.permissions.removeAll": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove all Tilvero permissions"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Убрать все разрешения Tilvero"
+          }
+        }
+      }
+    },
+    "setup.permissions.removalCommand": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Removal command for Terminal"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Команда удаления для Терминала"
+          }
+        }
+      }
+    },
+    "setup.permissions.removeInTerminal": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove in Terminal"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Убрать через Терминал"
+          }
+        }
+      }
+    },
+    "setup.permissions.blocked.lid": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "First end Keep Awake with the lid closed"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сначала завершите «Не засыпать» с закрытой крышкой"
+          }
+        }
+      }
+    },
+    "setup.permissions.blocked.wake": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "First cancel Charge by time"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сначала отмените «Зарядить к времени»"
+          }
+        }
+      }
+    },
+    "Tilvero asks to remove its passwordless pmset rules.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero asks to remove its passwordless pmset rules."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero просит убрать свои разрешения pmset без пароля."
           }
         }
       }

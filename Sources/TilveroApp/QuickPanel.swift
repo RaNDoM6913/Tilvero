@@ -68,7 +68,6 @@ struct QuickPanel: View {
 
     private var content: some View {
         VStack(alignment: .leading, spacing: studioPresentation.spacing(14)) {
-            if let firstRun = model.firstRun { FirstRunPanelLayer(session: firstRun, section: $section) }
             HStack {
                 StudioText(AppIdentity.displayName, id: "quick.brand").font(.headline)
                 Spacer()
@@ -111,11 +110,11 @@ struct QuickPanel: View {
             }.buttonStyle(.borderless).studioElement("quick.openDetails", label: "Open details")
 
         }.padding(QuickPanelMetrics.padding).frame(width: QuickPanelMetrics.width, alignment: .leading)
-        .coordinateSpace(name: FirstRunGuideLayer.space)
+        .coordinateSpace(name: FirstRunCoachLayer.space)
         .onPreferenceChange(FirstRunFrameKey.self) { firstRunFrames = $0 }
         .overlay {
             if let firstRun = model.firstRun {
-                FirstRunGuideLayer(session: firstRun, frames: FirstRunGuideLayer.withTabs(firstRunFrames, sections: QuickPanelSection.visible))
+                FirstRunCoachLayer(session: firstRun, tab: FirstRunCoachLayer.chargeTab(in: firstRunFrames, sections: QuickPanelSection.visible))
             }
         }
         .modifier(FirstRunHoverDismissal(session: model.firstRun))

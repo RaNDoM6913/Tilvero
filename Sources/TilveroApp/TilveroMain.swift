@@ -235,6 +235,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     private var firstRun: FirstRunCoordinator?
     private var firstRunIconFill: Double?
     private var previewControls: FirstRunPreview.Controls?
+    private var previewInstaller: PrivilegedRuleInstaller?
     private var previewPanel: NSWindow?
     #if TILVERO_LAB_STUDIO
     private let studio: LabStudioState
@@ -322,6 +323,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         DistributedNotificationCenter.default().addObserver(self, selector: #selector(reopenDetails), name: (try? ReleaseIdentity.current().reopenNotificationName) ?? Notification.Name("local.tilvero.showDetails"), object: nil)
         buildMenu()
         updateStatusItem()
+        configurePermissions()
         model.start()
         runMotionProbeIfRequested()
         #if TILVERO_LAB_STUDIO
@@ -342,18 +344,19 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         let preview = firstRunMode.isPreview
         let session = FirstRunSession(isPreview: preview)
         let ports: FirstRunPorts
-        if case .preview(let environment) = firstRunMode {
-            let controls = FirstRunPreview.Controls()
-            previewControls = controls
-            ports = FirstRunPreview.ports(controls: controls, defaults: environment.defaults)
+        if case .preview(let environment) = firstRunMode, let controls = previewControls, let installer = previewInstaller {
+            ports = FirstRunPreview.ports(controls: controls, defaults: environment.defaults, installer: installer)
         } else {
-            let installer = PrivilegedRuleInstaller(executor: OsascriptAdministratorExecutor(), defaults: .standard)
+            let installer = PrivilegedRuleInstaller.native(defaults: .standard)
+            let login = FirstRunLogin.Native()
             ports = FirstRunPorts(
                 markIntroduced: { FirstRunDecision.markIntroduced(.standard) },
                 setHistory: { [weak self] keep in if let model = self?.model, model.historyEnabled != keep { model.historyEnabled = keep } },
-                registerLogin: { FirstRunLogin.registerNative() },
+                setLogin: { login.set($0) },
                 openLoginItemsSettings: { SMAppService.openSystemSettingsLoginItems() },
-                install: { await installer.install($0) },
+                requestPermission: { features, route in await installer.install(features, route: route) },
+                commandText: { installer.commandText(.install($0)) },
+                nudge: { installer.nudge() },
                 turnOnLid: { [weak self] in
                     guard let lid = self?.model.lidSleep else { return false }
                     await lid.setPreferred(true, for: .keepAwake)
@@ -363,9 +366,24 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         let coordinator = FirstRunCoordinator(session: session, ports: ports, host: self)
         firstRun = coordinator
         model.firstRun = session
-        updateStatusItem()
         if preview { showPreviewPanel(coordinator) }
         coordinator.start()
+    }
+
+    /// The Setup page's administrator-permission section (real installer; the preview's fake one; none for demo,
+    /// monitoring-only and Studio sessions).
+    private func configurePermissions() {
+        #if !TILVERO_LAB_STUDIO
+        if case .preview(let environment) = firstRunMode {
+            let controls = FirstRunPreview.Controls()
+            previewControls = controls
+            let installer = FirstRunPreview.installer(controls: controls, defaults: environment.defaults)
+            previewInstaller = installer
+            model.privilegedPermissions = PrivilegedPermissionsController(installer: installer, model: model)
+        } else if !model.isDemo && !model.launchPolicy.monitoringOnly {
+            model.privilegedPermissions = PrivilegedPermissionsController(installer: .native(defaults: .standard), model: model)
+        }
+        #endif
     }
 
     private func showPreviewPanel(_ coordinator: FirstRunCoordinator) {
@@ -374,7 +392,6 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
             restart: { [weak self, weak coordinator] in
                 guard let self, let coordinator else { return }
                 self.model.firstRun = coordinator.session
-                coordinator.startsHidden = controls.forceHiddenIcon
                 coordinator.restart()
             },
             jump: { [weak self, weak coordinator] step in
@@ -386,7 +403,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         window.title = "Tilvero · First-run preview"
         window.styleMask = [.titled, .closable, .miniaturizable]
         window.isReleasedWhenClosed = false
-        window.setFrameOrigin(NSPoint(x: 24, y: (NSScreen.main?.visibleFrame.maxY ?? 900) - 560))
+        window.setFrameOrigin(NSPoint(x: 24, y: (NSScreen.main?.visibleFrame.maxY ?? 900) - 640))
         window.orderFront(nil)
         previewPanel = window
     }
@@ -562,7 +579,6 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
 
     @objc func togglePopover() {
         guard let button = statusItem?.button else { return }
-        firstRun?.statusItemClicked()
         if popover.isShown || activationGate.isWaiting {
             closePopover(reason: "status item toggled")
             return
@@ -647,9 +663,6 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
             updateStatusItem()
         }
         guard popover.isShown else { return }
-        // While the first-run card is up the system password prompt takes focus: deactivation and outside clicks
-        // must not dismiss the card (the popover behaves as `.applicationDefined` until the flow ends).
-        if firstRun?.holdsPopoverOpen == true, FirstRunPopoverPolicy.ignoredWhileHeld.contains(reason) { return }
         popoverLog.info("Closing quick panel: \(reason, privacy: .public)")
         popover.performClose(nil)
     }
@@ -792,17 +805,23 @@ extension TilveroAppDelegate: FirstRunHost {
         guard let button = statusItem?.button, let window = button.window else { return nil }
         return window.convertToScreen(button.convert(button.bounds, to: nil))
     }
-    var firstRunPopoverShown: Bool { popover.isShown }
-    func firstRunSetPopoverBehavior(_ behavior: NSPopover.Behavior) { popover.behavior = behavior }
-    func firstRunShowPopover() { if !popover.isShown && !activationGate.isWaiting { togglePopover() } }
-    func firstRunClosePopover() { closePopover(reason: "first run") }
+    var firstRunStatusItemVisible: Bool {
+        if previewControls?.forceHiddenIcon == true { return false }
+        let screens = NSScreen.screens.map {
+            StatusItemVisibility.Screen(frame: $0.frame, auxiliaryLeft: $0.auxiliaryTopLeftArea, auxiliaryRight: $0.auxiliaryTopRightArea)
+        }
+        let window = statusItem?.button?.window
+        return StatusItemVisibility.isVisible(button: firstRunStatusButtonFrame, screens: screens,
+                                              windowVisible: window?.isVisible == true)
+    }
+    func firstRunOpenPopover() { if !popover.isShown && !activationGate.isWaiting { togglePopover() } }
+    func firstRunOpenDetails() { showDetails() }
     func firstRunDrawIcon(fill: Double?) {
         firstRunIconFill = fill
         updateStatusItem()
     }
     func firstRunFinished() {
         model.firstRun = nil
-        popover.behavior = .transient
         // The preview keeps its coordinator so the debug panel can play it again.
         if !firstRunMode.isPreview { firstRun = nil }
     }

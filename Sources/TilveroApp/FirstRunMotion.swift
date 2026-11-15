@@ -4,158 +4,82 @@
 import CoreGraphics
 import Foundation
 
-/// Every first-run animation is a pure function of the scene time `t` (seconds), so a frame can be rendered,
-/// tested or jumped to, and an interruption simply picks another `t`. Reduce Motion returns the explanatory frame.
+/// Every first-run animation is a pure function of time `t` (seconds), so a frame can be rendered, tested or skipped.
+/// The one motion that matters is real, not drawn: the setup window flies into the real menu bar icon, the icon fills
+/// up and the real quick menu drops from it. That shows where Tilvero lives in about one second. Reduce Motion: the
+/// window only fades, the icon is drawn full at once, the menu opens without animation.
 enum FirstRunMotion {
-    // MARK: Easing
-
     static func clamp01(_ x: Double) -> Double { min(1, max(0, x)) }
     /// Progress of `t` through the interval `a...b`.
     static func segment(_ t: Double, _ a: Double, _ b: Double) -> Double { clamp01((t - a) / (b - a)) }
-    static func easeInOutCubic(_ x: Double) -> Double { let t = clamp01(x); return t < 0.5 ? 4 * t * t * t : 1 - pow(-2 * t + 2, 3) / 2 }
     static func easeOutCubic(_ x: Double) -> Double { 1 - pow(1 - clamp01(x), 3) }
-    /// Damped spring from 0 to 1 (no overshoot past ~2 % at the default damping).
-    static func spring(_ t: Double, response: Double = 0.4, damping z: Double = 0.85) -> Double {
-        if t <= 0 { return 0 }
-        let w = 2 * Double.pi / response, wd = w * (1 - z * z).squareRoot()
-        return 1 - exp(-z * w * t) * (cos(wd * t) + (z * w / wd) * sin(wd * t))
-    }
-    static func bezier(_ a: CGPoint, _ c: CGPoint, _ b: CGPoint, _ t: Double) -> CGPoint {
-        let u = 1 - t
-        return CGPoint(x: u * u * a.x + 2 * u * t * c.x + t * t * b.x, y: u * u * a.y + 2 * u * t * c.y + t * t * b.y)
-    }
 
-    // MARK: Looping scenes
+    /// The green check after a granted permission draws in, then the window leaves (`successBeat`).
+    static func check(_ t: Double, reduceMotion: Bool) -> Double { reduceMotion ? 1 : easeOutCubic(segment(t, 0, 0.3)) }
+    static func successBeat(reduceMotion: Bool) -> Double { reduceMotion ? 0.25 : 0.6 }
 
-    /// A scene of `period` seconds plays at most `loops` times, then rests on `freezeAt` (the explanatory frame).
-    struct Loop: Equatable {
-        var period: Double, loops: Int, freezeAt: Double
-        var totalDuration: Double { period * Double(loops) }
-        func time(_ t: Double, reduceMotion: Bool, jumpedToEnd: Bool) -> Double {
-            reduceMotion || jumpedToEnd || t >= totalDuration ? freezeAt : max(0, t).truncatingRemainder(dividingBy: period)
-        }
-        /// After the last loop nothing moves, so the timeline can stop.
-        func isFrozen(_ t: Double, reduceMotion: Bool, jumpedToEnd: Bool) -> Bool { reduceMotion || jumpedToEnd || t >= totalDuration }
-    }
-    static let whereLoop = Loop(period: 3.2, loops: 3, freezeAt: 2.2)
-    static let hiddenLoop = Loop(period: 2.8, loops: 3, freezeAt: 2.0)
-
-    /// Drawn scene "where the icon is", in a 480 × 230 canvas.
-    struct WhereFrame: Equatable {
-        var barIn: Double, cursor: CGPoint, cursorOpacity: Double, press: Double, ripple: Double, highlight: Double, popover: Double, fade: Double
-    }
-    static let whereCanvas = CGSize(width: 480, height: 230)
-    static let whereIconCenter = CGPoint(x: 344, y: 15)
-
-    static func whereScene(_ sceneT: Double, reduceMotion: Bool, jumpedToEnd: Bool = false) -> WhereFrame {
-        let t = whereLoop.time(sceneT, reduceMotion: reduceMotion, jumpedToEnd: jumpedToEnd)
-        let fade = 1 - segment(t, 2.8, 3.2)
-        let icon = whereIconCenter
-        let start = CGPoint(x: 220, y: 165), end = CGPoint(x: icon.x + 3, y: icon.y + 5)
-        let control = CGPoint(x: (start.x + end.x) / 2 - 36, y: (start.y + end.y) / 2 - 26)
-        if reduceMotion {
-            // Static cursor on the icon with a single ripple; the drawn popover is open.
-            return WhereFrame(barIn: 1, cursor: end, cursorOpacity: 1, press: 0, ripple: 0.45, highlight: 1, popover: 1, fade: 1)
-        }
-        return WhereFrame(barIn: easeOutCubic(segment(t, 0, 0.4)),
-                          cursor: bezier(start, control, end, easeInOutCubic(segment(t, 0.4, 1.1))),
-                          cursorOpacity: segment(t, 0.35, 0.5) * fade,
-                          press: segment(t, 1.1, 1.18) - segment(t, 1.18, 1.27),
-                          ripple: segment(t, 1.1, 1.55),
-                          highlight: segment(t, 1.1, 1.25) * fade,
-                          popover: clamp01(spring(t - 1.3, response: 0.35, damping: 0.85)) * fade,
-                          fade: fade)
-    }
-
-    /// Drawn scene "icon hidden behind the notch": hold ⌘ and drag neighbouring icons away.
-    struct HiddenFrame: Equatable {
-        var notch: Double, cursor: CGPoint, cursorOpacity: Double, drag: Double, iconX: Double, keyDown: Double
-    }
-    static func hiddenScene(_ sceneT: Double, reduceMotion: Bool, jumpedToEnd: Bool = false) -> HiddenFrame {
-        let t = hiddenLoop.time(sceneT, reduceMotion: reduceMotion, jumpedToEnd: jumpedToEnd)
-        let neighbour = CGPoint(x: 392, y: 15), destination = CGPoint(x: 150, y: 70), start = CGPoint(x: 90, y: 160)
-        if reduceMotion {
-            return HiddenFrame(notch: 1, cursor: destination, cursorOpacity: 1, drag: 1, iconX: 330, keyDown: 1)
-        }
-        let fade = 1 - segment(t, 2.4, 2.8)
-        let drag = easeInOutCubic(segment(t, 0.9, 1.6))
-        let toNeighbour = easeInOutCubic(segment(t, 0.55, 0.95))
-        let tip = CGPoint(x: neighbour.x + 3, y: neighbour.y + 5)
-        let cursor = t < 0.95 ? bezier(start, CGPoint(x: 220, y: 90), tip, toNeighbour)
-            : CGPoint(x: tip.x + (destination.x - neighbour.x) * drag, y: tip.y + (destination.y - neighbour.y) * drag)
-        return HiddenFrame(notch: easeOutCubic(segment(t, 0, 0.3)), cursor: cursor, cursorOpacity: segment(t, 0.5, 0.6) * fade,
-                           drag: drag, iconX: 250 + 80 * easeInOutCubic(segment(t, 1.2, 1.8)),
-                           keyDown: segment(t, 0.75, 0.85) * (1 - segment(t, 1.9, 2.0)))
-    }
-
-    // MARK: Icon fill and the window hand-off
-
-    static let iconFillDuration = 0.7
-    /// Fraction of the real level drawn at `t` of the first-launch fill (Reduce Motion: filled at once).
-    static func iconFill(_ t: Double, reduceMotion: Bool) -> Double { reduceMotion ? 1 : easeOutCubic(t / iconFillDuration) }
-    static func iconFillLevel(_ t: Double, level: Int, reduceMotion: Bool) -> Int {
-        Int((Double(level) * iconFill(t, reduceMotion: reduceMotion)).rounded())
-    }
     /// The window flies into the icon in 0.35 s; with Reduce Motion it only fades (≤ 0.2 s).
     static func handOffDuration(reduceMotion: Bool) -> Double { reduceMotion ? 0.2 : 0.35 }
     static func crossfadeDuration(reduceMotion: Bool) -> Double { reduceMotion ? 0.15 : 0.24 }
 
-    // MARK: Card pieces
-
-    static let confirmPreviewDuration = 1.2
-    struct TouchFrame: Equatable { var dialog: Double, key: Double, finger: Double, glow: Double, rings: Double, collapse: Double }
-    static func touchPreview(_ t: Double, reduceMotion: Bool) -> TouchFrame {
-        if reduceMotion { return TouchFrame(dialog: 1, key: 1, finger: 0, glow: 1, rings: 1, collapse: 0) }
-        return TouchFrame(dialog: clamp01(spring(t, response: 0.3, damping: 0.85)), key: easeOutCubic(segment(t, 0.3, 0.55)),
-                          finger: easeOutCubic(segment(t, 0.45, 0.8)), glow: segment(t, 0.7, 0.95),
-                          rings: easeOutCubic(segment(t, 0.55, 1.0)), collapse: easeInOutCubic(segment(t, 0.95, 1.2)))
+    /// The menu bar icon fills from 0 to the real level as the window lands (Reduce Motion: full at once).
+    static let iconFillDuration = 0.5
+    static func iconFill(_ t: Double, reduceMotion: Bool) -> Double { reduceMotion ? 1 : easeOutCubic(t / iconFillDuration) }
+    static func iconFillLevel(_ t: Double, level: Int, reduceMotion: Bool) -> Int {
+        Int((Double(level) * iconFill(t, reduceMotion: reduceMotion)).rounded())
     }
 
-    /// Success checks draw in one after another.
-    static func check(_ index: Int, _ t: Double, reduceMotion: Bool) -> Double {
-        reduceMotion ? 1 : segment(t, 0.25 + 0.07 * Double(index), 0.47 + 0.07 * Double(index))
+    /// The "charge limit is here" coach on the real Charge tab: fades in, two soft pulses, rests, fades out.
+    static let coachDuration = 4.0
+    struct CoachFrame: Equatable { var opacity: Double, pulse: Double }
+    static func coach(_ t: Double, reduceMotion: Bool) -> CoachFrame {
+        let opacity = segment(t, 0, 0.25) * (1 - segment(t, coachDuration - 0.4, coachDuration))
+        guard !reduceMotion else { return CoachFrame(opacity: opacity, pulse: 0) }
+        let pulse = t < 2 ? (t.truncatingRemainder(dividingBy: 1)) : 0
+        return CoachFrame(opacity: opacity, pulse: pulse)
     }
-    /// When the last of `count` checks is fully drawn: the done card's timeline stops there.
-    static func checksEnd(count: Int) -> Double { 0.47 + 0.07 * Double(max(count, 1) - 1) }
-    static func checksSettled(count: Int, _ t: Double, reduceMotion: Bool) -> Bool { reduceMotion || t >= checksEnd(count: count) }
+}
 
-    /// The header breathes while the macOS prompt is up, for a few cycles only, then rests at full opacity.
-    static let breathingDuration = 9.6
-    static func breathing(_ t: Double, reduceMotion: Bool) -> Double {
-        reduceMotion || t >= breathingDuration ? 1 : 0.8 + 0.2 * cos(t * 2 * .pi / 1.6)
+/// Where the first-run window sits: centered on the screen of the menu bar icon, like any setup window.
+enum FirstRunWindowGeometry {
+    static func centered(size: NSSize, in visible: NSRect) -> NSRect {
+        clamp(NSRect(x: (visible.midX - size.width / 2).rounded(), y: (visible.midY - size.height / 2).rounded(),
+                     width: size.width, height: size.height), within: visible)
     }
-    static func breathingSettled(_ t: Double, reduceMotion: Bool) -> Bool { reduceMotion || t >= breathingDuration }
 
-    struct CursorFrame: Equatable { var point: CGPoint, opacity: Double, press: Double, ripple: Double }
-    /// Guide cursor from `start` to `end` with one click, played once. Reduce Motion: static at `end`, one ripple.
-    static func guide(_ t: Double, from start: CGPoint, to end: CGPoint, delay: Double = 0, reduceMotion: Bool) -> CursorFrame {
-        let t = t - delay
-        let control = CGPoint(x: (start.x + end.x) / 2 - 30, y: (start.y + end.y) / 2 + 10)
-        if reduceMotion {
-            return CursorFrame(point: end, opacity: segment(t, 0, 0.15) * (1 - segment(t, 1.9, 2.1)), press: 0, ripple: segment(t, 0.2, 0.65))
-        }
-        return CursorFrame(point: bezier(start, control, end, easeInOutCubic(segment(t, 0.3, 0.9))),
-                           opacity: segment(t, 0.2, 0.35) * (1 - segment(t, 1.9, 2.3)),
-                           press: segment(t, 0.9, 0.97) - segment(t, 0.97, 1.05), ripple: segment(t, 0.9, 1.35))
+    /// A new content height keeps the window's center (wherever the user moved it) and stays on screen.
+    static func resized(_ frame: NSRect, to size: NSSize, within visible: NSRect) -> NSRect {
+        clamp(NSRect(x: (frame.midX - size.width / 2).rounded(), y: (frame.midY - size.height / 2).rounded(),
+                     width: size.width, height: size.height), within: visible)
     }
-    static let guideDuration = 2.3
 
-    // MARK: Beacon and bubble
-
-    struct BeaconFrame: Equatable { var bob: Double, ring: Double }
-    static let beaconMotionDuration = 3.6
-    static func beacon(_ t: Double, reduceMotion: Bool) -> BeaconFrame {
-        guard !reduceMotion, t < beaconMotionDuration else { return BeaconFrame(bob: 0, ring: 0) }
-        return BeaconFrame(bob: sin(t * 2 * .pi / 1.2), ring: t.truncatingRemainder(dividingBy: 1.2) / 1.2)
+    static func clamp(_ frame: NSRect, within visible: NSRect) -> NSRect {
+        var f = frame
+        f.origin.x = min(max(f.minX, visible.minX), max(visible.minX, visible.maxX - f.width))
+        f.origin.y = min(max(f.minY, visible.minY), max(visible.minY, visible.maxY - f.height))
+        return f
     }
-    /// After its few bobs the beacon stands still (its timeline stops; the window may wait for hours).
-    static func beaconSettled(_ t: Double, reduceMotion: Bool) -> Bool { reduceMotion || t >= beaconMotionDuration }
 
-    static let bubbleDuration = 1.8
-    struct BubbleFrame: Equatable { var opacity: Double, rings: [Double] }
-    static func bubble(_ t: Double, reduceMotion: Bool) -> BubbleFrame {
-        let opacity = segment(t, 0, 0.15) * (1 - segment(t, bubbleDuration - 0.25, bubbleDuration))
-        if reduceMotion { return BubbleFrame(opacity: opacity, rings: [0, 0]) }
-        return BubbleFrame(opacity: opacity, rings: (0..<2).map { segment(t, Double($0) * 0.5, Double($0) * 0.5 + 0.9) })
+    /// The small target the window shrinks into, centered on the icon.
+    static func landing(on button: NSRect) -> NSRect {
+        NSRect(x: button.midX - 20, y: button.midY - 12, width: 40, height: 24)
+    }
+}
+
+/// Whether the menu bar icon can be seen. On a Mac with a notch, items that do not fit are placed behind it, outside
+/// both auxiliary areas beside the notch.
+enum StatusItemVisibility {
+    struct Screen: Equatable {
+        var frame: NSRect
+        var auxiliaryLeft: NSRect?
+        var auxiliaryRight: NSRect?
+    }
+
+    static func isVisible(button: NSRect?, screens: [Screen], windowVisible: Bool = true) -> Bool {
+        guard windowVisible, let button, button.width > 0, button.height > 0 else { return false }
+        let center = NSPoint(x: button.midX, y: button.midY)
+        guard let screen = screens.first(where: { $0.frame.contains(center) }) else { return false }
+        guard let left = screen.auxiliaryLeft, let right = screen.auxiliaryRight else { return true }
+        return left.insetBy(dx: -1, dy: -1).contains(button) || right.insetBy(dx: -1, dy: -1).contains(button)
     }
 }

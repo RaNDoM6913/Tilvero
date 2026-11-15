@@ -53,8 +53,9 @@ struct AppLaunchPolicy: Equatable {
 /// icon's menu, reopening the app) or the explicit `--show-details` flag. The first-run setup is a Settings page,
 /// not a launch-time window.
 ///
-/// Exactly one exception exists: the first-run window, at the very first launch of a fresh install only
-/// (`FirstRunDecision.show`). It is ordered front without activating the app and never floats.
+/// Exactly one exception exists: the first-run setup window, at the very first launch of a fresh install only
+/// (`FirstRunDecision.show`). The user has just opened the app deliberately, so that one window opens centered and in
+/// front like any setup window (never floating). Every other launch stays quiet.
 enum LaunchPresentation {
     enum Window: Equatable { case none, details, firstRun }
 

@@ -104,180 +104,205 @@ final class FirstRunDecisionTests: XCTestCase {
     }
 }
 
+
 final class FirstRunFlowTests: XCTestCase {
-    private func flow(at step: FirstRunStep, locked: Bool = true) -> FirstRunFlow {
-        var flow = FirstRunFlow()
-        func go(_ e: [FirstRunEvent]) { e.forEach { flow.handle($0) } }
-        switch step {
-        case .iconFill: break
-        case .whereIcon: go([.iconFilled])
-        case .hiddenIcon: go([.iconFilled, .showHidden])
-        case .card: go([.iconFilled, .statusItemClicked])
-        case .confirmPreview, .systemPrompt, .declined:
-            go([.iconFilled, .statusItemClicked]); flow.choices.lidClosed = locked; flow.choices.chargeByTime = locked
-            go([.done]); if step != .confirmPreview { go([.previewFinished]) }
-            if step == .declined { go([.promptFinished(.cancelled)]) }
-        case .done: go([.iconFilled, .statusItemClicked, .done])
-        case .bubble: go([.iconFilled, .skip])
-        case .finished: go([.iconFilled, .skip, .bubbleFinished])
-        }
-        XCTAssertEqual(flow.step, step)
-        return flow
+    private func locked() -> FirstRunFlow {
+        var flow = FirstRunFlow(); flow.choices.lidClosed = true; flow.choices.chargeByTime = true; return flow
     }
 
-    private let allEvents: [FirstRunEvent] = [.iconFilled, .skip, .showHidden, .backFromHidden, .statusItemClicked, .openHere, .done,
-        .previewFinished, .cancelConfirmation, .promptFinished(.success([.lidClosed, .chargeByTime])), .promptFinished(.cancelled),
-        .promptFinished(.failed), .loginFinished(.enabled), .loginFinished(.requiresApproval), .loginFinished(.failed),
-        .enable(.lidClosed), .enable(.chargeByTime), .dismissCard, .popoverClosed, .bubbleFinished]
+    func testRecommendedChoicesNeedNoPasswordAndOneClick() {
+        var flow = FirstRunFlow()
+        XCTAssertEqual(flow.choices, FirstRunChoices(launchAtLogin: true, keepHistory: true, chargeLimit: true, lidClosed: false, chargeByTime: false))
+        XCTAssertEqual(flow.buttons, FirstRunButtons(primary: .start, secondary: .skip, terminalLink: false))
+        XCTAssertEqual(flow.handle(.start), [.applyEveryday(launchAtLogin: true, keepHistory: true)])
+        XCTAssertEqual(flow.step, .applying)
+        XCTAssertEqual(flow.handle(.everydayApplied(.enabled)), [.reveal(afterSuccess: false, coachChargeLimit: true)])
+        XCTAssertEqual(flow.step, .done)
+        XCTAssertEqual(flow.handle(.revealed), [.finish])
+        XCTAssertEqual(flow.step, .finished)
+    }
 
-    /// The whole table: every event from every state lands in a defined step; the listed transitions are exact.
+    func testLockedFeaturesShareOneDialogThenTheLidTurnsOn() {
+        var flow = locked()
+        XCTAssertEqual(flow.buttons, FirstRunButtons(primary: .allowAndStart, secondary: .skip, terminalLink: true))
+        flow.handle(.start)
+        XCTAssertEqual(flow.handle(.everydayApplied(.enabled)), [.requestPermission([.lidClosed, .chargeByTime], .systemPrompt)])
+        XCTAssertEqual(flow.step, .waitingSystem)
+        XCTAssertFalse(flow.choicesEditable)
+        XCTAssertEqual(flow.buttons, FirstRunButtons(secondary: .cancel))
+        XCTAssertEqual(flow.handle(.permissionFinished(.succeeded([.lidClosed, .chargeByTime]))), [.turnOnLid])
+        XCTAssertEqual(flow.step, .enablingLid)
+        XCTAssertEqual(flow.handle(.lidTurnedOn(true)), [.reveal(afterSuccess: true, coachChargeLimit: true)])
+        XCTAssertEqual(flow.granted, [.lidClosed, .chargeByTime])
+    }
+
+    func testChargeByTimeAloneNeedsNoLidStep() {
+        var flow = FirstRunFlow(); flow.choices.chargeByTime = true; flow.choices.chargeLimit = false
+        flow.handle(.start)
+        XCTAssertEqual(flow.handle(.everydayApplied(nil)), [.requestPermission([.chargeByTime], .systemPrompt)])
+        XCTAssertEqual(flow.handle(.permissionFinished(.succeeded([.chargeByTime]))), [.reveal(afterSuccess: true, coachChargeLimit: false)])
+    }
+
+    func testTheTerminalFallbackIsOneClick() {
+        var plain = FirstRunFlow()
+        XCTAssertEqual(plain.handle(.useTerminal), [], "nothing to allow: no Terminal")
+        var flow = locked()
+        XCTAssertEqual(flow.handle(.useTerminal), [.applyEveryday(launchAtLogin: true, keepHistory: true)])
+        XCTAssertEqual(flow.handle(.everydayApplied(.enabled)), [.requestPermission([.lidClosed, .chargeByTime], .terminal)])
+        XCTAssertEqual(flow.step, .waitingTerminal)
+        XCTAssertEqual(flow.handle(.permissionFinished(.succeeded([.lidClosed, .chargeByTime]))), [.turnOnLid])
+    }
+
+    func testDismissedWrongPasswordErrorAndTimeoutAreCalmWithOneTryAgain() {
+        let cases: [(PrivilegedOutcome, FirstRunStep)] = [(.cancelled, .declined), (.failed(7), .failed), (.failed(1), .failed), (.timedOut, .timedOut)]
+        for (outcome, step) in cases {
+            var flow = locked()
+            flow.handle(.start); flow.handle(.everydayApplied(.enabled))
+            XCTAssertEqual(flow.handle(.permissionFinished(outcome)), [])
+            XCTAssertEqual(flow.step, step, "\(outcome)")
+            XCTAssertTrue(flow.choicesEditable)
+            XCTAssertEqual(flow.buttons, FirstRunButtons(primary: .tryAgain, secondary: .withoutPassword, terminalLink: true))
+            XCTAssertTrue(flow.granted.isEmpty)
+            // Try again asks once more for what is still missing.
+            flow.handle(.start)
+            XCTAssertEqual(flow.handle(.everydayApplied(.enabled)), [.requestPermission([.lidClosed, .chargeByTime], .systemPrompt)])
+        }
+        var failed = locked(); failed.handle(.start); failed.handle(.everydayApplied(nil)); failed.handle(.permissionFinished(.failed(7)))
+        XCTAssertEqual(failed.failureCode, 7)
+    }
+
+    func testUntickingTheLockedFeaturesAfterACancelLeavesAPlainStart() {
+        var flow = locked(); flow.handle(.start); flow.handle(.everydayApplied(nil)); flow.handle(.permissionFinished(.cancelled))
+        flow.choices.lidClosed = false; flow.choices.chargeByTime = false
+        XCTAssertEqual(flow.buttons, FirstRunButtons(primary: .start, secondary: .skip))
+        flow.handle(.start)
+        XCTAssertEqual(flow.handle(.everydayApplied(nil)), [.reveal(afterSuccess: false, coachChargeLimit: true)])
+    }
+
+    func testCancelWhileWaitingStopsTheRequest() {
+        for route in [FirstRunEvent.start, .useTerminal] {
+            var flow = locked(); flow.handle(route); flow.handle(.everydayApplied(nil))
+            XCTAssertEqual(flow.handle(.cancel), [.cancelPermissionRequest])
+            XCTAssertEqual(flow.step, .declined)
+            XCTAssertEqual(flow.handle(.permissionFinished(.succeeded([.lidClosed]))), [], "a late answer after a cancel is ignored")
+        }
+    }
+
+    func testWithoutPasswordOpensTheAppWithTheLockedFeaturesOff() {
+        var flow = locked(); flow.handle(.start); flow.handle(.everydayApplied(nil)); flow.handle(.permissionFinished(.cancelled))
+        XCTAssertEqual(flow.handle(.continueWithout), [.reveal(afterSuccess: false, coachChargeLimit: true)])
+        XCTAssertFalse(flow.choices.lidClosed); XCTAssertFalse(flow.choices.chargeByTime)
+    }
+
+    func testAPartialGrantIsAFailureWithTryAgain() {
+        var flow = locked(); flow.handle(.start); flow.handle(.everydayApplied(nil))
+        XCTAssertEqual(flow.handle(.permissionFinished(.succeeded([.chargeByTime]))), [])
+        XCTAssertEqual(flow.step, .failed)
+        XCTAssertEqual(flow.missingLocked, [.lidClosed])
+    }
+
+    func testSkipChangesNothingAndOpensTheApp() {
+        var flow = FirstRunFlow()
+        XCTAssertEqual(flow.handle(.skip), [.reveal(afterSuccess: false, coachChargeLimit: false)])
+        var waiting = locked(); waiting.handle(.useTerminal); waiting.handle(.everydayApplied(nil))
+        XCTAssertEqual(waiting.handle(.skip), [.cancelPermissionRequest, .reveal(afterSuccess: false, coachChargeLimit: false)])
+    }
+
+    func testLoginApprovalAndARefusedLidNeedOneMoreLook() {
+        var flow = FirstRunFlow(); flow.handle(.start)
+        XCTAssertEqual(flow.handle(.everydayApplied(.requiresApproval)), [])
+        XCTAssertEqual(flow.step, .attention)
+        XCTAssertEqual(flow.attention, [.loginNeedsApproval])
+        XCTAssertEqual(flow.buttons, FirstRunButtons(primary: .start))
+        XCTAssertEqual(flow.handle(.openLoginSettings), [.openLoginItemsSettings])
+        XCTAssertEqual(flow.handle(.start), [.reveal(afterSuccess: false, coachChargeLimit: true)])
+
+        var failed = FirstRunFlow(); failed.handle(.start); failed.handle(.everydayApplied(.failed))
+        XCTAssertEqual(failed.attention, [.loginFailed])
+        var off = FirstRunFlow(); off.choices.launchAtLogin = false; off.handle(.start)
+        XCTAssertEqual(off.handle(.everydayApplied(nil)).count, 1, "login off: nothing to look at")
+
+        var lid = locked(); lid.handle(.start); lid.handle(.everydayApplied(.enabled)); lid.handle(.permissionFinished(.succeeded([.lidClosed, .chargeByTime])))
+        XCTAssertEqual(lid.handle(.lidTurnedOn(false)), [])
+        XCTAssertEqual(lid.attention, [.lidRefused])
+    }
+
+    func testNoRoomForTheIconKeepsTheWindowWithAWayOut() {
+        var flow = FirstRunFlow(); flow.handle(.skip)
+        XCTAssertEqual(flow.handle(.iconHidden), [])
+        XCTAssertEqual(flow.step, .iconHidden)
+        XCTAssertEqual(flow.buttons, FirstRunButtons(primary: .openApp, secondary: .close))
+        var details = flow
+        XCTAssertEqual(details.handle(.openDetails), [.closeWindow, .openDetails, .finish])
+        XCTAssertEqual(flow.handle(.skip), [.closeWindow, .finish])
+    }
+
+    /// The whole table: every event from every state; only the listed pairs change the step.
     func testEveryEventFromEveryState() {
-        let table: [(FirstRunStep, FirstRunEvent, FirstRunStep)] = [
-            (.iconFill, .iconFilled, .whereIcon), (.iconFill, .skip, .finished),
-            (.whereIcon, .skip, .bubble), (.whereIcon, .showHidden, .hiddenIcon), (.whereIcon, .statusItemClicked, .card), (.whereIcon, .openHere, .card),
-            (.hiddenIcon, .skip, .bubble), (.hiddenIcon, .backFromHidden, .whereIcon), (.hiddenIcon, .statusItemClicked, .card), (.hiddenIcon, .openHere, .card),
-            (.card, .done, .done), (.card, .popoverClosed, .bubble),
-            (.confirmPreview, .previewFinished, .systemPrompt), (.confirmPreview, .cancelConfirmation, .declined),
-            (.confirmPreview, .popoverClosed, .bubble), (.systemPrompt, .popoverClosed, .bubble),
-            (.systemPrompt, .cancelConfirmation, .declined), (.systemPrompt, .promptFinished(.success([.lidClosed, .chargeByTime])), .done),
-            (.systemPrompt, .promptFinished(.cancelled), .declined), (.systemPrompt, .promptFinished(.failed), .declined),
-            (.done, .popoverClosed, .bubble),
-            (.declined, .enable(.lidClosed), .confirmPreview), (.declined, .enable(.chargeByTime), .confirmPreview), (.declined, .popoverClosed, .bubble),
-            (.bubble, .bubbleFinished, .finished),
+        let events: [FirstRunEvent] = [.start, .useTerminal, .everydayApplied(.enabled), .everydayApplied(nil), .permissionFinished(.succeeded([.lidClosed, .chargeByTime])),
+            .permissionFinished(.cancelled), .permissionFinished(.failed(1)), .permissionFinished(.timedOut), .lidTurnedOn(true), .lidTurnedOn(false),
+            .cancel, .continueWithout, .skip, .openLoginSettings, .revealed, .iconHidden, .openDetails]
+        let moves: [FirstRunStep: [FirstRunEvent: FirstRunStep]] = [
+            .choosing: [.start: .applying, .skip: .done],   // the defaults need no password: no Terminal
+            .applying: [.everydayApplied(.enabled): .waitingSystem, .everydayApplied(nil): .waitingSystem],
+            .waitingSystem: [.permissionFinished(.succeeded([.lidClosed, .chargeByTime])): .enablingLid, .permissionFinished(.cancelled): .declined,
+                             .permissionFinished(.failed(1)): .failed, .permissionFinished(.timedOut): .timedOut, .cancel: .declined, .skip: .done],
+            .waitingTerminal: [.permissionFinished(.succeeded([.lidClosed, .chargeByTime])): .enablingLid, .permissionFinished(.cancelled): .declined,
+                               .permissionFinished(.failed(1)): .failed, .permissionFinished(.timedOut): .timedOut, .cancel: .declined, .skip: .done],
+            .enablingLid: [.lidTurnedOn(true): .done, .lidTurnedOn(false): .attention],
+            .declined: [.start: .applying, .useTerminal: .applying, .continueWithout: .done, .skip: .done],
+            .failed: [.start: .applying, .useTerminal: .applying, .continueWithout: .done, .skip: .done],
+            .timedOut: [.start: .applying, .useTerminal: .applying, .continueWithout: .done, .skip: .done],
+            .attention: [.start: .done, .skip: .done],
+            .done: [.revealed: .finished, .iconHidden: .iconHidden],
+            .iconHidden: [.openDetails: .finished, .skip: .finished],
+            .finished: [:],
         ]
-        var expected: [FirstRunStep: [FirstRunEvent: FirstRunStep]] = [:]
-        for (from, event, to) in table { expected[from, default: [:]][event] = to }
         for step in FirstRunStep.allCases {
-            for event in allEvents {
-                var f = flow(at: step)
-                f.handle(event)
-                XCTAssertEqual(f.step, expected[step]?[event] ?? step, "\(step) + \(event)")
+            for event in events {
+                var flow = FirstRunSession.flow(at: step)
+                XCTAssertEqual(flow.step, step)
+                flow.handle(event)
+                XCTAssertEqual(flow.step, moves[step]?[event] ?? step, "\(step) + \(event)")
             }
         }
     }
+}
 
-    func testDoneWithoutLockedFeaturesFinishesWithoutAPrompt() {
-        var f = flow(at: .card)
-        XCTAssertFalse(f.choices.doneNeedsPermission)
-        let effects = f.handle(.done)
-        XCTAssertEqual(f.step, .done)
-        XCTAssertEqual(effects, [.applyEverydayChoices(launchAtLogin: true, keepHistory: true)])
-        XCTAssertFalse(effects.contains { if case .requestPermission = $0 { true } else { false } })
+final class FirstRunGeometryTests: XCTestCase {
+    private let screen = NSRect(x: 0, y: 0, width: 1512, height: 944)
+
+    func testTheWindowOpensCentered() {
+        let frame = FirstRunWindowGeometry.centered(size: NSSize(width: 480, height: 520), in: screen)
+        XCTAssertEqual(frame.midX, screen.midX, accuracy: 1)
+        XCTAssertEqual(frame.midY, screen.midY, accuracy: 1)
+        let second = NSRect(x: 1512, y: -200, width: 1920, height: 1050)
+        XCTAssertEqual(FirstRunWindowGeometry.centered(size: NSSize(width: 480, height: 520), in: second).midX, second.midX, accuracy: 1, "on the icon's screen")
     }
 
-    func testLockedFeaturesShareOnePromptAfterThePreview() {
-        var f = flow(at: .card)
-        f.choices.moreExpanded = true; f.choices.lidClosed = true; f.choices.chargeByTime = true; f.choices.launchAtLogin = false
-        XCTAssertTrue(f.choices.doneNeedsPermission)
-        XCTAssertEqual(f.handle(.done), [.applyEverydayChoices(launchAtLogin: false, keepHistory: true), .playConfirmPreview])
-        XCTAssertEqual(f.handle(.previewFinished), [.requestPermission([.lidClosed, .chargeByTime])])
-        XCTAssertEqual(f.handle(.promptFinished(.success([.lidClosed, .chargeByTime]))), [.turnOnGranted([.lidClosed, .chargeByTime]), .ensurePopoverShown])
-        XCTAssertEqual(f.step, .done)
-        XCTAssertTrue(f.missingLocked.isEmpty)
+    func testAResizeKeepsTheCenterAndStaysOnScreen() {
+        let moved = NSRect(x: 300, y: 200, width: 480, height: 500)
+        let grown = FirstRunWindowGeometry.resized(moved, to: NSSize(width: 480, height: 700), within: screen)
+        XCTAssertEqual(grown.midY, moved.midY, accuracy: 1)
+        XCTAssertEqual(grown.midX, moved.midX, accuracy: 1)
+        let low = FirstRunWindowGeometry.resized(NSRect(x: 0, y: 0, width: 480, height: 300), to: NSSize(width: 480, height: 700), within: screen)
+        XCTAssertGreaterThanOrEqual(low.minY, screen.minY)
+        XCTAssertLessThanOrEqual(low.maxY, screen.maxY)
+        let tiny = NSRect(x: 0, y: 0, width: 400, height: 300)
+        XCTAssertEqual(FirstRunWindowGeometry.centered(size: NSSize(width: 480, height: 520), in: tiny).origin, tiny.origin, "larger than the screen: pinned to it")
     }
 
-    func testCancelDeniedAndErrorAreCalmAndKeepLockedFeaturesOff() {
-        for result in [FirstRunPromptResult.cancelled, .failed] {
-            var f = flow(at: .systemPrompt)
-            f.handle(.promptFinished(result))
-            XCTAssertEqual(f.step, .declined)
-            XCTAssertTrue(f.granted.isEmpty)
-            XCTAssertEqual(f.missingLocked, [.lidClosed, .chargeByTime])
-            XCTAssertEqual(f.promptFailed, result == .failed)
-            // "Turn On" asks again for that one feature only.
-            XCTAssertEqual(f.handle(.enable(.chargeByTime)), [.playConfirmPreview])
-            XCTAssertEqual(f.handle(.previewFinished), [.requestPermission([.chargeByTime])])
-        }
-        var cancel = flow(at: .systemPrompt)
-        XCTAssertEqual(cancel.handle(.cancelConfirmation), [.cancelPermissionRequest])
-        // A late result after the user's own cancel is ignored.
-        cancel.handle(.promptFinished(.success([.lidClosed])))
-        XCTAssertEqual(cancel.step, .declined)
-        XCTAssertTrue(cancel.granted.isEmpty)
-    }
-
-    func testPartialGrantLeavesTheRestBehindTurnOnPills() {
-        var f = flow(at: .systemPrompt)
-        f.handle(.promptFinished(.success([.lidClosed])))
-        XCTAssertEqual(f.step, .declined)
-        XCTAssertEqual(f.missingLocked, [.chargeByTime])
-        XCTAssertEqual(f.handle(.enable(.lidClosed)), [], "an already granted feature has no pill")
-    }
-
-    func testRequiresApprovalIsRecordedForTheAllowPill() {
-        var f = flow(at: .done)
-        f.handle(.loginFinished(.requiresApproval))
-        XCTAssertEqual(f.loginResult, .requiresApproval)
-        XCTAssertEqual(f.step, .done)
-    }
-
-    func testSkipAndAnyWindowExitEndWithTheBubble() {
-        var f = flow(at: .whereIcon)
-        XCTAssertEqual(f.handle(.skip), [.hideBeacon, .closeWindow(intoIcon: false), .showBubble])
-        XCTAssertEqual(f.handle(.bubbleFinished), [.finish])
-        var first = FirstRunFlow()
-        XCTAssertEqual(first.handle(.iconFilled), [.markIntroduced, .showWindow, .showBeacon], "the key is set when the window appears")
-    }
-
-    func testOpenHereHostsTheCardInTheWindow() {
-        var f = flow(at: .hiddenIcon)
-        XCTAssertEqual(f.handle(.openHere), [.hideBeacon, .hostCardInWindow])
-        XCTAssertTrue(f.hostedInWindow)
-        XCTAssertTrue(f.windowVisible)
-        XCTAssertEqual(f.popoverBehavior, .transient)
-        XCTAssertEqual(f.handle(.popoverClosed), [], "the popover is not part of this path")
-        f.handle(.done)
-        XCTAssertEqual(f.handle(.dismissCard), [.closeWindow(intoIcon: true), .showBubble])
-    }
-
-    func testThePopoverIsApplicationDefinedOnlyWhileTheCardIsUp() {
-        for step in FirstRunStep.allCases {
-            let f = flow(at: step)
-            XCTAssertEqual(f.popoverBehavior, [.card, .confirmPreview, .systemPrompt, .done, .declined].contains(step) ? .applicationDefined : .transient, "\(step)")
-        }
-        var f = flow(at: .whereIcon)
-        XCTAssertTrue(f.handle(.statusItemClicked).contains(.setPopoverBehavior(.applicationDefined)))
-        f.handle(.done)
-        XCTAssertEqual(f.handle(.popoverClosed), [.setPopoverBehavior(.transient), .showBubble], "restored to transient afterwards")
-        XCTAssertEqual(FirstRunPopoverPolicy.ignoredWhileHeld, ["outside click", "application deactivated"])
-    }
-
-    func testClosingThePopoverDuringTheConfirmationIsACancel() {
-        var preview = flow(at: .confirmPreview)
-        XCTAssertEqual(preview.handle(.popoverClosed), [.setPopoverBehavior(.transient), .showBubble])
-        XCTAssertEqual(preview.handle(.previewFinished), [], "no prompt appears after the popover was closed")
-        var prompt = flow(at: .systemPrompt)
-        XCTAssertEqual(prompt.handle(.popoverClosed), [.cancelPermissionRequest, .setPopoverBehavior(.transient), .showBubble])
-        XCTAssertEqual(prompt.handle(.promptFinished(.success([.lidClosed]))), [], "no reopening, nothing granted")
-        XCTAssertTrue(prompt.granted.isEmpty)
-    }
-
-    func testSummaryRowsFollowTheRealLoginAndLidResults() {
-        var f = flow(at: .systemPrompt)
-        XCTAssertEqual(f.everydayRows.map(\.kind), [.enabled, .enabled])
-        f.handle(.loginFinished(.failed))
-        f.handle(.promptFinished(.cancelled))
-        XCTAssertEqual(f.step, .declined)
-        XCTAssertEqual(f.everydayRows, [.init(id: "login", key: "firstRun.row.login", kind: .notEnabled),
-                                        .init(id: "history", key: "firstRun.row.history", kind: .enabled)], "declined no longer claims login")
-        f.handle(.loginFinished(.requiresApproval))
-        XCTAssertEqual(f.everydayRows.first?.kind, .needsApproval)
-        var granted = flow(at: .systemPrompt)
-        granted.handle(.promptFinished(.success([.lidClosed, .chargeByTime])))
-        XCTAssertEqual(granted.grantedRows.map(\.kind), [.notEnabled, .enabled], "lid unchecked until really on")
-        granted.handle(.lidTurnedOn(false))
-        XCTAssertEqual(granted.grantedRows.first?.kind, .notEnabled, "a refused lid option is shown as not enabled")
-        granted.handle(.lidTurnedOn(true))
-        XCTAssertEqual(granted.grantedRows.first?.kind, .enabled)
-    }
-
-    func testLoginRegistrationResultMapping() {
-        XCTAssertEqual(FirstRunLogin.result(statusAfter: .enabled, threw: false), .enabled)
-        XCTAssertEqual(FirstRunLogin.result(statusAfter: .requiresApproval, threw: true), .requiresApproval)
-        XCTAssertEqual(FirstRunLogin.result(statusAfter: .notRegistered, threw: true), .failed)
-        XCTAssertEqual(FirstRunLogin.result(statusAfter: .notFound, threw: false), .failed)
-        XCTAssertEqual(FirstRunLogin.outcome(.granted([.lidClosed])), .success([.lidClosed]))
-        XCTAssertEqual(FirstRunLogin.outcome(.cancelled), .cancelled)
+    func testTheIconVisibilityIncludesTheNotch() {
+        let plain = StatusItemVisibility.Screen(frame: screen)
+        let button = NSRect(x: 1300, y: 920, width: 40, height: 24)
+        XCTAssertTrue(StatusItemVisibility.isVisible(button: button, screens: [plain]))
+        XCTAssertFalse(StatusItemVisibility.isVisible(button: nil, screens: [plain]))
+        XCTAssertFalse(StatusItemVisibility.isVisible(button: button, screens: [plain], windowVisible: false))
+        XCTAssertFalse(StatusItemVisibility.isVisible(button: NSRect(x: 5000, y: 920, width: 40, height: 24), screens: [plain]))
+        let notched = StatusItemVisibility.Screen(frame: screen, auxiliaryLeft: NSRect(x: 0, y: 912, width: 660, height: 32),
+                                                  auxiliaryRight: NSRect(x: 852, y: 912, width: 660, height: 32))
+        XCTAssertTrue(StatusItemVisibility.isVisible(button: NSRect(x: 900, y: 916, width: 40, height: 24), screens: [notched]))
+        XCTAssertFalse(StatusItemVisibility.isVisible(button: NSRect(x: 740, y: 916, width: 40, height: 24), screens: [notched]), "behind the notch")
     }
 }
 
@@ -290,6 +315,13 @@ final class FirstRunLaunchPresentationTests: XCTestCase {
         XCTAssertEqual(LaunchPresentation.window(arguments: ["Tilvero", "--show-details"], firstRun: .nothing), .details)
         XCTAssertEqual(LaunchPresentation.window(arguments: ["Tilvero", "--show-details"], firstRun: .show), .details)
     }
+
+    func testLoginRegistrationResultMapping() {
+        XCTAssertEqual(FirstRunLogin.result(statusAfter: .enabled), .enabled)
+        XCTAssertEqual(FirstRunLogin.result(statusAfter: .requiresApproval), .requiresApproval)
+        XCTAssertEqual(FirstRunLogin.result(statusAfter: .notRegistered), .failed)
+        XCTAssertEqual(FirstRunLogin.result(statusAfter: .notFound), .failed)
+    }
 }
 
 @MainActor final class SudoersRulesTests: XCTestCase {
@@ -300,6 +332,7 @@ final class FirstRunLaunchPresentationTests: XCTestCase {
         XCTAssertEqual(SudoersRules.rules(uid: 501, features: []), [])
         XCTAssertEqual(SudoersRules.rules(uid: 501, features: [.chargeByTime, .lidClosed]), [lid, wake])
         XCTAssertEqual(SudoersRules.rule(uid: 502, feature: .chargeByTime), wake.replacingOccurrences(of: "#501", with: "#502"))
+        for feature in PrivilegedFeature.allCases { XCTAssertFalse(SudoersRules.rule(uid: 501, feature: feature).contains("'")) }
     }
 
     func testTheCommandsAreExactlyThoseOfTheExistingServices() {
@@ -309,38 +342,101 @@ final class FirstRunLaunchPresentationTests: XCTestCase {
         XCTAssertEqual(PrivilegedFeature.chargeByTime.legacyPath, NativeWakeScheduler.rulePath)
     }
 
+    static let preamble = """
+    cd / || exit 1
+    umask 077
+    PATH=/usr/bin:/bin:/usr/sbin:/sbin
+    export PATH
+    LC_ALL=C
+    export LC_ALL
+    D=/etc/sudoers.d
+    F=/etc/sudoers.d/tilvero
+    T=
+    trap '[ -z "$T" ] || /bin/rm -f "$T"' EXIT
+    # keep_others FILE -e LINE...: rewrite FILE without exactly these lines (validated), delete it when nothing is left
+    keep_others() {
+      f=$1
+      shift
+      [ ! -L "$f" ] || return 3
+      [ -e "$f" ] || return 0
+      [ -f "$f" ] || return 3
+      T=$(/usr/bin/mktemp "$D/tilvero.XXXXXX") || return 4
+      /usr/bin/grep -v -x -F "$@" "$f" > "$T"
+      [ $? -le 1 ] || return 5
+      if [ -s "$T" ]; then
+        /usr/sbin/chown root:wheel "$T" && /bin/chmod 0440 "$T" || return 6
+        /usr/sbin/visudo -c -q -f "$T" || return 7
+        /bin/mv -f "$T" "$f" || return 8
+      else
+        /bin/rm -f "$T" "$f" || return 8
+      fi
+      T=
+    }
+    """
+
     func testInstallScriptGolden() throws {
         let script = try XCTUnwrap(SudoersRules.installScript(uid: 501, features: [.lidClosed, .chargeByTime]))
-        XCTAssertEqual(script, "mkdir -p /etc/sudoers.d && T=$(mktemp /etc/sudoers.d/tilvero.XXXXXX) && { [ ! -f /etc/sudoers.d/tilvero ] || grep -v -x -F -e '\(lid)' -e '\(wake)' /etc/sudoers.d/tilvero || true; } > \"$T\" && printf '%s\\n' '\(lid)' '\(wake)' >> \"$T\" && chmod 0440 \"$T\" && /usr/sbin/visudo -c -f \"$T\" && mv -f \"$T\" /etc/sudoers.d/tilvero && rm -f /etc/sudoers.d/tilvero-lid && rm -f /etc/sudoers.d/tilvero-wake || { rm -f \"$T\"; exit 1; }")
+        XCTAssertEqual(script, "# Tilvero: add the passwordless pmset rule of user #501\n" + Self.preamble + "\n" + """
+        /bin/mkdir -p -m 0755 "$D" || exit 2
+        [ ! -L "$F" ] || exit 3
+        [ ! -e "$F" ] || [ -f "$F" ] || exit 3
+        T=$(/usr/bin/mktemp "$D/tilvero.XXXXXX") || exit 4
+        if [ -f "$F" ]; then
+          /usr/bin/grep -v -x -F -e '\(lid)' -e '\(wake)' "$F" > "$T"
+          [ $? -le 1 ] || exit 5
+        fi
+        /usr/bin/printf '%s\\n' '\(lid)' '\(wake)' >> "$T" || exit 5
+        /usr/sbin/chown root:wheel "$T" && /bin/chmod 0440 "$T" || exit 6
+        /usr/sbin/visudo -c -q -f "$T" || exit 7
+        /bin/mv -f "$T" "$F" || exit 8
+        T=
+        keep_others /etc/sudoers.d/tilvero-lid -e '\(lid)' || exit $?
+        keep_others /etc/sudoers.d/tilvero-wake -e '\(wake)' || exit $?
+        """)
         XCTAssertNil(SudoersRules.installScript(uid: 501, features: []))
     }
 
-    func testValidateThenMoveThenRemoveOldOnlyForChosenFeatures() throws {
+    func testRemovalScriptGoldenIsTheExactInverse() throws {
+        let script = try XCTUnwrap(SudoersRules.removalScript(uid: 501, removing: [.lidClosed, .chargeByTime]))
+        XCTAssertEqual(script, "# Tilvero: remove the passwordless pmset rule of user #501\n" + Self.preamble + "\n" + """
+        keep_others /etc/sudoers.d/tilvero -e '\(lid)' -e '\(wake)' || exit $?
+        keep_others /etc/sudoers.d/tilvero-lid -e '\(lid)' || exit $?
+        keep_others /etc/sudoers.d/tilvero-wake -e '\(wake)' || exit $?
+        """)
+        let one = try XCTUnwrap(SudoersRules.removalScript(uid: 501, removing: [.lidClosed]))
+        XCTAssertFalse(one.contains("schedule"), "no knowledge of the other line is needed to keep it")
+    }
+
+    func testValidateThenMoveThenTidyTheOldFile() throws {
         let script = try XCTUnwrap(SudoersRules.installScript(uid: 501, features: [.lidClosed]))
-        let validate = try XCTUnwrap(script.range(of: "visudo -c -f \"$T\"")).lowerBound
-        let move = try XCTUnwrap(script.range(of: "mv -f \"$T\" /etc/sudoers.d/tilvero")).lowerBound
-        let removeOld = try XCTUnwrap(script.range(of: "rm -f /etc/sudoers.d/tilvero-lid")).lowerBound
-        XCTAssertLessThan(validate, move); XCTAssertLessThan(move, removeOld)
-        XCTAssertFalse(script.contains("tilvero-wake"), "the other feature's file stays")
+        let validate = try XCTUnwrap(script.range(of: "/usr/sbin/visudo -c -q -f \"$T\" || exit 7")).lowerBound
+        let move = try XCTUnwrap(script.range(of: "/bin/mv -f \"$T\" \"$F\"")).lowerBound
+        let tidy = try XCTUnwrap(script.range(of: "keep_others /etc/sudoers.d/tilvero-lid")).lowerBound
+        XCTAssertLessThan(validate, move); XCTAssertLessThan(move, tidy)
+        XCTAssertFalse(script.contains("tilvero-wake"), "the other feature's file is not touched")
         XCTAssertFalse(script.contains("schedule"), "only the chosen feature's commands")
-        XCTAssertTrue(script.hasSuffix("|| { rm -f \"$T\"; exit 1; }"))
-        XCTAssertTrue(script.contains("mktemp /etc/sudoers.d/tilvero.XXXXXX"), "a unique, dotted (ignored by sudo) temporary name per run")
     }
 
-    func testRemovalAlwaysTakesTheLineOutWhateverTheRecordSays() {
-        let script = SudoersRules.removalScript(uid: 501, removing: .lidClosed)
-        XCTAssertEqual(script, "rm -f /etc/sudoers.d/tilvero-lid && T=$(mktemp /etc/sudoers.d/tilvero.XXXXXX) && { [ ! -f /etc/sudoers.d/tilvero ] || grep -v -x -F -e '\(lid)' /etc/sudoers.d/tilvero || true; } > \"$T\" && if [ -s \"$T\" ]; then chmod 0440 \"$T\" && /usr/sbin/visudo -c -f \"$T\" && mv -f \"$T\" /etc/sudoers.d/tilvero; else rm -f \"$T\" /etc/sudoers.d/tilvero; fi || { rm -f \"$T\"; exit 1; }")
-        XCTAssertFalse(script.contains("schedule"), "no knowledge of the other line is needed to keep it")
-    }
-
-    func testAppleScriptQuoting() {
-        XCTAssertEqual(SudoersRules.appleScriptSource(script: "echo 'a\"b'", prompt: "P"),
-                       "do shell script \"echo 'a\\\"b'\" with administrator privileges with prompt \"P\"")
+    /// Every command line starts with an absolute path, a shell builtin or a function of the script itself.
+    func testEveryCommandIsAnAbsolutePath() throws {
+        let allowedStarts = ["#", "/", "cd ", "umask ", "PATH=", "export ", "LC_ALL=", "D=", "F=", "T=", "trap ", "keep_others", "f=$1", "shift",
+                             "[ ", "if ", "fi", "else", "}", "exit", "return"]
+        for operation in [PrivilegedOperation.install([.lidClosed, .chargeByTime]), .remove([.lidClosed, .chargeByTime])] {
+            let script = try XCTUnwrap(SudoersRules.script(for: operation, uid: 501))
+            XCTAssertTrue(script.hasPrefix("#"), "osascript argv never starts with '-'")
+            for line in script.split(separator: "\n").map({ $0.trimmingCharacters(in: .whitespaces) }) where !line.isEmpty {
+                XCTAssertTrue(allowedStarts.contains { line.hasPrefix($0) }, line)
+                for tool in ["mkdir", "mktemp", "grep", "printf", "chown", "chmod", "visudo", "mv", "rm"] {
+                    XCTAssertFalse(line.range(of: "(^|[ ;&|(])\(tool) ", options: .regularExpression) != nil, "bare \(tool): \(line)")
+                }
+            }
+            XCTAssertFalse(script.split(separator: "\n").contains { $0 == TerminalCommandText.marker })
+        }
     }
 }
 
-/// Runs the real scripts with `/bin/sh` against a temporary folder (paths rewritten, `visudo` replaced by `true` or
-/// `false`). Nothing privileged runs; this proves the file-level behaviour the golden strings describe.
+/// Runs the real scripts with `/bin/sh` against a temporary folder (paths rewritten; `visudo` replaced by `true` or
+/// `false`, `chown` by `true` since the test is not root). Nothing privileged runs.
 final class SudoersScriptBehaviourTests: XCTestCase {
     private var root: URL!
     override func setUpWithError() throws {
@@ -353,11 +449,22 @@ final class SudoersScriptBehaviourTests: XCTestCase {
     private func path(_ name: String) -> String { dir + "/" + name }
     private func sandboxed(_ script: String, validates: Bool = true) -> String {
         script.replacingOccurrences(of: "/etc/sudoers.d", with: dir)
-            .replacingOccurrences(of: "/usr/sbin/visudo -c -f", with: validates ? "true" : "false")
+            .replacingOccurrences(of: "/usr/sbin/visudo -c -q -f", with: validates ? "true" : "false")
+            .replacingOccurrences(of: "/usr/sbin/chown root:wheel", with: "true")
+            .replacingOccurrences(of: "/usr/bin/sudo ", with: "")
     }
-    @discardableResult private func run(_ script: String, validates: Bool = true) throws -> Int32 {
+    @discardableResult private func run(_ script: String, validates: Bool = true, file: Bool = false) throws -> Int32 {
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/sh"); process.arguments = ["-c", sandboxed(script, validates: validates)]
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        if file {
+            let url = root.appendingPathComponent("t/Tilvero.command")
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try sandboxed(script, validates: validates).write(to: url, atomically: true, encoding: .utf8)
+            process.arguments = [url.path]
+        } else {
+            process.arguments = ["-c", sandboxed(script, validates: validates)]
+        }
+        process.standardOutput = FileHandle.nullDevice; process.standardError = FileHandle.nullDevice
         try process.run(); process.waitUntilExit()
         return process.terminationStatus
     }
@@ -374,158 +481,599 @@ final class SudoersScriptBehaviourTests: XCTestCase {
     private let lid = SudoersRules.rule(uid: 501, feature: .lidClosed)
     private let wake = SudoersRules.rule(uid: 501, feature: .chargeByTime)
     private let foreign = "#502 ALL=(root) NOPASSWD: /usr/bin/pmset disablesleep 1, /usr/bin/pmset disablesleep 0"
+    private func install(_ f: Set<PrivilegedFeature>) -> String { SudoersRules.installScript(uid: 501, features: f)! }
+    private func remove(_ f: Set<PrivilegedFeature>) -> String { SudoersRules.removalScript(uid: 501, removing: f)! }
 
-    func testInstallWritesOnlyTheChosenLinesAndRemovesTheirOldFiles() throws {
-        try write("tilvero-lid", [lid]); try write("tilvero-wake", [wake])
-        XCTAssertEqual(try run(SudoersRules.installScript(uid: 501, features: [.lidClosed])!), 0)
+    func testInstallWritesTheChosenLinesReadOnlyAndTidiesOnlyOurOldLines() throws {
+        try write("tilvero-lid", [lid]); try write("tilvero-wake", [foreign.replacingOccurrences(of: "disablesleep 1, /usr/bin/pmset disablesleep 0", with: "schedule wake *, /usr/bin/pmset schedule cancel wake *")])
+        XCTAssertEqual(try run(install([.lidClosed])), 0)
         XCTAssertEqual(lines("tilvero"), [lid])
-        XCTAssertNil(lines("tilvero-lid"))
-        XCTAssertEqual(lines("tilvero-wake"), [wake], "the other feature's old file stays")
+        XCTAssertNil(lines("tilvero-lid"), "our old file had only our line")
+        XCTAssertEqual(lines("tilvero-wake")?.count, 1, "another feature's (and another user's) old file stays")
         XCTAssertEqual(temporaries(), [])
+        let mode = try FileManager.default.attributesOfItem(atPath: path("tilvero"))[.posixPermissions] as? Int
+        XCTAssertEqual(mode, 0o440)
     }
 
-    func testInstallKeepsLinesTheAppCannotAccountFor() throws {
-        // Merged file written by another copy (or a lost record): its lines survive a request for one feature.
+    func testAnotherUsersLineInAnOldFileSurvives() throws {
+        try write("tilvero-lid", [foreign, lid])
+        XCTAssertEqual(try run(install([.lidClosed])), 0)
+        XCTAssertEqual(lines("tilvero-lid"), [foreign])
+    }
+
+    func testInstallKeepsLinesItCannotAccountForAndIsIdempotent() throws {
         try write("tilvero", [wake, foreign])
-        XCTAssertEqual(try run(SudoersRules.installScript(uid: 501, features: [.lidClosed])!), 0)
+        XCTAssertEqual(try run(install([.lidClosed])), 0)
         XCTAssertEqual(lines("tilvero"), [wake, foreign, lid])
-        XCTAssertEqual(try run(SudoersRules.installScript(uid: 501, features: [.lidClosed])!), 0)
-        XCTAssertEqual(lines("tilvero"), [wake, foreign, lid], "idempotent: no duplicate line")
+        XCTAssertEqual(try run(install([.lidClosed])), 0)
+        XCTAssertEqual(lines("tilvero"), [wake, foreign, lid], "no duplicate line")
     }
 
     func testAFailedValidationChangesNothing() throws {
         try write("tilvero", [wake]); try write("tilvero-lid", [lid])
-        XCTAssertNotEqual(try run(SudoersRules.installScript(uid: 501, features: [.lidClosed])!, validates: false), 0)
+        XCTAssertEqual(try run(install([.lidClosed]), validates: false), 7)
         XCTAssertEqual(lines("tilvero"), [wake])
-        XCTAssertEqual(lines("tilvero-lid"), [lid], "old file removed only after a validated move")
+        XCTAssertEqual(lines("tilvero-lid"), [lid], "old file tidied only after a validated move")
         XCTAssertEqual(temporaries(), [], "the temporary file is cleaned up")
     }
 
-    func testRemovalWithTheFilePresentAndAnEmptyRecordTakesOnlyThatLineOut() throws {
-        try write("tilvero", [lid, wake, foreign]); try write("tilvero-lid", [lid])
-        XCTAssertEqual(try run(SudoersRules.removalScript(uid: 501, removing: .lidClosed)), 0)
-        XCTAssertEqual(lines("tilvero"), [wake, foreign])
-        XCTAssertNil(lines("tilvero-lid"))
+    func testALinkOrAFolderAtTheRulePathIsRefused() throws {
+        try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        let target = root.appendingPathComponent("elsewhere").path
+        try "keep\n".write(toFile: target, atomically: true, encoding: .utf8)
+        try FileManager.default.createSymbolicLink(atPath: path("tilvero"), withDestinationPath: target)
+        XCTAssertEqual(try run(install([.lidClosed])), 3)
+        XCTAssertEqual(try String(contentsOfFile: target, encoding: .utf8), "keep\n", "never written through a link")
+        try FileManager.default.removeItem(atPath: path("tilvero"))
+        try FileManager.default.createDirectory(atPath: path("tilvero"), withIntermediateDirectories: true)
+        XCTAssertEqual(try run(install([.lidClosed])), 3)
+        XCTAssertEqual(try run(remove([.lidClosed])), 3)
         XCTAssertEqual(temporaries(), [])
     }
 
-    func testRemovalOfTheLastLineDeletesTheFile() throws {
+    func testRemoveAllTakesOnlyOurLinesOutAndIsIdempotent() throws {
+        try write("tilvero", [lid, wake, foreign]); try write("tilvero-lid", [lid]); try write("tilvero-wake", [wake])
+        XCTAssertEqual(try run(remove([.lidClosed, .chargeByTime])), 0)
+        XCTAssertEqual(lines("tilvero"), [foreign])
+        XCTAssertNil(lines("tilvero-lid")); XCTAssertNil(lines("tilvero-wake"))
+        XCTAssertEqual(try run(remove([.lidClosed, .chargeByTime])), 0)
+        XCTAssertEqual(lines("tilvero"), [foreign])
+        XCTAssertEqual(temporaries(), [])
+    }
+
+    func testRemovingTheLastLineDeletesTheFileAndNothingThereIsFine() throws {
         try write("tilvero", [lid])
-        XCTAssertEqual(try run(SudoersRules.removalScript(uid: 501, removing: .lidClosed)), 0)
+        XCTAssertEqual(try run(remove([.lidClosed])), 0)
         XCTAssertNil(lines("tilvero"))
-        XCTAssertEqual(temporaries(), [])
+        XCTAssertEqual(try run(remove([.lidClosed, .chargeByTime])), 0, "nothing installed: nothing to do")
     }
 
-    func testRemovalWithoutAMergedFileOnlyRemovesTheOldFile() throws {
-        try write("tilvero-lid", [lid]); try write("tilvero-wake", [wake])
-        XCTAssertEqual(try run(SudoersRules.removalScript(uid: 501, removing: .lidClosed)), 0)
-        XCTAssertNil(lines("tilvero-lid")); XCTAssertNil(lines("tilvero"))
-        XCTAssertEqual(lines("tilvero-wake"), [wake])
+    func testInstallThenRemoveRestoresTheOriginalFiles() throws {
+        try write("tilvero", [foreign])
+        XCTAssertEqual(try run(install([.lidClosed, .chargeByTime])), 0)
+        XCTAssertEqual(try run(remove([.lidClosed, .chargeByTime])), 0)
+        XCTAssertEqual(lines("tilvero"), [foreign])
+    }
+
+    func testTheTerminalCommandRunsTheSameRootScriptAndReportsItsResult() throws {
+        let messages = TerminalCommandText.Messages(header: "H", password: "P", done: "D", failed: "F")
+        let text = TerminalCommandText.text(rootScript: install([.lidClosed]), messages: messages)
+        XCTAssertEqual(try run(text, file: true), 0)
+        XCTAssertEqual(lines("tilvero"), [lid])
+        XCTAssertEqual(TerminalCommandFile.readResult(in: root.appendingPathComponent("t")), 0)
+        try write("tilvero", [wake])
+        XCTAssertEqual(try run(text, validates: false, file: true), 0, "the wrapper itself ends normally")
+        XCTAssertEqual(TerminalCommandFile.readResult(in: root.appendingPathComponent("t")), 7, "the root script's status reaches the window")
+        XCTAssertEqual(lines("tilvero"), [wake])
+    }
+
+    func testThePreviewDemoOnlyPrintsAndWritesItsOwnResult() throws {
+        let demo = FirstRunPreview.demoCommandText(rootScript: install([.lidClosed]), code: 0)
+        XCTAssertFalse(demo.split(separator: "\n").contains { $0.hasPrefix("/usr/bin/sudo") || $0.hasPrefix("/usr/bin/pmset") })
+        let url = root.appendingPathComponent("demo/Tilvero.command")
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try demo.write(to: url, atomically: true, encoding: .utf8)
+        let process = Process(); process.executableURL = URL(fileURLWithPath: "/bin/sh"); process.arguments = [url.path]
+        let input = Pipe(); process.standardInput = input; process.standardOutput = FileHandle.nullDevice
+        try process.run(); input.fileHandleForWriting.write(Data("\n".utf8)); try input.fileHandleForWriting.close(); process.waitUntilExit()
+        XCTAssertEqual(process.terminationStatus, 0)
+        XCTAssertEqual(TerminalCommandFile.readResult(in: url.deletingLastPathComponent()), 0)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: dir), "nothing outside its own folder")
+        XCTAssertFalse(FirstRunPreview.demoCommandText(rootScript: "x", code: nil).contains("/result"), "cancel/timeout demos never answer")
     }
 }
 
+@MainActor final class TerminalCommandTests: XCTestCase {
+    func testTheCommandIsFixedTextAroundTheRootScript() throws {
+        let rootScript = try XCTUnwrap(SudoersRules.installScript(uid: 501, features: [.lidClosed]))
+        let messages = TerminalCommandText.Messages(header: "Header", password: "Password", done: "Done", failed: "Failed")
+        let text = TerminalCommandText.text(rootScript: rootScript, messages: messages)
+        XCTAssertTrue(text.hasPrefix("#!/bin/sh\n"))
+        XCTAssertTrue(text.contains("/usr/bin/sudo /bin/sh -s <<'TILVERO'\n" + rootScript + "\nTILVERO\n"), "the root script verbatim in a quoted heredoc")
+        XCTAssertEqual(text.components(separatedBy: "/usr/bin/sudo").count - 1, 1, "sudo runs exactly once")
+        let other = TerminalCommandText.text(rootScript: try XCTUnwrap(SudoersRules.installScript(uid: 502, features: [.lidClosed])), messages: messages)
+        XCTAssertEqual(text.replacingOccurrences(of: "#501", with: "#502"), other, "the uid is the only variable part")
+    }
+
+    func testTheRealMessagesAreSafeInBothLanguages() {
+        for language in ["en", "ru"] {
+            UserDefaults.standard.setVolatileDomain(["AppleLanguages": [language]], forName: UserDefaults.argumentDomain)
+            defer { UserDefaults.standard.removeVolatileDomain(forName: UserDefaults.argumentDomain) }
+            for removal in [false, true] {
+                let messages = TerminalCommandText.Messages.localized(removal: removal)
+                XCTAssertTrue(messages.all.allSatisfy(TerminalCommandText.Messages.isSafe), "\(language): \(messages)")
+                XCTAssertEqual(messages.sanitized, messages, "nothing needs dropping")
+            }
+        }
+        let unsafe = TerminalCommandText.Messages(header: "a'b", password: "$(x)", done: "`y`", failed: "c\\d")
+        XCTAssertTrue(unsafe.sanitized.all.allSatisfy(TerminalCommandText.Messages.isSafe))
+    }
+
+    func testTheFileIsPrivateAndHoldsExactlyTheShownText() throws {
+        let base = FileManager.default.temporaryDirectory.appendingPathComponent("TerminalFile-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: base) }
+        let text = "#!/bin/sh\necho «привет»\n"
+        let file = try TerminalCommandFile.prepare(text, base: base)
+        XCTAssertEqual(try String(contentsOf: file, encoding: .utf8), text)
+        let fileMode = try FileManager.default.attributesOfItem(atPath: file.path)[.posixPermissions] as? Int
+        let folderMode = try FileManager.default.attributesOfItem(atPath: file.deletingLastPathComponent().path)[.posixPermissions] as? Int
+        XCTAssertEqual(fileMode, 0o700); XCTAssertEqual(folderMode, 0o700)
+        XCTAssertNotEqual(try TerminalCommandFile.prepare(text, base: base).deletingLastPathComponent(), file.deletingLastPathComponent(), "a fresh folder per run")
+        XCTAssertNil(TerminalCommandFile.readResult(in: file.deletingLastPathComponent()))
+        try "7\n".write(to: file.deletingLastPathComponent().appendingPathComponent("result"), atomically: true, encoding: .utf8)
+        XCTAssertEqual(TerminalCommandFile.readResult(in: file.deletingLastPathComponent()), 7)
+    }
+
+    func testOsascriptGetsTheScriptAsAnArgumentNeverAsSource() {
+        let script = "# x\necho 'a\"b' \\ $HOME"
+        let arguments = OsascriptAdministratorExecutor.arguments(script: script, prompt: "P \"q\"")
+        XCTAssertEqual(arguments, ["-e", "on run argv", "-e", "do shell script (item 1 of argv) with administrator privileges with prompt (item 2 of argv)",
+                                   "-e", "end run", script, "P \"q\""])
+    }
+
+    func testOsascriptOutcomes() {
+        XCTAssertEqual(OsascriptAdministratorExecutor.outcome(status: 0, output: "", cancelled: false), .succeeded)
+        XCTAssertEqual(OsascriptAdministratorExecutor.outcome(status: 1, output: "execution error: User canceled. (-128)", cancelled: false), .cancelled)
+        XCTAssertEqual(OsascriptAdministratorExecutor.outcome(status: 1, output: "0:80: execution error: (7)\n", cancelled: false), .failed(7))
+        XCTAssertEqual(OsascriptAdministratorExecutor.outcome(status: 1, output: "other", cancelled: false), .failed(nil))
+        XCTAssertEqual(OsascriptAdministratorExecutor.outcome(status: 15, output: "", cancelled: true), .cancelled)
+    }
+}
+
+final class SudoListingTests: XCTestCase {
+    func testOurRulesAreReadFromTheListing() {
+        let output = """
+        Matching Defaults entries for ivan on mac:
+            env_reset, env_keep+=BLOCKSIZE
+
+        User ivan may run the following commands on mac:
+            (ALL) ALL
+            (root) NOPASSWD: /usr/bin/pmset disablesleep 1, /usr/bin/pmset disablesleep 0
+            (root) NOPASSWD: /usr/bin/pmset schedule wake *, /usr/bin/pmset schedule cancel wake *
+        """
+        XCTAssertEqual(SudoListing.features(in: output), [.lidClosed, .chargeByTime])
+        XCTAssertEqual(SudoListing.features(in: "User ivan may run the following commands on mac:\n    (ALL) ALL\n"), [], "a password rule is not ours")
+        XCTAssertEqual(SudoListing.features(in: "    (root) NOPASSWD: /usr/bin/pmset disablesleep 1\n"), [], "half a feature is not the feature")
+        XCTAssertEqual(SudoListing.features(in: "    (ALL : ALL) NOPASSWD: ALL\n"), [.lidClosed, .chargeByTime])
+        XCTAssertEqual(SudoListing.features(in: "    (root) NOPASSWD: /bin/ls, PASSWD: /usr/bin/pmset disablesleep 1, /usr/bin/pmset disablesleep 0\n"), [])
+        XCTAssertEqual(SudoListing.features(in: "    (nobody) NOPASSWD: /usr/bin/pmset disablesleep 1, /usr/bin/pmset disablesleep 0\n"), [], "not as root")
+        XCTAssertEqual(SudoListing.passwordlessCommands("    (root) SETENV: NOPASSWD: /usr/bin/pmset  disablesleep 1\n"), ["/usr/bin/pmset disablesleep 1"])
+    }
+}
 
 final class PrivilegedPresenceTests: XCTestCase {
     func testOldFilesOrTheMergedFileCountAsPermissionPresent() {
         let none: (String) -> Bool = { _ in false }
         XCTAssertFalse(PrivilegedRulePresence.isPresent(.lidClosed, fileExists: none, merged: [.lidClosed]))
         XCTAssertTrue(PrivilegedRulePresence.isPresent(.lidClosed, fileExists: { $0 == "/etc/sudoers.d/tilvero-lid" }, merged: []))
-        XCTAssertTrue(PrivilegedRulePresence.isPresent(.chargeByTime, fileExists: { $0 == "/etc/sudoers.d/tilvero-wake" }, merged: []))
         let merged: (String) -> Bool = { $0 == "/etc/sudoers.d/tilvero" }
         XCTAssertTrue(PrivilegedRulePresence.isPresent(.lidClosed, fileExists: merged, merged: [.lidClosed]))
-        XCTAssertFalse(PrivilegedRulePresence.isPresent(.chargeByTime, fileExists: merged, merged: [.lidClosed]), "a merged file without the wake line")
+        XCTAssertFalse(PrivilegedRulePresence.isPresent(.chargeByTime, fileExists: merged, merged: [.lidClosed]))
     }
 
-    func testTheRecordRoundTrips() {
+    func testTheRecordRoundTripsAndTheSignatureFollowsTheFiles() {
         let suite = "Presence-\(UUID())", defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
         PrivilegedRulePresence.record([.chargeByTime, .lidClosed], in: defaults)
         XCTAssertEqual(defaults.stringArray(forKey: SudoersRules.mergedFeaturesKey), ["lidClosed", "chargeByTime"])
-        XCTAssertEqual(PrivilegedRulePresence.recordedMergedFeatures(defaults), [.lidClosed, .chargeByTime])
         PrivilegedRulePresence.record([], in: defaults)
         XCTAssertNil(defaults.object(forKey: SudoersRules.mergedFeaturesKey))
+        let empty = PrivilegedRulePresence.signature(lstat: { _ in nil })
+        XCTAssertEqual(empty, "-|-|-")
+        XCTAssertNotEqual(PrivilegedRulePresence.signature(lstat: { $0 == SudoersRules.mergedPath ? (1, 2, 3, 4) : nil }), empty)
     }
 }
 
+// MARK: Installer with fakes
+
 private final class FakeExecutor: AdministratorScriptExecuting, @unchecked Sendable {
     var outcome: AdministratorScriptOutcome
-    var installsFile: Bool
-    var scripts: [String] = []
-    var files: Set<String>
-    init(_ outcome: AdministratorScriptOutcome, installsFile: Bool = true, files: Set<String> = []) {
-        self.outcome = outcome; self.installsFile = installsFile; self.files = files
-    }
+    var scripts: [String] = [], prompts: [String] = []
+    var onRun: () -> Void = {}
+    init(_ outcome: AdministratorScriptOutcome) { self.outcome = outcome }
     func run(script: String, prompt: String) async -> AdministratorScriptOutcome {
-        scripts.append(script)
-        if installsFile { files.insert(SudoersRules.mergedPath) }
+        scripts.append(script); prompts.append(prompt); onRun()
         return outcome
+    }
+}
+
+private final class FakeProbe: PrivilegedRuleProbing, @unchecked Sendable {
+    var present: Set<PrivilegedFeature>? = []
+    var calls = 0
+    func passwordless() async -> Set<PrivilegedFeature>? { calls += 1; return present }
+}
+
+@MainActor private final class FakeTerminal: TerminalScriptOpening {
+    var texts: [String] = []
+    var folder: URL?
+    var fails = false
+    func open(_ text: String) async -> URL? {
+        texts.append(text)
+        guard !fails else { return nil }
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("FakeTerminal-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        folder = url
+        return url
+    }
+    func answer(_ code: Int32) { try? "\(code)\n".write(to: folder!.appendingPathComponent("result"), atomically: true, encoding: .utf8) }
+}
+
+/// Virtual time: every sleep advances the clock and yields, so a 10-minute wait runs in milliseconds.
+private final class VirtualClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var current = Date(timeIntervalSince1970: 0)
+    var sleeps = 0
+    var onSleep: @MainActor () -> Void = {}
+    var clock: PermissionWaitClock {
+        PermissionWaitClock(now: { [self] in lock.withLock { current } }, sleep: { [self] duration in
+            try Task.checkCancellation()
+            lock.withLock { current += Double(duration.components.seconds) + Double(duration.components.attoseconds) / 1e18; sleeps += 1 }
+            await MainActor.run { self.onSleep() }
+            await Task.yield()
+            try Task.checkCancellation()
+        })
     }
 }
 
 @MainActor final class PrivilegedRuleInstallerTests: XCTestCase {
     private var suite = "", defaults: UserDefaults!
-    override func setUp() async throws { suite = "Installer-\(UUID())"; defaults = UserDefaults(suiteName: suite) }
+    private var files: Set<String> = []
+    private var signature = "a"
+    override func setUp() async throws { suite = "Installer-\(UUID())"; defaults = UserDefaults(suiteName: suite); files = []; signature = "a" }
     override func tearDown() async throws { defaults.removePersistentDomain(forName: suite) }
 
-    private func installer(_ executor: FakeExecutor) -> PrivilegedRuleInstaller {
-        PrivilegedRuleInstaller(executor: executor, defaults: defaults, uid: 501, fileExists: { executor.files.contains($0) })
+    private func installer(_ executor: FakeExecutor = FakeExecutor(.succeeded), terminal: FakeTerminal = FakeTerminal(), probe: FakeProbe = FakeProbe(),
+                           clock: VirtualClock = VirtualClock()) -> PrivilegedRuleInstaller {
+        PrivilegedRuleInstaller(executor: executor, terminal: terminal, probe: probe, defaults: defaults, uid: 501,
+                                fileExists: { [unowned self] in self.files.contains($0) }, signature: { [unowned self] in self.signature },
+                                clock: clock.clock, terminalTimeout: 600,
+                                commandBuilder: { op, root in TerminalCommandText.text(rootScript: root, messages: .init(header: "H", password: "P", done: "D", failed: "F")) + (op.isRemoval ? "#r" : "") })
     }
 
-    func testOnePromptInstallsEveryChosenFeature() async {
+    func testOneDialogInstallsEveryChosenFeature() async {
         let executor = FakeExecutor(.succeeded)
+        executor.onRun = { [unowned self] in self.files.insert(SudoersRules.mergedPath) }
         let outcome = await installer(executor).install([.lidClosed, .chargeByTime])
-        XCTAssertEqual(outcome, .granted([.lidClosed, .chargeByTime]))
-        XCTAssertEqual(executor.scripts.count, 1, "one administrator prompt")
-        XCTAssertEqual(executor.scripts.first, SudoersRules.installScript(uid: 501, features: [.lidClosed, .chargeByTime]))
+        XCTAssertEqual(outcome, .succeeded([.lidClosed, .chargeByTime]))
+        XCTAssertEqual(executor.scripts, [SudoersRules.installScript(uid: 501, features: [.lidClosed, .chargeByTime])!], "one administrator dialog")
         XCTAssertEqual(PrivilegedRulePresence.recordedMergedFeatures(defaults), [.lidClosed, .chargeByTime])
     }
 
     func testNothingChosenRunsNothing() async {
         let executor = FakeExecutor(.succeeded)
         let result = await installer(executor).install([])
-        XCTAssertEqual(result, .granted([]))
+        XCTAssertEqual(result, .succeeded([]))
         XCTAssertTrue(executor.scripts.isEmpty)
     }
 
-    func testCancelAndFailureRecordNothing() async {
-        for result in [AdministratorScriptOutcome.cancelled, .failed] {
-            let executor = FakeExecutor(result, installsFile: false)
-            let outcome = await installer(executor).install([.lidClosed])
-            XCTAssertEqual(outcome, result == .cancelled ? .cancelled : .failed)
+    func testCancelAndFailureRecordNothingAndKeepTheCode() async {
+        for (result, expected) in [(AdministratorScriptOutcome.cancelled, PrivilegedOutcome.cancelled), (.failed(7), .failed(7)), (.failed(nil), .failed(nil))] {
+            let outcome = await installer(FakeExecutor(result)).install([.lidClosed])
+            XCTAssertEqual(outcome, expected)
             XCTAssertTrue(PrivilegedRulePresence.recordedMergedFeatures(defaults).isEmpty)
         }
     }
 
     func testASuccessWithoutTheFileIsAFailure() async {
-        let result = await installer(FakeExecutor(.succeeded, installsFile: false)).install([.lidClosed])
-        XCTAssertEqual(result, .failed)
+        let result = await installer(FakeExecutor(.succeeded)).install([.lidClosed])
+        XCTAssertEqual(result, .failed(nil))
     }
 
-    func testACancelAfterTheMoveStillCountsAsInstalled() async {
-        let result = await installer(FakeExecutor(.cancelled, installsFile: true)).install([.chargeByTime])
-        XCTAssertEqual(result, .granted([.chargeByTime]))
+    func testADialogCancelledAfterTheMoveStillCountsWhenTheRulesSaySo() async {
+        let executor = FakeExecutor(.cancelled), probe = FakeProbe()
+        executor.onRun = { [unowned self] in self.files.insert(SudoersRules.mergedPath); self.signature = "b" }
+        probe.present = [.chargeByTime]
+        let result = await installer(executor, probe: probe).install([.chargeByTime])
+        XCTAssertEqual(result, .succeeded([.chargeByTime]))
+        // Without a file change sudo is not even asked.
+        let quiet = FakeProbe(); quiet.present = [.chargeByTime]
+        let none = await installer(FakeExecutor(.cancelled), probe: quiet).install([.chargeByTime])
+        XCTAssertEqual(none, .cancelled); XCTAssertEqual(quiet.calls, 0)
     }
 
+    func testTheTerminalRouteOpensTheShownTextAndReadsTheResult() async throws {
+        let terminal = FakeTerminal(), clock = VirtualClock()
+        let installer = installer(terminal: terminal, clock: clock)
+        let shown = try XCTUnwrap(installer.commandText(.install([.lidClosed, .chargeByTime])))
+        clock.onSleep = { if clock.sleeps == 3 { terminal.answer(0) } }
+        files.insert(SudoersRules.mergedPath)
+        let outcome = await installer.install([.lidClosed, .chargeByTime], route: .terminal)
+        XCTAssertEqual(outcome, .succeeded([.lidClosed, .chargeByTime]))
+        XCTAssertEqual(terminal.texts, [shown], "what the window shows is what Terminal runs")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: terminal.folder!.path), "the private folder is removed afterwards")
+    }
 
-    func testInstallWithAMergedFileAndAnEmptyRecordWritesOnlyTheRequestedLine() async {
-        // The script itself keeps the lines it finds (see SudoersScriptBehaviourTests); the app never rewrites from memory.
-        let executor = FakeExecutor(.succeeded, files: [SudoersRules.mergedPath])
-        let result = await installer(executor).install([.chargeByTime])
-        XCTAssertEqual(result, .granted([.chargeByTime]))
-        XCTAssertEqual(executor.scripts, [SudoersRules.installScript(uid: 501, features: [.chargeByTime])])
-        XCTAssertFalse(executor.scripts.first?.contains("disablesleep") == true, "nothing derived from the (empty) record")
+    func testAWrongPasswordInTerminalIsReported() async {
+        let terminal = FakeTerminal(), clock = VirtualClock()
+        clock.onSleep = { terminal.answer(1) }
+        let outcome = await installer(terminal: terminal, clock: clock).install([.lidClosed], route: .terminal)
+        XCTAssertEqual(outcome, .failed(1))
+    }
+
+    func testARuleChangeIsConfirmedBySudoWithoutAResultFile() async {
+        let terminal = FakeTerminal(), clock = VirtualClock(), probe = FakeProbe()
+        clock.onSleep = { [unowned self] in if clock.sleeps == 5 { self.signature = "changed"; probe.present = [.lidClosed] } }
+        let outcome = await installer(terminal: terminal, probe: probe, clock: clock).install([.lidClosed], route: .terminal)
+        XCTAssertEqual(outcome, .succeeded([.lidClosed]))
+        XCTAssertEqual(probe.calls, 1, "sudo is asked only when a rule file changed")
+    }
+
+    func testANudgeChecksAtOnceAndTheWaitIsBounded() async {
+        let terminal = FakeTerminal(), clock = VirtualClock(), probe = FakeProbe()
+        let installer = installer(terminal: terminal, probe: probe, clock: clock)
+        clock.onSleep = { if clock.sleeps == 2 { installer.nudge() } }
+        let outcome = await installer.install([.lidClosed], route: .terminal)
+        XCTAssertEqual(outcome, .timedOut)
+        XCTAssertEqual(probe.calls, 0, "a nudge with no rule change does not need sudo")
+        XCTAssertEqual(clock.sleeps, 1200, "600 s at 0.5 s")
+    }
+
+    func testCancellingTheTerminalWaitEndsItAndCleansUp() async throws {
+        let terminal = FakeTerminal(), clock = VirtualClock()
+        let installer = installer(terminal: terminal, clock: clock)
+        let task = Task { await installer.install([.lidClosed], route: .terminal) }
+        clock.onSleep = { if clock.sleeps == 4 { task.cancel() } }
+        let outcome = await task.value
+        XCTAssertEqual(outcome, .cancelled)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: try XCTUnwrap(terminal.folder).path))
+    }
+
+    func testTerminalThatCannotOpenFailsCalmly() async {
+        let terminal = FakeTerminal(); terminal.fails = true
+        let outcome = await installer(terminal: terminal).install([.lidClosed], route: .terminal)
+        XCTAssertEqual(outcome, .failed(nil))
+    }
+
+    func testRemoveAllIsTheInverseAndClearsTheHint() async {
+        PrivilegedRulePresence.record([.lidClosed, .chargeByTime], in: defaults)
+        let executor = FakeExecutor(.succeeded)
+        let outcome = await installer(executor).run(.remove([.lidClosed, .chargeByTime]), route: .systemPrompt)
+        XCTAssertEqual(outcome, .succeeded([.lidClosed, .chargeByTime]))
+        XCTAssertEqual(executor.scripts, [SudoersRules.removalScript(uid: 501, removing: [.lidClosed, .chargeByTime])!])
+        XCTAssertEqual(executor.prompts, [PrivilegedRuleInstaller.prompt(for: .remove([.lidClosed]))])
+        XCTAssertTrue(PrivilegedRulePresence.recordedMergedFeatures(defaults).isEmpty)
+    }
+
+    func testPresenceIsReadOnlyAndRefreshesTheHint() async {
+        let probe = FakeProbe(); probe.present = [.chargeByTime]
+        files.insert(SudoersRules.mergedPath)
+        let executor = FakeExecutor(.succeeded)
+        let present = await installer(executor, probe: probe).presence()
+        XCTAssertEqual(present, [.chargeByTime])
+        XCTAssertTrue(executor.scripts.isEmpty, "reading never runs a script")
         XCTAssertEqual(PrivilegedRulePresence.recordedMergedFeatures(defaults), [.chargeByTime])
     }
 
-    func testALaterRequestKeepsTheRecordedFeaturesInTheHint() async {
-        PrivilegedRulePresence.record([.lidClosed], in: defaults)
-        let executor = FakeExecutor(.succeeded, files: [SudoersRules.mergedPath])
-        let result = await installer(executor).install([.chargeByTime])
-        XCTAssertEqual(result, .granted([.chargeByTime]))
-        XCTAssertEqual(PrivilegedRulePresence.recordedMergedFeatures(defaults), [.lidClosed, .chargeByTime])
+    func testTheSetupMessagesAreCalm() {
+        XCTAssertEqual(PrivilegedPermissionsController.message(.succeeded([]), operation: .remove([.lidClosed]), route: .systemPrompt), "setup.permissions.removed")
+        XCTAssertEqual(PrivilegedPermissionsController.message(.failed(1), operation: .install([.lidClosed]), route: .terminal), "firstRun.failed.password")
+        XCTAssertEqual(PrivilegedPermissionsController.message(.failed(1), operation: .install([.lidClosed]), route: .systemPrompt), "firstRun.failed")
+        XCTAssertEqual(PrivilegedPermissionsController.message(.cancelled, operation: .install([.lidClosed]), route: .systemPrompt), "firstRun.declined")
     }
 }
 
+final class FirstRunMotionTests: XCTestCase {
+    typealias M = FirstRunMotion
+
+    func testReduceMotionIsStaticAndShort() {
+        XCTAssertEqual(M.check(0, reduceMotion: true), 1)
+        XCTAssertEqual(M.iconFill(0, reduceMotion: true), 1, "icon full at once")
+        XCTAssertEqual(M.coach(1.3, reduceMotion: true).pulse, 0, "no pulse")
+        XCTAssertLessThanOrEqual(M.handOffDuration(reduceMotion: true), 0.2)
+        XCTAssertLessThanOrEqual(M.crossfadeDuration(reduceMotion: true), 0.2)
+        XCTAssertLessThan(M.successBeat(reduceMotion: true), M.successBeat(reduceMotion: false))
+    }
+
+    func testEveryPieceEnds() {
+        XCTAssertEqual(M.check(0.3, reduceMotion: false), 1)
+        XCTAssertEqual(M.iconFillLevel(0, level: 80, reduceMotion: false), 0)
+        XCTAssertEqual(M.iconFillLevel(M.iconFillDuration, level: 80, reduceMotion: false), 80)
+        XCTAssertEqual(M.coach(M.coachDuration, reduceMotion: false), .init(opacity: 0, pulse: 0))
+        XCTAssertEqual(M.coach(3, reduceMotion: false).pulse, 0, "two pulses, then rest")
+        XCTAssertEqual(M.handOffDuration(reduceMotion: false), 0.35)
+        // The whole landing is about one second.
+        XCTAssertLessThanOrEqual(M.successBeat(reduceMotion: false) + M.handOffDuration(reduceMotion: false) + M.iconFillDuration, 1.5)
+    }
+}
+
+final class FirstRunCopyTests: XCTestCase {
+    static let labels = [
+        "firstRun.title", "firstRun.launchAtLogin", "firstRun.keepHistory", "firstRun.chargeLimit", "firstRun.lidClosed", "firstRun.chargeByTime",
+        "firstRun.badge.password", "firstRun.badge.allowed", "firstRun.start", "firstRun.allowAndStart", "firstRun.tryAgain", "firstRun.withoutPassword",
+        "firstRun.skip", "firstRun.cancel", "firstRun.close", "firstRun.useTerminal", "firstRun.openApp", "firstRun.openSettings", "firstRun.copy",
+        "firstRun.showCommand", "firstRun.hideCommand", "firstRun.done", "firstRun.preview", "firstRun.coach", "firstRun.info.title",
+        "firstRun.enabling", "firstRun.waiting.system", "firstRun.waiting.terminal", "firstRun.declined", "firstRun.failed", "firstRun.failed.password",
+        "firstRun.timedOut", "firstRun.passwordNote", "firstRun.readyNote", "firstRun.iconHidden.title",
+        "firstRun.attention.loginNeedsApproval", "firstRun.attention.loginFailed", "firstRun.attention.lidRefused",
+        "setup.permissions.allow", "setup.permissions.allowed", "setup.permissions.notAllowed", "setup.permissions.granted", "setup.permissions.removed",
+        "setup.permissions.removeAll", "setup.permissions.removeInTerminal", "setup.permissions.title", "setup.permissions.removalCommand"]
+    static let lines = ["firstRun.subtitle", "firstRun.launchAtLogin.detail", "firstRun.keepHistory.detail", "firstRun.chargeLimit.detail",
+                        "firstRun.lidClosed.detail", "firstRun.chargeByTime.detail", "firstRun.iconHidden.text",
+                        "setup.permissions.blocked.lid", "setup.permissions.blocked.wake"]
+    static let script = ["firstRun.script.header", "firstRun.script.removeHeader", "firstRun.script.password", "firstRun.script.done", "firstRun.script.failed"]
+    static let prompts = ["Tilvero asks to allow narrow pmset commands without a password for the features you chose.",
+                          "Tilvero asks to remove its passwordless pmset rules.", "Tilvero asks to restore normal sleep."]
+
+    private func catalog() throws -> [String: Any] {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/TilveroApp/Resources/Localizable.xcstrings")
+        let root = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        return try XCTUnwrap(root["strings"] as? [String: Any])
+    }
+    private func value(_ strings: [String: Any], _ key: String, _ language: String) -> String? {
+        (((strings[key] as? [String: Any])?["localizations"] as? [String: Any])?[language] as? [String: Any]).flatMap { ($0["stringUnit"] as? [String: Any])?["value"] as? String }
+    }
+
+    func testEveryStringExistsInRussianAndEnglish() throws {
+        let strings = try catalog()
+        let keys = Self.labels + Self.lines + Self.script + Self.prompts + FirstRunWindowView.infoKeys
+            + FirstRunWindowView.rows.flatMap { [$0.title, $0.detail] }
+        for key in keys { for language in ["en", "ru"] { XCTAssertFalse(value(strings, key, language)?.isEmpty ?? true, "\(language): \(key)") } }
+    }
+
+    /// Plain words, short: labels fit a button or a row, one-line descriptions, the (i) text within ~50 words.
+    func testCopyIsShortPlainAndWithoutCaveats() throws {
+        let strings = try catalog()
+        for language in ["en", "ru"] {
+            let info = FirstRunWindowView.infoKeys.compactMap { value(strings, $0, language) }
+            XCTAssertEqual(info.count, 2, "two short paragraphs")
+            XCTAssertLessThanOrEqual(info.joined(separator: " ").split(separator: " ").count, 50, "\(language) info within ~50 words")
+            for key in Self.labels { XCTAssertLessThanOrEqual((value(strings, key, language) ?? "").count, 34, "\(language) \(key)") }
+            for key in Self.lines { XCTAssertLessThanOrEqual((value(strings, key, language) ?? "").count, 56, "\(language) \(key)") }
+            // Technical words only behind (i), in Terminal and in the macOS prompt.
+            for key in Self.labels + Self.lines {
+                let text = value(strings, key, language) ?? ""
+                for word in ["pmset", "sudo", "sudoers", "verified", "провер", "root"] { XCTAssertFalse(text.localizedCaseInsensitiveContains(word), "\(language) \(key): \(text)") }
+            }
+            for key in Self.script { XCTAssertTrue(TerminalCommandText.Messages.isSafe(value(strings, key, language) ?? "'"), "\(language) \(key)") }
+        }
+    }
+
+    func testButtonKeysCoverEveryButton() {
+        for primary in [FirstRunButtons.Primary.start, .allowAndStart, .tryAgain, .openApp] { XCTAssertTrue(Self.labels.contains(FirstRunWindowView.primaryKey(primary))) }
+        for secondary in [FirstRunButtons.Secondary.skip, .cancel, .withoutPassword, .close] { XCTAssertTrue(Self.labels.contains(FirstRunWindowView.secondaryKey(secondary))) }
+    }
+}
+
+@MainActor private final class FakeHost: FirstRunHost {
+    var visible = true
+    var popovers = 0, details = 0, finished = 0
+    var fills: [Double?] = []
+    var firstRunStatusButtonFrame: NSRect? { visible ? NSRect(x: 1200, y: 900, width: 40, height: 24) : nil }
+    var firstRunStatusItemVisible: Bool { visible }
+    func firstRunDrawIcon(fill: Double?) { fills.append(fill) }
+    func firstRunOpenPopover() { popovers += 1 }
+    func firstRunOpenDetails() { details += 1 }
+    func firstRunFinished() { finished += 1 }
+}
+
+@MainActor final class FirstRunCoordinatorTests: XCTestCase {
+    private var logins: [Bool] = [], history: [Bool] = [], requests: [(Set<PrivilegedFeature>, PermissionRoute)] = [], lid = 0, marks = 0
+    private var loginResult: FirstRunLoginResult = .enabled
+    private var permission: PrivilegedOutcome = .succeeded([.lidClosed, .chargeByTime])
+    private var lidResult = true
+
+    private func make() -> (FirstRunCoordinator, FakeHost) {
+        let host = FakeHost()
+        let ports = FirstRunPorts(
+            markIntroduced: { self.marks += 1 }, setHistory: { self.history.append($0) },
+            setLogin: { self.logins.append($0); return $0 ? self.loginResult : nil }, openLoginItemsSettings: {},
+            requestPermission: { features, route in self.requests.append((features, route)); return self.permission },
+            commandText: { "text for \($0.count)" }, nudge: {}, turnOnLid: { self.lid += 1; return self.lidResult })
+        let session = FirstRunSession(isPreview: true)
+        session.speed = 20
+        session.forceReduceMotion = true
+        let coordinator = FirstRunCoordinator(session: session, ports: ports, host: host)
+        coordinator.presentsWindow = false   // never a real window or activation in tests
+        return (coordinator, host)
+    }
+
+    private func wait(until condition: @escaping () -> Bool) async throws {
+        for _ in 0..<300 where !condition() { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertTrue(condition())
+    }
+
+    func testOneClickAppliesTheChoicesAndOpensTheRealMenu() async throws {
+        let (coordinator, host) = make()
+        coordinator.start()
+        XCTAssertEqual(marks, 1, "recorded at once: never shown twice")
+        coordinator.session.send(.start)
+        XCTAssertEqual(history, [true]); XCTAssertEqual(logins, [true])
+        try await wait { host.popovers == 1 }
+        XCTAssertTrue(requests.isEmpty, "no password without locked features")
+        XCTAssertEqual(coordinator.session.step, .finished)
+        XCTAssertTrue(coordinator.session.coachVisible, "the charge limit coach runs on the real menu")
+        try await wait { host.finished == 1 }
+        XCTAssertFalse(coordinator.session.coachVisible)
+    }
+
+    func testLockedFeaturesAskOnceThenTurnTheLidOn() async throws {
+        let (coordinator, host) = make()
+        coordinator.start()
+        coordinator.session.flow.choices.lidClosed = true
+        coordinator.session.flow.choices.chargeByTime = true
+        coordinator.session.flow.choices.chargeLimit = false
+        coordinator.session.send(.start)
+        try await wait { host.finished == 1 }
+        XCTAssertEqual(requests.count, 1)
+        XCTAssertEqual(requests.first?.0, [.lidClosed, .chargeByTime]); XCTAssertEqual(requests.first?.1, .systemPrompt)
+        XCTAssertEqual(lid, 1)
+        XCTAssertEqual(host.popovers, 1)
+    }
+
+    func testTheTerminalRouteShowsItsText() async throws {
+        let (coordinator, _) = make()
+        permission = .cancelled
+        coordinator.session.flow.choices.chargeByTime = true
+        coordinator.session.send(.useTerminal)
+        try await wait { coordinator.session.step == .declined }
+        XCTAssertEqual(requests.first?.1, .terminal)
+        XCTAssertEqual(coordinator.session.commandText, "text for 1")
+    }
+
+    func testARefusedLidOrALoginApprovalStopsForOneLook() async throws {
+        lidResult = false; loginResult = .requiresApproval
+        let (coordinator, host) = make()
+        coordinator.session.flow.choices.lidClosed = true
+        coordinator.session.send(.start)
+        try await wait { coordinator.session.step == .attention }
+        XCTAssertEqual(coordinator.session.flow.attention, [.loginNeedsApproval, .lidRefused])
+        XCTAssertEqual(host.popovers, 0)
+        coordinator.session.send(.start)
+        try await wait { host.popovers == 1 }
+    }
+
+    func testNoRoomForTheIconKeepsTheWindow() async throws {
+        let (coordinator, host) = make()
+        host.visible = false
+        coordinator.session.send(.skip)
+        try await wait { coordinator.session.step == .iconHidden }
+        XCTAssertEqual(host.popovers, 0)
+        coordinator.session.send(.openDetails)
+        XCTAssertEqual(host.details, 1)
+        try await wait { host.finished == 1 }
+    }
+
+    func testLoginOffNeverRegisters() async throws {
+        let (coordinator, host) = make()
+        coordinator.session.flow.choices.launchAtLogin = false
+        coordinator.session.flow.choices.keepHistory = false
+        coordinator.session.send(.start)
+        try await wait { host.popovers == 1 }
+        XCTAssertEqual(logins, [false]); XCTAssertEqual(history, [false])
+    }
+
+    func testClosingTheMenuEndsTheCoach() async throws {
+        let (coordinator, host) = make()
+        coordinator.session.send(.start)
+        try await wait { host.popovers == 1 }
+        coordinator.popoverDidClose()
+        XCTAssertEqual(host.finished, 1)
+        XCTAssertFalse(coordinator.session.coachVisible)
+        coordinator.teardown()
+    }
+}
 /// A fake process for `CancellableProcessRun`: never launches anything real.
 private final class FakeProcess: @unchecked Sendable {
     private let lock = NSLock()
@@ -576,205 +1124,12 @@ final class CancellableProcessRunTests: XCTestCase {
         fake.exit(1, "execution error: User canceled. (-128)")
         let result = await task.value
         XCTAssertEqual(OsascriptAdministratorExecutor.outcome(status: result.status, output: result.output, cancelled: false), .cancelled)
-        XCTAssertEqual(OsascriptAdministratorExecutor.outcome(status: 1, output: "other", cancelled: false), .failed)
+        XCTAssertEqual(OsascriptAdministratorExecutor.outcome(status: 1, output: "other", cancelled: false), .failed(nil))
         XCTAssertEqual(OsascriptAdministratorExecutor.outcome(status: 0, output: "", cancelled: false), .succeeded)
     }
 
     func testALaunchFailureFinishes() async {
         let result = await CancellableProcessRun.run(launch: { _ in throw CocoaError(.fileNoSuchFile) })
         XCTAssertEqual(result.status, CancellableProcessRun.launchFailed)
-    }
-}
-
-final class FirstRunMotionTests: XCTestCase {
-    typealias M = FirstRunMotion
-
-    func testWindowScenesLoopThreeTimesThenFreezeOnTheExplanatoryFrame() {
-        let frozen = M.whereScene(M.whereLoop.freezeAt, reduceMotion: false)
-        XCTAssertEqual(M.whereScene(9.7, reduceMotion: false), frozen)
-        XCTAssertEqual(M.whereScene(100, reduceMotion: false), frozen)
-        XCTAssertEqual(M.whereScene(0.5, reduceMotion: false, jumpedToEnd: true), frozen, "any click jumps to the final frame")
-        XCTAssertNotEqual(M.whereScene(0.5, reduceMotion: false), frozen)
-        XCTAssertEqual(M.whereScene(0.5, reduceMotion: false), M.whereScene(0.5 + 3.2, reduceMotion: false), "loops")
-        XCTAssertTrue(M.whereLoop.isFrozen(9.61, reduceMotion: false, jumpedToEnd: false))
-        XCTAssertFalse(M.whereLoop.isFrozen(9.5, reduceMotion: false, jumpedToEnd: false))
-        XCTAssertEqual(M.hiddenScene(8.5, reduceMotion: false), M.hiddenScene(M.hiddenLoop.freezeAt, reduceMotion: false))
-        XCTAssertGreaterThan(frozen.popover, 0.9, "the frozen frame shows the opened panel")
-    }
-
-    func testReduceMotionIsStatic() {
-        XCTAssertEqual(M.whereScene(0, reduceMotion: true), M.whereScene(5, reduceMotion: true))
-        XCTAssertEqual(M.whereScene(0, reduceMotion: true).cursor, CGPoint(x: M.whereIconCenter.x + 3, y: M.whereIconCenter.y + 5))
-        XCTAssertEqual(M.hiddenScene(0, reduceMotion: true), M.hiddenScene(2, reduceMotion: true))
-        XCTAssertEqual(M.iconFill(0, reduceMotion: true), 1, "icon filled at once")
-        XCTAssertEqual(M.beacon(0.3, reduceMotion: true), .init(bob: 0, ring: 0), "no beacon bobbing")
-        XCTAssertEqual(M.touchPreview(0, reduceMotion: true), M.touchPreview(1, reduceMotion: true))
-        XCTAssertLessThanOrEqual(M.crossfadeDuration(reduceMotion: true), 0.2)
-        XCTAssertLessThanOrEqual(M.handOffDuration(reduceMotion: true), 0.2)
-        XCTAssertEqual(M.handOffDuration(reduceMotion: false), 0.35)
-        let guide = M.guide(1, from: .zero, to: CGPoint(x: 100, y: 50), reduceMotion: true)
-        XCTAssertEqual(guide.point, CGPoint(x: 100, y: 50), "static cursor")
-        XCTAssertEqual(guide.press, 0)
-        XCTAssertEqual(M.bubble(0.5, reduceMotion: true).rings, [0, 0])
-    }
-
-    func testFinishedMotionStopsItsTimeline() {
-        XCTAssertFalse(M.checksSettled(count: 4, 0.5, reduceMotion: false))
-        XCTAssertTrue(M.checksSettled(count: 4, M.checksEnd(count: 4), reduceMotion: false))
-        XCTAssertEqual(M.check(3, M.checksEnd(count: 4), reduceMotion: false), 1, "settles exactly when the last check is drawn")
-        XCTAssertTrue(M.checksSettled(count: 0, 0, reduceMotion: true))
-        XCTAssertFalse(M.beaconSettled(M.beaconMotionDuration - 0.01, reduceMotion: false))
-        XCTAssertTrue(M.beaconSettled(M.beaconMotionDuration, reduceMotion: false))
-        XCTAssertEqual(M.beacon(M.beaconMotionDuration, reduceMotion: false), .init(bob: 0, ring: 0), "the resting frame")
-        XCTAssertTrue(M.beaconSettled(0, reduceMotion: true))
-        XCTAssertFalse(M.breathingSettled(1, reduceMotion: false))
-        XCTAssertTrue(M.breathingSettled(M.breathingDuration, reduceMotion: false))
-        XCTAssertEqual(M.breathing(M.breathingDuration - 1e-9, reduceMotion: false), 1, accuracy: 1e-6, "no jump when it comes to rest")
-        XCTAssertEqual(M.breathing(M.breathingDuration + 5, reduceMotion: false), 1)
-    }
-
-    func testIconFillReachesTheRealLevelIn07Seconds() {
-        XCTAssertEqual(M.iconFillLevel(0, level: 80, reduceMotion: false), 0)
-        XCTAssertEqual(M.iconFillLevel(0.7, level: 80, reduceMotion: false), 80)
-        XCTAssertEqual(M.iconFillLevel(2, level: 80, reduceMotion: false), 80)
-        let mid = M.iconFillLevel(0.35, level: 80, reduceMotion: false)
-        XCTAssertTrue((40..<80).contains(mid))
-    }
-
-    func testOneShotPiecesEnd() {
-        XCTAssertEqual(M.guide(M.guideDuration, from: .zero, to: CGPoint(x: 10, y: 10), reduceMotion: false).opacity, 0)
-        XCTAssertEqual(M.bubble(M.bubbleDuration, reduceMotion: false).opacity, 0)
-        XCTAssertEqual(M.beacon(M.beaconMotionDuration + 1, reduceMotion: false), .init(bob: 0, ring: 0))
-        XCTAssertEqual(M.touchPreview(M.confirmPreviewDuration, reduceMotion: false).collapse, 1)
-        XCTAssertEqual(M.check(0, 0.5, reduceMotion: false), 1)
-        XCTAssertLessThan(M.check(3, 0.5, reduceMotion: false), 1, "checks draw in one by one")
-        XCTAssertEqual(M.spring(10), 1, accuracy: 0.001)
-    }
-}
-
-final class FirstRunCopyTests: XCTestCase {
-    private static let keys = [
-        "firstRun.window.title", "firstRun.window.subtitle", "firstRun.window.hidden.title", "firstRun.window.hidden.subtitle",
-        "firstRun.window.accessibility", "firstRun.window.hidden.accessibility", "firstRun.cantSeeIcon", "firstRun.back", "firstRun.openHere",
-        "firstRun.skip", "firstRun.preview", "firstRun.close", "firstRun.card.title", "firstRun.launchAtLogin", "firstRun.keepHistory",
-        "firstRun.more", "firstRun.expanded", "firstRun.collapsed", "firstRun.chargeLimit", "firstRun.lidClosed", "firstRun.chargeByTime",
-        "firstRun.needsPermission", "firstRun.done", "firstRun.confirm.title", "firstRun.confirm.subtitle", "firstRun.info.title",
-        "firstRun.info.what", "firstRun.info.password", "firstRun.cancel", "firstRun.done.title", "firstRun.row.login", "firstRun.row.history",
-        "firstRun.allow", "firstRun.check", "firstRun.declined.title", "firstRun.failed.title", "firstRun.turnOn", "firstRun.limitCoach",
-        "firstRun.bubble", "Tilvero asks to allow narrow pmset commands without a password for the features you chose."]
-
-    private func catalog() throws -> [String: Any] {
-        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Sources/TilveroApp/Resources/Localizable.xcstrings")
-        let root = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
-        return try XCTUnwrap(root["strings"] as? [String: Any])
-    }
-    private func value(_ strings: [String: Any], _ key: String, _ language: String) -> String? {
-        (((strings[key] as? [String: Any])?["localizations"] as? [String: Any])?[language] as? [String: Any]).flatMap { ($0["stringUnit"] as? [String: Any])?["value"] as? String }
-    }
-
-    func testEveryFirstRunStringExistsInRussianAndEnglish() throws {
-        let strings = try catalog()
-        for key in Self.keys { for language in ["en", "ru"] { XCTAssertFalse(value(strings, key, language)?.isEmpty ?? true, "\(language): \(key)") } }
-    }
-
-    func testCopyIsShortWithoutCaveats() throws {
-        let strings = try catalog()
-        for language in ["en", "ru"] {
-            let info = FirstRunCard.infoKeys.compactMap { value(strings, $0, language) }
-            XCTAssertEqual(info.count, 2, "two short paragraphs")
-            XCTAssertLessThanOrEqual(info.joined(separator: " ").split(separator: " ").count, 50, "\(language) info within ~50 words")
-            for key in Self.keys where !key.hasSuffix("accessibility") && !key.hasPrefix("firstRun.info") && !key.hasPrefix("Tilvero asks") {
-                let text = value(strings, key, language) ?? ""
-                XCTAssertLessThanOrEqual(text.count, 34, "\(language) \(key): short labels, no captions: \(text)")
-            }
-            for key in Self.keys { XCTAssertFalse((value(strings, key, language) ?? "").localizedCaseInsensitiveContains("verified")) }
-        }
-    }
-}
-
-@MainActor private final class FakeHost: FirstRunHost {
-    var behavior: NSPopover.Behavior = .transient
-    var shown = false, finished = false
-    var fills: [Double?] = []
-    var firstRunStatusButtonFrame: NSRect? { nil }
-    var firstRunPopoverShown: Bool { shown }
-    func firstRunSetPopoverBehavior(_ behavior: NSPopover.Behavior) { self.behavior = behavior }
-    func firstRunShowPopover() { shown = true }
-    func firstRunClosePopover() { shown = false }
-    func firstRunDrawIcon(fill: Double?) { fills.append(fill) }
-    func firstRunFinished() { finished = true }
-}
-
-@MainActor final class FirstRunCoordinatorTests: XCTestCase {
-    private var lidResult = true
-    private var logins = 0, history: [Bool] = [], installs: [Set<PrivilegedFeature>] = [], lid = 0, marks = 0
-
-    private func make() -> (FirstRunCoordinator, FakeHost) {
-        let host = FakeHost()
-        let ports = FirstRunPorts(markIntroduced: { self.marks += 1 }, setHistory: { self.history.append($0) },
-                                  registerLogin: { self.logins += 1; return .enabled }, openLoginItemsSettings: {},
-                                  install: { self.installs.append($0); return .granted($0) }, turnOnLid: { self.lid += 1; return self.lidResult })
-        let session = FirstRunSession(isPreview: true)
-        session.speed = 20
-        return (FirstRunCoordinator(session: session, ports: ports, host: host), host)
-    }
-
-    func testLoginIsRegisteredOnlyByDoneWithTheSwitchOn() {
-        let (coordinator, host) = make()
-        coordinator.jump(to: .card)
-        XCTAssertEqual(host.behavior, .applicationDefined)
-        coordinator.session.flow.choices.launchAtLogin = false
-        coordinator.session.flow.choices.keepHistory = false
-        coordinator.session.send(.done)
-        XCTAssertEqual(logins, 0)
-        XCTAssertEqual(history, [false])
-        XCTAssertTrue(installs.isEmpty)
-        coordinator.popoverDidClose()   // ignored right after a jump (debug close)
-        XCTAssertEqual(coordinator.session.step, .done)
-        coordinator.teardown()
-    }
-
-    func testLockedFeaturesUseOneInstallAfterThePreviewAndRestoreTransient() async throws {
-        let (coordinator, host) = make()
-        coordinator.jump(to: .card)
-        coordinator.session.flow.choices.lidClosed = true
-        coordinator.session.flow.choices.chargeByTime = true
-        coordinator.session.send(.done)
-        XCTAssertEqual(logins, 1)
-        XCTAssertEqual(coordinator.session.step, .confirmPreview)
-        for _ in 0..<100 where coordinator.session.step != .done { try await Task.sleep(for: .milliseconds(20)) }
-        XCTAssertEqual(coordinator.session.step, .done)
-        XCTAssertEqual(installs, [[.lidClosed, .chargeByTime]], "one prompt for both")
-        for _ in 0..<100 where coordinator.session.flow.lidEnabled == nil { try await Task.sleep(for: .milliseconds(10)) }
-        XCTAssertEqual(lid, 1)
-        XCTAssertEqual(coordinator.session.flow.grantedRows.first?.kind, .enabled)
-        try await Task.sleep(for: .milliseconds(900))
-        coordinator.popoverDidClose()
-        XCTAssertEqual(coordinator.session.step, .bubble)
-        XCTAssertEqual(host.behavior, .transient)
-        host.shown = true   // the user opens the quick panel while the bubble plays
-        for _ in 0..<150 where !host.finished { try await Task.sleep(for: .milliseconds(20)) }
-        XCTAssertTrue(host.finished)
-        XCTAssertTrue(host.shown, "the end of the flow never closes a popover the user opened")
-    }
-
-    func testARefusedLidOptionIsShownAsNotEnabled() async throws {
-        lidResult = false
-        let (coordinator, _) = make()
-        coordinator.jump(to: .card)
-        coordinator.session.flow.choices.lidClosed = true
-        coordinator.session.send(.done)
-        for _ in 0..<150 where coordinator.session.flow.lidEnabled == nil { try await Task.sleep(for: .milliseconds(10)) }
-        XCTAssertEqual(coordinator.session.flow.lidEnabled, false)
-        XCTAssertEqual(coordinator.session.flow.grantedRows.map(\.kind), [.notEnabled])
-        coordinator.teardown()
-    }
-
-    func testDebugRestartAndJumpStillCloseThePopover() {
-        let (coordinator, host) = make()
-        host.shown = true
-        coordinator.teardown()
-        XCTAssertFalse(host.shown)
     }
 }
