@@ -163,8 +163,10 @@ enum NativeBatteryStatusImage {
     private static func modernFont(_ size: MenuBarTextSize, compactFullCharge: Bool = false) -> NSFont {
         // The native 100 reference fits smaller public system numerals into the
         // same body. Preserve the measured 0...99 typography independently.
-        let pointSize: CGFloat = compactFullCharge ? (size == .system ? 9.25 : 10.25) : (size == .system ? 10 : 11)
-        return NSFont.systemFont(ofSize: pointSize, weight: .medium)
+        // The compact "100" is fitted to the native one's pixels (macOS 27.2, 2x, 2026-11-15): semibold 9 pt, -0.2 pt
+        // tracking, 0.885 cutout (dark ink), centred 0.25 pt right of the body's old centre.
+        let pointSize: CGFloat = compactFullCharge ? (size == .system ? 9 : 10) : (size == .system ? 10 : 11)
+        return NSFont.systemFont(ofSize: pointSize, weight: compactFullCharge ? .semibold : .medium)
     }
 
     private static let modernTwoDigitCapacity: [MenuBarTextSize: CGFloat] =
@@ -199,7 +201,7 @@ enum NativeBatteryStatusImage {
         // The supplied dark-ink reference uses secondary numeral/cue coverage;
         // white ink retains clear cutouts. Read the active drawing context so
         // the same cached status image can adapt without a global theme change.
-        NSAppearance.currentDrawing().bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? 1 : 0.75
+        NSAppearance.currentDrawing().bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? 0.885 : 0.75
     }
 
     /// Charge at or below which the fill turns red on battery power (the system indicator does the same).
@@ -225,16 +227,16 @@ enum NativeBatteryStatusImage {
             NSBezierPath(roundedRect: NSRect(x: 25 + extra, y: 7, width: 1.5, height: 4), xRadius: 0.75, yRadius: 0.75).fill()
         }
         if style == .inside {
-            drawModernText(level.map(String.init) ?? "—", centeredAt: NSPoint(x: (externalPower ? (compactFullCharge ? 10.5 : 10) : 12.5) + extra / 2, y: 9),
+            drawModernText(level.map(String.init) ?? "—", centeredAt: NSPoint(x: (externalPower ? (compactFullCharge ? 10.75 : 10) : 12.5) + extra / 2, y: 9),
                            font: modernFont(textSize, compactFullCharge: compactFullCharge))
         } else if level == nil {
             drawModernText("—", centeredAt: NSPoint(x: externalPower ? 10 : 12.5, y: 9), font: modernFont(textSize))
         }
         if externalPower {
             guard let marker = NSImage(systemSymbolName: "bolt.fill", accessibilityDescription: nil)?
-                .withSymbolConfiguration(.init(pointSize: compactFullCharge ? 6 : 7.5, weight: .regular)) else { return fillRegion }
-            let centreX: CGFloat = style == .inside || level == nil ? (compactFullCharge ? 21 : 19.5) + extra : 12.5
-            let centreY: CGFloat = compactFullCharge ? 9 : 9.25
+                .withSymbolConfiguration(.init(pointSize: compactFullCharge ? 5.25 : 7.5, weight: compactFullCharge ? .medium : .regular)) else { return fillRegion }
+            let centreX: CGFloat = style == .inside || level == nil ? (compactFullCharge ? 20.875 : 19.5) + extra : 12.5
+            let centreY: CGFloat = compactFullCharge ? 9.5 : 9.25
             marker.draw(at: NSPoint(x: centreX - marker.size.width / 2, y: centreY - marker.size.height / 2),
                         from: .zero, operation: modernCutoutOperation, fraction: modernCutoutOpacity)
         }
@@ -248,7 +250,7 @@ enum NativeBatteryStatusImage {
         if value == "100" {
             // Match the native compact numeral spacing without distorting glyphs.
             // Center by the two inter-digit gaps, excluding NSString's trailing kern.
-            let tracking = -0.5 * font.pointSize / 9.25
+            let tracking = -0.2 * font.pointSize / 9
             attributes[.kern] = tracking
             dimensions.width += 2 * tracking
         }
