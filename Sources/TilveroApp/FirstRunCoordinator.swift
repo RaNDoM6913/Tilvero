@@ -82,6 +82,8 @@ enum FirstRunLogin {
     private var token = 0
     /// Tests run the flow without ever creating, showing or activating a window.
     var presentsWindow = true
+    /// Integration tests show the real window but never activate the test process (focus stays with the user).
+    var activatesApp = true
 
     init(session: FirstRunSession, ports: FirstRunPorts, host: FirstRunHost) {
         self.session = session; self.ports = ports; self.host = host
@@ -157,7 +159,7 @@ enum FirstRunLogin {
                 guard let self else { return }
                 let outcome = await self.ports.requestPermission(features, route)
                 guard !Task.isCancelled else { return }
-                if self.presentsWindow {
+                if self.presentsWindow, self.activatesApp {
                     self.window?.makeKeyAndOrderFront(nil)
                     NSApplication.shared.activate()
                 }
@@ -274,7 +276,10 @@ enum FirstRunLogin {
         session.restartEntrance()
         let hosting = FirstMouseHostingView(rootView: FirstRunWindowView(session: session))
         hosting.sizingOptions = []   // the coordinator sizes the window (and keeps it centered)
-        let size = hosting.fittingSize
+        hostingView = hosting
+        // `fittingSize` is zero once the hosting view no longer reports an intrinsic size: measure the SwiftUI
+        // content itself (a 0 × 0 key window was invisible yet took Return/Escape).
+        let size = measuredSize()
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
                               styleMask: [.titled, .closable, .fullSizeContentView], backing: .buffered, defer: false)
         window.titlebarAppearsTransparent = true
@@ -286,8 +291,12 @@ enum FirstRunLogin {
         window.setFrame(FirstRunWindowGeometry.centered(size: size, in: screenFrame), display: false)
         self.window = window
         window.alphaValue = 0
-        NSApplication.shared.activate()
-        window.makeKeyAndOrderFront(nil)
+        if activatesApp {
+            NSApplication.shared.activate()
+            window.makeKeyAndOrderFront(nil)
+        } else {
+            window.orderFrontRegardless()
+        }
         NSAnimationContext.runAnimationGroup { context in
             context.duration = FirstRunMotion.crossfadeDuration(reduceMotion: session.reduceMotion)
             window.animator().alphaValue = 1
@@ -301,16 +310,26 @@ enum FirstRunLogin {
         })
     }
 
+    private var hostingView: FirstMouseHostingView<FirstRunWindowView>?
+
+    /// A separate, never-displayed controller of the same view measures the content (NSHostingView has no
+    /// `sizeThatFits`, and its `fittingSize` is zero with `sizingOptions = []`).
+    private lazy var measurer = NSHostingController(rootView: FirstRunWindowView(session: session))
+
+    private func measuredSize() -> NSSize {
+        FirstRunWindowGeometry.usableSize(measurer.sizeThatFits(in: NSSize(width: FirstRunWindowView.width, height: 4000)))
+    }
+
     private func resizeWindowToFit() {
-        guard let window, let view = window.contentView else { return }
-        view.layoutSubtreeIfNeeded()
-        let size = view.fittingSize
-        guard size.width > 0, size.height > 0, size != window.frame.size else { return }
+        guard let window else { return }
+        let size = measuredSize()
+        guard size != window.frame.size else { return }
         let frame = FirstRunWindowGeometry.resized(window.frame, to: size, within: window.screen?.visibleFrame ?? screenFrame)
         window.setFrame(frame, display: true, animate: !session.reduceMotion)
     }
 
     private func dropWindow() {
+        hostingView = nil
         stepSubscription = nil
         observers.forEach(NotificationCenter.default.removeObserver); observers.removeAll()
         guard let window else { return }
@@ -322,6 +341,7 @@ enum FirstRunLogin {
     /// Into the icon (a frame on screen) or a plain fade (nil).
     private func closeWindow(intoIcon button: NSRect?) {
         guard let window else { return }
+        hostingView = nil
         stepSubscription = nil
         observers.forEach(NotificationCenter.default.removeObserver); observers.removeAll()
         self.window = nil

@@ -91,6 +91,15 @@ enum FirstRunMotion {
 
 /// Where the first-run window sits: centered on the screen of the menu bar icon, like any setup window.
 enum FirstRunWindowGeometry {
+    static let fallbackSize = NSSize(width: 480, height: 560)
+
+    /// A measured content size the window can use: never zero, negative or non-finite (then the usual size).
+    static func usableSize(_ measured: NSSize) -> NSSize {
+        guard measured.width.isFinite, measured.height.isFinite, measured.width >= 200, measured.height >= 200,
+              measured.width < 4000, measured.height < 4000 else { return fallbackSize }
+        return NSSize(width: measured.width.rounded(.up), height: measured.height.rounded(.up))
+    }
+
     static func centered(size: NSSize, in visible: NSRect) -> NSRect {
         clamp(NSRect(x: (visible.midX - size.width / 2).rounded(), y: (visible.midY - size.height / 2).rounded(),
                      width: size.width, height: size.height), within: visible)
