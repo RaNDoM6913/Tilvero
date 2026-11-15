@@ -344,7 +344,9 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         let preview = firstRunMode.isPreview
         let session = FirstRunSession(isPreview: preview)
         let ports: FirstRunPorts
-        if case .preview(let environment) = firstRunMode, let controls = previewControls, let installer = previewInstaller {
+        if case .preview(let environment) = firstRunMode {
+            // Never falls back to the real ports: a preview without its fakes shows nothing.
+            guard let controls = previewControls, let installer = previewInstaller else { return }
             ports = FirstRunPreview.ports(controls: controls, defaults: environment.defaults, installer: installer)
         } else {
             let installer = PrivilegedRuleInstaller.native(defaults: .standard)

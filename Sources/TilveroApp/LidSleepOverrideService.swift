@@ -198,7 +198,8 @@ enum LidMode: Equatable { case keepAwake, scheduledSleep }
     }
 
     private func enable(_ mode: LidMode, allowPrompt: Bool) async {
-        guard allowed, !busy, !needsRecovery, !isOn, isActive(mode) else { return }
+        // While the permission is being removed an override could not be ended again: it never starts then.
+        guard allowed, !busy, !needsRecovery, !isOn, isActive(mode), !PrivilegedRuleInstaller.removalInProgress else { return }
         busy = true; failure = nil; pendingEnd = false
         defer { busy = false }
         generation &+= 1

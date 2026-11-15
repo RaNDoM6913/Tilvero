@@ -360,13 +360,13 @@ struct FirstRunCaret: Shape {
 struct FirstRunHoverDismissal: ViewModifier {
     var session: FirstRunSession?
     @State private var firstPoint: CGPoint?
+    /// Always the same view structure (the panel's own state survives the first run ending); the session is
+    /// checked inside.
     func body(content: Content) -> some View {
-        if let session {
-            content.onContinuousHover { phase in
-                guard case .active(let point) = phase, session.coachVisible else { return }
-                if let first = firstPoint { if hypot(point.x - first.x, point.y - first.y) > 10 { session.showCoach(false) } }
-                else { firstPoint = point }
-            }
-        } else { content }
+        content.onContinuousHover { phase in
+            guard let session, case .active(let point) = phase, session.coachVisible else { return }
+            if let first = firstPoint { if hypot(point.x - first.x, point.y - first.y) > 10 { session.showCoach(false) } }
+            else { firstPoint = point }
+        }
     }
 }

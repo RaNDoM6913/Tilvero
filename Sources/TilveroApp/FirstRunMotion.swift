@@ -75,11 +75,16 @@ enum StatusItemVisibility {
         var auxiliaryRight: NSRect?
     }
 
+    /// Horizontal positions only: an auto-hidden menu bar can put the item above the screen, which is not "no room".
+    /// The auxiliary areas are taken as screen-relative when they do not lie inside the screen's global frame
+    /// (a built-in display that is not the main one).
     static func isVisible(button: NSRect?, screens: [Screen], windowVisible: Bool = true) -> Bool {
         guard windowVisible, let button, button.width > 0, button.height > 0 else { return false }
-        let center = NSPoint(x: button.midX, y: button.midY)
-        guard let screen = screens.first(where: { $0.frame.contains(center) }) else { return false }
+        guard let screen = screens.first(where: { $0.frame.minX <= button.midX && button.midX < $0.frame.maxX }) else { return false }
         guard let left = screen.auxiliaryLeft, let right = screen.auxiliaryRight else { return true }
-        return left.insetBy(dx: -1, dy: -1).contains(button) || right.insetBy(dx: -1, dy: -1).contains(button)
+        func global(_ area: NSRect) -> NSRect {
+            screen.frame.minX <= area.minX && area.maxX <= screen.frame.maxX ? area : area.offsetBy(dx: screen.frame.minX, dy: screen.frame.minY)
+        }
+        return [global(left), global(right)].contains { $0.minX - 1 <= button.minX && button.maxX <= $0.maxX + 1 }
     }
 }

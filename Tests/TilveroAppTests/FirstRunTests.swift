@@ -333,6 +333,12 @@ final class FirstRunGeometryTests: XCTestCase {
                                                   auxiliaryRight: NSRect(x: 852, y: 912, width: 660, height: 32))
         XCTAssertTrue(StatusItemVisibility.isVisible(button: NSRect(x: 900, y: 916, width: 40, height: 24), screens: [notched]))
         XCTAssertFalse(StatusItemVisibility.isVisible(button: NSRect(x: 740, y: 916, width: 40, height: 24), screens: [notched]), "behind the notch")
+        XCTAssertTrue(StatusItemVisibility.isVisible(button: NSRect(x: 900, y: 960, width: 40, height: 24), screens: [notched]), "auto-hidden menu bar is not 'no room'")
+        // A built-in display placed left of the main one, auxiliary areas given relative to that screen.
+        let left = StatusItemVisibility.Screen(frame: NSRect(x: -1512, y: 0, width: 1512, height: 944),
+                                               auxiliaryLeft: NSRect(x: 0, y: 912, width: 660, height: 32), auxiliaryRight: NSRect(x: 852, y: 912, width: 660, height: 32))
+        XCTAssertTrue(StatusItemVisibility.isVisible(button: NSRect(x: -1512 + 900, y: 916, width: 40, height: 24), screens: [plain, left]))
+        XCTAssertFalse(StatusItemVisibility.isVisible(button: NSRect(x: -1512 + 740, y: 916, width: 40, height: 24), screens: [plain, left]))
     }
 }
 
@@ -372,42 +378,50 @@ final class FirstRunLaunchPresentationTests: XCTestCase {
         XCTAssertEqual(PrivilegedFeature.chargeByTime.legacyPath, NativeWakeScheduler.rulePath)
     }
 
-    static let preamble = """
-    cd / || exit 1
-    umask 077
-    PATH=/usr/bin:/bin:/usr/sbin:/sbin
-    export PATH
-    LC_ALL=C
-    export LC_ALL
-    D=/etc/sudoers.d
-    F=/etc/sudoers.d/tilvero
-    T=
-    trap '[ -z "$T" ] || /bin/rm -f "$T"' EXIT
-    # keep_others FILE -e LINE...: rewrite FILE without exactly these lines (validated), delete it when nothing is left
-    keep_others() {
-      f=$1
-      shift
-      [ ! -L "$f" ] || return 3
-      [ -e "$f" ] || return 0
-      [ -f "$f" ] || return 3
-      T=$(/usr/bin/mktemp "$D/tilvero.XXXXXX") || return 4
-      /usr/bin/grep -v -x -F "$@" "$f" > "$T"
-      [ $? -le 1 ] || return 5
-      if [ -s "$T" ]; then
-        /usr/sbin/chown root:wheel "$T" && /bin/chmod 0440 "$T" || return 6
-        /usr/sbin/visudo -c -q -f "$T" || return 7
-        /bin/mv -f "$T" "$f" || return 8
-      else
-        /bin/rm -f "$T" "$f" || return 8
-      fi
-      T=
+    static func preamble(removal: Bool) -> String {
+        """
+        cd / || exit 1
+        umask 077
+        PATH=/usr/bin:/bin:/usr/sbin:/sbin
+        export PATH
+        LC_ALL=C
+        export LC_ALL
+        D=/etc/sudoers.d
+        F=/etc/sudoers.d/tilvero
+        T=
+        LOCK=
+        trap '[ -z "$T" ] || /bin/rm -f "$T"; [ -z "$LOCK" ] || /bin/rmdir "$LOCK"' EXIT
+        trap 'exit 1' HUP INT TERM
+        \(removal ? "[ -d \"$D\" ] || exit 0" : "/bin/mkdir -p -m 0755 \"$D\" || exit 2")
+        if ! /bin/mkdir "$D/tilvero.lock" 2>/dev/null; then
+          /usr/bin/find "$D" -maxdepth 1 -name tilvero.lock -type d -mmin +10 -exec /bin/rmdir {} + 2>/dev/null
+          /bin/mkdir "$D/tilvero.lock" 2>/dev/null || exit 9
+        fi
+        LOCK="$D/tilvero.lock"
+        keep_others() {
+          f=$1
+          shift
+          [ ! -L "$f" ] || return 3
+          [ -e "$f" ] || return 0
+          [ -f "$f" ] || return 3
+          T=$(/usr/bin/mktemp "$D/tilvero.XXXXXX") || return 4
+          /usr/bin/grep -v -x -F "$@" "$f" > "$T"
+          [ $? -le 1 ] || return 5
+          if [ -s "$T" ]; then
+            /usr/sbin/chown root:wheel "$T" && /bin/chmod 0440 "$T" || return 6
+            /usr/sbin/visudo -c -q -f "$T" || return 7
+            /bin/mv -f "$T" "$f" || return 8
+          else
+            /bin/rm -f "$T" "$f" || return 8
+          fi
+          T=
+        }
+        """
     }
-    """
 
     func testInstallScriptGolden() throws {
         let script = try XCTUnwrap(SudoersRules.installScript(uid: 501, features: [.lidClosed, .chargeByTime]))
-        XCTAssertEqual(script, "# Tilvero: add the passwordless pmset rule of user #501\n" + Self.preamble + "\n" + """
-        /bin/mkdir -p -m 0755 "$D" || exit 2
+        XCTAssertEqual(script, Self.preamble(removal: false) + "\n" + """
         [ ! -L "$F" ] || exit 3
         [ ! -e "$F" ] || [ -f "$F" ] || exit 3
         T=$(/usr/bin/mktemp "$D/tilvero.XXXXXX") || exit 4
@@ -428,7 +442,7 @@ final class FirstRunLaunchPresentationTests: XCTestCase {
 
     func testRemovalScriptGoldenIsTheExactInverse() throws {
         let script = try XCTUnwrap(SudoersRules.removalScript(uid: 501, removing: [.lidClosed, .chargeByTime]))
-        XCTAssertEqual(script, "# Tilvero: remove the passwordless pmset rule of user #501\n" + Self.preamble + "\n" + """
+        XCTAssertEqual(script, Self.preamble(removal: true) + "\n" + """
         keep_others /etc/sudoers.d/tilvero -e '\(lid)' -e '\(wake)' || exit $?
         keep_others /etc/sudoers.d/tilvero-lid -e '\(lid)' || exit $?
         keep_others /etc/sudoers.d/tilvero-wake -e '\(wake)' || exit $?
@@ -449,11 +463,12 @@ final class FirstRunLaunchPresentationTests: XCTestCase {
 
     /// Every command line starts with an absolute path, a shell builtin or a function of the script itself.
     func testEveryCommandIsAnAbsolutePath() throws {
-        let allowedStarts = ["#", "/", "cd ", "umask ", "PATH=", "export ", "LC_ALL=", "D=", "F=", "T=", "trap ", "keep_others", "f=$1", "shift",
+        let allowedStarts = ["/", "cd ", "umask ", "PATH=", "export ", "LC_ALL=", "D=", "F=", "T=", "LOCK=", "trap ", "keep_others", "f=$1", "shift",
                              "[ ", "if ", "fi", "else", "}", "exit", "return"]
         for operation in [PrivilegedOperation.install([.lidClosed, .chargeByTime]), .remove([.lidClosed, .chargeByTime])] {
             let script = try XCTUnwrap(SudoersRules.script(for: operation, uid: 501))
-            XCTAssertTrue(script.hasPrefix("#"), "osascript argv never starts with '-'")
+            XCTAssertFalse(script.hasPrefix("-"), "osascript argv never starts with '-'")
+            XCTAssertFalse(script.contains("# "), "no developer comments in what the user can read")
             for line in script.split(separator: "\n").map({ $0.trimmingCharacters(in: .whitespaces) }) where !line.isEmpty {
                 XCTAssertTrue(allowedStarts.contains { line.hasPrefix($0) }, line)
                 for tool in ["mkdir", "mktemp", "grep", "printf", "chown", "chmod", "visudo", "mv", "rm"] {
@@ -475,13 +490,18 @@ final class SudoersScriptBehaviourTests: XCTestCase {
     }
     override func tearDownWithError() throws { try? FileManager.default.removeItem(at: root) }
 
-    private var dir: String { root.appendingPathComponent("sudoers.d").path }
+    private var dir: String { root.appendingPathComponent("rules.d").path }
     private func path(_ name: String) -> String { dir + "/" + name }
     private func sandboxed(_ script: String, validates: Bool = true) -> String {
-        script.replacingOccurrences(of: "/etc/sudoers.d", with: dir)
+        let rewritten = script.replacingOccurrences(of: "/etc/sudoers.d", with: dir)
             .replacingOccurrences(of: "/usr/sbin/visudo -c -q -f", with: validates ? "true" : "false")
             .replacingOccurrences(of: "/usr/sbin/chown root:wheel", with: "true")
             .replacingOccurrences(of: "/usr/bin/sudo ", with: "")
+        // Never run anything that could still reach the real system.
+        for forbidden in ["/etc/", "sudo", "visudo", "chown"] where rewritten.contains(forbidden) {
+            XCTFail("sandboxed script still contains \(forbidden)"); return "exit 99"
+        }
+        return rewritten
     }
     @discardableResult private func run(_ script: String, validates: Bool = true, file: Bool = false) throws -> Int32 {
         let process = Process()
@@ -559,6 +579,37 @@ final class SudoersScriptBehaviourTests: XCTestCase {
         XCTAssertEqual(try run(install([.lidClosed])), 3)
         XCTAssertEqual(try run(remove([.lidClosed])), 3)
         XCTAssertEqual(temporaries(), [])
+    }
+
+    func testAnotherRunHoldingTheLockIsRefusedAndAStaleLockIsTakenOver() throws {
+        try FileManager.default.createDirectory(atPath: path("tilvero.lock"), withIntermediateDirectories: true)
+        XCTAssertEqual(try run(install([.lidClosed])), 9, "a running copy holds the lock")
+        XCTAssertNil(lines("tilvero"))
+        try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(-3600)], ofItemAtPath: path("tilvero.lock"))
+        XCTAssertEqual(try run(install([.lidClosed])), 0, "left by a killed run: taken over")
+        XCTAssertEqual(lines("tilvero"), [lid])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: path("tilvero.lock")), "released at exit")
+    }
+
+    func testAnUnrelatedRuleFileIsNeverTouched() throws {
+        let other = "#501 ALL=(root) NOPASSWD: /usr/bin/pmset disablesleep 1, /usr/bin/pmset disablesleep 0"
+        try write("vorssaint-clamshell", [other])
+        let before = try FileManager.default.attributesOfItem(atPath: path("vorssaint-clamshell"))[.modificationDate] as? Date
+        XCTAssertEqual(try run(install([.lidClosed, .chargeByTime])), 0)
+        XCTAssertEqual(try run(remove([.lidClosed, .chargeByTime])), 0)
+        XCTAssertEqual(lines("vorssaint-clamshell"), [other])
+        XCTAssertEqual(try FileManager.default.attributesOfItem(atPath: path("vorssaint-clamshell"))[.modificationDate] as? Date, before)
+    }
+
+    func testCarriageReturnsAndAMissingFinalNewlineAreHandled() throws {
+        try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        try (foreign + "\n" + wake + "\r\n" + "#503 ALL=(root) NOPASSWD: /bin/true").write(toFile: path("tilvero"), atomically: true, encoding: .utf8)
+        XCTAssertEqual(try run(install([.lidClosed])), 0)
+        let text = try String(contentsOfFile: path("tilvero"), encoding: .utf8)
+        XCTAssertTrue(text.contains("#503 ALL=(root) NOPASSWD: /bin/true\n"), "a last line without newline survives intact")
+        XCTAssertTrue(text.contains(wake + "\r\n"), "a hand-edited line with CR is kept as foreign")
+        XCTAssertTrue(text.hasSuffix(lid + "\n"))
+        XCTAssertEqual(text.components(separatedBy: lid).count - 1, 1)
     }
 
     func testRemoveAllTakesOnlyOurLinesOutAndIsIdempotent() throws {
@@ -921,6 +972,54 @@ private final class VirtualClock: @unchecked Sendable {
         XCTAssertEqual(outcome, .succeeded([.lidClosed]))
     }
 
+    func testASecondRunWhileOneIsWaitingIsRefused() async throws {
+        let terminal = FakeTerminal(), clock = VirtualClock()
+        let first = installer(terminal: terminal, clock: clock), second = installer()
+        var checked = false
+        clock.onSleep = {
+            guard clock.sleeps == 2, !checked else { return }
+            checked = true
+            XCTAssertTrue(PrivilegedRuleInstaller.removalInProgress, "the lid override and new wakes stay off meanwhile")
+            Task { @MainActor in
+                let parallel = await second.install([.chargeByTime])
+                XCTAssertEqual(parallel, .failed(9), "never two root scripts at once")
+                terminal.answer(0)
+            }
+        }
+        let outcome = await first.run(.remove([.lidClosed, .chargeByTime]), route: .terminal)
+        XCTAssertEqual(outcome, .succeeded([.lidClosed, .chargeByTime]))
+        XCTAssertTrue(checked)
+        XCTAssertFalse(PrivilegedRuleInstaller.removalInProgress)
+        let after = await second.install([.chargeByTime])
+        XCTAssertNotEqual(after, .failed(9), "free again afterwards")
+    }
+
+    func testTheCopyableRemovalCommandIsOnlyTheSudoBlock() throws {
+        let command = try XCTUnwrap(installer().removalCommand())
+        XCTAssertTrue(command.hasPrefix("/usr/bin/sudo /bin/sh -s <<'TILVERO'\n"))
+        XCTAssertTrue(command.hasSuffix("\nTILVERO"))
+        XCTAssertFalse(command.contains("#!")); XCTAssertFalse(command.contains("${0"))
+        XCTAssertTrue(command.contains(SudoersRules.removalScript(uid: 501, removing: [.lidClosed, .chargeByTime])!))
+    }
+
+    func testAnotherToolsRuleIsShownAsSuchAndNeverRecordedAsOurs() async {
+        let probe = FakeProbe(); probe.present = [.lidClosed]   // e.g. vorssaint-clamshell allows disablesleep
+        let installer = installer(probe: probe)
+        let controller = PrivilegedPermissionsController(installer: installer, model: nil)
+        await controller.refresh()
+        XCTAssertEqual(controller.status(.lidClosed), .allowedByOtherRule)
+        XCTAssertEqual(controller.status(.chargeByTime), .notAllowed)
+        XCTAssertFalse(controller.canRemove, "no Tilvero file: nothing to remove, no pointless dialog")
+        files.insert(SudoersRules.mergedPath)
+        _ = await installer.presence()
+        XCTAssertTrue(PrivilegedRulePresence.recordedMergedFeatures(defaults).isEmpty, "seen only through another rule: not recorded")
+        PrivilegedRulePresence.record([.lidClosed, .chargeByTime], in: defaults)
+        _ = await installer.presence()
+        XCTAssertEqual(PrivilegedRulePresence.recordedMergedFeatures(defaults), [.lidClosed], "the hint only shrinks")
+        XCTAssertEqual(controller.status(.lidClosed), .allowed)
+        XCTAssertTrue(controller.canRemove)
+    }
+
     func testTerminalThatCannotOpenFailsCalmly() async {
         let terminal = FakeTerminal(); terminal.fails = true
         let outcome = await installer(terminal: terminal).install([.lidClosed], route: .terminal)
@@ -940,6 +1039,7 @@ private final class VirtualClock: @unchecked Sendable {
     func testPresenceIsReadOnlyAndRefreshesTheHint() async {
         let probe = FakeProbe(); probe.present = [.chargeByTime]
         files.insert(SudoersRules.mergedPath)
+        PrivilegedRulePresence.record([.lidClosed, .chargeByTime], in: defaults)
         let executor = FakeExecutor(.succeeded)
         let present = await installer(executor, probe: probe).presence()
         XCTAssertEqual(present, [.chargeByTime])
@@ -990,14 +1090,15 @@ final class FirstRunCopyTests: XCTestCase {
         "firstRun.passwordNote", "firstRun.readyNote", "firstRun.iconHidden.title",
         "firstRun.attention.loginNeedsApproval", "firstRun.attention.loginFailed", "firstRun.attention.lidRefused",
         "setup.permissions.allow", "setup.permissions.allowed", "setup.permissions.notAllowed", "setup.permissions.granted", "setup.permissions.removed",
-        "setup.permissions.removeAll", "setup.permissions.removeInTerminal", "setup.permissions.title", "setup.permissions.removalCommand"]
+        "setup.permissions.removeAll", "setup.permissions.removeInTerminal", "setup.permissions.title", "setup.permissions.removalCommand",
+        "setup.permissions.otherRule"]
     static let lines = ["firstRun.subtitle", "firstRun.launchAtLogin.detail", "firstRun.keepHistory.detail", "firstRun.chargeLimit.detail",
                         "firstRun.lidClosed.detail", "firstRun.chargeByTime.detail", "firstRun.iconHidden.text",
                         "firstRun.timedOut", "firstRun.declined.terminal",
                         "setup.permissions.blocked.lid", "setup.permissions.blocked.wake"]
-    static let script = ["firstRun.script.header", "firstRun.script.removeHeader", "firstRun.script.password", "firstRun.script.done", "firstRun.script.failed"]
-    static let prompts = ["Tilvero asks to allow narrow pmset commands without a password for the features you chose.",
-                          "Tilvero asks to remove its passwordless pmset rules.", "Tilvero asks to restore normal sleep."]
+    static let script = ["firstRun.script.explain", "firstRun.script.header", "firstRun.script.removeHeader", "firstRun.script.password", "firstRun.script.done", "firstRun.script.failed"]
+    static let prompts = ["Tilvero asks to change sleep settings without a password for the features you chose.",
+                          "Tilvero asks to remove its permission to change sleep settings.", "Tilvero asks to restore normal sleep."]
 
     private func catalog() throws -> [String: Any] {
         let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
@@ -1023,10 +1124,12 @@ final class FirstRunCopyTests: XCTestCase {
             let info = FirstRunWindowView.infoKeys.compactMap { value(strings, $0, language) }
             XCTAssertEqual(info.count, 2, "two short paragraphs")
             XCTAssertLessThanOrEqual(info.joined(separator: " ").split(separator: " ").count, 50, "\(language) info within ~50 words")
+            XCTAssertTrue(info.joined().contains(language == "ru" ? "четыре" : "four"), "four commands, not two")
+            XCTAssertTrue(info.joined().contains(language == "ru" ? "Терминал" : "Terminal"), "the (i) also follows a Terminal failure")
             for key in Self.labels { XCTAssertLessThanOrEqual((value(strings, key, language) ?? "").count, 34, "\(language) \(key)") }
             for key in Self.lines { XCTAssertLessThanOrEqual((value(strings, key, language) ?? "").count, 56, "\(language) \(key)") }
-            // Technical words only behind (i), in Terminal and in the macOS prompt.
-            for key in Self.labels + Self.lines {
+            // Technical words only behind (i) and in the shown script; never on the screens or in the macOS dialog.
+            for key in Self.labels + Self.lines + Self.prompts {
                 let text = value(strings, key, language) ?? ""
                 for word in ["pmset", "sudo", "sudoers", "verified", "провер", "root"] { XCTAssertFalse(text.localizedCaseInsensitiveContains(word), "\(language) \(key): \(text)") }
             }

@@ -62,7 +62,10 @@ enum PrivilegedOutcome: Hashable, Sendable {
 /// it is validated by `visudo -c` and only then renamed into place.
 ///
 /// Exit codes: 2 the folder cannot be created, 3 a rule path is a link or not a regular file, 4 no temporary file,
-/// 5 copying failed, 6 owner/mode failed, 7 `visudo` rejected the file, 8 move/delete failed.
+/// 5 copying failed, 6 owner/mode failed, 7 `visudo` rejected the file, 8 move/delete failed, 9 another Tilvero run
+/// holds the lock (`tilvero.lock`, a folder sudo ignores; one left by a killed run is taken over after 10 minutes).
+/// Own lines are matched exactly (`grep -x -F`): a hand-edited copy with a trailing space or CR counts as foreign and
+/// is kept (the next install then adds the exact line once).
 enum SudoersRules {
     static let directory = "/etc/sudoers.d"
     static let mergedPath = "/etc/sudoers.d/tilvero"
@@ -81,9 +84,8 @@ enum SudoersRules {
 
     private static func patterns(_ lines: [String]) -> String { lines.map { "-e '\($0)'" }.joined(separator: " ") }
 
-    private static func preamble(uid: uid_t, removal: Bool) -> [String] {
+    private static func preamble(removal: Bool) -> [String] {
         [
-            "# Tilvero: \(removal ? "remove the" : "add the") passwordless pmset rule of user #\(uid)",
             "cd / || exit 1",
             "umask 077",
             "PATH=/usr/bin:/bin:/usr/sbin:/sbin",
@@ -93,8 +95,15 @@ enum SudoersRules {
             "D=\(directory)",
             "F=\(mergedPath)",
             "T=",
-            "trap '[ -z \"$T\" ] || /bin/rm -f \"$T\"' EXIT",
-            "# keep_others FILE -e LINE...: rewrite FILE without exactly these lines (validated), delete it when nothing is left",
+            "LOCK=",
+            "trap '[ -z \"$T\" ] || /bin/rm -f \"$T\"; [ -z \"$LOCK\" ] || /bin/rmdir \"$LOCK\"' EXIT",
+            "trap 'exit 1' HUP INT TERM",
+            removal ? "[ -d \"$D\" ] || exit 0" : "/bin/mkdir -p -m 0755 \"$D\" || exit 2",
+            "if ! /bin/mkdir \"$D/tilvero.lock\" 2>/dev/null; then",
+            "  /usr/bin/find \"$D\" -maxdepth 1 -name tilvero.lock -type d -mmin +10 -exec /bin/rmdir {} + 2>/dev/null",
+            "  /bin/mkdir \"$D/tilvero.lock\" 2>/dev/null || exit 9",
+            "fi",
+            "LOCK=\"$D/tilvero.lock\"",
             "keep_others() {",
             "  f=$1",
             "  shift",
@@ -121,9 +130,8 @@ enum SudoersRules {
     static func installScript(uid: uid_t, features: Set<PrivilegedFeature>) -> String? {
         let lines = rules(uid: uid, features: features)
         guard !lines.isEmpty else { return nil }
-        var script = preamble(uid: uid, removal: false)
+        var script = preamble(removal: false)
         script += [
-            "/bin/mkdir -p -m 0755 \"$D\" || exit 2",
             "[ ! -L \"$F\" ] || exit 3",
             "[ ! -e \"$F\" ] || [ -f \"$F\" ] || exit 3",
             "T=$(/usr/bin/mktemp \"$D/tilvero.XXXXXX\") || exit 4",
@@ -146,7 +154,7 @@ enum SudoersRules {
     static func removalScript(uid: uid_t, removing features: Set<PrivilegedFeature>) -> String? {
         let lines = rules(uid: uid, features: features)
         guard !lines.isEmpty else { return nil }
-        var script = preamble(uid: uid, removal: true)
+        var script = preamble(removal: true)
         script.append("keep_others \(mergedPath) \(patterns(lines)) || exit $?")
         script += features.sorted().map { "keep_others \($0.legacyPath) \(patterns([rule(uid: uid, feature: $0)])) || exit $?" }
         return script.joined(separator: "\n")
@@ -167,20 +175,26 @@ enum TerminalCommandText {
     static let marker = "TILVERO"
 
     struct Messages: Equatable, Sendable {
-        var header: String, password: String, done: String, failed: String
+        var header: String, explain: String = "", password: String, done: String, failed: String
         @MainActor static func localized(removal: Bool) -> Messages {
             Messages(header: L10n.text(removal ? "firstRun.script.removeHeader" : "firstRun.script.header"),
+                     explain: L10n.text("firstRun.script.explain"),
                      password: L10n.text("firstRun.script.password"), done: L10n.text("firstRun.script.done"),
                      failed: L10n.text("firstRun.script.failed"))
         }
-        var all: [String] { [header, password, done, failed] }
+        var all: [String] { [header, explain, password, done, failed] }
         /// Characters that could leave the single-quoted shell words.
         static func isSafe(_ text: String) -> Bool { !text.contains(where: { "'\\$`\n\r".contains($0) }) }
         /// Never fails at run time: anything unsafe is dropped (a test pins that the real messages need no dropping).
         var sanitized: Messages {
             func clean(_ text: String) -> String { String(text.filter { !"'\\$`\n\r".contains($0) }) }
-            return Messages(header: clean(header), password: clean(password), done: clean(done), failed: clean(failed))
+            return Messages(header: clean(header), explain: clean(explain), password: clean(password), done: clean(done), failed: clean(failed))
         }
+    }
+
+    /// The part that runs as root: what the Settings page offers to copy (no file-specific lines).
+    static func sudoBlock(rootScript: String) -> String {
+        "/usr/bin/sudo /bin/sh -s <<'\(marker)'\n\(rootScript)\n\(marker)"
     }
 
     static func text(rootScript: String, messages raw: Messages) -> String {
@@ -188,14 +202,11 @@ enum TerminalCommandText {
         return [
             "#!/bin/sh",
             "# \(messages.header)",
-            "# Only the lines between the two \(marker) markers run as root; sudo asks for your password first.",
+            "# \(messages.explain)",
             "cd / || exit 1",
             "printf '%s\\n' '\(messages.header)' '\(messages.password)' ''",
-            "/usr/bin/sudo /bin/sh -s <<'\(marker)'",
-            rootScript,
-            marker,
+            sudoBlock(rootScript: rootScript),
             "code=$?",
-            "# The app may have stopped waiting (Cancel, timeout, quit) and removed this folder: then say nothing about it.",
             "if [ -f \"$0\" ] && [ -d \"${0%/*}\" ]; then printf '%s\\n' \"$code\" > \"${0%/*}/result\" 2>/dev/null; fi",
             "if [ \"$code\" -eq 0 ]; then",
             "  printf '%s\\n' '' '\(messages.done)'",
@@ -500,17 +511,28 @@ enum CancellableProcessRun {
         self.lateWatchDuration = lateWatchDuration
     }
 
+    /// One installer for the whole app (first run, Settings, the lid switch, the charge-by-time pill), so its late
+    /// watch and its observers are shared.
+    static let shared = PrivilegedRuleInstaller(executor: OsascriptAdministratorExecutor(), terminal: NativeTerminalOpener(),
+                                                probe: SudoListProbe(), defaults: .standard)
     static func native(defaults: UserDefaults = .standard) -> PrivilegedRuleInstaller {
-        PrivilegedRuleInstaller(executor: OsascriptAdministratorExecutor(), terminal: NativeTerminalOpener(), probe: SudoListProbe(), defaults: defaults)
+        defaults === UserDefaults.standard ? shared
+            : PrivilegedRuleInstaller(executor: OsascriptAdministratorExecutor(), terminal: NativeTerminalOpener(), probe: SudoListProbe(), defaults: defaults)
     }
+
+    /// The privileged run in progress anywhere in the app (every installer instance): a second one is refused instead
+    /// of racing the first on the same file. The root script also takes its own lock.
+    private(set) static var active: PrivilegedOperation?
+    /// A removal is running: nothing may start that would need the permission to end (the lid override, a wake).
+    static var removalInProgress: Bool { active?.isRemoval == true }
 
     static func realCommand(_ operation: PrivilegedOperation, _ rootScript: String) -> String {
         TerminalCommandText.text(rootScript: rootScript, messages: .localized(removal: operation.isRemoval))
     }
 
     static func prompt(for operation: PrivilegedOperation) -> String {
-        L10n.text(operation.isRemoval ? "Tilvero asks to remove its passwordless pmset rules."
-                  : "Tilvero asks to allow narrow pmset commands without a password for the features you chose.")
+        L10n.text(operation.isRemoval ? "Tilvero asks to remove its permission to change sleep settings."
+                  : "Tilvero asks to change sleep settings without a password for the features you chose.")
     }
 
     /// The `.command` text the Terminal route would open for this operation (what the window shows).
@@ -534,6 +556,9 @@ enum CancellableProcessRun {
 
     func run(_ operation: PrivilegedOperation, route: PermissionRoute) async -> PrivilegedOutcome {
         guard let script = SudoersRules.script(for: operation, uid: uid) else { return .succeeded([]) }
+        guard Self.active == nil else { return .failed(9) }
+        Self.active = operation
+        defer { Self.active = nil }
         lateWatch?.cancel(); lateWatch = nil
         let before = signature()
         let outcome: PrivilegedOutcome
@@ -545,11 +570,25 @@ enum CancellableProcessRun {
         return outcome
     }
 
-    /// Which features run without a password right now (read-only); also refreshes the hint the services read.
+    /// Which features run without a password right now (read-only). The hint the services read only ever shrinks
+    /// here: a command allowed by some other rule (another tool's file) is never recorded as Tilvero's.
     func presence() async -> Set<PrivilegedFeature>? {
         guard let present = await probe.passwordless() else { return nil }
-        PrivilegedRulePresence.record(fileExists(SudoersRules.mergedPath) ? present : [], in: defaults)
+        let recorded = PrivilegedRulePresence.recordedMergedFeatures(defaults)
+        PrivilegedRulePresence.record(fileExists(SudoersRules.mergedPath) ? recorded.intersection(present) : [], in: defaults)
         return present
+    }
+
+    /// Tilvero's own rule for this feature is in place (its old file, or the merged file recorded with it).
+    func hasOwnRule(_ feature: PrivilegedFeature) -> Bool {
+        PrivilegedRulePresence.isPresent(feature, fileExists: fileExists, merged: PrivilegedRulePresence.recordedMergedFeatures(defaults))
+    }
+    /// Any Tilvero rule file exists: only then is there something for "Remove all" to take out.
+    var ownRuleFilesExist: Bool { SudoersRules.allPaths.contains(where: fileExists) }
+
+    /// What the Settings page offers to copy for removal: only the block that runs as root.
+    func removalCommand() -> String? {
+        SudoersRules.removalScript(uid: uid, removing: Set(PrivilegedFeature.allCases)).map { TerminalCommandText.sudoBlock(rootScript: $0) }
     }
 
     // MARK: Routes

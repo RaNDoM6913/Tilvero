@@ -16774,13 +16774,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The closed lid and charging on time change sleep settings, so macOS asks for your password once."
+            "value": "The closed lid and charging on time change sleep settings, so your Mac password is needed once."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Закрытая крышка и зарядка к времени меняют настройки сна, поэтому macOS один раз спросит пароль."
+            "value": "Закрытая крышка и зарядка к времени меняют настройки сна, поэтому один раз нужен пароль от Mac."
           }
         }
       }
@@ -16790,13 +16790,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "You type it in the macOS window or use Touch ID; Tilvero never sees it. Only two pmset commands are allowed; remove them in Settings."
+            "value": "You type it in the macOS window (or use Touch ID) or in Terminal; Tilvero never sees it. Only four pmset commands are allowed; remove them in Settings."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Пароль вводится в окне macOS или по Touch ID — Tilvero его не видит. Разрешаются только две команды pmset; убрать их можно в Настройках."
+            "value": "Его вводят в окне macOS (или Touch ID) либо в Терминале — Tilvero пароль не видит. Разрешаются только четыре команды pmset; убрать их можно в Настройках."
           }
         }
       }
@@ -16813,22 +16813,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Отмена"
-          }
-        }
-      }
-    },
-    "Tilvero asks to allow narrow pmset commands without a password for the features you chose.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tilvero asks to allow narrow pmset commands without a password for the features you chose."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tilvero просит разрешить узкие команды pmset без пароля для выбранных функций."
           }
         }
       }
@@ -16902,13 +16886,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Saves the battery. Set it in the Charge tab"
+            "value": "Turned on later, in the Charge tab"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Бережёт батарею. Настроите во вкладке «Заряд»"
+            "value": "Включается потом, во вкладке «Заряд»"
           }
         }
       }
@@ -17617,22 +17601,6 @@
         }
       }
     },
-    "Tilvero asks to remove its passwordless pmset rules.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tilvero asks to remove its passwordless pmset rules."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tilvero просит убрать свои разрешения pmset без пароля."
-          }
-        }
-      }
-    },
     "firstRun.declined.terminal": {
       "localizations": {
         "en": {
@@ -17661,6 +17629,70 @@
           "stringUnit": {
             "state": "translated",
             "value": "Не получилось в Терминале"
+          }
+        }
+      }
+    },
+    "Tilvero asks to change sleep settings without a password for the features you chose.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero asks to change sleep settings without a password for the features you chose."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero просит разрешить менять настройки сна без пароля для выбранных функций."
+          }
+        }
+      }
+    },
+    "Tilvero asks to remove its permission to change sleep settings.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero asks to remove its permission to change sleep settings."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero просит убрать своё разрешение менять настройки сна."
+          }
+        }
+      }
+    },
+    "firstRun.script.explain": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only the lines between the TILVERO markers run as administrator."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "От имени администратора выполняются только строки между метками TILVERO."
+          }
+        }
+      }
+    },
+    "setup.permissions.otherRule": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allowed by another rule"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешено другим правилом"
           }
         }
       }

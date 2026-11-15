@@ -19,8 +19,19 @@ import SwiftUI
         self.installer = installer; self.model = model
     }
 
-    var missing: Set<PrivilegedFeature> { Set(PrivilegedFeature.allCases).subtracting(present ?? []) }
-    var removalCommand: String? { installer.commandText(.remove(Set(PrivilegedFeature.allCases))) }
+    enum Status: Equatable { case allowed, allowedByOtherRule, notAllowed }
+
+    var missing: Set<PrivilegedFeature> { Set(PrivilegedFeature.allCases).filter { status($0) == .notAllowed } }
+    /// Only the block that runs as root (pasting a whole `.command` file into an interactive shell would break).
+    var removalCommand: String? { installer.removalCommand() }
+    /// "Remove all" has something to take out only when a Tilvero rule file exists.
+    var canRemove: Bool { working == nil && installer.ownRuleFilesExist && removalBlocker == nil }
+
+    /// Tilvero's own rule, a rule of something else (another tool's file allows the same command), or none.
+    func status(_ feature: PrivilegedFeature) -> Status {
+        guard let present, present.contains(feature) else { return .notAllowed }
+        return installer.hasOwnRule(feature) ? .allowed : .allowedByOtherRule
+    }
 
     /// Removing the permission under a running override or a scheduled wake would strand it: those end first.
     var removalBlocker: String? {
@@ -45,6 +56,7 @@ import SwiftUI
 
     func removeAll(route: PermissionRoute) {
         guard working == nil, removalBlocker == nil else { message = removalBlocker; return }
+        guard installer.ownRuleFilesExist else { return }
         start(.remove(Set(PrivilegedFeature.allCases)), route: route)
     }
 
@@ -63,7 +75,9 @@ import SwiftUI
                 await lid.setPreferred(false, for: .scheduledSleep)
             }
             self.working = nil
-            self.message = Self.message(outcome, operation: operation, route: route)
+            // Nothing could start meanwhile (see `PrivilegedRuleInstaller.removalInProgress`), but say so if it did.
+            if case .succeeded = outcome, operation.isRemoval, let blocker = self.removalBlocker { self.message = blocker }
+            else { self.message = Self.message(outcome, operation: operation, route: route) }
             self.model?.objectWillChange.send()
             await self.refresh()
         }
@@ -102,7 +116,7 @@ struct PrivilegedPermissionsSection: View {
                 }
             } else {
                 HStack(spacing: 10) {
-                    if !controller.missing.isEmpty, controller.present != nil {
+                    if !controller.missing.isEmpty {
                         Button(L10n.text("setup.permissions.allow")) { controller.allow(route: .systemPrompt) }
                             .controlSize(.small).accessibilityIdentifier("setup.permissions.allow")
                         Button(L10n.text("firstRun.useTerminal")) { controller.allow(route: .terminal) }
@@ -110,7 +124,7 @@ struct PrivilegedPermissionsSection: View {
                     }
                     Spacer(minLength: 8)
                     Button(L10n.text("setup.permissions.removeAll")) { controller.removeAll(route: .systemPrompt) }
-                        .controlSize(.small).disabled(controller.removalBlocker != nil)
+                        .controlSize(.small).disabled(!controller.canRemove)
                         .accessibilityIdentifier("setup.permissions.removeAll")
                 }
             }
@@ -131,7 +145,7 @@ struct PrivilegedPermissionsSection: View {
                                 NSPasteboard.general.clearContents(); NSPasteboard.general.setString(command, forType: .string)
                             }.controlSize(.small)
                             Button(L10n.text("setup.permissions.removeInTerminal")) { controller.removeAll(route: .terminal) }
-                                .controlSize(.small).disabled(controller.working != nil || controller.removalBlocker != nil)
+                                .controlSize(.small).disabled(!controller.canRemove)
                         }
                     }
                 } label: {
@@ -145,9 +159,10 @@ struct PrivilegedPermissionsSection: View {
     }
 
     @ViewBuilder private func status(_ feature: PrivilegedFeature) -> some View {
-        if let present = controller.present {
-            Text(L10n.text(present.contains(feature) ? "setup.permissions.allowed" : "setup.permissions.notAllowed"))
-                .font(.caption).foregroundStyle(present.contains(feature) ? Color.green : Color.secondary)
+        if controller.present != nil {
+            let status = controller.status(feature)
+            Text(L10n.text(status == .allowed ? "setup.permissions.allowed" : status == .allowedByOtherRule ? "setup.permissions.otherRule" : "setup.permissions.notAllowed"))
+                .font(.caption).foregroundStyle(status == .allowed ? Color.green : Color.secondary)
         } else {
             ProgressView().controlSize(.mini)
         }
