@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.6.1"><img src="https://img.shields.io/badge/source-preview-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Предварительная версия в исходниках" height="28"></a>
-  <a href="docs/GITHUB_TRAFFIC.md"><img src="https://img.shields.io/badge/zip%20%E2%80%A2%20clones%20%E2%80%A2%20unique-13%20%E2%80%A2%201432%20%E2%80%A2%20393-2F6E4B?style=for-the-badge&amp;labelColor=172A22" alt="Скачивания ZIP 13, клонирования Git 1432, уникальные клонирующие 393" height="28"></a>
+  <a href="docs/GITHUB_TRAFFIC.md"><img src="https://img.shields.io/badge/zip%20%E2%80%A2%20clones%20%E2%80%A2%20unique-15%20%E2%80%A2%201521%20%E2%80%A2%20398-2F6E4B?style=for-the-badge&amp;labelColor=172A22" alt="Скачивания ZIP 15, клонирования Git 1521, уникальные клонирующие 398" height="28"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Лицензия GPL-3.0-only" height="28"></a>
 </p>
 
