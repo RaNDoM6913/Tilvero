@@ -108,7 +108,7 @@ struct TilveroMain {
             identity = try ReleaseIdentity.current()
             #if !TILVERO_LAB_STUDIO
             // The first-run preview is a monitoring-only session on isolated data: no lease, no migration, no control.
-            preview = FirstRunPreview.requested(arguments: CommandLine.arguments, isProductionIdentity: identity.isProduction)
+            preview = FirstRunPreview.requested(arguments: CommandLine.arguments, isProductionIdentity: identity.isProduction, isPreviewIdentity: identity.isFirstRunPreview)
             if preview { launchPolicy = .resolve(metadata: Bundle.main.infoDictionary ?? [:], arguments: ["--monitor-only"]) }
             #endif
             #if TILVERO_LAB_STUDIO

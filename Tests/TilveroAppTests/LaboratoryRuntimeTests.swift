@@ -49,6 +49,23 @@ final class LaboratoryRuntimeTests: XCTestCase {
         XCTAssertThrowsError(try ReleaseIdentity(metadata: ["CFBundleIdentifier": "local.tilvero.prototype", "TilveroDataScope": "laboratory"]))
     }
 
+    func testFirstRunPreviewIsASeparateNonProductionIdentity() throws {
+        let preview = try ReleaseIdentity(metadata: ["CFBundleIdentifier": "local.tilvero.firstrun", "TilveroDataScope": "first-run-preview"])
+        let root = URL(fileURLWithPath: "/isolated/Application Support")
+        XCTAssertFalse(preview.isProduction)
+        XCTAssertFalse(preview.isLaboratory)
+        XCTAssertTrue(preview.isFirstRunPreview)
+        XCTAssertEqual(preview.historyURL(applicationSupport: root).path, "/isolated/Application Support/Tilvero/FirstRunPreview/History.sqlite")
+        XCTAssertEqual(preview.reopenNotificationName.rawValue, "local.tilvero.firstrun.showDetails")
+        XCTAssertThrowsError(try ReleaseIdentity(metadata: ["CFBundleIdentifier": "local.tilvero.firstrun", "TilveroDataScope": "production"]))
+        XCTAssertThrowsError(try ReleaseIdentity(metadata: ["CFBundleIdentifier": "local.tilvero.firstrun"]))
+        // It must never share an identifier with an installed copy, or the second-copy guard would quit that copy.
+        let existing = [ReleaseIdentity.prototypeBundleIdentifier, "io.github.random6913.tilvero", ReleaseIdentity.laboratoryBundleIdentifier, ReleaseIdentity.lidTrialBundleIdentifier]
+        XCTAssertFalse(existing.contains(ReleaseIdentity.firstRunPreviewBundleIdentifier))
+        XCTAssertFalse(AppLaunchPolicy.knownBundleIdentifiers.contains(ReleaseIdentity.firstRunPreviewBundleIdentifier),
+                       "A running preview must not turn an installed copy into a monitoring-only sibling")
+    }
+
     func testLidTrialCannotSharePrototypeProductionOrCanonicalLabHistory() throws {
         let metadata: [String: Any] = ["CFBundleIdentifier": "local.tilvero.lidtrial",
             "TilveroDataScope": "lid-trial", "TilveroLidTrialHost": true]

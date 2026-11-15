@@ -77,6 +77,8 @@ final class FirstRunDecisionTests: XCTestCase {
         XCTAssertFalse(FirstRunPreview.requested(arguments: ["Tilvero"], isProductionIdentity: false))
         XCTAssertTrue(FirstRunPreview.requested(arguments: ["Tilvero", "--first-run-preview"], isProductionIdentity: false))
         XCTAssertTrue(FirstRunPreview.isAllowed(isProductionIdentity: false))
+        // The dedicated preview app is always a preview, without the flag.
+        XCTAssertTrue(FirstRunPreview.requested(arguments: ["Tilvero"], isProductionIdentity: false, isPreviewIdentity: true))
     }
 }
 

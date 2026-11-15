@@ -19,8 +19,9 @@ enum FirstRunPreview {
         #endif
     }
 
-    static func requested(arguments: [String], isProductionIdentity: Bool) -> Bool {
-        arguments.contains(flag) && isAllowed(isProductionIdentity: isProductionIdentity)
+    /// The dedicated "Tilvero First Run" app is always a preview; other non-production builds need the flag.
+    static func requested(arguments: [String], isProductionIdentity: Bool, isPreviewIdentity: Bool = false) -> Bool {
+        (arguments.contains(flag) || isPreviewIdentity) && isAllowed(isProductionIdentity: isProductionIdentity)
     }
 
     /// The isolated environment: its own suite (removed at quit) and a temporary history folder.
