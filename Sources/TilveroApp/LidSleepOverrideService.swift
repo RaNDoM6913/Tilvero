@@ -351,7 +351,8 @@ struct NativeLidSleepSystem: LidSleepSystem {
         "\"" + value.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\""
     }
 
-    var ruleFilePresent: Bool { FileManager.default.fileExists(atPath: Self.rulePath) }
+    /// The own `tilvero-lid` file or the merged `tilvero` file written with this feature (see `PrivilegedRuleInstaller`).
+    var ruleFilePresent: Bool { PrivilegedRulePresence.isPresent(.lidClosed) }
 
     func readSleepDisabled() async -> Bool? {
         let result = await Self.run("/usr/bin/pmset", ["-g"])
@@ -369,7 +370,13 @@ struct NativeLidSleepSystem: LidSleepSystem {
         await Self.administrator(Self.installCommand(uid: getuid()), prompt: L10n.text("Tilvero asks to allow one command, pmset disablesleep, without a password, so Keep Awake can work with the lid closed."))
     }
     func removeRule() async -> Bool {
-        await Self.administrator("rm -f \(Self.rulePath)", prompt: L10n.text("Tilvero asks to remove its closed-lid permission."))
+        // A merged rule file keeps the other feature's line: it is rewritten (validated) without the lid commands.
+        let defaults = UserDefaults.standard
+        let merged = FileManager.default.fileExists(atPath: SudoersRules.mergedPath) ? PrivilegedRulePresence.recordedMergedFeatures(defaults) : []
+        let script = SudoersRules.removalScript(uid: getuid(), removing: .lidClosed, merged: merged)
+        let removed = await Self.administrator(script, prompt: L10n.text("Tilvero asks to remove its closed-lid permission."))
+        if removed, merged.contains(.lidClosed) { PrivilegedRulePresence.record(merged.subtracting([.lidClosed]), in: defaults) }
+        return removed
     }
     func restoreWithAuthorization() async -> Bool {
         await Self.administrator("/usr/bin/pmset disablesleep 0", prompt: L10n.text("Tilvero asks to restore normal sleep."))

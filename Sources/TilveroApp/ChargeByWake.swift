@@ -48,7 +48,8 @@ import AppKit
         return output.split(separator: "\n").contains { $0.contains("wake at " + stamp) && $0.contains("'" + owner + "'") }
     }
 
-    var isPermitted: Bool { FileManager.default.fileExists(atPath: Self.rulePath) }
+    /// The own `tilvero-wake` file or the merged `tilvero` file written with this feature (see `PrivilegedRuleInstaller`).
+    var isPermitted: Bool { PrivilegedRulePresence.isPresent(.chargeByTime) }
 
     func schedule(_ date: Date) async -> Bool {
         guard isPermitted else { return false }
