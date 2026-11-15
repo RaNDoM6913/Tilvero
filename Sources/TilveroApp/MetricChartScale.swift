@@ -35,7 +35,8 @@ struct MetricChartScale: Equatable {
     /// intervals, and the domain snaps outward to multiples of that step. When zero
     /// is included and every value is on one side of it, a too-narrow range grows
     /// away from zero only (no impossible sign); mixed-sign data is re-centred.
-    static func make(values: [Double], includesZero: Bool, minimumSpan: Double) -> MetricChartScale? {
+    /// `integerSteps` keeps every tick a whole number (steps 1, 2, 5, 10, 20, 25, 50 ...), so the axis never shows a fraction.
+    static func make(values: [Double], includesZero: Bool, minimumSpan: Double, integerSteps: Bool = false) -> MetricChartScale? {
         let finite = values.filter(\.isFinite)
         guard var low = finite.min(), var high = finite.max() else { return nil }
         if includesZero {
@@ -60,10 +61,12 @@ struct MetricChartScale: Equatable {
 
         let span = high - low
         var exponent = Int(floor(log10(span / Double(maximumIntervals)))) - 1
+        if integerSteps { exponent = Swift.max(exponent, 0) }
         while exponent < 308 {
             let scaleFactor = pow(10, Double(exponent))
             for multiplier in stepMultipliers {
                 let step = multiplier * scaleFactor
+                if integerSteps, step != step.rounded() { continue }
                 let first = Int((low / step + 1e-9).rounded(.down))
                 let last = Int((high / step - 1e-9).rounded(.up))
                 guard last > first, last - first <= maximumIntervals else { continue }
@@ -94,13 +97,14 @@ struct MetricChartScale: Equatable {
 extension MetricChartScale {
     /// Axis rules per data-catalog metric id: power in watts (038, 043, 054) is
     /// anchored at zero with a two-watt minimum span; temperatures (039) and 026
-    /// float with a one-unit minimum span. Unknown ids have no chart scale.
+    /// float with a one-unit minimum span. Ticks are whole numbers: a fraction on the axis is noise at this size.
+    /// Unknown ids have no chart scale.
     static func scale(forMetric id: String, values: [Double]) -> MetricChartScale? {
         switch id {
         case "038", "043", "054":
-            return make(values: values, includesZero: true, minimumSpan: 2)
+            return make(values: values, includesZero: true, minimumSpan: 2, integerSteps: true)
         case "039", "026":
-            return make(values: values, includesZero: false, minimumSpan: 1)
+            return make(values: values, includesZero: false, minimumSpan: 1, integerSteps: true)
         default:
             return nil
         }

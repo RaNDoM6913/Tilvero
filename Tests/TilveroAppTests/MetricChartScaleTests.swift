@@ -120,33 +120,47 @@ final class MetricChartScaleTests: XCTestCase {
         try? Double(label, format: .number.locale(locale))
     }
 
-    func testFlatTemperatureTickLabelsAreExactAndUnique() throws {
+    func testMetricScalesNeverNeedAFraction() throws {
         let en = Locale(identifier: "en_US"), ru = Locale(identifier: "ru_RU")
-        for value in [35.0, 95.0] {
-            let scale = try XCTUnwrap(MetricChartScale.scale(forMetric: "039", values: [value]))
-            XCTAssertEqual(scale.ticks, [value - 0.5, value - 0.25, value, value + 0.25, value + 0.5])
+        // Flat or narrow data used to give quarter and half steps ("29,5"); the metric axes now keep whole numbers.
+        for (id, values) in [("039", [35.0]), ("039", [30.1, 31.1]), ("039", [95.0]), ("038", [-0.5, -0.5]), ("054", [0.5, 0.5]), ("043", [3.2, 4.1, 28.0])] {
+            let scale = try XCTUnwrap(MetricChartScale.scale(forMetric: id, values: values), id)
+            XCTAssertTrue(scale.ticks.allSatisfy { $0 == $0.rounded() }, "\(id) \(values): \(scale.ticks)")
+            XCTAssertGreaterThan(scale.ticks.count, 2, "\(id) \(values)")
+            XCTAssertTrue(values.allSatisfy { scale.domain.contains($0) }, "\(id) \(values): \(scale.domain)")
             for locale in [en, ru] {
                 let labels = scale.tickLabels(locale: locale)
-                XCTAssertEqual(labels.count, scale.ticks.count)
+                XCTAssertTrue(labels.allSatisfy { !$0.contains(".") && !$0.contains(",") }, "\(labels)")
                 XCTAssertEqual(Set(labels).count, labels.count, "Every gridline has its own label: \(labels)")
                 for (label, tick) in zip(labels, scale.ticks) {
                     XCTAssertEqual(try XCTUnwrap(parsed(label, locale)), tick, accuracy: 1e-9, "\(label) must say \(tick)")
                 }
             }
         }
-        XCTAssertEqual(try XCTUnwrap(MetricChartScale.scale(forMetric: "039", values: [35.0])).tickLabels(locale: ru),
-                       ["34,5", "34,75", "35", "35,25", "35,5"])
     }
 
-    func testNarrowTemperatureRangeLabelsEveryQuarterStepExactly() throws {
-        let en = Locale(identifier: "en_US")
-        let scale = try XCTUnwrap(MetricChartScale.scale(forMetric: "039", values: [30.1, 31.1]))
-        XCTAssertEqual(scale.ticks, [30, 30.25, 30.5, 30.75, 31, 31.25])
-        let labels = scale.tickLabels(locale: en)
-        XCTAssertEqual(Set(labels).count, labels.count)
-        for (label, tick) in zip(labels, scale.ticks) {
-            XCTAssertEqual(try XCTUnwrap(parsed(label, en)), tick, accuracy: 1e-9, "\(label) must say \(tick)")
-        }
+    func testIntegerStepsExamples() throws {
+        XCTAssertEqual(try XCTUnwrap(MetricChartScale.scale(forMetric: "039", values: [29.6, 31.8])).ticks, [29, 30, 31, 32],
+                       "The owner's temperature hour: whole degrees, not 29,5 / 32.")
+        XCTAssertEqual(try XCTUnwrap(MetricChartScale.scale(forMetric: "039", values: [35.0])).ticks, [34, 35, 36])
+        XCTAssertEqual(try XCTUnwrap(MetricChartScale.scale(forMetric: "054", values: [0.5, 0.5])).ticks, [0, 1, 2])
+        XCTAssertEqual(try XCTUnwrap(MetricChartScale.scale(forMetric: "043", values: [3.2, 13.4])).ticks, [0, 5, 10, 15])
+        // The plain builder keeps its fractional steps unless asked.
+        XCTAssertEqual(try XCTUnwrap(MetricChartScale.make(values: [29.6, 31.8], includesZero: false, minimumSpan: 1)).ticks, [29.5, 30, 30.5, 31, 31.5, 32])
+    }
+
+    func testAxisColumnIsFittedAndCentredUnderTheIcon() {
+        let two = MetricChartView.axisColumnWidth(labels: ["29", "32"])
+        let four = MetricChartView.axisColumnWidth(labels: ["29,5", "32"])
+        XCTAssertGreaterThan(two, 8); XCTAssertLessThan(two, 16)
+        XCTAssertGreaterThan(four, two, "The column follows the widest label.")
+        XCTAssertEqual(MetricChartView.axisColumnWidth(labels: []), 0)
+        let narrow = MetricChartView.axisGeometry(columnWidth: two)
+        XCTAssertEqual(narrow.leading + two / 2, max(MetricChartView.iconCenter, two / 2), accuracy: 0.001, "Centred on the icon unless the column is wider than the icon's half-width pair.")
+        XCTAssertEqual(narrow.plotStart, narrow.leading + two + MetricChartView.gutter, accuracy: 0.001)
+        let wide = MetricChartView.axisGeometry(columnWidth: 30)
+        XCTAssertEqual(wide.leading, 0, "A wide column never leaves the card's content edge.")
+        XCTAssertLessThan(narrow.plotStart, 36, "The plot starts earlier than the old 36 pt.")
     }
 
     func testIntegerAndHalfScalesStayQuiet() throws {
