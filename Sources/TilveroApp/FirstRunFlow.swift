@@ -56,6 +56,8 @@ enum FirstRunEvent: Hashable {
     case useTerminal
     case everydayApplied(FirstRunLoginResult?)
     case permissionFinished(PrivilegedOutcome)
+    /// A Terminal run the window had stopped waiting for (Cancel, timeout) did install these after all.
+    case lateGrant(Set<PrivilegedFeature>)
     case lidTurnedOn(Bool)
     /// While waiting: stop asking (locked features stay off).
     case cancel
@@ -166,6 +168,18 @@ struct FirstRunFlow: Equatable {
         case (.waitingSystem, .cancel), (.waitingTerminal, .cancel):
             step = .declined
             return [.cancelPermissionRequest]
+
+        // The password was typed in Terminal after the window gave up: follow reality instead of saying "not entered".
+        case (.declined, .lateGrant(let features)), (.failed, .lateGrant(let features)), (.timedOut, .lateGrant(let features)):
+            let fresh = features.intersection(choices.lockedFeatures).subtracting(granted)
+            guard !fresh.isEmpty else { return [] }
+            granted.formUnion(fresh)
+            guard missingLocked.isEmpty else { return [] }
+            if fresh.contains(.lidClosed) { step = .enablingLid; return [.turnOnLid] }
+            return finish(afterSuccess: true)
+        case (_, .lateGrant(let features)):
+            granted.formUnion(features.intersection(choices.lockedFeatures))
+            return []
 
         case (.enablingLid, .lidTurnedOn(let enabled)):
             lidEnabled = enabled

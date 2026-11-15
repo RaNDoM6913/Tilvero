@@ -72,8 +72,8 @@ import SwiftUI
     static func message(_ outcome: PrivilegedOutcome, operation: PrivilegedOperation, route: PermissionRoute) -> String? {
         switch outcome {
         case .succeeded: operation.isRemoval ? "setup.permissions.removed" : "setup.permissions.granted"
-        case .cancelled: "firstRun.declined"
-        case .failed(let code): route == .terminal && code == 1 ? "firstRun.failed.password" : "firstRun.failed"
+        case .cancelled: route == .terminal ? "firstRun.declined.terminal" : "firstRun.declined"
+        case .failed: route == .terminal ? "firstRun.failed.terminal" : "firstRun.failed"
         case .timedOut: "firstRun.timedOut"
         }
     }

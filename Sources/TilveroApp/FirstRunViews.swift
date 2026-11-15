@@ -57,6 +57,11 @@ struct FirstRunWindowView: View {
 
     private var flow: FirstRunFlow { session.flow }
 
+    /// Everything that changes the window's height; the coordinator resizes (keeping the center) when it changes.
+    nonisolated static func layoutKey(_ flow: FirstRunFlow, showsCommand: Bool) -> String {
+        "\(flow.step.rawValue)|\(flow.buttons)|\(flow.attention.map(\.rawValue))|\(showsCommand && flow.step == .waitingTerminal)"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             header
@@ -153,8 +158,8 @@ struct FirstRunWindowView: View {
                         .buttonStyle(.link).font(.system(size: 12)).accessibilityIdentifier("firstRun.showCommand")
                 }
             }.frame(minHeight: 20)
-        case .declined: note("hand.raised", "firstRun.declined", info: true)
-        case .failed: note("exclamationmark.circle", flow.route == .terminal && flow.failureCode == 1 ? "firstRun.failed.password" : "firstRun.failed", info: true)
+        case .declined: note("hand.raised", flow.route == .terminal ? "firstRun.declined.terminal" : "firstRun.declined", info: true)
+        case .failed: note("exclamationmark.circle", flow.route == .terminal ? "firstRun.failed.terminal" : "firstRun.failed", info: true)
         case .timedOut: note("clock", "firstRun.timedOut", info: true)
         case .attention: attentionList
         case .done:
@@ -237,9 +242,11 @@ struct FirstRunWindowView: View {
                 Spacer(minLength: 8)
                 if let primary = model.primary { primaryButton(primary) }
             }
-            if model.terminalLink {
+            if model.terminalLink || flow.choicesEditable {
+                // Reserved while the choices can change, so ticking a password feature never changes the height.
                 Button(L10n.text("firstRun.useTerminal")) { session.send(.useTerminal) }
                     .buttonStyle(.link).font(.system(size: 12)).accessibilityIdentifier("firstRun.useTerminal")
+                    .opacity(model.terminalLink ? 1 : 0).disabled(!model.terminalLink).accessibilityHidden(!model.terminalLink)
             }
         }
         .frame(minHeight: 34)

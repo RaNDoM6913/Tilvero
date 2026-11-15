@@ -195,7 +195,8 @@ enum TerminalCommandText {
             rootScript,
             marker,
             "code=$?",
-            "printf '%s\\n' \"$code\" > \"${0%/*}/result\"",
+            "# The app may have stopped waiting (Cancel, timeout, quit) and removed this folder: then say nothing about it.",
+            "if [ -f \"$0\" ] && [ -d \"${0%/*}\" ]; then printf '%s\\n' \"$code\" > \"${0%/*}/result\" 2>/dev/null; fi",
             "if [ \"$code\" -eq 0 ]; then",
             "  printf '%s\\n' '' '\(messages.done)'",
             "else",
@@ -480,16 +481,23 @@ enum CancellableProcessRun {
     let terminalTimeout: TimeInterval
     let pollInterval: Duration
     private var nudged = false
+    /// After the window stopped waiting for Terminal, the sudo prompt there may still be answered later: the rule
+    /// files are watched (cheap `lstat`, once a second, bounded) so the app follows what really happened.
+    let lateWatchDuration: TimeInterval
+    private var lateWatch: Task<Void, Never>?
+    private var lateObservers: [UUID: @MainActor (PrivilegedOperation) -> Void] = [:]
 
     init(executor: any AdministratorScriptExecuting, terminal: any TerminalScriptOpening, probe: any PrivilegedRuleProbing,
          defaults: UserDefaults, uid: uid_t = getuid(),
          fileExists: @escaping (String) -> Bool = { FileManager.default.fileExists(atPath: $0) },
          signature: @escaping () -> String = { PrivilegedRulePresence.signature() },
          clock: PermissionWaitClock = .live, terminalTimeout: TimeInterval = 600, pollInterval: Duration = .milliseconds(500),
+         lateWatchDuration: TimeInterval = 900,
          commandBuilder: @escaping @MainActor (PrivilegedOperation, String) -> String = PrivilegedRuleInstaller.realCommand) {
         self.executor = executor; self.terminal = terminal; self.probe = probe; self.defaults = defaults; self.uid = uid
         self.fileExists = fileExists; self.signature = signature; self.clock = clock
         self.terminalTimeout = terminalTimeout; self.pollInterval = pollInterval; self.commandBuilder = commandBuilder
+        self.lateWatchDuration = lateWatchDuration
     }
 
     static func native(defaults: UserDefaults = .standard) -> PrivilegedRuleInstaller {
@@ -513,12 +521,20 @@ enum CancellableProcessRun {
     /// The Terminal wait checks again at once (the app came back to the front, or the user pressed "Check").
     func nudge() { nudged = true }
 
+    /// Called when a Terminal run the window had already given up on turns out to have changed the rules.
+    @discardableResult func observeLateSuccess(_ observer: @escaping @MainActor (PrivilegedOperation) -> Void) -> UUID {
+        let id = UUID(); lateObservers[id] = observer; return id
+    }
+    func removeLateObserver(_ id: UUID) { lateObservers[id] = nil }
+    var isWatchingLate: Bool { lateWatch != nil }
+
     func install(_ features: Set<PrivilegedFeature>, route: PermissionRoute = .systemPrompt) async -> PrivilegedOutcome {
         await run(.install(features), route: route)
     }
 
     func run(_ operation: PrivilegedOperation, route: PermissionRoute) async -> PrivilegedOutcome {
         guard let script = SudoersRules.script(for: operation, uid: uid) else { return .succeeded([]) }
+        lateWatch?.cancel(); lateWatch = nil
         let before = signature()
         let outcome: PrivilegedOutcome
         switch route {
@@ -557,7 +573,27 @@ enum CancellableProcessRun {
         guard !Task.isCancelled else { return .cancelled }
         guard let folder = await terminal.open(commandBuilder(operation, script)) else { return .failed(nil) }
         defer { try? FileManager.default.removeItem(at: folder) }
-        return await waitForTerminal(operation, folder: folder, before: before)
+        let outcome = await waitForTerminal(operation, folder: folder, before: before)
+        if outcome == .cancelled || outcome == .timedOut { startLateWatch(operation, before: before) }
+        return outcome
+    }
+
+    private func startLateWatch(_ operation: PrivilegedOperation, before: String) {
+        lateWatch?.cancel()
+        let clock = clock
+        lateWatch = Task { @MainActor [weak self] in
+            let start = clock.now()
+            while let self, !Task.isCancelled, clock.now().timeIntervalSince(start) < self.lateWatchDuration {
+                if self.signature() != before, await self.confirmed(operation) {
+                    self.record(operation, operation.features)
+                    self.lateWatch = nil
+                    self.lateObservers.values.forEach { $0(operation) }
+                    return
+                }
+                do { try await clock.sleep(.seconds(1)) } catch { return }
+            }
+            self?.lateWatch = nil
+        }
     }
 
     /// Polls cheaply (the result file next to the script and `lstat` of the rule files); asks sudo only when a rule
@@ -569,7 +605,10 @@ enum CancellableProcessRun {
         while true {
             if Task.isCancelled { return .cancelled }
             if let code = TerminalCommandFile.readResult(in: folder) {
-                return code == 0 ? .succeeded(operation.features) : .failed(code)
+                if code == 0 { return .succeeded(operation.features) }
+                // A later step (tidying an old file) may fail after the rule itself was moved into place.
+                if signature() != before, await confirmed(operation) { return .succeeded(operation.features) }
+                return .failed(code)
             }
             let current = signature()
             if current != lastSignature || nudged {

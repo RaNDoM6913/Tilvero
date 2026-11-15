@@ -20,6 +20,8 @@ import SwiftUI
     var commandText: (Set<PrivilegedFeature>) -> String?
     /// The Terminal wait checks again at once (the app came back to the front).
     var nudge: () -> Void
+    /// Registers for Terminal runs that succeed after the window stopped waiting for them.
+    var observeLateGrant: (@escaping @MainActor (Set<PrivilegedFeature>) -> Void) -> Void = { _ in }
     /// Turns the closed-lid option on after its permission was granted (no further prompt); true when it is on.
     var turnOnLid: () async -> Bool
 }
@@ -85,6 +87,7 @@ enum FirstRunLogin {
         self.session = session; self.ports = ports; self.host = host
         super.init()
         session.perform = { [weak self] effect in self?.run(effect) }
+        ports.observeLateGrant { [weak session] features in session?.send(.lateGrant(features)) }
     }
 
     // MARK: Lifecycle
@@ -154,8 +157,10 @@ enum FirstRunLogin {
                 guard let self else { return }
                 let outcome = await self.ports.requestPermission(features, route)
                 guard !Task.isCancelled else { return }
-                self.window?.makeKeyAndOrderFront(nil)
-                NSApplication.shared.activate()
+                if self.presentsWindow {
+                    self.window?.makeKeyAndOrderFront(nil)
+                    NSApplication.shared.activate()
+                }
                 self.session.send(.permissionFinished(outcome))
             }
         case .cancelPermissionRequest:
@@ -178,10 +183,18 @@ enum FirstRunLogin {
         }
     }
 
+    /// Ends the flow once the icon fill has reached the real level: the host may free the coordinator right after,
+    /// so the icon must never be left drawn at a fraction of the measured charge.
     private func completeFinish() {
         guard finishPending else { return }
         finishPending = false
-        host?.firstRunFinished()
+        let fill = iconTask
+        Task { @MainActor [self] in   // keeps the coordinator alive until the icon is real again
+            await fill?.value
+            iconTask = nil
+            host?.firstRunDrawIcon(fill: nil)
+            host?.firstRunFinished()
+        }
     }
 
     private func after(_ seconds: Double, _ body: @escaping @MainActor () -> Void) {
@@ -230,13 +243,14 @@ enum FirstRunLogin {
         guard !session.reduceMotion else { host?.firstRunDrawIcon(fill: nil); return }
         let speed = max(session.speed, 0.1)
         host?.firstRunDrawIcon(fill: 0)
-        iconTask = Task { @MainActor [weak self] in
+        iconTask = Task { @MainActor [weak host] in
+            defer { host?.firstRunDrawIcon(fill: nil) }   // cancelled or finished: always back to the real level
             try? await Task.sleep(for: .seconds(delay / speed))
             let started = Date()
             while !Task.isCancelled {
                 let fill = FirstRunMotion.iconFill(Date().timeIntervalSince(started) * speed, reduceMotion: false)
-                self?.host?.firstRunDrawIcon(fill: fill >= 1 ? nil : fill)
                 if fill >= 1 { return }
+                host?.firstRunDrawIcon(fill: fill)
                 try? await Task.sleep(for: .milliseconds(16))
             }
         }
@@ -277,7 +291,8 @@ enum FirstRunLogin {
             context.duration = FirstRunMotion.crossfadeDuration(reduceMotion: session.reduceMotion)
             window.animator().alphaValue = 1
         }
-        stepSubscription = session.$flow.map(\.step).removeDuplicates().combineLatest(session.$showsCommand.removeDuplicates())
+        // Anything that changes the window's content height (step, buttons, attention lines, the command box).
+        stepSubscription = session.$flow.combineLatest(session.$showsCommand).map { FirstRunWindowView.layoutKey($0, showsCommand: $1) }.removeDuplicates()
             .dropFirst().receive(on: RunLoop.main).sink { [weak self] _ in self?.resizeWindowToFit() }
         // Back from Terminal: look again at once instead of waiting for the next change.
         observers.append(NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in

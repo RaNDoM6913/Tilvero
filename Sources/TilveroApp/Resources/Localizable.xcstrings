@@ -17217,34 +17217,18 @@
         }
       }
     },
-    "firstRun.failed.password": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The password did not work"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Пароль не подошёл"
-          }
-        }
-      }
-    },
     "firstRun.timedOut": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Terminal did not answer"
+            "value": "No answer. Close the Terminal window"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Терминал не ответил"
+            "value": "Нет ответа. Закройте окно Терминала"
           }
         }
       }
@@ -17645,6 +17629,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tilvero просит убрать свои разрешения pmset без пароля."
+          }
+        }
+      }
+    },
+    "firstRun.declined.terminal": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancelled. Close the Terminal window"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отменено. Закройте окно Терминала"
+          }
+        }
+      }
+    },
+    "firstRun.failed.terminal": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It did not work in Terminal"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не получилось в Терминале"
           }
         }
       }

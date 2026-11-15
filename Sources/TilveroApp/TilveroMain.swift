@@ -357,6 +357,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
                 requestPermission: { features, route in await installer.install(features, route: route) },
                 commandText: { installer.commandText(.install($0)) },
                 nudge: { installer.nudge() },
+                observeLateGrant: { handler in installer.observeLateSuccess { if case .install(let f) = $0 { handler(f) } } },
                 turnOnLid: { [weak self] in
                     guard let lid = self?.model.lidSleep else { return false }
                     await lid.setPreferred(true, for: .keepAwake)
@@ -822,6 +823,7 @@ extension TilveroAppDelegate: FirstRunHost {
     }
     func firstRunFinished() {
         model.firstRun = nil
+        if firstRunIconFill != nil { firstRunIconFill = nil; updateStatusItem() }   // never a fraction of the real level
         // The preview keeps its coordinator so the debug panel can play it again.
         if !firstRunMode.isPreview { firstRun = nil }
     }

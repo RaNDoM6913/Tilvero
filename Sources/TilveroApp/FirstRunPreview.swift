@@ -162,6 +162,7 @@ enum FirstRunPreview {
             requestPermission: { features, route in await installer.install(features, route: route) },
             commandText: { installer.commandText(.install($0)) },
             nudge: { installer.nudge() },
+            observeLateGrant: { handler in installer.observeLateSuccess { if case .install(let f) = $0 { handler(f) } } },
             turnOnLid: { !controls.lidRefused })
     }
 }
