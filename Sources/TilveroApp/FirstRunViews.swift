@@ -395,9 +395,17 @@ struct FirstRunCard: View {
 
     private var confirmCard: some View {
         VStack(alignment: .leading, spacing: 6) {
-            TimelineView(.animation(paused: session.step != .systemPrompt || session.reduceMotion)) { context in
-                let breathe = session.step == .systemPrompt && !session.reduceMotion ? 0.8 + 0.2 * sin(session.time(at: context.date) * 2 * .pi / 1.6) : 1
-                header("firstRun.confirm.title", symbol: "touchid", close: false).opacity(breathe)
+            // Breathes for a few cycles while the macOS prompt is up, then rests and the timeline stops.
+            let waiting = session.step == .systemPrompt
+            TimelineView(.animation(paused: !waiting || breathingSettled
+                                    || M.breathingSettled(session.time(at: Date()), reduceMotion: session.reduceMotion))) { context in
+                header("firstRun.confirm.title", symbol: "touchid", close: false)
+                    .opacity(waiting ? M.breathing(session.time(at: context.date), reduceMotion: session.reduceMotion) : 1)
+            }
+            .task(id: session.sceneStart) {
+                breathingSettled = false
+                try? await Task.sleep(for: .seconds(M.breathingDuration / max(session.speed, 0.1) + 0.05))
+                if !Task.isCancelled { breathingSettled = true }
             }
             HStack(spacing: 6) {
                 Text(L10n.text("firstRun.confirm.subtitle")).font(.system(size: 13)).foregroundStyle(.secondary)
@@ -418,44 +426,35 @@ struct FirstRunCard: View {
 
     static let infoKeys = ["firstRun.info.what", "firstRun.info.password"]
 
-    private struct Row: Identifiable { var id: String; var key: String; var trailing: (key: String, action: () -> Void)?; var neutral = false }
+    @State private var checksSettled = false
+    @State private var breathingSettled = false
 
-    private var doneRows: [Row] {
-        let flow = session.flow, choices = flow.choices
-        var rows: [Row] = []
-        if choices.launchAtLogin {
-            switch flow.loginResult {
-            case .requiresApproval:
-                rows.append(Row(id: "login", key: "firstRun.row.login", trailing: ("firstRun.allow", { session.perform(.openLoginItemsSettings) }), neutral: true))
-            case .failed: break
-            default: rows.append(Row(id: "login", key: "firstRun.row.login"))
+    private func summaryRow(_ row: FirstRunSummaryRow, index: Int, t: Double) -> some View {
+        HStack(spacing: 8) {
+            if row.kind == .enabled {
+                FirstRunDoneMark(progress: M.check(index, t, reduceMotion: session.reduceMotion))
+            } else {
+                Image(systemName: "circle.dotted").font(.system(size: 16)).foregroundStyle(.secondary).frame(width: 18).accessibilityHidden(true)
             }
+            Text(L10n.text(row.key)).font(.system(size: 13, weight: .medium))
+            Spacer(minLength: 8)
+            if row.kind == .needsApproval { pill("firstRun.allow", id: "firstRun.allow") { session.perform(.openLoginItemsSettings) } }
         }
-        if choices.keepHistory { rows.append(Row(id: "history", key: "firstRun.row.history")) }
-        if flow.granted.contains(.lidClosed) && choices.lidClosed { rows.append(Row(id: "lid", key: "firstRun.lidClosed")) }
-        if flow.granted.contains(.chargeByTime) && choices.chargeByTime { rows.append(Row(id: "chargeBy", key: "firstRun.chargeByTime")) }
-        return rows
+        .frame(height: 30)
+        .accessibilityElement(children: .combine)
     }
 
+    private var doneRows: [FirstRunSummaryRow] { session.flow.everydayRows + session.flow.grantedRows }
+
     private var doneCard: some View {
-        TimelineView(.animation(paused: session.reduceMotion)) { context in
+        let rows = doneRows
+        // Checks draw in once; afterwards the timeline stops (no per-frame work while the card stays open).
+        let settled = checksSettled || M.checksSettled(count: rows.count, session.time(at: Date()), reduceMotion: session.reduceMotion)
+        return TimelineView(.animation(paused: settled)) { context in
             let t = session.time(at: context.date)
             VStack(alignment: .leading, spacing: 6) {
                 header("firstRun.done.title", symbol: "checkmark.circle.fill", tint: .green)
-                let rows = doneRows
-                ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-                    HStack(spacing: 8) {
-                        if row.neutral {
-                            Image(systemName: "circle.dotted").font(.system(size: 16)).foregroundStyle(.secondary).frame(width: 18)
-                        } else {
-                            FirstRunDoneMark(progress: M.check(index, t, reduceMotion: session.reduceMotion))
-                        }
-                        Text(L10n.text(row.key)).font(.system(size: 13, weight: .medium))
-                        Spacer(minLength: 8)
-                        if let trailing = row.trailing { pill(trailing.key, id: "firstRun.allow", action: trailing.action) }
-                    }
-                    .frame(height: 30)
-                }
+                ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in summaryRow(row, index: index, t: t) }
                 if session.flow.choices.chargeLimit {
                     HStack(spacing: 8) {
                         Image(systemName: "circle.dotted").font(.system(size: 16)).foregroundStyle(.secondary).frame(width: 18).accessibilityHidden(true)
@@ -467,17 +466,18 @@ struct FirstRunCard: View {
                 }
             }
         }
+        .task(id: session.sceneStart) {
+            checksSettled = false
+            try? await Task.sleep(for: .seconds(M.checksEnd(count: rows.count) / max(session.speed, 0.1) + 0.05))
+            if !Task.isCancelled { checksSettled = true }
+        }
     }
 
     private var declinedCard: some View {
         VStack(alignment: .leading, spacing: 6) {
             header(session.flow.promptFailed ? "firstRun.failed.title" : "firstRun.declined.title", symbol: "lock.open", tint: .secondary)
-            if session.flow.choices.launchAtLogin {
-                HStack(spacing: 8) { FirstRunDoneMark(progress: 1); Text(L10n.text("firstRun.row.login")).font(.system(size: 13, weight: .medium)); Spacer() }.frame(height: 30)
-            }
-            if session.flow.choices.keepHistory {
-                HStack(spacing: 8) { FirstRunDoneMark(progress: 1); Text(L10n.text("firstRun.row.history")).font(.system(size: 13, weight: .medium)); Spacer() }.frame(height: 30)
-            }
+            // The same summary as the done card (real login result), all drawn at rest.
+            ForEach(session.flow.everydayRows + session.flow.grantedRows) { row in summaryRow(row, index: 0, t: .infinity) }
             ForEach(session.flow.missingLocked, id: \.self) { feature in
                 HStack(spacing: 8) {
                     Image(systemName: "lock").font(.system(size: 13)).foregroundStyle(.secondary).frame(width: 18).accessibilityHidden(true)
@@ -595,8 +595,10 @@ struct FirstRunGuideLayer: View {
 struct FirstRunBeaconView: View {
     var start: Date
     var reduceMotion: Bool
+    @State private var settled = false
     var body: some View {
-        TimelineView(.animation(paused: reduceMotion)) { context in
+        // A few bobs, then the arrow stands still and the timeline stops while the window waits.
+        TimelineView(.animation(paused: settled || M.beaconSettled(Date().timeIntervalSince(start), reduceMotion: reduceMotion))) { context in
             let t = context.date.timeIntervalSince(start)
             let f = M.beacon(t, reduceMotion: reduceMotion)
             ZStack(alignment: .top) {
@@ -608,6 +610,10 @@ struct FirstRunBeaconView: View {
             .frame(width: 80, height: 70, alignment: .top)
         }
         .accessibilityHidden(true)
+        .task(id: start) {
+            try? await Task.sleep(for: .seconds(max(0, M.beaconMotionDuration - Date().timeIntervalSince(start)) + 0.05))
+            if !Task.isCancelled { settled = true }
+        }
     }
 }
 

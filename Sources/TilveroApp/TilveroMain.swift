@@ -167,6 +167,7 @@ struct TilveroMain {
             let signals = FirstRunSignals.read(defaults: .standard, historyURL: identity.historyURL())
             var context = FirstRunLaunchContext.current(arguments: CommandLine.arguments, policy: launchPolicy)
             context.launchedAsLoginItem = context.launchedAsLoginItem || LaunchFacts.launchedAsLoginItem
+            context.laboratoryIdentity = identity.isLaboratory   // lab and lid trial (isLaboratory covers both)
             switch FirstRunDecision.decide(signals: signals, context: context) {
             case .show: firstRun = .show
             case .markSilently: FirstRunDecision.markIntroduced(.standard)
@@ -353,7 +354,11 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
                 registerLogin: { FirstRunLogin.registerNative() },
                 openLoginItemsSettings: { SMAppService.openSystemSettingsLoginItems() },
                 install: { await installer.install($0) },
-                turnOnLid: { [weak self] in Task { await self?.model.lidSleep.setPreferred(true, for: .keepAwake) } })
+                turnOnLid: { [weak self] in
+                    guard let lid = self?.model.lidSleep else { return false }
+                    await lid.setPreferred(true, for: .keepAwake)
+                    return lid.isPreferred
+                })
         }
         let coordinator = FirstRunCoordinator(session: session, ports: ports, host: self)
         firstRun = coordinator

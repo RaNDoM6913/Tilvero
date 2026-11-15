@@ -26,42 +26,54 @@ enum PrivilegedFeature: String, CaseIterable, Comparable, Sendable {
     }
 }
 
-/// Pure builder of the merged rule and the one shell script run under the administrator prompt.
+
+/// Pure builder of the rule lines and the one shell script run under the administrator prompt.
+///
+/// The merged file holds one line per feature. The app cannot read it (root-only), so it never rewrites the file from
+/// its own memory: every script runs as root, copies the existing file minus exactly the lines it replaces or
+/// removes, and keeps everything else it cannot account for (another feature, another copy's line). A removed
+/// feature's line is always taken out, whatever the app remembers.
 enum SudoersRules {
     static let mergedPath = "/etc/sudoers.d/tilvero"
-    /// sudo ignores names containing a dot, so the unvalidated file is never live.
-    static let mergedTempPath = "/etc/sudoers.d/tilvero.tmp"
-    /// Which features the merged file was written with (it is root-only readable, so the app keeps its own record).
+    /// `mktemp` template: a unique name per run; sudo ignores names containing a dot, so an unvalidated file is never live.
+    static let tempTemplate = "/etc/sudoers.d/tilvero.XXXXXX"
+    /// A hint of which features the app wrote into the merged file (used only to report "permission present").
     static let mergedFeaturesKey = "privilegedRules.merged.v1"
     static var allPaths: [String] { [mergedPath] + PrivilegedFeature.allCases.map(\.legacyPath) }
 
-    /// One uid-bound line, features in a fixed order; nil for an empty selection.
-    static func rule(uid: uid_t, features: Set<PrivilegedFeature>) -> String? {
-        guard !features.isEmpty else { return nil }
-        return "#\(uid) ALL=(root) NOPASSWD: " + features.sorted().flatMap(\.commands).joined(separator: ", ")
+    /// One uid-bound line for one feature: exactly the per-feature rule of its service.
+    static func rule(uid: uid_t, feature: PrivilegedFeature) -> String {
+        "#\(uid) ALL=(root) NOPASSWD: " + feature.commands.joined(separator: ", ")
+    }
+    static func rules(uid: uid_t, features: Set<PrivilegedFeature>) -> [String] {
+        features.sorted().map { rule(uid: uid, feature: $0) }
     }
 
-    /// Write to the temporary name, validate with `visudo -c`, move into place, and only then remove the old
-    /// one-feature files of the features now covered. Any failure removes the temporary file and leaves the old
-    /// files untouched.
+    /// Existing file minus `lines` (exact whole-line matches), into `$T`; nothing when there is no file.
+    private static func copyExisting(without lines: [String]) -> String {
+        let patterns = lines.map { "-e '\($0)'" }.joined(separator: " ")
+        return "{ [ ! -f \(mergedPath) ] || grep -v -x -F \(patterns) \(mergedPath) || true; } > \"$T\""
+    }
+
+    /// Copy the existing file without the requested lines, append them, validate with `visudo -c`, move into place,
+    /// and only then remove the old one-feature files of the requested features. Any failure removes the temporary
+    /// file and leaves the installed files untouched.
     static func installScript(uid: uid_t, features: Set<PrivilegedFeature>) -> String? {
-        guard let rule = rule(uid: uid, features: features) else { return nil }
+        let lines = rules(uid: uid, features: features)
+        guard !lines.isEmpty else { return nil }
         let removeOld = features.sorted().map { "rm -f \($0.legacyPath)" }.joined(separator: " && ")
-        return "mkdir -p /etc/sudoers.d && echo '\(rule)' > \(mergedTempPath) && chmod 0440 \(mergedTempPath)"
-            + " && /usr/sbin/visudo -c -f \(mergedTempPath) && mv -f \(mergedTempPath) \(mergedPath) && \(removeOld)"
-            + " || { rm -f \(mergedTempPath); exit 1; }"
+        return "mkdir -p /etc/sudoers.d && T=$(mktemp \(tempTemplate)) && \(copyExisting(without: lines))"
+            + " && printf '%s\\n' \(lines.map { "'\($0)'" }.joined(separator: " ")) >> \"$T\""
+            + " && chmod 0440 \"$T\" && /usr/sbin/visudo -c -f \"$T\" && mv -f \"$T\" \(mergedPath) && \(removeOld)"
+            + " || { rm -f \"$T\"; exit 1; }"
     }
 
-    /// Takes one feature out: its old file goes, and the merged file is rewritten (validated) with what remains, or
-    /// removed when nothing remains.
-    static func removalScript(uid: uid_t, removing feature: PrivilegedFeature, merged: Set<PrivilegedFeature>) -> String {
-        let remaining = merged.subtracting([feature])
-        let dropOld = "rm -f \(feature.legacyPath)"
-        guard merged.contains(feature) else { return dropOld }
-        guard let rule = rule(uid: uid, features: remaining) else { return "\(dropOld) && rm -f \(mergedPath)" }
-        return "\(dropOld) && echo '\(rule)' > \(mergedTempPath) && chmod 0440 \(mergedTempPath)"
-            + " && /usr/sbin/visudo -c -f \(mergedTempPath) && mv -f \(mergedTempPath) \(mergedPath)"
-            + " || { rm -f \(mergedTempPath); exit 1; }"
+    /// Takes one feature out, always: its old file goes and its line is removed from the merged file, which is
+    /// rewritten (validated) with every other line, or deleted when nothing remains.
+    static func removalScript(uid: uid_t, removing feature: PrivilegedFeature) -> String {
+        "rm -f \(feature.legacyPath) && T=$(mktemp \(tempTemplate)) && \(copyExisting(without: [rule(uid: uid, feature: feature)]))"
+            + " && if [ -s \"$T\" ]; then chmod 0440 \"$T\" && /usr/sbin/visudo -c -f \"$T\" && mv -f \"$T\" \(mergedPath);"
+            + " else rm -f \"$T\" \(mergedPath); fi || { rm -f \"$T\"; exit 1; }"
     }
 
     static func appleScriptLiteral(_ value: String) -> String {
@@ -72,7 +84,9 @@ enum SudoersRules {
     }
 }
 
-/// "Permission present": the old per-feature file OR the merged file written with that feature.
+/// "Permission present": the old per-feature file OR the merged file written with that feature. A lost record only
+/// makes a feature look absent, which leads to asking again (the script keeps or replaces its line), never to a
+/// missing line being reported as present.
 enum PrivilegedRulePresence {
     static func recordedMergedFeatures(_ defaults: UserDefaults) -> Set<PrivilegedFeature> {
         Set((defaults.stringArray(forKey: SudoersRules.mergedFeaturesKey) ?? []).compactMap(PrivilegedFeature.init(rawValue:)))
@@ -100,51 +114,102 @@ protocol AdministratorScriptExecuting: Sendable {
 /// (Touch ID or password); the app never sees a password. Cancelling the calling task dismisses the prompt.
 struct OsascriptAdministratorExecutor: AdministratorScriptExecuting {
     func run(script: String, prompt: String) async -> AdministratorScriptOutcome {
+        guard !Task.isCancelled else { return .cancelled }
         // The dialog attaches to the requesting process; an inactive menu bar app would open it behind other windows.
         await MainActor.run { NSApplication.shared.activate() }
-        let result = await AdministratorProcess.run("/usr/bin/osascript", ["-e", SudoersRules.appleScriptSource(script: script, prompt: prompt)])
-        if result.status == 0 { return .succeeded }
-        // osascript reports "User canceled. (-128)" when the prompt is dismissed; a cancelled task terminated it.
-        return result.output.contains("-128") || Task.isCancelled ? .cancelled : .failed
+        let result = await CancellableProcessRun.run(launch: CancellableProcessRun.process("/usr/bin/osascript",
+            ["-e", SudoersRules.appleScriptSource(script: script, prompt: prompt)]))
+        return Self.outcome(status: result.status, output: result.output, cancelled: Task.isCancelled)
+    }
+    /// osascript reports "User canceled. (-128)" when the prompt is dismissed; a cancelled task terminated it.
+    static func outcome(status: Int32, output: String, cancelled: Bool) -> AdministratorScriptOutcome {
+        if status == 0 && !cancelled { return .succeeded }
+        return output.contains("-128") || cancelled || status == CancellableProcessRun.cancelledBeforeStart ? .cancelled : .failed
     }
 }
 
-private enum AdministratorProcess {
-    final class Box: @unchecked Sendable {
-        private let lock = NSLock(); private var done = false; var process: Process?
-        func take() -> Bool { lock.withLock { if done { return false }; done = true; return true } }
+/// Runs one process whose continuation resumes exactly once: on exit, on a launch failure, on the timeout, or
+/// immediately when the task was cancelled before the launch (then nothing is launched). Cancelling a running
+/// process terminates it and the result arrives through its normal exit.
+enum CancellableProcessRun {
+    static let cancelledBeforeStart: Int32 = -3
+    static let timedOut: Int32 = -2
+    static let launchFailed: Int32 = -1
+
+    /// Starts the work; calls `finished` once when it ends; returns how to terminate it.
+    typealias Launch = @Sendable (_ finished: @escaping @Sendable (Int32, String) -> Void) throws -> @Sendable () -> Void
+
+    private final class State: @unchecked Sendable {
+        private let lock = NSLock()
+        private var continuation: CheckedContinuation<(status: Int32, output: String), Never>?
+        private var terminate: (@Sendable () -> Void)?
+        private var cancelled = false
+        private var finished = false
+
+        func install(_ c: CheckedContinuation<(status: Int32, output: String), Never>) -> Bool {
+            lock.withLock { continuation = c; return !cancelled }
+        }
+        /// Records how to stop the running work; stops it at once if a cancel already arrived.
+        func started(_ stop: @escaping @Sendable () -> Void) {
+            let stopNow = lock.withLock { () -> Bool in terminate = stop; return cancelled && !finished }
+            if stopNow { stop() }
+        }
+        func cancel() {
+            let stop = lock.withLock { () -> (@Sendable () -> Void)? in cancelled = true; return finished ? nil : terminate }
+            stop?()
+        }
+        func finish(_ status: Int32, _ output: String) {
+            let c = lock.withLock { () -> CheckedContinuation<(status: Int32, output: String), Never>? in
+                guard !finished else { return nil }
+                finished = true; defer { continuation = nil }; return continuation
+            }
+            c?.resume(returning: (status, output))
+        }
     }
-    static func run(_ path: String, _ arguments: [String], timeout: TimeInterval = 600) async -> (status: Int32, output: String) {
-        let box = Box()
+
+    static func run(launch: Launch, timeout: TimeInterval = 600) async -> (status: Int32, output: String) {
+        let state = State()
         return await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
-                let process = Process()
-                process.executableURL = URL(fileURLWithPath: path); process.arguments = arguments
-                let pipe = Pipe()
-                process.standardOutput = pipe; process.standardError = pipe; process.standardInput = FileHandle.nullDevice
-                box.process = process
-                process.terminationHandler = { finished in
-                    let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                    if box.take() { continuation.resume(returning: (finished.terminationStatus, String(decoding: data, as: UTF8.self))) }
+                guard state.install(continuation), !Task.isCancelled else {
+                    state.finish(cancelledBeforeStart, ""); return
                 }
-                do { try process.run() } catch { if box.take() { continuation.resume(returning: (-1, "")) }; return }
-                DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout) {
-                    guard process.isRunning else { return }
-                    process.terminate()
-                    if box.take() { continuation.resume(returning: (-2, "")) }
+                do {
+                    let stop = try launch { status, output in state.finish(status, output) }
+                    state.started(stop)
+                    DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout) {
+                        stop()
+                        state.finish(timedOut, "")
+                    }
+                } catch {
+                    state.finish(launchFailed, "")
                 }
             }
         } onCancel: {
-            box.process?.terminate()
-            _ = box.take()
+            state.cancel()   // only terminates; the exit (or the pre-launch guard) resumes the continuation
+        }
+    }
+
+    static func process(_ path: String, _ arguments: [String]) -> Launch {
+        { finished in
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: path); process.arguments = arguments
+            let pipe = Pipe()
+            process.standardOutput = pipe; process.standardError = pipe; process.standardInput = FileHandle.nullDevice
+            process.terminationHandler = { done in
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                finished(done.terminationStatus, String(decoding: data, as: UTF8.self))
+            }
+            try process.run()
+            return { if process.isRunning { process.terminate() } }
         }
     }
 }
 
 enum PrivilegedInstallOutcome: Equatable { case granted(Set<PrivilegedFeature>), cancelled, failed }
 
-/// One administrator prompt for every chosen feature. The rule keeps the features recorded earlier, so a later
-/// request never drops a line that already works.
+/// One administrator prompt for every chosen feature. The script keeps every other line of the merged file, so a
+/// request never drops a feature the app does not know about.
 @MainActor final class PrivilegedRuleInstaller {
     private let executor: any AdministratorScriptExecuting
     private let defaults: UserDefaults
@@ -161,16 +226,14 @@ enum PrivilegedInstallOutcome: Equatable { case granted(Set<PrivilegedFeature>),
     }
 
     func install(_ requested: Set<PrivilegedFeature>) async -> PrivilegedInstallOutcome {
-        guard !requested.isEmpty else { return .granted([]) }
+        guard let script = SudoersRules.installScript(uid: uid, features: requested) else { return .granted([]) }
         let mergedBefore = fileExists(SudoersRules.mergedPath)
         let recorded = mergedBefore ? PrivilegedRulePresence.recordedMergedFeatures(defaults) : []
-        let features = requested.union(recorded)
-        guard let script = SudoersRules.installScript(uid: uid, features: features) else { return .failed }
-        let outcome = await executor.run(script: script, prompt: Self.prompt(for: features))
+        let outcome = await executor.run(script: script, prompt: Self.prompt(for: requested))
         // A prompt cancelled after the script already moved a fresh file into place still installed it.
         if outcome != .succeeded, !mergedBefore, fileExists(SudoersRules.mergedPath) {
-            PrivilegedRulePresence.record(features, in: defaults)
-            return .granted(features)
+            PrivilegedRulePresence.record(requested, in: defaults)
+            return .granted(requested)
         }
         switch outcome {
         case .cancelled: return .cancelled
@@ -178,8 +241,8 @@ enum PrivilegedInstallOutcome: Equatable { case granted(Set<PrivilegedFeature>),
         case .succeeded:
             // Only a file that is really in place counts.
             guard fileExists(SudoersRules.mergedPath) else { return .failed }
-            PrivilegedRulePresence.record(features, in: defaults)
-            return .granted(features)
+            PrivilegedRulePresence.record(requested.union(recorded), in: defaults)
+            return .granted(requested)
         }
     }
 }

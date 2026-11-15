@@ -17078,13 +17078,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Two narrow pmset commands without a password: keep the Mac awake with the lid closed and wake it in time to charge."
+            "value": "Only the narrow pmset commands of the features you chose run without a password: four in total, two for the closed lid and two for waking in time to charge."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Две узкие команды pmset без пароля: не засыпать с закрытой крышкой и разбудить Mac к началу зарядки."
+            "value": "Без пароля разрешаются только узкие команды pmset выбранных функций: всего их четыре, две для закрытой крышки и две для пробуждения к зарядке."
           }
         }
       }
@@ -17206,13 +17206,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Without password"
+            "value": "Not allowed"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Без пароля"
+            "value": "Без разрешения"
           }
         }
       }

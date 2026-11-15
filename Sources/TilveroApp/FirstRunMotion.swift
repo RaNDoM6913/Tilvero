@@ -115,6 +115,16 @@ enum FirstRunMotion {
     static func check(_ index: Int, _ t: Double, reduceMotion: Bool) -> Double {
         reduceMotion ? 1 : segment(t, 0.25 + 0.07 * Double(index), 0.47 + 0.07 * Double(index))
     }
+    /// When the last of `count` checks is fully drawn: the done card's timeline stops there.
+    static func checksEnd(count: Int) -> Double { 0.47 + 0.07 * Double(max(count, 1) - 1) }
+    static func checksSettled(count: Int, _ t: Double, reduceMotion: Bool) -> Bool { reduceMotion || t >= checksEnd(count: count) }
+
+    /// The header breathes while the macOS prompt is up, for a few cycles only, then rests at full opacity.
+    static let breathingDuration = 9.6
+    static func breathing(_ t: Double, reduceMotion: Bool) -> Double {
+        reduceMotion || t >= breathingDuration ? 1 : 0.8 + 0.2 * cos(t * 2 * .pi / 1.6)
+    }
+    static func breathingSettled(_ t: Double, reduceMotion: Bool) -> Bool { reduceMotion || t >= breathingDuration }
 
     struct CursorFrame: Equatable { var point: CGPoint, opacity: Double, press: Double, ripple: Double }
     /// Guide cursor from `start` to `end` with one click, played once. Reduce Motion: static at `end`, one ripple.
@@ -138,6 +148,8 @@ enum FirstRunMotion {
         guard !reduceMotion, t < beaconMotionDuration else { return BeaconFrame(bob: 0, ring: 0) }
         return BeaconFrame(bob: sin(t * 2 * .pi / 1.2), ring: t.truncatingRemainder(dividingBy: 1.2) / 1.2)
     }
+    /// After its few bobs the beacon stands still (its timeline stops; the window may wait for hours).
+    static func beaconSettled(_ t: Double, reduceMotion: Bool) -> Bool { reduceMotion || t >= beaconMotionDuration }
 
     static let bubbleDuration = 1.8
     struct BubbleFrame: Equatable { var opacity: Double, rings: [Double] }

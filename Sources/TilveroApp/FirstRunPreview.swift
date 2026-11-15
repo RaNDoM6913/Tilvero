@@ -4,36 +4,35 @@
 import AppKit
 import SwiftUI
 
-/// `--first-run-preview`: play the real first-run UI safely. Honored only in debug builds and non-production
-/// identities (local prototype, laboratory). It runs a monitoring-only session with an isolated preference suite and
+/// `--first-run-preview`: play the real first-run UI safely. Honored only for non-production identities (local
+/// prototype, laboratory, the dedicated "Tilvero First Run" app), never for a production identity. It runs a monitoring-only session with an isolated preference suite and
 /// a temporary history store, a fake administrator prompt and a fake login item: it never touches charging, fans,
 /// sleep, the real login item, the production preferences or the installed app.
 enum FirstRunPreview {
     static let flag = "--first-run-preview"
 
-    static func isAllowed(isProductionIdentity: Bool) -> Bool {
-        #if DEBUG
-        true
-        #else
-        !isProductionIdentity
-        #endif
-    }
+    /// Never for a production identity, in any build configuration.
+    static func isAllowed(isProductionIdentity: Bool) -> Bool { !isProductionIdentity }
 
     /// The dedicated "Tilvero First Run" app is always a preview; other non-production builds need the flag.
     static func requested(arguments: [String], isProductionIdentity: Bool, isPreviewIdentity: Bool = false) -> Bool {
         (arguments.contains(flag) || isPreviewIdentity) && isAllowed(isProductionIdentity: isProductionIdentity)
     }
 
-    /// The isolated environment: its own suite (removed at quit) and a temporary history folder.
+    /// The isolated environment: one fixed suite of its own, cleared at launch and at quit (so a crashed preview never
+    /// leaves extra preference files behind), and a temporary history folder.
     struct Environment {
         let suiteName: String
         let defaults: UserDefaults
         let historyURL: URL
 
+        static let suiteName = "local.tilvero.first-run-preview"
+
         static func make() -> Environment {
-            let name = "local.tilvero.first-run-preview.\(UUID().uuidString)"
+            let defaults = UserDefaults(suiteName: suiteName)!
+            defaults.removePersistentDomain(forName: suiteName)   // whatever an earlier (crashed) preview left
             let root = FileManager.default.temporaryDirectory.appendingPathComponent("TilveroFirstRunPreview-\(UUID().uuidString)", isDirectory: true)
-            return Environment(suiteName: name, defaults: UserDefaults(suiteName: name)!, historyURL: root.appendingPathComponent("History.sqlite"))
+            return Environment(suiteName: suiteName, defaults: defaults, historyURL: root.appendingPathComponent("History.sqlite"))
         }
 
         func discard() {
@@ -84,7 +83,7 @@ enum FirstRunPreview {
                 case .error: return .failed
                 }
             },
-            turnOnLid: {})
+            turnOnLid: { true })
     }
 }
 

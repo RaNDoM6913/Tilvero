@@ -25,7 +25,15 @@ enum FirstRunStep: String, Equatable, CaseIterable {
     case finished
 }
 
-enum FirstRunPromptResult: Hashable { case success(Set<PrivilegedFeature>), cancelled, failed }
+/// One line of the done / declined summary.
+struct FirstRunSummaryRow: Equatable, Identifiable {
+    enum Kind: Equatable { case enabled, needsApproval, notEnabled }
+    var id: String
+    var key: String
+    var kind: Kind
+}
+
+enum FirstRunPromptResult: Hashable{ case success(Set<PrivilegedFeature>), cancelled, failed }
 enum FirstRunLoginResult: Hashable { case enabled, requiresApproval, failed }
 
 /// What the user picked in the card. Defaults: login and history on, everything under "More" off.
@@ -60,6 +68,8 @@ enum FirstRunEvent: Hashable {
     case cancelConfirmation
     case promptFinished(FirstRunPromptResult)
     case loginFinished(FirstRunLoginResult)
+    /// Result of turning the closed-lid option on after its permission was granted.
+    case lidTurnedOn(Bool)
     /// "Turn on" pill in the declined state, for one feature.
     case enable(PrivilegedFeature)
     case dismissCard
@@ -106,6 +116,31 @@ struct FirstRunFlow: Equatable {
     private(set) var granted: Set<PrivilegedFeature> = []
     private(set) var promptFailed = false
     private(set) var loginResult: FirstRunLoginResult?
+    /// The closed-lid option really turned on after its permission (nil while that is still being done).
+    private(set) var lidEnabled: Bool?
+
+    /// What the summary shows for the everyday choices: login per the real registration result, history.
+    var everydayRows: [FirstRunSummaryRow] {
+        var rows: [FirstRunSummaryRow] = []
+        if choices.launchAtLogin {
+            switch loginResult {
+            case .requiresApproval: rows.append(.init(id: "login", key: "firstRun.row.login", kind: .needsApproval))
+            case .failed: rows.append(.init(id: "login", key: "firstRun.row.login", kind: .notEnabled))
+            case .enabled, nil: rows.append(.init(id: "login", key: "firstRun.row.login", kind: .enabled))
+            }
+        }
+        if choices.keepHistory { rows.append(.init(id: "history", key: "firstRun.row.history", kind: .enabled)) }
+        return rows
+    }
+    /// Granted locked features; the lid row is checked only once the option really turned on.
+    var grantedRows: [FirstRunSummaryRow] {
+        var rows: [FirstRunSummaryRow] = []
+        if granted.contains(.lidClosed) && choices.lidClosed {
+            rows.append(.init(id: "lid", key: "firstRun.lidClosed", kind: lidEnabled == true ? .enabled : .notEnabled))
+        }
+        if granted.contains(.chargeByTime) && choices.chargeByTime { rows.append(.init(id: "chargeBy", key: "firstRun.chargeByTime", kind: .enabled)) }
+        return rows
+    }
 
     var cardVisible: Bool { [.card, .confirmPreview, .systemPrompt, .done, .declined].contains(step) }
     var windowVisible: Bool { step == .whereIcon || step == .hiddenIcon || (hostedInWindow && cardVisible) }
@@ -178,12 +213,22 @@ struct FirstRunFlow: Equatable {
             guard !hostedInWindow else { return [] }
             step = .bubble
             return [.setPopoverBehavior(.transient), .showBubble]
+        // The user closed the popover (the icon, Esc) before or during the macOS prompt: that is a cancel. No prompt
+        // appears afterwards, a running one is dismissed, locked features stay off and the popover is not reopened.
+        case (.confirmPreview, .popoverClosed), (.systemPrompt, .popoverClosed):
+            guard !hostedInWindow else { return [] }
+            let cancel: [FirstRunEffect] = step == .systemPrompt ? [.cancelPermissionRequest] : []
+            step = .bubble; promptFailed = false
+            return cancel + [.setPopoverBehavior(.transient), .showBubble]
         case (.bubble, .bubbleFinished):
             step = .finished
             return [.finish]
 
         case (_, .loginFinished(let result)):
             loginResult = result
+            return []
+        case (_, .lidTurnedOn(let enabled)):
+            lidEnabled = enabled
             return []
         default:
             return []

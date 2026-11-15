@@ -43,6 +43,9 @@ struct FirstRunLaunchContext: Equatable {
     var monitoringOnly = false
     var showDetailsRequested = false
     var launchedAsLoginItem = false
+    /// Laboratory and lid-trial identities (separate test hosts) never run the real first run. Ordinary source builds
+    /// (`local.tilvero.prototype`) and production builds do.
+    var laboratoryIdentity = false
 
     static func current(arguments: [String], policy: AppLaunchPolicy) -> Self {
         Self(isDemo: arguments.contains("--demo"), monitoringOnly: policy.monitoringOnly,
@@ -61,7 +64,10 @@ enum FirstRunDecision: Equatable {
 
     static func decide(signals: FirstRunSignals, context: FirstRunLaunchContext) -> Self {
         if signals.introduced { return .nothing }
-        // Demo and monitoring sessions neither show nor record anything: the real first launch is still ahead.
+        if context.laboratoryIdentity { return .nothing }
+        // Demo and monitoring sessions neither show nor record anything themselves. A monitor-only (non-demo) session
+        // still creates History.sqlite, so the next ordinary launch finds that and marks silently: in practice the
+        // first run is then never shown on that Mac.
         if context.isDemo || context.monitoringOnly { return .nothing }
         if signals.hasPriorUse { return .markSilently }
         if context.launchedAsLoginItem || context.showDetailsRequested { return .nothing }

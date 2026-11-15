@@ -15,8 +15,8 @@ import SwiftUI
     var openLoginItemsSettings: () -> Void
     /// One administrator prompt for all chosen features.
     var install: (Set<PrivilegedFeature>) async -> PrivilegedInstallOutcome
-    /// Turns the closed-lid option on after its permission was granted (no further prompt).
-    var turnOnLid: () -> Void
+    /// Turns the closed-lid option on after its permission was granted (no further prompt); true when it is on.
+    var turnOnLid: () async -> Bool
 }
 
 enum FirstRunLogin {
@@ -70,6 +70,7 @@ enum FirstRunLogin {
     private var permissionTask: Task<Void, Never>?
     private var scheduled: [Task<Void, Never>] = []
     private var iconTask: Task<Void, Never>?
+    private var lidTask: Task<Void, Never>?
     private var token = 0
     /// Debug: open the window on the "icon hidden" scene.
     var startsHidden = false
@@ -101,17 +102,19 @@ enum FirstRunLogin {
         start()
     }
 
-    func teardown() {
+    /// `closesPopover` is false only when the flow ends by itself: a popover the user opened during the bubble stays.
+    func teardown(closesPopover: Bool = true) {
         token += 1
         ignoreClosesUntil = Date().addingTimeInterval(0.8)
         scheduled.forEach { $0.cancel() }; scheduled.removeAll()
         permissionTask?.cancel(); permissionTask = nil
         iconTask?.cancel(); iconTask = nil
+        lidTask?.cancel(); lidTask = nil
         host?.firstRunDrawIcon(fill: nil)
         closeWindow(intoIcon: false)
         beacon?.orderOut(nil); beacon = nil
         bubble?.orderOut(nil); bubble = nil
-        host?.firstRunClosePopover()
+        if closesPopover { host?.firstRunClosePopover() }
         host?.firstRunSetPopoverBehavior(.transient)
     }
 
@@ -178,12 +181,21 @@ enum FirstRunLogin {
             permissionTask?.cancel(); permissionTask = nil
             resizeWindowToFit()
         case .turnOnGranted(let features):
-            if features.contains(.lidClosed) { ports.turnOnLid() }
+            // The row is checked only from the real result (the option may still be refused, e.g. sleep already disabled).
+            if features.contains(.lidClosed) {
+                lidTask?.cancel()
+                lidTask = Task { [weak self] in
+                    guard let self else { return }
+                    let enabled = await self.ports.turnOnLid()
+                    guard !Task.isCancelled else { return }
+                    self.session.send(.lidTurnedOn(enabled))
+                }
+            }
         case .openLoginItemsSettings: ports.openLoginItemsSettings()
         case .showBubble: showBubble()
         case .playConfirmPreview: schedulePreviewEnd(); resizeWindowToFit()
         case .finish:
-            teardown()
+            teardown(closesPopover: false)
             host?.firstRunFinished()
         }
     }
@@ -264,10 +276,17 @@ enum FirstRunLogin {
         }
     }
     private var occlusionObserver: NSObjectProtocol?
+    private func removeOcclusionObserver() {
+        if let occlusionObserver { NotificationCenter.default.removeObserver(occlusionObserver) }
+        occlusionObserver = nil
+    }
 
     private func windowOrigin(size: NSSize) -> NSPoint {
-        let screen = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
-        guard let button = host?.firstRunStatusButtonFrame else {
+        let button = host?.firstRunStatusButtonFrame
+        // The screen that holds the status item (the menu bar can be on any display), else the main one.
+        let holder = button.flatMap { b in NSScreen.screens.first { $0.frame.contains(NSPoint(x: b.midX, y: b.midY)) } }
+        let screen = (holder ?? NSScreen.main)?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        guard let button else {
             return NSPoint(x: screen.midX - size.width / 2, y: screen.maxY - size.height - 80)
         }
         let x = min(max(button.midX + 80 - size.width, screen.minX + 12), screen.maxX - size.width - 12)
@@ -291,7 +310,7 @@ enum FirstRunLogin {
         guard let window else { return }
         self.window = nil
         window.delegate = nil
-        if let occlusionObserver { NotificationCenter.default.removeObserver(occlusionObserver); self.occlusionObserver = nil }
+        removeOcclusionObserver()
         guard intoIcon, let button = host?.firstRunStatusButtonFrame else { window.orderOut(nil); return }
         let reduce = session.reduceMotion
         NSAnimationContext.runAnimationGroup({ context in
@@ -305,6 +324,7 @@ enum FirstRunLogin {
     func windowWillClose(_ notification: Notification) {
         // The title bar close button means Skip (scenes) or Done (card hosted here).
         window = nil
+        removeOcclusionObserver()
         guard session.flow.hostedInWindow else { session.send(.skip); return }
         if session.step == .confirmPreview || session.step == .systemPrompt { session.send(.cancelConfirmation) }
         session.send(.dismissCard)
