@@ -614,8 +614,9 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
                                           appearance: model.menuBarBatteryAppearance, redWhenLow: true, awakeColor: model.awakeIndicatorColor.nsColor)
         }
         button.image = icon(pressed: button.state == .on)
-        // The coloured fill (Keep Awake blue, low-charge red) stays while the menu is open.
-        button.alternateImage = awake == .active || lowOnBattery ? icon(pressed: true) : nil
+        // The coloured fill (Keep Awake blue, low-charge red) stays while the menu is open; the solid-white modern body hands
+        // over to its template twin so AppKit adapts it to the pressed highlight.
+        button.alternateImage = awake == .active || lowOnBattery || model.menuBarBatteryAppearance == .macOS27 ? icon(pressed: true) : nil
         let percentageTitle = model.displayStyle == .beside ? NativeStatusPresentation.percentageTitle(level: level) : ""
         // Development-only marker: fixtures must remain identifiable even when closed.
         button.title = percentageTitle + (model.isDemo ? " DEMO" : "")

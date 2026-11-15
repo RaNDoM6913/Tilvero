@@ -151,8 +151,26 @@ struct MetricChartView: View {
     nonisolated static let plotGain: CGFloat = 10
     nonisolated static let topInset: CGFloat = 6
     private var plotHeight: CGFloat { density.plotHeight + Self.plotGain }
-    private let axisWidth: CGFloat = 30
-    private let gutter: CGFloat = 6
+    /// Value labels sit in a column exactly as wide as the widest label that is drawn, centred under the card's
+    /// header icon (its centre is `iconCenter` from the content edge); the plot starts `gutter` after the column.
+    nonisolated static let iconCenter: CGFloat = 6
+    nonisolated static let gutter: CGFloat = 4
+    nonisolated static func axisColumnWidth(labels: [String]) -> CGFloat {
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .regular)
+        return ceil(labels.map { ($0 as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0)
+    }
+    /// Left edge of the label column and the x where the plot starts.
+    nonisolated static func axisGeometry(columnWidth: CGFloat) -> (leading: CGFloat, plotStart: CGFloat) {
+        let leading = max(0, iconCenter - columnWidth / 2)
+        return (leading, leading + columnWidth + gutter)
+    }
+    private func axisLayout(scale: MetricChartScale) -> (width: CGFloat, leading: CGFloat, plotStart: CGFloat) {
+        let labels = scale.tickLabels(locale: L10n.locale)
+        let shown = Self.labelledTickIndices(count: scale.ticks.count, density: density).map { labels[$0] }
+        let width = Self.axisColumnWidth(labels: shown)
+        let geometry = Self.axisGeometry(columnWidth: width)
+        return (width, geometry.leading, geometry.plotStart)
+    }
     /// Column reserved right of the plot for end labels: an 8 pt lead-in plus a label frame wide enough
     /// for the longest realistic Russian label ("Батарея -100,5" is about 85 pt in 11 pt semibold).
     nonisolated static let endLabelColumnWidth: CGFloat = 96
@@ -186,8 +204,9 @@ struct MetricChartView: View {
 
     private func plot(layout: Layout, scale: MetricChartScale) -> some View {
         GeometryReader { proxy in
-            let rect = CGRect(x: axisWidth + gutter, y: 0,
-                              width: max(proxy.size.width - axisWidth - gutter - endLabelWidth, 1), height: plotHeight)
+            let axis = axisLayout(scale: scale)
+            let rect = CGRect(x: axis.plotStart, y: 0,
+                              width: max(proxy.size.width - axis.plotStart - endLabelWidth, 1), height: plotHeight)
             let domain = scale.domain
             let spread = Self.endLabelPositions(specs: specs, scale: scale, plotHeight: plotHeight)
             let tickLabels = scale.tickLabels(locale: L10n.locale)
@@ -196,8 +215,8 @@ struct MetricChartView: View {
                 ForEach(Self.labelledTickIndices(count: scale.ticks.count, density: density), id: \.self) { index in
                     Text(tickLabels[index])
                         .font(.system(size: 10).monospacedDigit()).foregroundStyle(.secondary)
-                        .frame(width: axisWidth, alignment: .trailing)
-                        .position(x: axisWidth / 2, y: yValue(scale.ticks[index], domain))
+                        .frame(width: axis.width, alignment: .center)
+                        .position(x: axis.leading + axis.width / 2, y: yValue(scale.ticks[index], domain))
                 }
                 ForEach(Array(specs.enumerated()), id: \.element.id) { index, spec in
                     if let label = spec.endLabel, let labelY = spread[index] {
@@ -231,7 +250,7 @@ struct MetricChartView: View {
                 if index < ticks.count - 1 { Spacer(minLength: 4) }
             }
         }
-        .padding(.leading, axisWidth + gutter).padding(.trailing, endLabelWidth)
+        .padding(.leading, scale.map { axisLayout(scale: $0).plotStart } ?? 0).padding(.trailing, endLabelWidth)
     }
 
     // MARK: Drawing

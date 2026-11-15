@@ -386,13 +386,15 @@ final class NativeBatteryStatusImageTests: XCTestCase {
             } }
             return differences.reduce(0, +) / CGFloat(differences.count)
         }
-        XCTAssertLessThan(error(x: 6..<33, y: 9..<27), 0.12,
+        // Thresholds widened 2026-11-15 (0.12 -> 0.13, 0.055 -> 0.06): the dark-ink numeral cutout is now 0.885 deep, as measured
+        // on the live macOS 27.2 menu bar, where this older reference was estimated with a full cut.
+        XCTAssertLessThan(error(x: 6..<33, y: 9..<27), 0.13,
                           "The 90 reference has medium standard-width numerals, not bold condensed type.")
         XCTAssertLessThan(error(x: 33..<44, y: 9..<27), 0.10,
                           "The AC cue must retain the reference's painted size, baseline and gap.")
         // Thresholds widened 2026-11-05: the owner's macOS 27.2 screenshot shows a brighter unfilled track (~0.5),
         // a stronger contact (~0.55) and medium-weight numerals than the earlier references.
-        XCTAssertLessThan(error(x: 0..<58, y: 0..<36), 0.055)
+        XCTAssertLessThan(error(x: 0..<58, y: 0..<36), 0.06)
     }
 
     func testModern98MatchesTheSameReadingNativeReferenceTypographyAndContact() throws {
@@ -550,7 +552,9 @@ final class NativeBatteryStatusImageTests: XCTestCase {
         let actualStrokeMass = (9..<27).reduce(CGFloat.zero) { total, y in
             total + (4..<36).reduce(CGFloat.zero) { $0 + 1 - actual.colorAt(x: $1, y: y)!.alphaComponent }
         }
-        XCTAssertGreaterThan(actualStrokeMass / referenceStrokeMass, 0.9,
+        // 0.85 (was 0.9): the numerals now follow the 2026-11-15 pixel measurement of the live macOS 27.2 menu bar
+        // (see testModern100MatchesTheLiveMenuBarPixels): a 0.885 cutout, so the strokes carry less mass than this older reference.
+        XCTAssertGreaterThan(actualStrokeMass / referenceStrokeMass, 0.85,
                              "Compact numerals must retain the native stroke density, not merely their outer bounds.")
         XCTAssertLessThan(actualStrokeMass / referenceStrokeMass, 1.1)
         func error(_ reference: String, x: Range<Int>, y: Range<Int>) -> CGFloat {
@@ -561,7 +565,9 @@ final class NativeBatteryStatusImageTests: XCTestCase {
         }
         XCTAssertLessThan(error(text, x: 4..<36, y: 9..<27), 0.105,
                           "100 must fit the measured compact native numeral region without stretching its glyphs.")
-        XCTAssertLessThan(error(cue, x: 35..<45, y: 9..<27), 0.075,
+        // 0.075 -> 0.115 (2026-11-15): the bolt now follows the live menu bar pixels (5.7 pt, 0.885 cutout), see
+        // testModern100MatchesTheLiveMenuBarPixels; this older reference had a full-depth cue.
+        XCTAssertLessThan(error(cue, x: 35..<45, y: 9..<27), 0.115,
                           "At full charge the native AC cue is smaller and farther right, separate from the last zero.")
         XCTAssertLessThan(error(contact, x: 49..<55, y: 13..<23), 0.115,
                           "Light ink needs the native secondary contact coverage, not the rejected bright contact.")
@@ -609,13 +615,60 @@ final class NativeBatteryStatusImageTests: XCTestCase {
         XCTAssertNotEqual(pixels(modern), pixels(legacy))
     }
 
+    /// Owner's side-by-side menu bar (macOS 27.2, 2x, 100 % + charging, white ink on a dark bar, 2026-11-15): the body of the
+    /// NATIVE battery, 46 x 24 px, as ink alpha (0...15). Pixel values blend linearly in alpha (verified on our own icon).
+    func testModern100MatchesTheLiveMenuBarPixels() throws {
+        guard ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27 else { return }
+        let reference = """
+            000039ceeffffffffffffffffffffffffffffeec930000
+            0019ffffffffffffffffffffffffffffffffffffff9100
+            01cffffffffffffffffffffffffffffffffffffffffc10
+            09ffffffffffffffffffffffffffffffffffffffffff90
+            3ffffffffffffffffffffffffffffffffffffffffffff3
+            9ffffffffffffffebbdffffffffcbceffffffffffffff9
+            cfffff922affff922226fffffe42223bffffffff99fffc
+            efffe5222afffc2223228ffff6223223effffffb2cfffe
+            effe32232afff425ef822cffa22afd326fffffc24ffffe
+            fffd24d52affd22cfff428ff625fffa22ffffe329fffff
+            fffe9ff52affb24ffff826ff42affff22dfff522deefff
+            fffffff52aff925ffffa24ff22cffff32bff6222222bff
+            fffffff52aff727ffffb23fe22dffff429fb2222226fff
+            fffffff52aff925ffffa24ff22cffff32bffeed225ffff
+            fffffff52affb24ffff826ff42affff22dffff923effff
+            effffff52affd22cfff428ff625fffa22fffff42cffffe
+            effffff52afff425ef822cffa22afd326ffffc2bfffffe
+            cffffff52afffc2223228ffff6223223effff99ffffffc
+            9ffffff52affff922226fffffe52223bfffffffffffff9
+            3ffffffffffffffeccdffffffffdcceffffffffffffff3
+            09ffffffffffffffffffffffffffffffffffffffffff90
+            01cffffffffffffffffffffffffffffffffffffffffc10
+            0019ffffffffffffffffffffffffffffffffffffff9100
+            000039ceeffffffffffffffffffffffffffffeec930000
+            """.split(separator: "\n").map { $0.filter { !$0.isWhitespace }.map { Double(Int(String($0), radix: 16)!) / 15 } }
+        XCTAssertEqual(reference.count, 24); XCTAssertEqual(reference[0].count, 46)
+        let actual = render(NativeBatteryStatusImage.make(level: 100, style: .inside, externalPower: true,
+            textSize: .system, appearance: .macOS27), scale: 2, appearance: .darkAqua)
+        // Our body is at columns 2..<48, rows 6..<30 of the 58 x 36 canvas.
+        func error(columns: Range<Int>) -> Double {
+            (3..<21).reduce(0.0) { total, row in
+                total + columns.reduce(0.0) { $0 + abs(Double(actual.colorAt(x: 2 + $1, y: 6 + row)!.alphaComponent) - reference[row][$1]) }
+            }
+        }
+        // Summed over 18 rows: the earlier 9.25 pt medium numerals scored 26.3 and the 6 pt bolt 17.6; the fitted ones score about 20 and 4.
+        XCTAssertLessThan(error(columns: 3..<35), 23, "The numerals follow the native 100's size, weight, tracking and position.")
+        XCTAssertLessThan(error(columns: 35..<43), 6, "The AC bolt follows the native one's size and position.")
+        // The native cutout is not fully clear: its deepest point keeps about 11 % of the ink.
+        let deepest = (9..<27).flatMap { row in (5..<37).map { Double(actual.colorAt(x: $0, y: row)!.alphaComponent) } }.min()!
+        XCTAssertEqual(deepest, 0.115, accuracy: 0.04)
+    }
+
     func testModernNumeralsAndAdapterHaveContrastingCutoutsAndAVisibleGap() throws {
         for size in MenuBarTextSize.allCases {
             let full = render(NativeBatteryStatusImage.make(level: 100, style: .inside, externalPower: true, textSize: size, appearance: .macOS27), scale: 8, appearance: .darkAqua)
             let centre = (6 * 8..<12 * 8).flatMap { y in
                 (5 * 8..<23 * 8).map { x in full.colorAt(x: x, y: y)!.alphaComponent }
             }
-            XCTAssertGreaterThan(centre.filter { $0 < 0.1 }.count, centre.count / 10, "Full charge needs readable transparent numerals and a bolt.")
+            XCTAssertGreaterThan(centre.filter { $0 < 0.2 }.count, centre.count / 10, "Full charge needs readable transparent numerals and a bolt.")
             XCTAssertGreaterThan(centre.filter { $0 > 0.9 }.count, centre.count / 3)
             // Find the actual numeral and cue cutouts rather than testing the
             // old fixed x=19, which is inside a digit after reserving 100's width.
@@ -671,8 +724,9 @@ final class NativeBatteryStatusImageTests: XCTestCase {
                     XCTAssertEqual(light.colorAt(x: x, y: y), repeated.colorAt(x: x, y: y),
                                    "Returning to the first appearance must not retain the previous cached mask.")
                 } }
-                // A confirmed Keep Awake colours the fill (a real-colour image), also while the menu is open.
-                XCTAssertEqual(image.isTemplate, state != .active)
+                // A confirmed Keep Awake colours the fill (a real-colour image), also while the menu is open. Otherwise the
+                // modern body is solid ink (not a template) except in its pressed twin, which AppKit adapts to the highlight.
+                XCTAssertEqual(image.isTemplate, selected && state != .active)
                 for name in [NSAppearance.Name.aqua, .darkAqua] {
                     let unknown = NativeBatteryStatusImage.make(level: nil, style: .inside, externalPower: true,
                         textSize: .system, appearance: .macOS27)
@@ -685,6 +739,23 @@ final class NativeBatteryStatusImageTests: XCTestCase {
         }
     }
 
+    /// Measured 2026-11-15 on the live bar: the native battery body is 242/255 white, brighter than template ink (231).
+    func testModernBodyIsSolidNativeWhiteOnADarkBarAndItsPressedTwinIsATemplate() throws {
+        let image = NativeBatteryStatusImage.make(level: 100, style: .inside, externalPower: true, textSize: .system, appearance: .macOS27)
+        XCTAssertFalse(image.isTemplate)
+        let dark = render(image, scale: 2, appearance: .darkAqua)
+        let fill = try XCTUnwrap(dark.colorAt(x: 40, y: 10))   // inside the body, clear of numerals and bolt
+        XCTAssertEqual(fill.alphaComponent, 1, accuracy: 0.01)
+        XCTAssertEqual(fill.redComponent, 242.0 / 255.0, accuracy: 0.01, "White ink on a dark bar matches the native battery's 242.")
+        XCTAssertEqual(fill.redComponent, fill.blueComponent, accuracy: 0.005, "The ink is neutral grey.")
+        let light = render(image, scale: 2, appearance: .aqua)
+        XCTAssertLessThan(try XCTUnwrap(light.colorAt(x: 40, y: 10)).redComponent, 0.3, "Dark ink on a light bar.")
+        let pressed = NativeBatteryStatusImage.make(level: 100, style: .inside, externalPower: true, textSize: .system, highlighted: true, appearance: .macOS27)
+        XCTAssertTrue(pressed.isTemplate, "AppKit adapts the pressed twin to the highlight.")
+        // The 26-style outline and its template behaviour are untouched.
+        XCTAssertTrue(NativeBatteryStatusImage.make(level: 100, style: .inside, externalPower: true, appearance: .macOS26).isTemplate)
+    }
+
     func testModernAwakeBlueAndSelectedMaskPreserveTheSameBatteryAlpha() throws {
         for style in MenuBarDisplayStyle.allCases {
             let off = NativeBatteryStatusImage.make(level: 90, style: style, externalPower: true, appearance: .macOS27)
@@ -693,7 +764,7 @@ final class NativeBatteryStatusImageTests: XCTestCase {
             let unconfirmed = NativeBatteryStatusImage.make(level: 90, style: style, externalPower: true, awake: .unconfirmed, appearance: .macOS27)
             XCTAssertFalse(active.isTemplate)
             XCTAssertFalse(selected.isTemplate, "The fill colour stays while the menu is open.")
-            XCTAssertTrue(unconfirmed.isTemplate)
+            XCTAssertFalse(unconfirmed.isTemplate, "Unconfirmed ownership never shows blue; the modern body is solid ink.")
             let a = render(off, scale: 2), b = render(active, scale: 2), c = render(selected, scale: 2)
             for y in 0..<a.pixelsHigh { for x in 0..<a.pixelsWide {
                 XCTAssertEqual(a.colorAt(x: x, y: y)!.alphaComponent, b.colorAt(x: x, y: y)!.alphaComponent, accuracy: 0.02)

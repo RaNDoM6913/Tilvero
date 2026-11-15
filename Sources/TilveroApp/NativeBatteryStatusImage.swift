@@ -82,8 +82,12 @@ enum NativeBatteryStatusImage {
         let factor = CGFloat(MenuBarSizing.validatedIconScale(Double(scale)))
         let size = NSSize(width: canvas.width * factor, height: canvas.height * factor)
         let level = validLevel
+        // The native macOS 27 battery is solid white (about 0.95 alpha), brighter than the template ink every other menu
+        // bar item gets (measured 242 against 231 on the dark bar). The pressed image stays a template so AppKit adapts it
+        // to the highlight; the ink is resolved at draw time, in the status button's appearance.
         // Like the system indicator: a red fill at 20 % or less while running on battery. Only the modern (macOS 27)
         // body is composed this way; the pressed state keeps the plain template.
+        let solidInk = appearance == .macOS27 && !highlighted && awake != .active
         let lowFill = redWhenLow && appearance == .macOS27 && !externalPower && (level.map { $0 <= lowChargeThreshold } ?? false)
         let image = NSImage(size: size, flipped: false) { rect in
             NSGraphicsContext.saveGraphicsState()
@@ -115,6 +119,10 @@ enum NativeBatteryStatusImage {
                 (isDarkInk ? NSColor.white : NSColor.black).setFill()
                 NSRect(origin: .zero, size: canvas).fill(using: .sourceIn)
             }
+            if solidInk, !lowFill {
+                solidInkColor.setFill()
+                NSRect(origin: .zero, size: canvas).fill(using: .sourceIn)
+            }
             if lowFill, let region = redRegion {
                 // sourceAtop keeps the numeral cutouts and the antialiased silhouette of the fill.
                 NSColor.systemRed.setFill()
@@ -123,7 +131,7 @@ enum NativeBatteryStatusImage {
             return true
         }
         // The fill colours stay while the menu is open (pressed): the quick menu is where the user starts these modes.
-        image.isTemplate = (awake != .active && !lowFill) || (highlighted && !tintedAwake && !lowFill)
+        image.isTemplate = (awake != .active && !lowFill && !solidInk) || (highlighted && !tintedAwake && !lowFill)
         if tintedAwake { image.isTemplate = false }
         return image
     }
@@ -163,8 +171,10 @@ enum NativeBatteryStatusImage {
     private static func modernFont(_ size: MenuBarTextSize, compactFullCharge: Bool = false) -> NSFont {
         // The native 100 reference fits smaller public system numerals into the
         // same body. Preserve the measured 0...99 typography independently.
-        let pointSize: CGFloat = compactFullCharge ? (size == .system ? 9.25 : 10.25) : (size == .system ? 10 : 11)
-        return NSFont.systemFont(ofSize: pointSize, weight: .medium)
+        // The compact "100" is fitted to the native one's pixels (macOS 27.2, 2x, 2026-11-15): semibold 9 pt, -0.2 pt
+        // tracking, 0.885 cutout (dark ink), centred 0.25 pt right of the body's old centre.
+        let pointSize: CGFloat = compactFullCharge ? (size == .system ? 9 : 10) : (size == .system ? 10 : 11)
+        return NSFont.systemFont(ofSize: pointSize, weight: compactFullCharge ? .semibold : .medium)
     }
 
     private static let modernTwoDigitCapacity: [MenuBarTextSize: CGFloat] =
@@ -188,6 +198,11 @@ enum NativeBatteryStatusImage {
         isDarkInk ? 0.55 : 0.8
     }
 
+    /// Opaque grey, so the body's brightness never depends on the wallpaper behind the bar and the image's alpha stays the
+    /// plain mask. Dark bar: 242/255, the native battery's measured value (template ink peaks at 231). Light bar: dark ink;
+    /// the native light value was not measured, white 0.15 is an estimate.
+    private static var solidInkColor: NSColor { isDarkInk ? NSColor(white: 242.0 / 255.0, alpha: 1) : NSColor(white: 0.15, alpha: 1) }
+
     private static var isDarkInk: Bool { NSAppearance.currentDrawing().bestMatch(from: [.aqua, .darkAqua]) == .darkAqua }
 
     /// White ink on a dark menu bar: the native unfilled track is about half as bright as the fill and the
@@ -199,7 +214,7 @@ enum NativeBatteryStatusImage {
         // The supplied dark-ink reference uses secondary numeral/cue coverage;
         // white ink retains clear cutouts. Read the active drawing context so
         // the same cached status image can adapt without a global theme change.
-        NSAppearance.currentDrawing().bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? 1 : 0.75
+        NSAppearance.currentDrawing().bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? 0.885 : 0.75
     }
 
     /// Charge at or below which the fill turns red on battery power (the system indicator does the same).
@@ -225,16 +240,16 @@ enum NativeBatteryStatusImage {
             NSBezierPath(roundedRect: NSRect(x: 25 + extra, y: 7, width: 1.5, height: 4), xRadius: 0.75, yRadius: 0.75).fill()
         }
         if style == .inside {
-            drawModernText(level.map(String.init) ?? "—", centeredAt: NSPoint(x: (externalPower ? (compactFullCharge ? 10.5 : 10) : 12.5) + extra / 2, y: 9),
+            drawModernText(level.map(String.init) ?? "—", centeredAt: NSPoint(x: (externalPower ? (compactFullCharge ? 10.75 : 10) : 12.5) + extra / 2, y: 9),
                            font: modernFont(textSize, compactFullCharge: compactFullCharge))
         } else if level == nil {
             drawModernText("—", centeredAt: NSPoint(x: externalPower ? 10 : 12.5, y: 9), font: modernFont(textSize))
         }
         if externalPower {
             guard let marker = NSImage(systemSymbolName: "bolt.fill", accessibilityDescription: nil)?
-                .withSymbolConfiguration(.init(pointSize: compactFullCharge ? 6 : 7.5, weight: .regular)) else { return fillRegion }
-            let centreX: CGFloat = style == .inside || level == nil ? (compactFullCharge ? 21 : 19.5) + extra : 12.5
-            let centreY: CGFloat = compactFullCharge ? 9 : 9.25
+                .withSymbolConfiguration(.init(pointSize: compactFullCharge ? 5.25 : 7.5, weight: compactFullCharge ? .medium : .regular)) else { return fillRegion }
+            let centreX: CGFloat = style == .inside || level == nil ? (compactFullCharge ? 20.875 : 19.5) + extra : 12.5
+            let centreY: CGFloat = compactFullCharge ? 9.5 : 9.25
             marker.draw(at: NSPoint(x: centreX - marker.size.width / 2, y: centreY - marker.size.height / 2),
                         from: .zero, operation: modernCutoutOperation, fraction: modernCutoutOpacity)
         }
@@ -248,7 +263,7 @@ enum NativeBatteryStatusImage {
         if value == "100" {
             // Match the native compact numeral spacing without distorting glyphs.
             // Center by the two inter-digit gaps, excluding NSString's trailing kern.
-            let tracking = -0.5 * font.pointSize / 9.25
+            let tracking = -0.2 * font.pointSize / 9
             attributes[.kern] = tracking
             dimensions.width += 2 * tracking
         }

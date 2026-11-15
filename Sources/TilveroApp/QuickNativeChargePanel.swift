@@ -162,17 +162,7 @@ import ChargeBackends
     // MARK: Only when there is something to say
 
     @ViewBuilder private func attention(_ state: NativeChargePresentation) -> some View {
-        if let target = state.pendingTarget ?? state.restorationTarget {
-            HStack(spacing: 8) {
-                Text(L10n.text(state.pendingTarget == nil ? "Restoration pending" : "Pending charging target")
-                     + " · " + L10n.text("Waiting for discharge below") + " \(target)%")
-                    .font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 0)
-                if model.pendingTarget != nil {
-                    Button(L10n.text("Cancel pending target")) { model.cancelPendingDemo() }.buttonStyle(.borderless).font(.system(size: 12))
-                }
-            }
-        }
+        // A waiting limit has no line of its own: moving the slider back to the limit macOS holds cancels the wait.
         // While an operation is pending the spinner is the only sign (no text that appears and vanishes).
         if state.attention != .operationPending, let status = NativeChargeStatusPanel(model: model, compact: true).statusText(state) {
             StudioText(L10n.text(status), id: "native.status").font(.caption)

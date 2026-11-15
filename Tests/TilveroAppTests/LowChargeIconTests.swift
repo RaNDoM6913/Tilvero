@@ -37,7 +37,9 @@ import XCTest
 
         for (level, power, flag) in [(21, false, true), (50, false, true), (15, true, true), (15, false, false)] as [(Int, Bool, Bool)] {
             let image = NativeBatteryStatusImage.make(level: level, style: .inside, externalPower: power, appearance: .macOS27, redWhenLow: flag)
-            XCTAssertTrue(image.isTemplate, "level \(level) power \(power) flag \(flag): stays a plain template")
+            XCTAssertFalse(image.isTemplate, "level \(level) power \(power) flag \(flag): solid ink, no red")
+            let twin = NativeBatteryStatusImage.make(level: level, style: .inside, externalPower: power, highlighted: true, appearance: .macOS27, redWhenLow: flag)
+            XCTAssertEqual(twin.isTemplate, !(flag && !power && level <= NativeBatteryStatusImage.lowChargeThreshold), "level \(level): the pressed twin is a plain template")
         }
         let pressed = NativeBatteryStatusImage.make(level: 10, style: .inside, externalPower: false, highlighted: true, appearance: .macOS27, redWhenLow: true)
         XCTAssertFalse(pressed.isTemplate, "The red fill stays while the menu is open.")

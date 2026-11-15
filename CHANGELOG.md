@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.6.2 — Chart and Menu Bar Icon Source Preview — 2026-11-15
+
+A polish release; no new features.
+
+**Changed**
+- Overview charts show whole numbers on the value axis ("29", not "29,5"). The label column is exactly as wide as its widest
+  label and sits centred under the card's icon, so the plot starts 8-19 pt further left.
+- The macOS 27 menu bar battery follows the system one more closely. Its body is solid white, as the system battery's is (template
+  ink is dimmer than the system's). At 100 % the numerals and the charging bolt were refitted to the system icon's size, weight and
+  position, measured on the live menu bar. The pressed state still adapts to the highlight; the ink on a light menu bar is an estimate.
+- The Charge page shows no line and no "Cancel pending target" button for a waiting limit. Moving the slider back to the limit
+  macOS holds cancels the wait.
+
+Source for Apple silicon with macOS 26.0+ and full Xcode; no app or DMG. Waking a sleeping Mac on schedule for charge by time
+still needs your own device check.
+
 ## 0.6.1 — Charge by Time Fixes Source Preview — 2026-11-13
 
 A bug-fix release; nothing else changes.
