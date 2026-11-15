@@ -17,6 +17,8 @@ enum FirstRunMotion {
     /// Damped spring from 0 to 1 (overshoot of a few percent at this damping).
     static func spring(_ t: Double, response: Double = 0.35, damping z: Double = 0.78) -> Double {
         if t <= 0 { return 0 }
+        // A skipped animation asks for its end (t = ∞): exp(-∞)·cos(∞) would be NaN and crash the view's transform.
+        guard t.isFinite, t < 20 * response else { return 1 }
         let w = 2 * Double.pi / response, wd = w * (1 - z * z).squareRoot()
         return 1 - exp(-z * w * t) * (cos(wd * t) + (z * w / wd) * sin(wd * t))
     }

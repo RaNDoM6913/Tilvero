@@ -1086,6 +1086,20 @@ final class FirstRunMotionTests: XCTestCase {
         XCTAssertTrue(M.entranceSettled(M.entranceEnd, reduceMotion: false)); XCTAssertFalse(M.entranceSettled(1, reduceMotion: false))
     }
 
+    /// A click skips to the resting frame by asking for t = ∞: every value must stay finite (NaN crashed the view).
+    func testSkippingToTheEndGivesFiniteRestingValues() {
+        for reduce in [false, true] {
+            let e = M.entrance(.infinity, reduceMotion: reduce)
+            XCTAssertEqual(e, .init(opacity: 1, scale: 1, rise: 0))
+            XCTAssertEqual(M.hero(.infinity, reduceMotion: reduce), .init(fill: 1, bolt: 1, glow: 0))
+            XCTAssertEqual(M.rowAppear(4, .infinity, reduceMotion: reduce), 1)
+            XCTAssertEqual(M.terminalHint(.infinity, reduceMotion: reduce), .init(dots: 6, press: 0, done: 1))
+            XCTAssertEqual(M.check(.infinity, reduceMotion: reduce), 1)
+        }
+        XCTAssertEqual(M.spring(.infinity), 1)
+        XCTAssertTrue(M.spring(.nan).isFinite)
+    }
+
     func testTheTerminalHintLoopsAtMostThreeTimes() {
         let rest = M.terminalHint(M.terminalHintPeriod * 3, reduceMotion: false)
         XCTAssertEqual(rest, .init(dots: 6, press: 0, done: 1))
