@@ -63,28 +63,53 @@ struct FirstRunWindowView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            header
-            choices
-            status
-            if session.showsCommand, flow.step == .waitingTerminal, let text = session.commandText { commandBox(text) }
-            buttons
+        // One timeline for the entrance (window content, hero battery, staggered rows); it stops for good after
+        // `entranceEnd` (no per-frame work while the window waits), or at once on any click.
+        TimelineView(.animation(paused: entranceDone || session.reduceMotion || session.frozenTime != nil)) { context in
+            content(entrance: session.entranceTime(at: context.date))
         }
-        .padding(.horizontal, 24).padding(.top, 30).padding(.bottom, 22)
+        .simultaneousGesture(TapGesture().onEnded { session.motionSkipped = true; session.hintSkipped = true })
+        .task(id: session.entranceStart) {
+            entranceDone = false
+            try? await Task.sleep(for: .seconds(M.entranceEnd / max(session.speed, 0.1) + 0.05))
+            if !Task.isCancelled { entranceDone = true }
+        }
+        .onChange(of: session.motionSkipped) { _, skipped in if skipped { entranceDone = true } }
         .frame(width: Self.width, alignment: .leading)
         .background(Color(nsColor: .windowBackgroundColor))
         .environment(\.locale, L10n.locale)
-        .animation(session.reduceMotion ? nil : .easeInOut(duration: M.crossfadeDuration(reduceMotion: false)), value: flow.step)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("firstRun.window")
     }
 
+    @State private var entranceDone = false
+    @State private var hintDone = false
+
+    private var reduce: Bool { session.reduceMotion }
+    /// Crossfades between steps: short, and at most 0.15 s with Reduce Motion.
+    private var stepAnimation: Animation { .easeInOut(duration: M.crossfadeDuration(reduceMotion: reduce)) }
+
+    private func content(entrance t: Double) -> some View {
+        let e = M.entrance(t, reduceMotion: reduce)
+        return VStack(alignment: .leading, spacing: 18) {
+            header(M.hero(t, reduceMotion: reduce))
+            choices(t)
+            status.id(flow.step).transition(.opacity)
+            if flow.step == .waitingTerminal { terminalHint.transition(.opacity) }
+            if session.showsCommand, flow.step == .waitingTerminal, let text = session.commandText { commandBox(text).transition(.opacity) }
+            buttons
+        }
+        .padding(.horizontal, 24).padding(.top, 30).padding(.bottom, 22)
+        .animation(stepAnimation, value: flow.step)
+        .animation(stepAnimation, value: session.showsCommand)
+        .opacity(e.opacity).scaleEffect(e.scale).offset(y: e.rise)
+    }
+
     // MARK: Header
 
-    private var header: some View {
-        HStack(alignment: .center, spacing: 14) {
-            Image(systemName: "battery.100percent.bolt").font(.system(size: 34, weight: .medium))
-                .foregroundStyle(Color.accentColor).symbolRenderingMode(.hierarchical).accessibilityHidden(true)
+    private func header(_ hero: FirstRunMotion.Hero) -> some View {
+        HStack(alignment: .center, spacing: 16) {
+            FirstRunHeroBattery(frame: hero)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 8) {
                     Text(L10n.text("firstRun.title")).font(.system(size: 20, weight: .semibold)).accessibilityAddTraits(.isHeader)
@@ -97,11 +122,15 @@ struct FirstRunWindowView: View {
 
     // MARK: Choices
 
-    private var choices: some View {
+    private func choices(_ t: Double) -> some View {
         VStack(spacing: 0) {
             ForEach(Array(Self.rows.enumerated()), id: \.element.id) { index, row in
-                if index > 0 { Divider().padding(.leading, 40) }
-                choiceRow(row)
+                let appear = M.rowAppear(index, t, reduceMotion: reduce)
+                VStack(spacing: 0) {
+                    if index > 0 { Divider().padding(.leading, 40) }
+                    choiceRow(row)
+                }
+                .opacity(appear).offset(y: 6 * (1 - appear))
             }
         }
         .padding(.horizontal, 14)
@@ -118,7 +147,7 @@ struct FirstRunWindowView: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(L10n.text(row.title)).font(.system(size: 13, weight: .semibold))
-                    if let feature = row.feature { badge(granted: flow.granted.contains(feature)) }
+                    if let feature = row.feature { badge(granted: flow.granted.contains(feature), chosen: session.flow.choices[keyPath: row.path]) }
                 }
                 Text(L10n.text(row.detail)).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(2).fixedSize(horizontal: false, vertical: true)
             }
@@ -129,15 +158,33 @@ struct FirstRunWindowView: View {
         .padding(.vertical, 9)
     }
 
-    private func badge(granted: Bool) -> some View {
+    /// The lock bounces once when the option is ticked; it turns into a check when the permission is granted.
+    private func badge(granted: Bool, chosen: Bool) -> some View {
         HStack(spacing: 3) {
             Image(systemName: granted ? "checkmark" : "lock.fill").font(.system(size: 8, weight: .bold))
+                .contentTransition(.symbolEffect(.replace))
+                .symbolEffect(.bounce, options: .nonRepeating, value: reduce ? false : chosen)
             Text(L10n.text(granted ? "firstRun.badge.allowed" : "firstRun.badge.password")).font(.system(size: 10.5, weight: .medium))
         }
         .foregroundStyle(granted ? Color.green : Color.secondary)
         .padding(.horizontal, 6).padding(.vertical, 1.5)
         .background(Capsule().fill((granted ? Color.green : Color.primary).opacity(granted ? 0.14 : 0.08)))
+        .animation(reduce ? nil : .spring(response: 0.3, dampingFraction: 0.8), value: granted)
         .accessibilityElement(children: .combine)
+    }
+
+    /// While Terminal waits: a flat drawing of "type the password, press Return" (three loops at most, then it rests).
+    private var terminalHint: some View {
+        TimelineView(.animation(paused: hintDone || reduce || session.frozenTime != nil)) { context in
+            FirstRunTerminalHint(frame: M.terminalHint(session.hintTime(at: context.date), reduceMotion: reduce))
+        }
+        .task(id: session.sceneStart) {
+            hintDone = false
+            let total = M.terminalHintPeriod * Double(M.terminalHintLoops)
+            try? await Task.sleep(for: .seconds(total / max(session.speed, 0.1) + 0.05))
+            if !Task.isCancelled { hintDone = true }
+        }
+        .onChange(of: session.hintSkipped) { _, skipped in if skipped { hintDone = true } }
     }
 
     // MARK: Status line (one line under the choices: what happens next, or what happened)
@@ -247,6 +294,7 @@ struct FirstRunWindowView: View {
                 Button(L10n.text("firstRun.useTerminal")) { session.send(.useTerminal) }
                     .buttonStyle(.link).font(.system(size: 12)).accessibilityIdentifier("firstRun.useTerminal")
                     .opacity(model.terminalLink ? 1 : 0).disabled(!model.terminalLink).accessibilityHidden(!model.terminalLink)
+                    .animation(.easeInOut(duration: M.crossfadeDuration(reduceMotion: reduce)), value: model.terminalLink)
             }
         }
         .frame(minHeight: 34)
@@ -274,9 +322,12 @@ struct FirstRunWindowView: View {
             session.send(primary == .openApp ? .openDetails : .start)
         } label: {
             HStack(spacing: 6) {
-                if primary == .allowAndStart || primary == .tryAgain { Image(systemName: "lock.fill").font(.system(size: 11, weight: .semibold)) }
-                Text(L10n.text(Self.primaryKey(primary))).font(.system(size: 13, weight: .semibold))
+                if primary == .allowAndStart || primary == .tryAgain {
+                    Image(systemName: "lock.fill").font(.system(size: 11, weight: .semibold)).transition(.scale(scale: 0.4).combined(with: .opacity))
+                }
+                Text(L10n.text(Self.primaryKey(primary))).font(.system(size: 13, weight: .semibold)).id(primary).transition(.opacity)
             }
+            .animation(reduce ? .easeInOut(duration: 0.15) : .spring(response: 0.3, dampingFraction: 0.82), value: primary)
             .foregroundStyle(Color.white).padding(.horizontal, 20).frame(minWidth: 150, minHeight: 34)
             .background(Capsule().fill(Color.accentColor)).contentShape(Capsule())
         }
@@ -295,6 +346,62 @@ struct FirstRunWindowView: View {
                 .padding(.horizontal, 18).frame(minHeight: 34).background(Capsule().fill(Color.primary.opacity(0.07))).contentShape(Capsule())
         }
         .buttonStyle(.plain).keyboardShortcut(.cancelAction).accessibilityIdentifier("firstRun.secondary")
+    }
+}
+
+/// The hero battery: charges up once as the window appears, its bolt gives one soft pulse, then it rests.
+struct FirstRunHeroBattery: View {
+    var frame: FirstRunMotion.Hero
+    var body: some View {
+        let light = M.segment(frame.fill, 0.45, 0.65)   // the bolt turns white once the fill is under it
+        HStack(spacing: 2) {
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.accentColor.opacity(0.9), lineWidth: 2.5)
+                RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.accentColor.gradient)
+                    .frame(width: max(5, 42 * frame.fill), height: 20).padding(.leading, 5)
+                ZStack {
+                    Image(systemName: "bolt.fill").foregroundStyle(Color.accentColor).opacity(1 - light)
+                    Image(systemName: "bolt.fill").foregroundStyle(Color.white).opacity(light)
+                }
+                .font(.system(size: 16, weight: .bold))
+                .shadow(color: Color.accentColor.opacity(0.7 * frame.glow), radius: 7 * frame.glow)
+                .scaleEffect(frame.bolt)
+                .frame(maxWidth: .infinity)
+            }
+            .frame(width: 52, height: 30)
+            Capsule().fill(Color.accentColor.opacity(0.9)).frame(width: 3.5, height: 11)
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+/// A flat illustration (not a picture of Terminal): password dots fill in, the Return key is pressed, a check.
+struct FirstRunTerminalHint: View {
+    var frame: FirstRunMotion.TerminalHint
+    var body: some View {
+        HStack(spacing: 12) {
+            HStack(spacing: 6) {
+                Image(systemName: "key.fill").font(.system(size: 11)).foregroundStyle(.secondary)
+                ForEach(0..<6, id: \.self) { i in
+                    Circle().fill(Color.primary.opacity(i < frame.dots ? 0.7 : 0.13)).frame(width: 6, height: 6)
+                }
+            }
+            .padding(.horizontal, 12).frame(height: 30)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(0.06)))
+            ZStack {
+                RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color(nsColor: .controlBackgroundColor))
+                    .shadow(color: .black.opacity(0.18), radius: 0.5, y: 1.5 * (1 - frame.press))
+                RoundedRectangle(cornerRadius: 7, style: .continuous).strokeBorder(Color.primary.opacity(0.12), lineWidth: 1)
+                Image(systemName: "return").font(.system(size: 13, weight: .semibold))
+            }
+            .frame(width: 46, height: 30).offset(y: 1.5 * frame.press).scaleEffect(1 - 0.05 * frame.press)
+            Image(systemName: "checkmark.circle.fill").font(.system(size: 18)).foregroundStyle(Color.green)
+                .opacity(frame.done).scaleEffect(0.7 + 0.3 * frame.done)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.primary.opacity(0.07), lineWidth: 1))
+        .accessibilityHidden(true)
     }
 }
 

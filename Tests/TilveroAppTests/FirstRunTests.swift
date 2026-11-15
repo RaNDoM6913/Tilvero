@@ -1068,6 +1068,43 @@ final class FirstRunMotionTests: XCTestCase {
         XCTAssertLessThan(M.successBeat(reduceMotion: true), M.successBeat(reduceMotion: false))
     }
 
+    func testTheEntranceIsShortStaggeredAndThenStill() {
+        XCTAssertEqual(M.entrance(0, reduceMotion: false).opacity, 0)
+        let mid = M.entrance(0.12, reduceMotion: false)
+        XCTAssertTrue(mid.opacity > 0 && mid.opacity < 1 && mid.rise > 0 && mid.scale < 1, "fades, rises and grows")
+        let rest = M.entrance(M.entranceEnd, reduceMotion: false)
+        XCTAssertEqual(rest.opacity, 1); XCTAssertEqual(rest.scale, 1, accuracy: 0.002); XCTAssertEqual(rest.rise, 0, accuracy: 0.05)
+        XCTAssertEqual(M.entrance(0.36, reduceMotion: false).opacity, 1, "visible within ~0.35 s")
+        // Rows 50 ms apart.
+        XCTAssertGreaterThan(M.rowAppear(0, 0.3, reduceMotion: false), M.rowAppear(1, 0.3, reduceMotion: false))
+        XCTAssertEqual(M.rowAppear(1, 0.16, reduceMotion: false), 0); XCTAssertGreaterThan(M.rowAppear(1, 0.2, reduceMotion: false), 0)
+        XCTAssertEqual(M.rowAppear(4, M.entranceEnd, reduceMotion: false), 1)
+        // The hero charges once and rests.
+        XCTAssertLessThan(M.hero(0.3, reduceMotion: false).fill, 1)
+        XCTAssertGreaterThan(M.hero(1.15, reduceMotion: false).bolt, 1.1, "one bolt pulse")
+        XCTAssertEqual(M.hero(M.entranceEnd, reduceMotion: false), .init(fill: 1, bolt: 1, glow: 0))
+        XCTAssertTrue(M.entranceSettled(M.entranceEnd, reduceMotion: false)); XCTAssertFalse(M.entranceSettled(1, reduceMotion: false))
+    }
+
+    func testTheTerminalHintLoopsAtMostThreeTimes() {
+        let rest = M.terminalHint(M.terminalHintPeriod * 3, reduceMotion: false)
+        XCTAssertEqual(rest, .init(dots: 6, press: 0, done: 1))
+        XCTAssertEqual(M.terminalHint(1000, reduceMotion: false), rest)
+        XCTAssertEqual(M.terminalHint(0.5, reduceMotion: false), M.terminalHint(0.5 + M.terminalHintPeriod, reduceMotion: false), "loops")
+        XCTAssertGreaterThan(M.terminalHint(1.55, reduceMotion: false).press, 0.9, "the Return key goes down")
+        XCTAssertTrue(M.terminalHintSettled(M.terminalHintPeriod * 3, reduceMotion: false))
+        XCTAssertFalse(M.terminalHintSettled(5, reduceMotion: false))
+    }
+
+    func testReduceMotionKeepsEverythingStatic() {
+        XCTAssertEqual(M.entrance(0.3, reduceMotion: true), .init(opacity: 1, scale: 1, rise: 0))
+        XCTAssertLessThanOrEqual(M.entrance(0.15, reduceMotion: true).opacity, 1)
+        XCTAssertEqual(M.rowAppear(4, 0, reduceMotion: true), 1)
+        XCTAssertEqual(M.hero(0, reduceMotion: true), .init(fill: 1, bolt: 1, glow: 0), "static hero")
+        XCTAssertEqual(M.terminalHint(0, reduceMotion: true), .init(dots: 6, press: 0, done: 1))
+        XCTAssertTrue(M.entranceSettled(0, reduceMotion: true)); XCTAssertTrue(M.terminalHintSettled(0, reduceMotion: true))
+    }
+
     func testEveryPieceEnds() {
         XCTAssertEqual(M.check(0.3, reduceMotion: false), 1)
         XCTAssertEqual(M.iconFillLevel(0, level: 80, reduceMotion: false), 0)

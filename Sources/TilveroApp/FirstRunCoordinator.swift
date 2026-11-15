@@ -271,6 +271,7 @@ enum FirstRunLogin {
 
     private func showWindow() {
         guard presentsWindow, window == nil else { return }
+        session.restartEntrance()
         let hosting = FirstMouseHostingView(rootView: FirstRunWindowView(session: session))
         hosting.sizingOptions = []   // the coordinator sizes the window (and keeps it centered)
         let size = hosting.fittingSize

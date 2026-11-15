@@ -18,6 +18,10 @@ import SwiftUI
     @Published var showsCommand = false
     /// The coach on the real Charge tab after the quick menu opened.
     @Published var coachVisible = false
+    /// When the window appeared; any click jumps the entrance (and the Terminal hint) to its resting frame.
+    @Published private(set) var entranceStart = Date()
+    @Published var motionSkipped = false
+    @Published var hintSkipped = false
     @Published private(set) var coachStart = Date()
     let isPreview: Bool
     var perform: (FirstRunEffect) -> Void = { _ in }
@@ -34,11 +38,21 @@ import SwiftUI
     var frozenTime: Double?
     func time(at date: Date) -> Double { frozenTime ?? max(0, date.timeIntervalSince(sceneStart)) * speed }
     func coachTime(at date: Date) -> Double { frozenTime ?? max(0, date.timeIntervalSince(coachStart)) * speed }
+    /// Entrance time; renders can hold it separately from the step time.
+    var frozenEntranceTime: Double?
+    func entranceTime(at date: Date) -> Double {
+        if let frozenEntranceTime { return frozenEntranceTime }
+        if frozenTime != nil { return .infinity }
+        return motionSkipped ? .infinity : max(0, date.timeIntervalSince(entranceStart)) * speed
+    }
+    /// Terminal hint time: from the start of the step, jumped to the end by a click.
+    func hintTime(at date: Date) -> Double { hintSkipped && frozenTime == nil ? .infinity : time(at: date) }
+    func restartEntrance() { entranceStart = Date(); motionSkipped = false }
 
     func send(_ event: FirstRunEvent) {
         let before = flow.step
         let effects = flow.handle(event)
-        if flow.step != before { sceneStart = Date(); if !flow.isWaiting { showsCommand = false } }
+        if flow.step != before { sceneStart = Date(); hintSkipped = false; if !flow.isWaiting { showsCommand = false } }
         effects.forEach(perform)
     }
 
