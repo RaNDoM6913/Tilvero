@@ -64,8 +64,11 @@ struct QuickPanel: View {
     static let pageTransition = AnyTransition.opacity
     @State private var pageMotion = QuickPanelPageMotion()   // not observed here: only the page area follows it
 
+    @State private var firstRunFrames: [String: CGRect] = [:]
+
     private var content: some View {
         VStack(alignment: .leading, spacing: studioPresentation.spacing(14)) {
+            if let firstRun = model.firstRun { FirstRunPanelLayer(session: firstRun, section: $section) }
             HStack {
                 StudioText(AppIdentity.displayName, id: "quick.brand").font(.headline)
                 Spacer()
@@ -74,6 +77,7 @@ struct QuickPanel: View {
             }
             QuickPanelTabs(selection: $section)
                 .frame(maxWidth: .infinity).id(L10n.language)
+                .firstRunFrame("tabs")
                 .studioElement("quick.tabs", label: "Quick menu destinations")
             QuickPageSwitcher(selection: section) {
                 switch section {
@@ -107,6 +111,14 @@ struct QuickPanel: View {
             }.buttonStyle(.borderless).studioElement("quick.openDetails", label: "Open details")
 
         }.padding(QuickPanelMetrics.padding).frame(width: QuickPanelMetrics.width, alignment: .leading)
+        .coordinateSpace(name: FirstRunGuideLayer.space)
+        .onPreferenceChange(FirstRunFrameKey.self) { firstRunFrames = $0 }
+        .overlay {
+            if let firstRun = model.firstRun {
+                FirstRunGuideLayer(session: firstRun, frames: FirstRunGuideLayer.withTabs(firstRunFrames, sections: QuickPanelSection.visible))
+            }
+        }
+        .modifier(FirstRunHoverDismissal(session: model.firstRun))
     }
 
     private var contextualNotice: String? {

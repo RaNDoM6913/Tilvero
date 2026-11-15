@@ -387,6 +387,8 @@ final class TilveroModel: ObservableObject {
     var quickPanelSection: QuickPanelSection = .overview { didSet { if oldValue != quickPanelSection { updateLiveCharts() } } }
     var isDetailVisible = false
     var openDetails: (@MainActor () -> Void)?
+    /// The first-run card shown on top of the quick panel (first launch only; nil otherwise).
+    var firstRun: FirstRunSession? { willSet { objectWillChange.send() } }
     var onPresentationChange: (@MainActor () -> Void)?
     private var pollingTask: Task<Void, Never>?
     private var isReading = false
