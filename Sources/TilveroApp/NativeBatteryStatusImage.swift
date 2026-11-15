@@ -82,8 +82,12 @@ enum NativeBatteryStatusImage {
         let factor = CGFloat(MenuBarSizing.validatedIconScale(Double(scale)))
         let size = NSSize(width: canvas.width * factor, height: canvas.height * factor)
         let level = validLevel
+        // The native macOS 27 battery is solid white (about 0.95 alpha), brighter than the template ink every other menu
+        // bar item gets (measured 242 against 231 on the dark bar). The pressed image stays a template so AppKit adapts it
+        // to the highlight; the ink is resolved at draw time, in the status button's appearance.
         // Like the system indicator: a red fill at 20 % or less while running on battery. Only the modern (macOS 27)
         // body is composed this way; the pressed state keeps the plain template.
+        let solidInk = appearance == .macOS27 && !highlighted && awake != .active
         let lowFill = redWhenLow && appearance == .macOS27 && !externalPower && (level.map { $0 <= lowChargeThreshold } ?? false)
         let image = NSImage(size: size, flipped: false) { rect in
             NSGraphicsContext.saveGraphicsState()
@@ -115,6 +119,10 @@ enum NativeBatteryStatusImage {
                 (isDarkInk ? NSColor.white : NSColor.black).setFill()
                 NSRect(origin: .zero, size: canvas).fill(using: .sourceIn)
             }
+            if solidInk, !lowFill {
+                solidInkColor.setFill()
+                NSRect(origin: .zero, size: canvas).fill(using: .sourceIn)
+            }
             if lowFill, let region = redRegion {
                 // sourceAtop keeps the numeral cutouts and the antialiased silhouette of the fill.
                 NSColor.systemRed.setFill()
@@ -123,7 +131,7 @@ enum NativeBatteryStatusImage {
             return true
         }
         // The fill colours stay while the menu is open (pressed): the quick menu is where the user starts these modes.
-        image.isTemplate = (awake != .active && !lowFill) || (highlighted && !tintedAwake && !lowFill)
+        image.isTemplate = (awake != .active && !lowFill && !solidInk) || (highlighted && !tintedAwake && !lowFill)
         if tintedAwake { image.isTemplate = false }
         return image
     }
@@ -189,6 +197,11 @@ enum NativeBatteryStatusImage {
         // contact coverage. Resolve it at draw time, like the numeral cutouts.
         isDarkInk ? 0.55 : 0.8
     }
+
+    /// Opaque grey, so the body's brightness never depends on the wallpaper behind the bar and the image's alpha stays the
+    /// plain mask. Dark bar: 242/255, the native battery's measured value (template ink peaks at 231). Light bar: dark ink;
+    /// the native light value was not measured, white 0.15 is an estimate.
+    private static var solidInkColor: NSColor { isDarkInk ? NSColor(white: 242.0 / 255.0, alpha: 1) : NSColor(white: 0.15, alpha: 1) }
 
     private static var isDarkInk: Bool { NSAppearance.currentDrawing().bestMatch(from: [.aqua, .darkAqua]) == .darkAqua }
 

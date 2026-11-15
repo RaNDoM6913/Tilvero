@@ -724,8 +724,9 @@ final class NativeBatteryStatusImageTests: XCTestCase {
                     XCTAssertEqual(light.colorAt(x: x, y: y), repeated.colorAt(x: x, y: y),
                                    "Returning to the first appearance must not retain the previous cached mask.")
                 } }
-                // A confirmed Keep Awake colours the fill (a real-colour image), also while the menu is open.
-                XCTAssertEqual(image.isTemplate, state != .active)
+                // A confirmed Keep Awake colours the fill (a real-colour image), also while the menu is open. Otherwise the
+                // modern body is solid ink (not a template) except in its pressed twin, which AppKit adapts to the highlight.
+                XCTAssertEqual(image.isTemplate, selected && state != .active)
                 for name in [NSAppearance.Name.aqua, .darkAqua] {
                     let unknown = NativeBatteryStatusImage.make(level: nil, style: .inside, externalPower: true,
                         textSize: .system, appearance: .macOS27)
@@ -738,6 +739,23 @@ final class NativeBatteryStatusImageTests: XCTestCase {
         }
     }
 
+    /// Measured 2026-11-15 on the live bar: the native battery body is 242/255 white, brighter than template ink (231).
+    func testModernBodyIsSolidNativeWhiteOnADarkBarAndItsPressedTwinIsATemplate() throws {
+        let image = NativeBatteryStatusImage.make(level: 100, style: .inside, externalPower: true, textSize: .system, appearance: .macOS27)
+        XCTAssertFalse(image.isTemplate)
+        let dark = render(image, scale: 2, appearance: .darkAqua)
+        let fill = try XCTUnwrap(dark.colorAt(x: 40, y: 10))   // inside the body, clear of numerals and bolt
+        XCTAssertEqual(fill.alphaComponent, 1, accuracy: 0.01)
+        XCTAssertEqual(fill.redComponent, 242.0 / 255.0, accuracy: 0.01, "White ink on a dark bar matches the native battery's 242.")
+        XCTAssertEqual(fill.redComponent, fill.blueComponent, accuracy: 0.005, "The ink is neutral grey.")
+        let light = render(image, scale: 2, appearance: .aqua)
+        XCTAssertLessThan(try XCTUnwrap(light.colorAt(x: 40, y: 10)).redComponent, 0.3, "Dark ink on a light bar.")
+        let pressed = NativeBatteryStatusImage.make(level: 100, style: .inside, externalPower: true, textSize: .system, highlighted: true, appearance: .macOS27)
+        XCTAssertTrue(pressed.isTemplate, "AppKit adapts the pressed twin to the highlight.")
+        // The 26-style outline and its template behaviour are untouched.
+        XCTAssertTrue(NativeBatteryStatusImage.make(level: 100, style: .inside, externalPower: true, appearance: .macOS26).isTemplate)
+    }
+
     func testModernAwakeBlueAndSelectedMaskPreserveTheSameBatteryAlpha() throws {
         for style in MenuBarDisplayStyle.allCases {
             let off = NativeBatteryStatusImage.make(level: 90, style: style, externalPower: true, appearance: .macOS27)
@@ -746,7 +764,7 @@ final class NativeBatteryStatusImageTests: XCTestCase {
             let unconfirmed = NativeBatteryStatusImage.make(level: 90, style: style, externalPower: true, awake: .unconfirmed, appearance: .macOS27)
             XCTAssertFalse(active.isTemplate)
             XCTAssertFalse(selected.isTemplate, "The fill colour stays while the menu is open.")
-            XCTAssertTrue(unconfirmed.isTemplate)
+            XCTAssertFalse(unconfirmed.isTemplate, "Unconfirmed ownership never shows blue; the modern body is solid ink.")
             let a = render(off, scale: 2), b = render(active, scale: 2), c = render(selected, scale: 2)
             for y in 0..<a.pixelsHigh { for x in 0..<a.pixelsWide {
                 XCTAssertEqual(a.colorAt(x: x, y: y)!.alphaComponent, b.colorAt(x: x, y: y)!.alphaComponent, accuracy: 0.02)
