@@ -1,7 +1,7 @@
 ![Tilvero — Battery, power and activity. Swift 6, macOS 26+, Apple silicon. Source preview.](.github/assets/cover.png)
 
 <p align="center">
-  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.6.1"><img src="https://img.shields.io/badge/source-preview-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Source preview" height="28"></a>
+  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.6.2"><img src="https://img.shields.io/badge/source-preview-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Source preview" height="28"></a>
   <a href="docs/GITHUB_TRAFFIC.md"><img src="https://img.shields.io/badge/zip%20%E2%80%A2%20clones%20%E2%80%A2%20unique-15%20%E2%80%A2%201521%20%E2%80%A2%20398-2F6E4B?style=for-the-badge&amp;labelColor=172A22" alt="Source ZIP downloads 15, Git clones 1521, unique cloners 398" height="28"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="License: GPL-3.0-only" height="28"></a>
 </p>
@@ -28,18 +28,27 @@ establish hardware support or qualify a release binary.</sub>
   and Tilvero lifts the limit just in time, waking a sleeping Mac on schedule (one optional administrator permission;
   waking with the lid closed is still being verified on real hardware).
 
-**Latest: [0.6.1 Source Preview](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.6.1) for developers.**
-[Get the source](https://github.com/RaNDoM6913/Tilvero/releases/download/v0.6.1/Tilvero-0.6.1-source.zip)
-· [Release notes and checksums](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.6.1)
+**Latest: [0.6.2 Source Preview](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.6.2) for developers.**
+[Get the source](https://github.com/RaNDoM6913/Tilvero/releases/download/v0.6.2/Tilvero-0.6.2-source.zip)
+· [Release notes and checksums](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.6.2)
 · [Build and run](#build-and-run) · [Roadmap](ROADMAP.md)
-· Earlier: [0.6.0](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.6.0),
-[0.5.0-beta.1](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.5.0-beta.1)
+· Earlier: [0.6.1](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.6.1),
+[0.6.0](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.6.0)
 
 A signed, notarized Mac download is still in preparation. The planned
 **Monitoring Preview** DMG will be read-only; this repository also contains
 separately gated development controls. [Availability and installation](docs/INSTALL.md).
 
-## What's new in 0.6.1
+## What's new in 0.6.2
+
+A polish release for the charts and the menu bar icon.
+
+**Changed**
+- **Cleaner chart axis.** Whole numbers only, and the numbers sit right under the card's icon, so the plot gains 8-19 pt of width.
+- **The menu bar battery looks like the system one.** A solid white body, as the system battery's, and at 100 % the numerals and the charging bolt match its size and weight. Pressing the icon still adapts to the highlight.
+- **The Charge page is quieter.** No line and no cancel button for a waiting limit: move the slider back to the limit macOS holds to cancel the wait.
+
+## What was new in 0.6.1
 
 A bug-fix release for charge by time and the charge limit.
 
@@ -49,26 +58,6 @@ A bug-fix release for charge by time and the charge limit.
 - **No more stuck "session needs review".** A waiting limit that wrote nothing is dropped at launch and when the limit changes in macOS, instead of blocking every new limit. Failure lines go away on their own.
 - **No blinking.** "Charge to 100% once" and the time pill stay still while a new limit is applied.
 - **A cleaner time picker**, built like the Keep Awake one, and a cross in the time pill that cancels the plan in one tap. When the plan cannot make it, one button moves the time to the first one that works.
-
-## What was new in 0.6.0
-
-**New**
-- **Screen and sound with the lid closed.** While Keep Awake or the sleep timer holds the Mac awake with the lid shut,
-  Tilvero turns the built-in screen down (0 % by default) and keeps the volume no louder than 25 %; a quieter setting is
-  never raised. Open the lid or end the session and both return to what they were, unless you changed them meanwhile.
-  The row sits under **With lid closed** and expands into two sliders in 5 % steps, each with its own switch.
-- **Live charts.** With the menu open on Overview, power and temperature charts update about once a second. Live points stay
-  in memory and are never written to history.
-- **A roomier menu.** The quick menu is 340 pt wide with taller chart plots.
-
-**Improved**
-- The keyboard backlight row shows a larger percent figure, and its slider and switch no longer jump back while a change is applied.
-- The **With lid closed** switch no longer snaps back or greys out while the administrator permission is checked.
-
-**Fixed**
-- **Memory at launch:** reading months of history left up to ~500 MB of temporary data in the heap (peak about 730 MB). The peak is now about 85 MB on the same history.
-- **A quiet start:** Tilvero no longer opens Settings or raises a window over your apps at launch. It starts in the menu bar; the window opens only when you ask.
-- The screen and volume sliders showed the same fill for every value below about 16 %; the fill now grows over the whole range.
 
 Full history: [CHANGELOG](CHANGELOG.md).
 
@@ -110,7 +99,7 @@ You need **Apple silicon, macOS 26.0+ and a full Xcode installation** with a
 compatible macOS SDK and Swift 6. Command Line Tools alone are not the validated route.
 
 ```sh
-git clone --branch v0.6.1 https://github.com/RaNDoM6913/Tilvero.git
+git clone --branch v0.6.2 https://github.com/RaNDoM6913/Tilvero.git
 cd Tilvero
 bash scripts/test.sh
 bash scripts/build-local-app.sh
