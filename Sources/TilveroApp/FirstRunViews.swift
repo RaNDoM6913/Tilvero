@@ -76,6 +76,9 @@ struct FirstRunWindowView: View {
         .onChange(of: session.motionSkipped) { _, skipped in if skipped { entranceDone = true } }
         .frame(width: Self.width, alignment: .leading)
         .background(Color(nsColor: .windowBackgroundColor))
+        // The window has a transparent title bar over the content: the hero starts at the traffic lights instead of
+        // below an empty band, and the measured height matches the window again.
+        .ignoresSafeArea(.container, edges: .top)
         .environment(\.locale, L10n.locale)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("firstRun.window")
@@ -98,7 +101,7 @@ struct FirstRunWindowView: View {
             if session.showsCommand, flow.step == .waitingTerminal, let text = session.commandText { commandBox(text).transition(.opacity) }
             buttons
         }
-        .padding(.horizontal, 24).padding(.top, 30).padding(.bottom, 22)
+        .padding(.horizontal, 24).padding(.top, 14).padding(.bottom, 22)
         .animation(stepAnimation, value: flow.step)
         .animation(stepAnimation, value: session.showsCommand)
         .opacity(e.opacity).scaleEffect(e.scale).offset(y: e.rise)
@@ -106,10 +109,11 @@ struct FirstRunWindowView: View {
 
     // MARK: Header
 
+    /// The battery sits centered at the height of the window buttons, the title and subtitle under it.
     private func header(_ hero: FirstRunMotion.Hero) -> some View {
-        HStack(alignment: .center, spacing: 16) {
+        VStack(spacing: 10) {
             FirstRunHeroBattery(frame: hero)
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .center, spacing: 3) {
                 HStack(spacing: 8) {
                     Text(L10n.text("firstRun.title")).font(.system(size: 20, weight: .semibold)).accessibilityAddTraits(.isHeader)
                     if session.isPreview { FirstRunPreviewBadge() }
@@ -117,6 +121,8 @@ struct FirstRunWindowView: View {
                 Text(L10n.text("firstRun.subtitle")).font(.system(size: 13)).foregroundStyle(.secondary)
             }
         }
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: Choices
