@@ -32,14 +32,14 @@ enum FirstRunStep: String, Equatable, CaseIterable {
 
 enum FirstRunLoginResult: Hashable { case enabled, requiresApproval, failed }
 
-/// What the user picks. Defaults: everything that needs no password is on, so one click on the main button sets the
-/// app up; the two features that need the administrator password are opt-in. (The charge limit is a macOS setting
-/// Tilvero only reads: it is not a first-run choice.)
+/// What the user picks. Defaults: everything is on, so one click on the main button sets the app up (the two features
+/// that need the administrator password ask for it once, in one macOS dialog) and the user switches off only what they
+/// do not want. (The charge limit is a macOS setting Tilvero only reads: it is not a first-run choice.)
 struct FirstRunChoices: Equatable {
     var launchAtLogin = true
     var keepHistory = true
-    var lidClosed = false
-    var chargeByTime = false
+    var lidClosed = true
+    var chargeByTime = true
 
     var lockedFeatures: Set<PrivilegedFeature> {
         var set = Set<PrivilegedFeature>()

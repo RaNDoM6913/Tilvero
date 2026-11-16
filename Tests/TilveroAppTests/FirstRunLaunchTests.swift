@@ -102,6 +102,7 @@ import XCTest
         let (coordinator, host) = make()
         defer { coordinator.teardown() }
         coordinator.start()
+        coordinator.session.flow.choices.lidClosed = false; coordinator.session.flow.choices.chargeByTime = false
         coordinator.session.send(.start)
         try await wait { host.popovers == 1 }
         try await wait { host.finished == 1 }   // the real menu opens; nothing else follows
