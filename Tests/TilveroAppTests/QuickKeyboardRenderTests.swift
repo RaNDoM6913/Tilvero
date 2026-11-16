@@ -32,6 +32,10 @@ import KeyboardBackends
                 window.setContentSize(size); host.view.layoutSubtreeIfNeeded()
                 try await Task.sleep(for: .milliseconds(150))
                 host.view.layoutSubtreeIfNeeded()
+                // The row is the icon, the label and the slider only: a slider at 0 % is "off", so there is no separate switch
+                // (the quick Overview has no other switch, so any NSSwitch here would be this row's).
+                func switchCount(_ view: NSView) -> Int { (view is NSSwitch ? 1 : 0) + view.subviews.map(switchCount).reduce(0, +) }
+                XCTAssertEqual(switchCount(host.view), 0, "\(language), available \(available): the quick keyboard row has no on/off switch")
                 if let folder = ProcessInfo.processInfo.environment["TILVERO_QUICK_RENDER_DIR"] {
                     let dir = URL(fileURLWithPath: folder); try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
                     let bitmap = try XCTUnwrap(host.view.bitmapImageRepForCachingDisplay(in: host.view.bounds))
