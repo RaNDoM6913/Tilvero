@@ -4,13 +4,14 @@
 import AppKit
 import SwiftUI
 
-/// One line of a chart: the pure series, its colour and an optional end label
-/// (drawn next to the newest point instead of a legend).
+/// One line of a chart: the pure series, its colour and an optional spoken name
+/// ("Battery -4,0"). The chart draws no names itself: a card that names its lines
+/// does it in its own header, and this text keeps them readable for VoiceOver and the tooltip.
 struct MetricChartSeriesSpec: Identifiable {
     let id: String
     let series: MetricChartSeries
     let color: Color
-    let endLabel: String?
+    var accessibilityName: String? = nil
 }
 
 extension MetricChartView.Density {
@@ -91,41 +92,13 @@ struct MetricChartView: View {
         return (0..<count).filter { (count - 1 - $0) % 2 == 0 }
     }
 
-    /// Spreads end-label centres so neighbours keep `minGap` apart inside `height`.
-    /// `nil` entries (no label to place) are skipped and stay `nil`; they never
-    /// push real labels around.
-    nonisolated static func placeEndLabels(_ ys: [CGFloat?], minGap: CGFloat, height: CGFloat) -> [CGFloat?] {
-        let present = ys.indices.filter { ys[$0] != nil }.sorted { ys[$0]! < ys[$1]! }
-        var placed = ys
-        for (n, index) in present.enumerated() {
-            let floor = n == 0 ? minGap / 2 : placed[present[n - 1]]! + minGap
-            placed[index] = max(ys[index]!, floor)
-        }
-        if let last = present.last, placed[last]! > height - minGap / 2 {
-            let shift = placed[last]! - (height - minGap / 2)
-            for index in present { placed[index] = max(minGap / 2, placed[index]! - shift) }
-        }
-        return placed
-    }
-
-    /// Vertical position of each series' end label inside a plot of `plotHeight`:
-    /// the newest point's y, spread so neighbours keep `minGap` apart. `nil` for a
-    /// series without a label or without data. The view draws exactly these positions.
-    nonisolated static func endLabelPositions(specs: [MetricChartSeriesSpec], scale: MetricChartScale, plotHeight: CGFloat, minGap: CGFloat = 14) -> [CGFloat?] {
-        let ys: [CGFloat?] = specs.map { spec in
-            spec.endLabel != nil && spec.series.state != .empty
-                ? spec.series.points.last.map { yPosition($0.value, scale.domain, plotHeight: plotHeight) } : nil
-        }
-        return placeEndLabels(ys, minGap: minGap, height: plotHeight)
-    }
-
     nonisolated static func yPosition(_ value: Double, _ domain: ClosedRange<Double>, plotHeight: CGFloat) -> CGFloat {
         let span = domain.upperBound - domain.lowerBound
         guard span > 0 else { return plotHeight / 2 }
         return plotHeight * CGFloat(1 - min(max((value - domain.lowerBound) / span, 0), 1))
     }
 
-    /// VoiceOver / tooltip text: unit, then per series the end label (value) with
+    /// VoiceOver / tooltip text: unit, then per series its spoken name (with the value) and
     /// its state, then a note when the chart has recording gaps.
     nonisolated static func accessibilityText(specs: [MetricChartSeriesSpec], unit: String) -> String {
         let header = "\(L10n.text("Chart")), \(unit)"
@@ -134,9 +107,9 @@ struct MetricChartView: View {
         }
         var parts: [String] = specs.compactMap { spec in
             switch spec.series.state {
-            case .empty: return spec.endLabel.map { "\($0) \(L10n.text("Chart: no data"))" }
-            case .data: return spec.endLabel
-            case .staleTail: return spec.endLabel.map { "\($0) (\(L10n.text("Stale").lowercased()))" } ?? L10n.text("Stale").lowercased()
+            case .empty: return spec.accessibilityName.map { "\($0) \(L10n.text("Chart: no data"))" }
+            case .data: return spec.accessibilityName
+            case .staleTail: return spec.accessibilityName.map { "\($0) (\(L10n.text("Stale").lowercased()))" } ?? L10n.text("Stale").lowercased()
             }
         }
         if specs.contains(where: { !$0.series.gaps.isEmpty }) { parts.append(L10n.text("No recording")) }
@@ -171,17 +144,6 @@ struct MetricChartView: View {
         let geometry = Self.axisGeometry(columnWidth: width)
         return (width, geometry.leading, geometry.plotStart)
     }
-    /// Column reserved right of the plot for end labels: an 8 pt lead-in plus a label frame wide enough
-    /// for the longest realistic Russian label ("Батарея -100,5" is about 85 pt in 11 pt semibold).
-    nonisolated static let endLabelColumnWidth: CGFloat = 96
-    nonisolated static let endLabelFrameWidth: CGFloat = endLabelColumnWidth - 8
-    nonisolated static var endLabelFont: NSFont { NSFont.systemFont(ofSize: 11, weight: .semibold) }
-    /// Whether `text` fits the label frame at full size (the view still allows a 0.85 shrink as a safety net).
-    nonisolated static func endLabelFits(_ text: String) -> Bool {
-        ceil((text as NSString).size(withAttributes: [.font: endLabelFont]).width) <= endLabelFrameWidth
-    }
-    private var endLabelWidth: CGFloat { specs.contains { $0.endLabel != nil } ? Self.endLabelColumnWidth : 0 }
-
     var body: some View {
         let text = Self.accessibilityText(specs: specs, unit: unit)
         content.accessibilityElement(children: .ignore).accessibilityLabel(text).help(text)
@@ -206,9 +168,8 @@ struct MetricChartView: View {
         GeometryReader { proxy in
             let axis = axisLayout(scale: scale)
             let rect = CGRect(x: axis.plotStart, y: 0,
-                              width: max(proxy.size.width - axis.plotStart - endLabelWidth, 1), height: plotHeight)
+                              width: max(proxy.size.width - axis.plotStart, 1), height: plotHeight)
             let domain = scale.domain
-            let spread = Self.endLabelPositions(specs: specs, scale: scale, plotHeight: plotHeight)
             let tickLabels = scale.tickLabels(locale: L10n.locale)
             ZStack(alignment: .topLeading) {
                 Canvas { context, _ in draw(&context, rect: rect, scale: scale) }
@@ -217,13 +178,6 @@ struct MetricChartView: View {
                         .font(.system(size: 10).monospacedDigit()).foregroundStyle(.secondary)
                         .frame(width: axis.width, alignment: .center)
                         .position(x: axis.leading + axis.width / 2, y: yValue(scale.ticks[index], domain))
-                }
-                ForEach(Array(specs.enumerated()), id: \.element.id) { index, spec in
-                    if let label = spec.endLabel, let labelY = spread[index] {
-                        Text(label).font(Font(Self.endLabelFont as CTFont)).lineLimit(1).minimumScaleFactor(0.85)
-                            .frame(width: Self.endLabelFrameWidth, alignment: .leading)
-                            .position(x: rect.maxX + 8 + Self.endLabelFrameWidth / 2, y: labelY)
-                    }
                 }
                 ForEach(gapRanges(), id: \.0) { start, end in
                     if xValue(end, rect) - xValue(start, rect) > 44 {
@@ -250,7 +204,7 @@ struct MetricChartView: View {
                 if index < ticks.count - 1 { Spacer(minLength: 4) }
             }
         }
-        .padding(.leading, scale.map { axisLayout(scale: $0).plotStart } ?? 0).padding(.trailing, endLabelWidth)
+        .padding(.leading, scale.map { axisLayout(scale: $0).plotStart } ?? 0)
     }
 
     // MARK: Drawing

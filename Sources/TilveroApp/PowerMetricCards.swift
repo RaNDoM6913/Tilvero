@@ -120,7 +120,7 @@ extension PowerMetricCard {
         let fahrenheit = model.fahrenheit
         let series = model.chartSeries(id: id).convertingValues { Self.chartValue($0, id: id, fahrenheit: fahrenheit) }
         MetricChartView(
-            specs: [MetricChartSeriesSpec(id: id, series: series, color: color, endLabel: nil)],
+            specs: [MetricChartSeriesSpec(id: id, series: series, color: color)],
             scale: MetricChartScale.scale(forMetric: id, values: series.points.map(\.value)),
             window: model.overviewChartWindow,
             unit: Self.chartUnit(id: id, readingUnit: reading?.unit, fahrenheit: fahrenheit),

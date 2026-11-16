@@ -72,7 +72,7 @@ import PowerCore
         LiveRefresh(store: model.live) {
             let series = model.chartSeries(id: id)
             MetricChartView(
-                specs: [MetricChartSeriesSpec(id: id, series: series, color: color, endLabel: nil)],
+                specs: [MetricChartSeriesSpec(id: id, series: series, color: color)],
                 scale: MetricChartScale.scale(forMetric: id, values: series.points.map(\.value)),
                 window: model.overviewChartWindow,
                 unit: PowerMetricCard.chartUnit(id: id, readingUnit: reading?.unit, fahrenheit: false),
