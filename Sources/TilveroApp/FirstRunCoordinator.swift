@@ -67,6 +67,12 @@ enum FirstRunLogin {
     func firstRunOpenPopover()
     func firstRunOpenDetails()
     func firstRunFinished()
+    /// After the hand-off: keep a pulsing ring on the icon while the quick menu is not open (see `FirstRunBeacon`).
+    func firstRunPointAtIcon()
+}
+
+extension FirstRunHost {
+    func firstRunPointAtIcon() {}
 }
 
 /// Thin AppKit glue: runs the effects of `FirstRunFlow` (window, permission request, landing in the icon).
@@ -226,6 +232,7 @@ enum FirstRunLogin {
             self.after(FirstRunMotion.handOffDuration(reduceMotion: reduce) / speed) { [weak self] in
                 guard let self, my == self.token else { return }
                 self.host?.firstRunOpenPopover()
+                self.host?.firstRunPointAtIcon()
                 self.session.send(.revealed)
             }
         }

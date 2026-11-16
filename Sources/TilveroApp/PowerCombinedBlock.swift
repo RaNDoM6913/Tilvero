@@ -113,7 +113,7 @@ import PowerCore
     /// (the chart itself marks the stale tail).
     static func header(content: Content, unit: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
-            Label(content.title, systemImage: "bolt").lineLimit(1)
+            Label(content.title, systemImage: "bolt").font(.overviewBlockTitle).lineLimit(1)
             Spacer(minLength: 8)
             legend(content: content, unit: unit)
         }

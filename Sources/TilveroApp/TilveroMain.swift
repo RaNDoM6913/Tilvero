@@ -234,6 +234,9 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     private let firstRunMode: FirstRunLaunchMode
     private var firstRun: FirstRunCoordinator?
     private var firstRunIconFill: Double?
+    private let firstRunBeacon = FirstRunBeacon()
+    private var firstRunBeaconArmed = false
+    private var firstRunBeaconTasks: [Task<Void, Never>] = []
     private var previewControls: FirstRunPreview.Controls?
     private var previewInstaller: PrivilegedRuleInstaller?
     private var previewPanel: NSWindow?
@@ -777,6 +780,7 @@ extension TilveroAppDelegate: NSPopoverDelegate {
         studio.setRegistryVisible("popover", true)
         #endif
         activatePopoverWindow()
+        firstRunPopoverShown()
         popoverLog.info("Quick panel opened; active: \(NSApplication.shared.isActive, privacy: .public); key: \(self.popover.contentViewController?.view.window?.isKeyWindow ?? false, privacy: .public)")
     }
     func popoverDidClose(_ notification: Notification) {
@@ -784,6 +788,7 @@ extension TilveroAppDelegate: NSPopoverDelegate {
         studio.setRegistryVisible("popover", false)
         #endif
         popoverGeneration &+= 1
+        refreshFirstRunBeacon()
         stopPopoverEventMonitors()
         statusItem?.button?.state = .off
         statusItem?.button?.highlight(false)
@@ -822,6 +827,39 @@ extension TilveroAppDelegate: FirstRunHost {
         if !popover.isShown && !activationGate.isWaiting { togglePopover() }
     }
     func firstRunOpenDetails() { showDetails() }
+    /// The ring shows whenever the quick menu is closed after the hand-off (the system dialog can take focus and close
+    /// it at once). It goes away when the menu opens and stays open for a moment, or after five minutes.
+    func firstRunPointAtIcon() {
+        firstRunBeaconArmed = true
+        firstRunBeaconTasks.forEach { $0.cancel() }
+        firstRunBeaconTasks = [Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(900))
+            self?.refreshFirstRunBeacon()
+            try? await Task.sleep(for: .seconds(300))
+            self?.disarmFirstRunBeacon()
+        }]
+    }
+    func refreshFirstRunBeacon() {
+        guard firstRunBeaconArmed, !popover.isShown, let frame = firstRunStatusButtonFrame, firstRunStatusItemVisible else {
+            if !firstRunBeaconArmed || popover.isShown { firstRunBeacon.hide() }
+            return
+        }
+        firstRunBeacon.show(around: frame, reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
+    }
+    func firstRunPopoverShown() {
+        guard firstRunBeaconArmed else { return }
+        firstRunBeacon.hide()
+        firstRunBeaconTasks.append(Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            if self?.popover.isShown == true { self?.disarmFirstRunBeacon() }
+        })
+    }
+    func disarmFirstRunBeacon() {
+        firstRunBeaconArmed = false
+        firstRunBeaconTasks.forEach { $0.cancel() }
+        firstRunBeaconTasks = []
+        firstRunBeacon.hide()
+    }
     func firstRunDrawIcon(fill: Double?) {
         firstRunIconFill = fill
         updateStatusItem()

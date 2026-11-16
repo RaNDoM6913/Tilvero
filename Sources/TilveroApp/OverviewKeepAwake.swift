@@ -85,7 +85,7 @@ import PowerCore
     private var header: some View {
         let token = service.ownedAssertionID.map(SleepControlToken.awake)
         return HStack(spacing: 8) {
-            Label(L10n.text("Keep Awake"), systemImage: "cup.and.saucer").font(.system(size: 14, weight: .semibold))
+            Label(L10n.text("Keep Awake"), systemImage: "cup.and.saucer").font(.overviewBlockTitle)
             Spacer(minLength: 8)
             if let end = Self.endText(expiry: service.expiry, endDate: service.isActive ? service.endDate : nil) {
                 Text(end).font(.caption).foregroundStyle(.secondary).lineLimit(1).monospacedDigit()

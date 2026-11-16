@@ -34,6 +34,11 @@ enum PowerMetricHistory {
     }
 }
 
+extension Font {
+    /// One title style for every Overview block (the Keep Awake header is the reference): 14 pt semibold, with its icon.
+    static let overviewBlockTitle = Font.system(size: 14, weight: .semibold)
+}
+
 @MainActor struct PowerMetricCard: View {
     @ObservedObject var model: TilveroModel
     let title: String
@@ -87,7 +92,7 @@ enum PowerMetricHistory {
         // would wrap) and the value is never cut.
         return VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
-                Label(L10n.text(title), systemImage: symbol).lineLimit(1).minimumScaleFactor(0.85)
+                Label(L10n.text(title), systemImage: symbol).font(.overviewBlockTitle).lineLimit(1).minimumScaleFactor(0.85)
                 Spacer(minLength: 8)
                 StudioText(reading.map { CatalogDataPresentation.value($0, reveal: false, fahrenheit: model.fahrenheit) } ?? "—", id: "powerMetric." + id + ".value")
                     .monospacedDigit().lineLimit(1).fixedSize()

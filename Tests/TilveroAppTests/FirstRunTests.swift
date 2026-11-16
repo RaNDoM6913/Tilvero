@@ -1459,3 +1459,21 @@ final class CancellableProcessRunTests: XCTestCase {
         XCTAssertEqual(result.status, CancellableProcessRun.launchFailed)
     }
 }
+
+@MainActor final class FirstRunBeaconTests: XCTestCase {
+    func testTheRingSitsAroundTheIconAndGoesAway() {
+        let button = NSRect(x: 1300, y: 920, width: 40, height: 24)
+        let ring = FirstRunBeacon.ringFrame(around: button)
+        XCTAssertTrue(ring.contains(button))
+        XCTAssertEqual(ring.midX, button.midX, accuracy: 0.01)
+        XCTAssertEqual(ring.midY, button.midY, accuracy: 0.01)
+        let beacon = FirstRunBeacon()
+        beacon.show(around: button, reduceMotion: false)
+        XCTAssertTrue(beacon.isShown)
+        XCTAssertTrue(beacon.window?.ignoresMouseEvents == true, "never in the way of the real icon")
+        beacon.show(around: button, reduceMotion: true)   // a second call reuses the window
+        XCTAssertTrue(beacon.isShown)
+        beacon.hide()
+        XCTAssertFalse(beacon.isShown)
+    }
+}
