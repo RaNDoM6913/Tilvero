@@ -87,7 +87,7 @@ private final class CountdownLid: LidSleepSystem, @unchecked Sendable {
             try rig.service.selectDuration(minutes: minutes)
             try await Task.sleep(for: .milliseconds(200))
             assertOncePerSecond(try await changes(rig.host, during: 4.2), "timer \(minutes) min")
-            rig.service.stop()
+            rig.service.stop(); rig.window.orderOut(nil)
         }
     }
     func testKeepAwakePresetCountdownTicksEverySecond() async throws {

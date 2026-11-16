@@ -809,7 +809,7 @@ final class NativeBatteryStatusImageTests: XCTestCase {
     /// The native macOS 27 fill ends on a whole point. Evidence (2026-11-16, the owner's side-by-side Telegram screenshot at
     /// 2x, Tilvero left / system right, dark bar): the system fill edge sat 10, 12, 20, 28, 32 and 34 device pixels from the
     /// body's left edge at 21, 28, 43, 63, 69 and 76 % (all even, i.e. whole points: 5, 6, 10, 14, 16, 17 pt = round(level x
-    /// 23 / 100)), while the previous continuous fill sat at 9.9, 13.2, 20.2, 29.6, 32.4 and 35.7 px, half a point off at
+    /// 23 / 100)), while the previous continuous fill sat at 9.9, 13.2, 20.2, 29.6, 32.4 and 35.7 px, 0.6 to 0.86 pt too long at
     /// 28, 63 and 76 %. Body width and height matched the native one within 0.3 px at every level.
     func testNativeFillEdgeIsRoundedToWholePointsLikeTheSystemBattery() {
         let rule = { (level: Int?, extra: Int) in SystemBatterySymbol.fillEdge(level: level, bodyMinX: 5, bodyWidth: 47, extra: extra, scale: 2) }
@@ -834,7 +834,7 @@ final class NativeBatteryStatusImageTests: XCTestCase {
     }
 
     func testModernRenderedFillEndsOnTheNativeWholePointColumns() throws {
-        guard ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27 else { return }
+        try XCTSkipUnless(ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27, "needs the macOS 27 battery symbol")
         for (level, points) in [(21, 5), (28, 6), (43, 10), (63, 14), (69, 16), (76, 17)] {
             let actual = render(NativeBatteryStatusImage.make(level: level, style: .inside, externalPower: false,
                                 textSize: .system, appearance: .macOS27), scale: 2, appearance: .darkAqua)

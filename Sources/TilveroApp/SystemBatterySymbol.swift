@@ -86,7 +86,7 @@ import AppKit
     /// Width in points that the native macOS 27 battery maps 0...100 % onto: the solid core of its glyph, 23 pt. The native
     /// fill ends on a whole point, not on the exact fraction. In the owner's side-by-side screenshots (2x, 21/28/43/63/69/76 %)
     /// the native edges sit at 5, 6, 10, 14, 16 and 17 pt from the body's left edge, and the older 90 % reference at 21 pt;
-    /// that is `round(level * w)` for every w in 22.78...23.01. A continuous fill put 63 %, 76 % and 28 % up to half a point
+    /// that is `round(level * w)` for every w in 22.78...23.01. A continuous fill put 28 %, 63 % and 76 % 0.6 to 0.86 pt
     /// too far right.
     static let nativeFillPoints: CGFloat = 23
 
