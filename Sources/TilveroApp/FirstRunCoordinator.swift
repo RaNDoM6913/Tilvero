@@ -24,6 +24,9 @@ import SwiftUI
     var observeLateGrant: (@escaping @MainActor (Set<PrivilegedFeature>) -> Void) -> Void = { _ in }
     /// Turns the closed-lid option on after its permission was granted (no further prompt); true when it is on.
     var turnOnLid: () async -> Bool
+    /// Gives a brand-new install the starter Overview right before the real quick menu opens on it. The port itself
+    /// leaves an already stored layout alone.
+    var applyOverviewDefaults: () -> Void = {}
 }
 
 enum FirstRunLogin {
@@ -79,6 +82,7 @@ enum FirstRunLogin {
     private var observers: [NSObjectProtocol] = []
     private var stepSubscription: AnyCancellable?
     private var finishPending = false
+    private var overviewDefaultsApplied = false
     private var token = 0
     /// Tests run the flow without ever creating, showing or activating a window.
     var presentsWindow = true
@@ -98,6 +102,7 @@ enum FirstRunLogin {
     /// app for the first time). It is recorded at once, so a crash or quit never shows it again.
     func start() {
         token += 1
+        overviewDefaultsApplied = false
         ports.markIntroduced()
         showWindow()
     }
@@ -204,6 +209,9 @@ enum FirstRunLogin {
     /// Short success beat (if a permission was just granted), then the window flies into the real icon, the icon fills
     /// up and the real quick menu opens. With no room for the icon the window stays and explains how to make room.
     private func reveal(afterSuccess: Bool) {
+        // Every way out of the setup (start, skip, declined, attention, no room for the icon) passes through here
+        // before the real quick menu opens; the starter page is written once, whichever route was taken.
+        if !overviewDefaultsApplied { overviewDefaultsApplied = true; ports.applyOverviewDefaults() }
         let my = token
         let reduce = session.reduceMotion
         let speed = max(session.speed, 0.1)

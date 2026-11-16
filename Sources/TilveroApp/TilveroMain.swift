@@ -347,7 +347,9 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         if case .preview(let environment) = firstRunMode {
             // Never falls back to the real ports: a preview without its fakes shows nothing.
             guard let controls = previewControls, let installer = previewInstaller else { return }
-            ports = FirstRunPreview.ports(controls: controls, defaults: environment.defaults, installer: installer)
+            // The preview model reads the isolated defaults, so the starter page shows in the preview's real quick menu.
+            ports = FirstRunPreview.ports(controls: controls, defaults: environment.defaults, installer: installer,
+                                          applyOverviewDefaults: { [weak self] in self?.model.applyFirstRunOverviewLayout() })
         } else {
             let installer = PrivilegedRuleInstaller.native(defaults: .standard)
             let login = FirstRunLogin.Native()
@@ -364,7 +366,8 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
                     guard let lid = self?.model.lidSleep else { return false }
                     await lid.setPreferred(true, for: .keepAwake)
                     return lid.isPreferred
-                })
+                },
+                applyOverviewDefaults: { [weak self] in self?.model.applyFirstRunOverviewLayout() })
         }
         let coordinator = FirstRunCoordinator(session: session, ports: ports, host: self)
         firstRun = coordinator

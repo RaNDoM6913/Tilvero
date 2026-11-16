@@ -1205,7 +1205,7 @@ final class FirstRunCopyTests: XCTestCase {
 }
 
 @MainActor final class FirstRunCoordinatorTests: XCTestCase {
-    private var logins: [Bool] = [], history: [Bool] = [], requests: [(Set<PrivilegedFeature>, PermissionRoute)] = [], lid = 0, marks = 0
+    private var logins: [Bool] = [], history: [Bool] = [], requests: [(Set<PrivilegedFeature>, PermissionRoute)] = [], lid = 0, marks = 0, overviewCalls = 0
     private var loginResult: FirstRunLoginResult = .enabled
     private var permission: PrivilegedOutcome = .succeeded([.lidClosed, .chargeByTime])
     private var lidResult = true
@@ -1216,7 +1216,8 @@ final class FirstRunCopyTests: XCTestCase {
             markIntroduced: { self.marks += 1 }, setHistory: { self.history.append($0) },
             setLogin: { self.logins.append($0); return $0 ? self.loginResult : nil }, openLoginItemsSettings: {},
             requestPermission: { features, route in self.requests.append((features, route)); return self.permission },
-            commandText: { "text for \($0.count)" }, nudge: {}, turnOnLid: { self.lid += 1; return self.lidResult })
+            commandText: { "text for \($0.count)" }, nudge: {}, turnOnLid: { self.lid += 1; return self.lidResult },
+            applyOverviewDefaults: { self.overviewCalls += 1 })
         let session = FirstRunSession(isPreview: true)
         session.speed = 20
         session.forceReduceMotion = true
@@ -1307,6 +1308,64 @@ final class FirstRunCopyTests: XCTestCase {
         XCTAssertTrue(host.fills.contains { $0 != nil }, "the fill really ran")
         XCTAssertEqual(host.fills.last, .some(nil), "back to the real level before the host frees the coordinator")
         XCTAssertEqual(host.fillsAtFinish.last, .some(nil))
+    }
+
+    /// The starter Overview is written exactly once per first run, on every way out, before the real menu opens on it.
+    func testTheStarterOverviewIsAppliedOncePerFirstRunOnEveryExit() async throws {
+        var opened: [Int] = []   // overview calls seen at the moment the popover opened
+        for exit in [[FirstRunEvent.start], [.skip]] {
+            overviewCalls = 0
+            let (coordinator, host) = make()
+            coordinator.start()
+            XCTAssertEqual(overviewCalls, 0, "not before the user finishes")
+            exit.forEach(coordinator.session.send)
+            try await wait { host.finished == 1 }
+            opened.append(overviewCalls)
+            XCTAssertEqual(overviewCalls, 1)
+            coordinator.teardown()
+        }
+        XCTAssertEqual(opened, [1, 1])
+
+        overviewCalls = 0
+        permission = .cancelled
+        var (coordinator, host) = make()
+        coordinator.session.flow.choices.chargeByTime = true
+        coordinator.session.send(.start)
+        try await wait { coordinator.session.step == .declined }
+        XCTAssertEqual(overviewCalls, 0, "a declined request is not the end yet")
+        coordinator.session.send(.continueWithout)
+        try await wait { host.finished == 1 }
+        XCTAssertEqual(overviewCalls, 1)
+        coordinator.teardown()
+
+        overviewCalls = 0; lidResult = false; permission = .succeeded([.lidClosed, .chargeByTime])
+        (coordinator, host) = make()
+        coordinator.session.flow.choices.lidClosed = true
+        coordinator.session.send(.start)
+        try await wait { coordinator.session.step == .attention }
+        XCTAssertEqual(overviewCalls, 0)
+        coordinator.session.send(.start)
+        try await wait { host.finished == 1 }
+        XCTAssertEqual(overviewCalls, 1)
+        coordinator.teardown()
+
+        overviewCalls = 0
+        (coordinator, host) = make()
+        host.visible = false   // no room for the icon: the window stays, the layout is still written once
+        coordinator.session.send(.skip)
+        try await wait { coordinator.session.step == .iconHidden }
+        XCTAssertEqual(overviewCalls, 1)
+        coordinator.session.send(.openDetails)
+        try await wait { host.finished == 1 }
+        XCTAssertEqual(overviewCalls, 1)
+        coordinator.teardown()
+    }
+
+    func testAnAbandonedSetupWritesNothing() async throws {
+        let (coordinator, _) = make()
+        coordinator.start()
+        coordinator.teardown()
+        XCTAssertEqual(overviewCalls, 0)
     }
 
     /// Every way out (Start, Skip, Without password, after a look) lands in the icon and opens the real menu, then ends.

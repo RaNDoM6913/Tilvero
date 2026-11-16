@@ -153,7 +153,8 @@ enum FirstRunPreview {
         func outcome() async -> Outcome { await MainActor.run { controls.outcome } }
     }
 
-    @MainActor static func ports(controls: Controls, defaults: UserDefaults, installer: PrivilegedRuleInstaller) -> FirstRunPorts {
+    @MainActor static func ports(controls: Controls, defaults: UserDefaults, installer: PrivilegedRuleInstaller,
+                                       applyOverviewDefaults: @escaping () -> Void = {}) -> FirstRunPorts {
         FirstRunPorts(
             markIntroduced: { FirstRunDecision.markIntroduced(defaults) },
             setHistory: { defaults.set($0, forKey: "historyEnabled") },
@@ -163,7 +164,8 @@ enum FirstRunPreview {
             commandText: { installer.commandText(.install($0)) },
             nudge: { installer.nudge() },
             observeLateGrant: { handler in installer.observeLateSuccess { if case .install(let f) = $0 { handler(f) } } },
-            turnOnLid: { !controls.lidRefused })
+            turnOnLid: { !controls.lidRefused },
+            applyOverviewDefaults: applyOverviewDefaults)
     }
 }
 
