@@ -55,8 +55,7 @@ import AppKit
         let inset = scale >= 2 && contactInset.isFinite ? min(1, max(0, contactInset)) * CGFloat(scale) : 0
         let outputWidth = layers.width + extra
         guard let rep = bitmap(density: scale, extraWidth: extra / scale), let data = rep.bitmapData else { return nil }
-        let fraction = CGFloat(min(100, max(0, level ?? 0))) / 100
-        let edge = layers.body.minX + (layers.body.width + CGFloat(extra)) * fraction
+        let edge = fillEdge(level: level, bodyMinX: layers.body.minX, bodyWidth: layers.body.width, extra: extra, scale: scale)
         lastFillEdge = edge / CGFloat(scale)
         let middle = Int(layers.body.midX.rounded())
         for y in 0..<layers.height { for x in 0..<outputWidth {
@@ -82,6 +81,25 @@ import AppKit
         } }
         let image = NSImage(size: rep.size); image.addRepresentation(rep)
         return image
+    }
+
+    /// Width in points that the native macOS 27 battery maps 0...100 % onto: the solid core of its glyph, 23 pt. The native
+    /// fill ends on a whole point, not on the exact fraction. In the owner's side-by-side screenshots (2x, 21/28/43/63/69/76 %)
+    /// the native edges sit at 5, 6, 10, 14, 16 and 17 pt from the body's left edge, and the older 90 % reference at 21 pt;
+    /// that is `round(level * w)` for every w in 22.78...23.01. A continuous fill put 63 %, 76 % and 28 % up to half a point
+    /// too far right.
+    static let nativeFillPoints: CGFloat = 23
+
+    /// Right edge of the fill in raster pixels: the measured level, rounded to a whole point of the native fill width the way
+    /// the native battery does. 100 % always fills the whole body, and a charged battery never rounds down to an empty one
+    /// (a level that would round to zero keeps its exact width instead).
+    static func fillEdge(level: Int?, bodyMinX: CGFloat, bodyWidth: CGFloat, extra: Int, scale: Int) -> CGFloat {
+        guard let level, level > 0 else { return bodyMinX }
+        if level >= 100 { return bodyMinX + bodyWidth + CGFloat(extra) }
+        let width = nativeFillPoints + CGFloat(extra) / CGFloat(scale)
+        let exact = CGFloat(level) / 100 * width
+        let points = exact.rounded()
+        return bodyMinX + (points >= 1 ? points : exact) * CGFloat(scale)
     }
 
     private static func components(_ alpha: [UInt8], width: Int, height: Int) -> [Component] {

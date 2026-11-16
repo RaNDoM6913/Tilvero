@@ -806,6 +806,48 @@ final class NativeBatteryStatusImageTests: XCTestCase {
         XCTAssertLessThan(track.min() ?? 1, 0.35, "A numeral over the unfilled track is cut through, not drawn brighter than the track.")
     }
 
+    /// The native macOS 27 fill ends on a whole point. Evidence (2026-11-16, the owner's side-by-side Telegram screenshot at
+    /// 2x, Tilvero left / system right, dark bar): the system fill edge sat 10, 12, 20, 28, 32 and 34 device pixels from the
+    /// body's left edge at 21, 28, 43, 63, 69 and 76 % (all even, i.e. whole points: 5, 6, 10, 14, 16, 17 pt = round(level x
+    /// 23 / 100)), while the previous continuous fill sat at 9.9, 13.2, 20.2, 29.6, 32.4 and 35.7 px, half a point off at
+    /// 28, 63 and 76 %. Body width and height matched the native one within 0.3 px at every level.
+    func testNativeFillEdgeIsRoundedToWholePointsLikeTheSystemBattery() {
+        let rule = { (level: Int?, extra: Int) in SystemBatterySymbol.fillEdge(level: level, bodyMinX: 5, bodyWidth: 47, extra: extra, scale: 2) }
+        for (level, points) in [(21, 5), (28, 6), (43, 10), (63, 14), (69, 16), (76, 17)] {
+            XCTAssertEqual(rule(level, 0), CGFloat(5 + points * 2), "\(level) %")
+        }
+        // Sampled edges around the measured ones and the 90 % reference (21 pt).
+        for (level, points) in [(5, 1), (10, 2), (20, 5), (50, 12), (80, 18), (90, 21), (99, 23)] {
+            XCTAssertEqual(rule(level, 0), CGFloat(5 + points * 2), "\(level) %")
+        }
+        XCTAssertEqual(rule(nil, 0), 5); XCTAssertEqual(rule(0, 0), 5, "no fill at 0 %")
+        XCTAssertEqual(rule(100, 0), 52, "100 % fills the whole body including its antialiased fringe")
+        // A charged battery never rounds down to an empty body: below half a point the exact width is kept (not a measured case).
+        XCTAssertEqual(rule(1, 0), 5 + 0.23 * 2, accuracy: 1e-9)
+        XCTAssertGreaterThan(rule(2, 0), 5)
+        // The larger-text option widens the body by whole points; the fill follows the wider track.
+        XCTAssertEqual(rule(50, 8), 5 + 14 * 2, "50 % of 27 pt = 13.5 -> 14 pt")
+        XCTAssertEqual(rule(100, 8), 60)
+        // Monotone, never beyond the body.
+        var previous: CGFloat = 0
+        for level in 0...100 { let edge = rule(level, 0); XCTAssertGreaterThanOrEqual(edge, previous); XCTAssertLessThanOrEqual(edge, 52); previous = edge }
+    }
+
+    func testModernRenderedFillEndsOnTheNativeWholePointColumns() throws {
+        guard ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27 else { return }
+        for (level, points) in [(21, 5), (28, 6), (43, 10), (63, 14), (69, 16), (76, 17)] {
+            let actual = render(NativeBatteryStatusImage.make(level: level, style: .inside, externalPower: false,
+                                textSize: .system, appearance: .macOS27), scale: 2, appearance: .darkAqua)
+            // A row in the upper part of the body, above the numerals: solid fill is alpha 1, the track about 0.5.
+            let row = 8
+            let fill = (0..<actual.pixelsWide).filter { actual.colorAt(x: $0, y: row)!.alphaComponent > 0.8 }
+            let last = try XCTUnwrap(fill.last)
+            // The body's left edge is at pixel 2 of the status image (symbol minX 5 px, drawn 3 px left); the corner
+            // rounds off the first columns of this row, so only the right end of the fill is compared.
+            XCTAssertEqual(last + 1, 2 + points * 2, "\(level) %: fill ends at pixel \(last + 1), expected \(2 + points * 2) (\(points) pt)")
+        }
+    }
+
     private func render(_ image: NSImage, scale: Int, appearance: NSAppearance.Name? = nil) -> NSBitmapImageRep {
         let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int((image.size.width * CGFloat(scale)).rounded(.up)),
             pixelsHigh: Int((image.size.height * CGFloat(scale)).rounded(.up)), bitsPerSample: 8, samplesPerPixel: 4,
