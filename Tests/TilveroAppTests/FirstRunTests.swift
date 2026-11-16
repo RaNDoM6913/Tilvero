@@ -107,11 +107,22 @@ final class FirstRunDecisionTests: XCTestCase {
 
 final class FirstRunFlowTests: XCTestCase {
     private func locked() -> FirstRunFlow {
-        var flow = FirstRunFlow(); flow.choices.lidClosed = true; flow.choices.chargeByTime = true; return flow
+        var flow = plainFlow(); flow.choices.lidClosed = true; flow.choices.chargeByTime = true; return flow
+    }
+    /// Everything on that needs no password; the two password features off.
+    private func plainFlow() -> FirstRunFlow {
+        var flow = FirstRunFlow(); flow.choices.lidClosed = false; flow.choices.chargeByTime = false; return flow
     }
 
-    func testRecommendedChoicesNeedNoPasswordAndOneClick() {
-        var flow = FirstRunFlow()
+    /// Everything is on by default: one click on the main button, one macOS dialog for the two locked features.
+    func testEverythingIsOnByDefault() {
+        let flow = FirstRunFlow()
+        XCTAssertEqual(flow.choices, FirstRunChoices(launchAtLogin: true, keepHistory: true, lidClosed: true, chargeByTime: true))
+        XCTAssertEqual(flow.buttons, FirstRunButtons(primary: .allowAndStart, secondary: .skip, terminalLink: true))
+    }
+
+    func testChoicesWithoutPasswordFeaturesNeedOneClick() {
+        var flow = plainFlow()
         XCTAssertEqual(flow.choices, FirstRunChoices(launchAtLogin: true, keepHistory: true, lidClosed: false, chargeByTime: false))
         XCTAssertEqual(flow.buttons, FirstRunButtons(primary: .start, secondary: .skip, terminalLink: false))
         XCTAssertEqual(flow.handle(.start), [.applyEveryday(launchAtLogin: true, keepHistory: true)])
@@ -137,14 +148,14 @@ final class FirstRunFlowTests: XCTestCase {
     }
 
     func testChargeByTimeAloneNeedsNoLidStep() {
-        var flow = FirstRunFlow(); flow.choices.chargeByTime = true
+        var flow = plainFlow(); flow.choices.chargeByTime = true
         flow.handle(.start)
         XCTAssertEqual(flow.handle(.everydayApplied(nil)), [.requestPermission([.chargeByTime], .systemPrompt)])
         XCTAssertEqual(flow.handle(.permissionFinished(.succeeded([.chargeByTime]))), [.reveal(afterSuccess: true)])
     }
 
     func testTheTerminalFallbackIsOneClick() {
-        var plain = FirstRunFlow()
+        var plain = plainFlow()
         XCTAssertEqual(plain.handle(.useTerminal), [], "nothing to allow: no Terminal")
         var flow = locked()
         XCTAssertEqual(flow.handle(.useTerminal), [.applyEveryday(launchAtLogin: true, keepHistory: true)])
@@ -207,20 +218,20 @@ final class FirstRunFlowTests: XCTestCase {
         XCTAssertEqual(declined.step, .declined)
         XCTAssertEqual(declined.handle(.lateGrant([.lidClosed, .chargeByTime])), [.turnOnLid])
         XCTAssertEqual(declined.step, .enablingLid)
-        var timedOut = FirstRunFlow(); timedOut.choices.chargeByTime = true
+        var timedOut = plainFlow(); timedOut.choices.chargeByTime = true
         timedOut.handle(.useTerminal); timedOut.handle(.everydayApplied(nil)); timedOut.handle(.permissionFinished(.timedOut))
         XCTAssertEqual(timedOut.handle(.lateGrant([.chargeByTime])), [.reveal(afterSuccess: true)])
         var partial = locked(); partial.handle(.useTerminal); partial.handle(.everydayApplied(nil)); partial.handle(.cancel)
         XCTAssertEqual(partial.handle(.lateGrant([.chargeByTime])), [], "still missing the lid: stays with Try again")
         XCTAssertEqual(partial.granted, [.chargeByTime])
-        var idle = FirstRunFlow()
+        var idle = plainFlow()
         XCTAssertEqual(idle.handle(.lateGrant([.lidClosed])), [], "not chosen: nothing changes")
         XCTAssertEqual(idle.step, .choosing)
     }
 
     /// Ticking a password feature adds the Terminal link: the window resizes (the link line is also reserved).
     func testTheLayoutKeyFollowsEverythingThatChangesTheHeight() {
-        var flow = FirstRunFlow()
+        var flow = plainFlow()
         let plain = FirstRunWindowView.layoutKey(flow, showsCommand: false)
         flow.choices.keepHistory = false
         XCTAssertEqual(FirstRunWindowView.layoutKey(flow, showsCommand: false), plain, "a plain toggle changes nothing")
@@ -232,14 +243,14 @@ final class FirstRunFlowTests: XCTestCase {
     }
 
     func testSkipChangesNothingAndOpensTheApp() {
-        var flow = FirstRunFlow()
+        var flow = plainFlow()
         XCTAssertEqual(flow.handle(.skip), [.reveal(afterSuccess: false)])
         var waiting = locked(); waiting.handle(.useTerminal); waiting.handle(.everydayApplied(nil))
         XCTAssertEqual(waiting.handle(.skip), [.cancelPermissionRequest, .reveal(afterSuccess: false)])
     }
 
     func testLoginApprovalAndARefusedLidNeedOneMoreLook() {
-        var flow = FirstRunFlow(); flow.handle(.start)
+        var flow = plainFlow(); flow.handle(.start)
         XCTAssertEqual(flow.handle(.everydayApplied(.requiresApproval)), [])
         XCTAssertEqual(flow.step, .attention)
         XCTAssertEqual(flow.attention, [.loginNeedsApproval])
@@ -247,9 +258,9 @@ final class FirstRunFlowTests: XCTestCase {
         XCTAssertEqual(flow.handle(.openLoginSettings), [.openLoginItemsSettings])
         XCTAssertEqual(flow.handle(.start), [.reveal(afterSuccess: false)])
 
-        var failed = FirstRunFlow(); failed.handle(.start); failed.handle(.everydayApplied(.failed))
+        var failed = plainFlow(); failed.handle(.start); failed.handle(.everydayApplied(.failed))
         XCTAssertEqual(failed.attention, [.loginFailed])
-        var off = FirstRunFlow(); off.choices.launchAtLogin = false; off.handle(.start)
+        var off = plainFlow(); off.choices.launchAtLogin = false; off.handle(.start)
         XCTAssertEqual(off.handle(.everydayApplied(nil)).count, 1, "login off: nothing to look at")
 
         var lid = locked(); lid.handle(.start); lid.handle(.everydayApplied(.enabled)); lid.handle(.permissionFinished(.succeeded([.lidClosed, .chargeByTime])))
@@ -273,7 +284,7 @@ final class FirstRunFlowTests: XCTestCase {
             .permissionFinished(.cancelled), .permissionFinished(.failed(1)), .permissionFinished(.timedOut), .lidTurnedOn(true), .lidTurnedOn(false),
             .cancel, .continueWithout, .skip, .openLoginSettings, .revealed, .iconHidden, .openDetails]
         let moves: [FirstRunStep: [FirstRunEvent: FirstRunStep]] = [
-            .choosing: [.start: .applying, .skip: .done],   // the defaults need no password: no Terminal
+            .choosing: [.start: .applying, .useTerminal: .applying, .skip: .done],   // the defaults ask for the password
             .applying: [.everydayApplied(.enabled): .waitingSystem, .everydayApplied(nil): .waitingSystem],
             .waitingSystem: [.permissionFinished(.succeeded([.lidClosed, .chargeByTime])): .enablingLid, .permissionFinished(.cancelled): .declined,
                              .permissionFinished(.failed(1)): .failed, .permissionFinished(.timedOut): .timedOut, .cancel: .declined, .skip: .done],
@@ -1235,6 +1246,7 @@ final class FirstRunCopyTests: XCTestCase {
         let (coordinator, host) = make()
         coordinator.start()
         XCTAssertEqual(marks, 1, "recorded at once: never shown twice")
+        coordinator.session.flow.choices.lidClosed = false; coordinator.session.flow.choices.chargeByTime = false
         coordinator.session.send(.start)
         XCTAssertEqual(history, [true]); XCTAssertEqual(logins, [true])
         try await wait { host.popovers == 1 }
@@ -1259,7 +1271,7 @@ final class FirstRunCopyTests: XCTestCase {
     func testTheTerminalRouteShowsItsText() async throws {
         let (coordinator, _) = make()
         permission = .cancelled
-        coordinator.session.flow.choices.chargeByTime = true
+        coordinator.session.flow.choices.lidClosed = false; coordinator.session.flow.choices.chargeByTime = true
         coordinator.session.send(.useTerminal)
         try await wait { coordinator.session.step == .declined }
         XCTAssertEqual(requests.first?.1, .terminal)
