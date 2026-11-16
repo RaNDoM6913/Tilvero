@@ -16689,22 +16689,6 @@
         }
       }
     },
-    "firstRun.chargeLimit": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Charge limit"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Лимит заряда"
-          }
-        }
-      }
-    },
     "firstRun.lidClosed": {
       "localizations": {
         "en": {
@@ -16877,22 +16861,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Графики заряда, только на этом Mac"
-          }
-        }
-      }
-    },
-    "firstRun.chargeLimit.detail": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Turned on later, in the Charge tab"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Включается потом, во вкладке «Заряд»"
           }
         }
       }
@@ -17325,22 +17293,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Открыть Tilvero"
-          }
-        }
-      }
-    },
-    "firstRun.coach": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Charge limit is here"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Лимит заряда — здесь"
           }
         }
       }

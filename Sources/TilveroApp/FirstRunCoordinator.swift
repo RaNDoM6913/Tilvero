@@ -66,7 +66,7 @@ enum FirstRunLogin {
     func firstRunFinished()
 }
 
-/// Thin AppKit glue: runs the effects of `FirstRunFlow` (window, permission request, landing, coach).
+/// Thin AppKit glue: runs the effects of `FirstRunFlow` (window, permission request, landing in the icon).
 @MainActor final class FirstRunCoordinator: NSObject, NSWindowDelegate {
     let session: FirstRunSession
     private let ports: FirstRunPorts
@@ -117,7 +117,6 @@ enum FirstRunLogin {
         lidTask?.cancel(); lidTask = nil
         iconTask?.cancel(); iconTask = nil
         host?.firstRunDrawIcon(fill: nil)
-        session.showCoach(false)
         finishPending = false
         dropWindow()
     }
@@ -129,17 +128,9 @@ enum FirstRunLogin {
         if step != .finished { showWindow() }
         switch step {
         case .waitingSystem, .waitingTerminal: run(.requestPermission(session.flow.requested, session.flow.route))
-        case .done: run(.reveal(afterSuccess: true, coachChargeLimit: session.flow.choices.chargeLimit))
+        case .done: run(.reveal(afterSuccess: true))
         default: break
         }
-    }
-
-    // MARK: Hooks from the app delegate
-
-    func popoverDidClose() {
-        guard session.coachVisible || finishPending else { return }
-        session.showCoach(false)
-        completeFinish()
     }
 
     // MARK: Effects
@@ -176,12 +167,12 @@ enum FirstRunLogin {
                 self.session.send(.lidTurnedOn(enabled))
             }
         case .openLoginItemsSettings: ports.openLoginItemsSettings()
-        case .reveal(let afterSuccess, let coach): reveal(afterSuccess: afterSuccess, coach: coach)
+        case .reveal(let afterSuccess): reveal(afterSuccess: afterSuccess)
         case .closeWindow: closeWindow(intoIcon: nil)
         case .openDetails: host?.firstRunOpenDetails()
         case .finish:
             finishPending = true
-            if !session.coachVisible { completeFinish() }
+            completeFinish()
         }
     }
 
@@ -212,7 +203,7 @@ enum FirstRunLogin {
 
     /// Short success beat (if a permission was just granted), then the window flies into the real icon, the icon fills
     /// up and the real quick menu opens. With no room for the icon the window stays and explains how to make room.
-    private func reveal(afterSuccess: Bool, coach: Bool) {
+    private func reveal(afterSuccess: Bool) {
         let my = token
         let reduce = session.reduceMotion
         let speed = max(session.speed, 0.1)
@@ -227,14 +218,6 @@ enum FirstRunLogin {
             self.after(FirstRunMotion.handOffDuration(reduceMotion: reduce) / speed) { [weak self] in
                 guard let self, my == self.token else { return }
                 self.host?.firstRunOpenPopover()
-                if coach {
-                    self.session.showCoach(true)
-                    self.after(FirstRunMotion.coachDuration / speed) { [weak self] in
-                        guard let self, my == self.token else { return }
-                        self.session.showCoach(false)
-                        self.completeFinish()
-                    }
-                }
                 self.session.send(.revealed)
             }
         }

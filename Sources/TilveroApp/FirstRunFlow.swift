@@ -33,11 +33,11 @@ enum FirstRunStep: String, Equatable, CaseIterable {
 enum FirstRunLoginResult: Hashable { case enabled, requiresApproval, failed }
 
 /// What the user picks. Defaults: everything that needs no password is on, so one click on the main button sets the
-/// app up; the two features that need the administrator password are opt-in.
+/// app up; the two features that need the administrator password are opt-in. (The charge limit is a macOS setting
+/// Tilvero only reads: it is not a first-run choice.)
 struct FirstRunChoices: Equatable {
     var launchAtLogin = true
     var keepHistory = true
-    var chargeLimit = true
     var lidClosed = false
     var chargeByTime = false
 
@@ -77,9 +77,9 @@ enum FirstRunEffect: Equatable {
     case cancelPermissionRequest
     case turnOnLid
     case openLoginItemsSettings
-    /// Close the window into the menu bar icon and open the real quick menu (after a short beat when a permission was
-    /// just granted). `coachChargeLimit` points at the Charge tab once.
-    case reveal(afterSuccess: Bool, coachChargeLimit: Bool)
+    /// Close the window into the menu bar icon and open the real quick menu on Overview (after a short beat when a
+    /// permission was just granted). Nothing else: no coach, no tour.
+    case reveal(afterSuccess: Bool)
     case closeWindow
     case openDetails
     case finish
@@ -196,16 +196,16 @@ struct FirstRunFlow: Equatable {
 
         case (.attention, .start):
             step = .done
-            return [.reveal(afterSuccess: false, coachChargeLimit: choices.chargeLimit)]
+            return [.reveal(afterSuccess: false)]
         case (.attention, .openLoginSettings):
             return [.openLoginItemsSettings]
 
         case (.choosing, .skip), (.declined, .skip), (.failed, .skip), (.timedOut, .skip), (.attention, .skip):
             step = .done
-            return [.reveal(afterSuccess: false, coachChargeLimit: false)]
+            return [.reveal(afterSuccess: false)]
         case (.waitingSystem, .skip), (.waitingTerminal, .skip):
             step = .done
-            return [.cancelPermissionRequest, .reveal(afterSuccess: false, coachChargeLimit: false)]
+            return [.cancelPermissionRequest, .reveal(afterSuccess: false)]
 
         case (.done, .revealed):
             step = .finished
@@ -234,6 +234,6 @@ struct FirstRunFlow: Equatable {
     private mutating func finish(afterSuccess: Bool) -> [FirstRunEffect] {
         if !attention.isEmpty { step = .attention; return [] }
         step = .done
-        return [.reveal(afterSuccess: afterSuccess, coachChargeLimit: choices.chargeLimit)]
+        return [.reveal(afterSuccess: afterSuccess)]
     }
 }

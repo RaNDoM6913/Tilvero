@@ -16,13 +16,10 @@ import SwiftUI
     /// The exact text Terminal runs, shown behind "Show command" while the window waits for Terminal.
     @Published var commandText: String?
     @Published var showsCommand = false
-    /// The coach on the real Charge tab after the quick menu opened.
-    @Published var coachVisible = false
     /// When the window appeared; any click jumps the entrance (and the Terminal hint) to its resting frame.
     @Published private(set) var entranceStart = Date()
     @Published var motionSkipped = false
     @Published var hintSkipped = false
-    @Published private(set) var coachStart = Date()
     let isPreview: Bool
     var perform: (FirstRunEffect) -> Void = { _ in }
 
@@ -37,7 +34,6 @@ import SwiftUI
     /// Renders hold one frame (snapshot tests); nil in the app.
     var frozenTime: Double?
     func time(at date: Date) -> Double { frozenTime ?? max(0, date.timeIntervalSince(sceneStart)) * speed }
-    func coachTime(at date: Date) -> Double { frozenTime ?? max(0, date.timeIntervalSince(coachStart)) * speed }
     /// Entrance time; renders can hold it separately from the step time.
     var frozenEntranceTime: Double?
     func entranceTime(at date: Date) -> Double {
@@ -54,11 +50,6 @@ import SwiftUI
         let effects = flow.handle(event)
         if flow.step != before { sceneStart = Date(); hintSkipped = false; if !flow.isWaiting { showsCommand = false } }
         effects.forEach(perform)
-    }
-
-    func showCoach(_ visible: Bool) {
-        if visible { coachStart = Date() }
-        coachVisible = visible
     }
 
     /// Debug and renders: put the flow into any step with plausible choices (no effects run).
@@ -88,20 +79,5 @@ import SwiftUI
     func jump(to step: FirstRunStep) {
         flow = Self.flow(at: step)
         sceneStart = Date(); showsCommand = false
-    }
-}
-
-// MARK: Frames of the coach target inside the quick panel
-
-struct FirstRunFrameKey: PreferenceKey {
-    static let defaultValue: [String: CGRect] = [:]
-    static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) { value.merge(nextValue()) { $1 } }
-}
-
-extension View {
-    func firstRunFrame(_ id: String) -> some View {
-        background(GeometryReader { proxy in
-            Color.clear.preference(key: FirstRunFrameKey.self, value: [id: proxy.frame(in: .named(FirstRunCoachLayer.space))])
-        })
     }
 }

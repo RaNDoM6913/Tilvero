@@ -78,15 +78,6 @@ enum FirstRunMotion {
         Int((Double(level) * iconFill(t, reduceMotion: reduceMotion)).rounded())
     }
 
-    /// The "charge limit is here" coach on the real Charge tab: fades in, two soft pulses, rests, fades out.
-    static let coachDuration = 4.0
-    struct CoachFrame: Equatable { var opacity: Double, pulse: Double }
-    static func coach(_ t: Double, reduceMotion: Bool) -> CoachFrame {
-        let opacity = segment(t, 0, 0.25) * (1 - segment(t, coachDuration - 0.4, coachDuration))
-        guard !reduceMotion else { return CoachFrame(opacity: opacity, pulse: 0) }
-        let pulse = t < 2 ? (t.truncatingRemainder(dividingBy: 1)) : 0
-        return CoachFrame(opacity: opacity, pulse: pulse)
-    }
 }
 
 /// Where the first-run window sits: centered on the screen of the menu bar icon, like any setup window.

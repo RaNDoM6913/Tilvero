@@ -368,7 +368,6 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         }
         let coordinator = FirstRunCoordinator(session: session, ports: ports, host: self)
         firstRun = coordinator
-        model.firstRun = session
         if preview { showPreviewPanel(coordinator) }
         coordinator.start()
     }
@@ -393,13 +392,11 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         guard let controls = previewControls else { return }
         let panel = FirstRunDebugPanel(session: coordinator.session, controls: controls,
             restart: { [weak self, weak coordinator] in
-                guard let self, let coordinator else { return }
-                self.model.firstRun = coordinator.session
+                guard self != nil, let coordinator else { return }
                 coordinator.restart()
             },
             jump: { [weak self, weak coordinator] step in
-                guard let self, let coordinator else { return }
-                self.model.firstRun = coordinator.session
+                guard self != nil, let coordinator else { return }
                 coordinator.jump(to: step)
             })
         let window = NSWindow(contentViewController: NSHostingController(rootView: panel))
@@ -789,7 +786,6 @@ extension TilveroAppDelegate: NSPopoverDelegate {
         statusItem?.button?.highlight(false)
         updateStatusItem()
         model.quickPanelDidClose()
-        firstRun?.popoverDidClose()
         if detailsHiddenForQuickPanel {
             // The user closed the panel without asking for the details window: hand activation back to the
             // previous app instead of revealing it. A fallback guarantees the window is never left invisible.
@@ -817,14 +813,17 @@ extension TilveroAppDelegate: FirstRunHost {
         return StatusItemVisibility.isVisible(button: firstRunStatusButtonFrame, screens: screens,
                                               windowVisible: window?.isVisible == true)
     }
-    func firstRunOpenPopover() { if !popover.isShown && !activationGate.isWaiting { togglePopover() } }
+    /// The real quick menu on Overview, whatever tab it showed before (a fresh panel resets its selected tab).
+    func firstRunOpenPopover() {
+        configureQuickPanel()
+        if !popover.isShown && !activationGate.isWaiting { togglePopover() }
+    }
     func firstRunOpenDetails() { showDetails() }
     func firstRunDrawIcon(fill: Double?) {
         firstRunIconFill = fill
         updateStatusItem()
     }
     func firstRunFinished() {
-        model.firstRun = nil
         if firstRunIconFill != nil { firstRunIconFill = nil; updateStatusItem() }   // never a fraction of the real level
         // The preview keeps its coordinator so the debug panel can play it again.
         if !firstRunMode.isPreview { firstRun = nil }

@@ -49,7 +49,6 @@ struct FirstRunWindowView: View {
     static let rows: [Row] = [
         Row(id: "login", title: "firstRun.launchAtLogin", detail: "firstRun.launchAtLogin.detail", symbol: "power", path: \.launchAtLogin),
         Row(id: "history", title: "firstRun.keepHistory", detail: "firstRun.keepHistory.detail", symbol: "clock.arrow.circlepath", path: \.keepHistory),
-        Row(id: "limit", title: "firstRun.chargeLimit", detail: "firstRun.chargeLimit.detail", symbol: "battery.75percent", path: \.chargeLimit),
         Row(id: "lid", title: "firstRun.lidClosed", detail: "firstRun.lidClosed.detail", symbol: "laptopcomputer", path: \.lidClosed, feature: .lidClosed),
         Row(id: "chargeBy", title: "firstRun.chargeByTime", detail: "firstRun.chargeByTime.detail", symbol: "alarm", path: \.chargeByTime, feature: .chargeByTime),
     ]
@@ -402,78 +401,5 @@ struct FirstRunTerminalHint: View {
         .padding(.vertical, 10)
         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.primary.opacity(0.07), lineWidth: 1))
         .accessibilityHidden(true)
-    }
-}
-
-// MARK: Coach on the real quick panel
-
-/// After setup, when the charge limit was chosen: a capsule under the real Charge tab says where it is. Never takes
-/// clicks; it ends by itself, on the first pointer movement over the panel, or when the panel closes.
-struct FirstRunCoachLayer: View {
-    static let space = "firstRunCoach"
-
-    /// Adds the Charge tab's frame, an equal segment of the full-width tabs.
-    static func chargeTab(in frames: [String: CGRect], sections: [QuickPanelSection]) -> CGRect? {
-        guard let tabs = frames["tabs"], let index = sections.firstIndex(of: .charge), !sections.isEmpty else { return nil }
-        let width = tabs.width / CGFloat(sections.count)
-        return CGRect(x: tabs.minX + width * CGFloat(index), y: tabs.minY, width: width, height: tabs.height)
-    }
-
-    @ObservedObject var session: FirstRunSession
-    var tab: CGRect?
-    static let capsuleWidth: CGFloat = 190
-    /// Under the tab, kept inside the panel.
-    static func capsuleCenter(tab: CGRect, width: CGFloat) -> CGFloat {
-        min(max(tab.midX, capsuleWidth / 2 + 8), max(capsuleWidth / 2 + 8, width - capsuleWidth / 2 - 8))
-    }
-
-    var body: some View {
-        let visible = session.coachVisible && tab != nil
-        TimelineView(.animation(paused: !visible || session.frozenTime != nil)) { context in
-            if visible, let tab {
-                let f = M.coach(session.coachTime(at: context.date), reduceMotion: session.reduceMotion)
-                GeometryReader { proxy in
-                    ZStack(alignment: .topLeading) {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Color.accentColor.opacity(0.6 * (1 - f.pulse)), lineWidth: 2)
-                            .frame(width: tab.width + 8 * f.pulse, height: tab.height + 8 * f.pulse)
-                            .position(x: tab.midX, y: tab.midY)
-                            .opacity(f.pulse > 0 ? 1 : 0)
-                        VStack(spacing: 0) {
-                            FirstRunCaret().fill(Color.accentColor).frame(width: 12, height: 6)
-                                .offset(x: tab.midX - Self.capsuleCenter(tab: tab, width: proxy.size.width))
-                            Text(L10n.text("firstRun.coach")).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
-                                .padding(.horizontal, 10).padding(.vertical, 5).background(Capsule().fill(Color.accentColor)).fixedSize()
-                        }
-                        .frame(width: Self.capsuleWidth)
-                        .position(x: Self.capsuleCenter(tab: tab, width: proxy.size.width), y: tab.maxY + 18)
-                    }
-                }
-                .opacity(f.opacity)
-            }
-        }
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-    }
-}
-
-struct FirstRunCaret: Shape {
-    func path(in r: CGRect) -> Path {
-        var p = Path(); p.move(to: CGPoint(x: r.minX, y: r.maxY)); p.addLine(to: CGPoint(x: r.midX, y: r.minY))
-        p.addLine(to: CGPoint(x: r.maxX, y: r.maxY)); p.closeSubpath(); return p
-    }
-}
-
-/// The coach stops as soon as the pointer really moves over the panel (the user has taken over).
-struct FirstRunHoverDismissal: ViewModifier {
-    var session: FirstRunSession?
-    @State private var firstPoint: CGPoint?
-    /// Always the same view structure (the panel's own state survives the first run ending); the session is
-    /// checked inside.
-    func body(content: Content) -> some View {
-        content.onContinuousHover { phase in
-            guard let session, case .active(let point) = phase, session.coachVisible else { return }
-            if let first = firstPoint { if hypot(point.x - first.x, point.y - first.y) > 10 { session.showCoach(false) } }
-            else { firstPoint = point }
-        }
     }
 }

@@ -387,8 +387,6 @@ final class TilveroModel: ObservableObject {
     var quickPanelSection: QuickPanelSection = .overview { didSet { if oldValue != quickPanelSection { updateLiveCharts() } } }
     var isDetailVisible = false
     var openDetails: (@MainActor () -> Void)?
-    /// The first run in progress (first launch only; nil otherwise): the quick panel shows its one coach from it.
-    var firstRun: FirstRunSession? { willSet { objectWillChange.send() } }
     /// Settings > Setup: the administrator permissions (nil in demo, monitoring-only and test sessions).
     var privilegedPermissions: PrivilegedPermissionsController? { willSet { objectWillChange.send() } }
     var onPresentationChange: (@MainActor () -> Void)?
