@@ -15985,22 +15985,6 @@
         }
       }
     },
-    "Adapter not connected — no adapter line": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Adapter not connected — no adapter line"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Адаптер не подключён — линии адаптера нет"
-          }
-        }
-      }
-    },
     "Keep Awake keeps running with the lid closed. Normal sleep returns by itself when the session ends, on stop and on quit.": {
       "localizations": {
         "en": {

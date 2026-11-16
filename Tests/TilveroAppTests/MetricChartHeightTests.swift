@@ -15,7 +15,7 @@ import AppKit
             HistoryChartPoint(id: UUID(), date: window.lowerBound.addingTimeInterval($0), value: 5 + 3 * sin($0 / 300), series: "x")
         }
         let series = MetricChartSeries.make(points: points, window: window, now: now)
-        let view = MetricChartView(specs: [MetricChartSeriesSpec(id: "x", series: series, color: .orange, endLabel: nil)],
+        let view = MetricChartView(specs: [MetricChartSeriesSpec(id: "x", series: series, color: .orange)],
                                    scale: MetricChartScale.scale(forMetric: "038", values: series.points.map(\.value)),
                                    window: window, unit: "W", density: density, emptyMessage: "")
         return NSHostingController(rootView: view.frame(width: 300)).sizeThatFits(in: NSSize(width: 300, height: 2000)).height

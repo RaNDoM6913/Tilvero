@@ -61,7 +61,7 @@ import PowerTelemetry
         XCTAssertEqual(PowerTilesBlock.tileLines(id: "038", reading: nil, adapterConnected: false).value, "—")
         // The empty chart of that tile is the dashed frame (no scale, no axis), not a flat zero line.
         let window = Date(timeIntervalSince1970: 1_800_000_000)...Date(timeIntervalSince1970: 1_800_003_600)
-        let empty = MetricChartSeriesSpec(id: "054", series: .make(points: [], window: window, now: window.upperBound), color: .blue, endLabel: nil)
+        let empty = MetricChartSeriesSpec(id: "054", series: .make(points: [], window: window, now: window.upperBound), color: .blue)
         let layout = MetricChartView.layout(specs: [empty], scale: MetricChartScale.scale(forMetric: "054", values: []), density: .compact)
         XCTAssertTrue(layout.isDashedEmpty)
         XCTAssertEqual(layout.valueTickCount, 0)
@@ -90,73 +90,73 @@ import PowerTelemetry
         // Without an adapter series the scale is the battery's own (never padded by a phantom zero line).
         XCTAssertEqual(PowerCombinedBlock.combinedScale(battery: battery, adapter: nil), batteryOnly)
     }
-    func testEndLabelsNeverOverlap() {
-        // Last values 0.5 W apart on a 0...30 W axis: 120 pt plot, so the raw label centres are 2 pt apart.
-        let battery = combinedSeries([13.0, 13.9]), adapter = combinedSeries([17.5, 14.4])
-        let scale = PowerCombinedBlock.combinedScale(battery: battery, adapter: adapter)
-        let content = PowerCombinedBlock.content(battery: reading("038", value: 13.9, provenance: .estimated),
-                                                 adapter: reading("054", value: 14.4, provenance: .measured), adapterConnected: true)
-        let specs = PowerCombinedBlock.specs(content: content, battery: battery, adapter: adapter)
-        XCTAssertEqual(specs.count, 2)
-        let ys = MetricChartView.endLabelPositions(specs: specs, scale: try! XCTUnwrap(scale), plotHeight: 120, minGap: 14)
-        let placed = ys.compactMap { $0 }
-        XCTAssertEqual(placed.count, 2)
-        XCTAssertGreaterThanOrEqual(abs(placed[0] - placed[1]), 12)
-        XCTAssertTrue(placed.allSatisfy { $0 >= 0 && $0 <= 120 }, "Labels stay inside the plot.")
-        // The same on the compact plot height, and for identical last values.
-        let tight = MetricChartView.endLabelPositions(specs: specs, scale: try! XCTUnwrap(scale), plotHeight: 70, minGap: 14).compactMap { $0 }
-        XCTAssertGreaterThanOrEqual(abs(tight[0] - tight[1]), 12)
-        let same = [combinedSeries([5.0]), combinedSeries([5.0])]
-        let sameSpecs = zip(["a", "b"], same).map { MetricChartSeriesSpec(id: $0, series: $1, color: .blue, endLabel: $0) }
-        let sameYs = MetricChartView.endLabelPositions(specs: sameSpecs, scale: try! XCTUnwrap(MetricChartScale.scale(forMetric: "038", values: [5])), plotHeight: 120, minGap: 14).compactMap { $0 }
-        XCTAssertGreaterThanOrEqual(abs(sameYs[0] - sameYs[1]), 12)
-    }
-    func testEndLabelsReadAsTitleAndNumberFromTheSharedPresentation() {
+    private func withLanguage<T>(_ language: String, _ body: () throws -> T) rethrows -> T {
         let saved = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
-        UserDefaults.standard.setVolatileDomain(saved.merging(["language": "ru"]) { _, value in value }, forName: UserDefaults.argumentDomain)
+        UserDefaults.standard.setVolatileDomain(saved.merging(["language": language]) { _, value in value }, forName: UserDefaults.argumentDomain)
         defer { UserDefaults.standard.setVolatileDomain(saved, forName: UserDefaults.argumentDomain) }
-        let content = PowerCombinedBlock.content(battery: reading("038", value: -10.4, provenance: .estimated),
-                                                 adapter: reading("054", value: 38.2, provenance: .measured), adapterConnected: true)
-        // Number formatting is the shared presentation's (locale decimal comma, no unit, no approximation prefix).
-        XCTAssertEqual(content.batteryLabel, "Батарея -10,4")
-        XCTAssertEqual(content.adapterLabel, "Адаптер 38,2")
-        XCTAssertEqual(content.title, "Мощность")
-        XCTAssertNil(content.absentMessage, "No caption and no message while the adapter is connected: the title is enough.")
+        return try body()
     }
-    func testRussianEndLabelsFitTheLabelFrameAt360() {
-        let saved = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
-        UserDefaults.standard.setVolatileDomain(saved.merging(["language": "ru"]) { _, value in value }, forName: UserDefaults.argumentDomain)
-        defer { UserDefaults.standard.setVolatileDomain(saved, forName: UserDefaults.argumentDomain) }
-        // Popover width minus the panel padding on both sides and card padding 2 x 12, then axis, gutter and the label column.
-        let inner: CGFloat = QuickPanelMetrics.width - 2 * QuickPanelMetrics.padding - 2 * 12
-        let plot = inner - 30 - 6 - MetricChartView.endLabelColumnWidth
-        XCTAssertGreaterThanOrEqual(plot, 140, "The plot keeps a usable width after the wider label column.")
-        let frame = MetricChartView.endLabelFrameWidth
-        let font = MetricChartView.endLabelFont
-        XCTAssertEqual(font.pointSize, 11)
-        let labels = [("038", -10.4), ("054", 38.25), ("038", -100.5), ("054", 38.2)].compactMap { id, value in
-            PowerCombinedBlock.endLabel(titleKey: id == "054" ? "Adapter" : "Battery (short)",
-                                        reading: reading(id, value: value, provenance: id == "038" ? .estimated : .measured), fahrenheit: false)
+    func testLegendValuesAreTheSharedPresentationNumbersWithoutNamesPrefixOrUnit() {
+        withLanguage("ru") {
+            let content = PowerCombinedBlock.content(battery: reading("038", value: -10.4, provenance: .estimated),
+                                                     adapter: reading("054", value: 38.2, provenance: .measured), adapterConnected: true)
+            // Locale decimal comma, the minus of a discharge kept, no unit and no approximation prefix (the heading carries the unit).
+            XCTAssertEqual(content.batteryValue, "-10,4")
+            XCTAssertEqual(content.adapterValue, "38,2")
+            XCTAssertEqual(content.title, "Мощность")
+            XCTAssertEqual(content.batteryLabel, "Батарея -10,4")
+            XCTAssertEqual(content.adapterLabel, "Адаптер 38,2")
+            XCTAssertEqual(content.legendDescription, "Батарея -10,4, Адаптер 38,2")
+            XCTAssertFalse(content.isStale)
+            XCTAssertTrue(content.drawsAdapter)
+            // Charging: a positive battery value has no sign.
+            let charging = PowerCombinedBlock.content(battery: reading("038", value: 11.9, provenance: .estimated),
+                                                      adapter: reading("054", value: 30.7, provenance: .measured), adapterConnected: true)
+            XCTAssertEqual(charging.legendDescription, "Батарея 11,9, Адаптер 30,7")
         }
-        XCTAssertEqual(labels, ["Батарея -10,4", "Адаптер 38,25", "Батарея -100,5", "Адаптер 38,2"])
-        for label in labels {
-            let width = ceil((label as NSString).size(withAttributes: [.font: font]).width)
-            XCTAssertLessThanOrEqual(width, frame, "\(label) is \(width) pt in a \(frame) pt frame")
-            XCTAssertTrue(MetricChartView.endLabelFits(label), label)
-            XCTAssertGreaterThanOrEqual(frame / width, 0.85, "never needs scaling below 0.85")
+        withLanguage("en") {
+            let content = PowerCombinedBlock.content(battery: reading("038", value: -4.5, provenance: .estimated),
+                                                     adapter: reading("054", value: 30.7, provenance: .measured), adapterConnected: true)
+            XCTAssertEqual(content.legendDescription, "Battery -4.5, Adapter 30.7")
         }
-        XCTAssertTrue(MetricChartView.endLabelFits("Battery -10.4"))
-        XCTAssertFalse(MetricChartView.endLabelFits("Батарея -1000,55 мощность"), "The helper does report overflow.")
     }
-    func testAdapterMissingDrawsOnlyBatteryLineAndOneMessage() {
+    func testLegendShowsADashForMissingReadingsAndNeverAZero() {
+        withLanguage("ru") {
+            // No battery reading: no value (the view prints "—" muted), not a plausible zero, and the sentence skips it.
+            let nothing = PowerCombinedBlock.content(battery: nil, adapter: nil, adapterConnected: true)
+            XCTAssertNil(nothing.batteryValue)
+            XCTAssertNil(nothing.adapterValue)
+            // ...but both drawn lines keep a spoken name, with the dash the legend shows (never an empty VoiceOver element).
+            XCTAssertEqual(nothing.batteryLabel, "Батарея —")
+            XCTAssertEqual(nothing.adapterLabel, "Адаптер —")
+            XCTAssertEqual(nothing.legendDescription, "Батарея —, Адаптер —")
+            // A reading without a value is the same as none.
+            let unavailable = PowerCombinedBlock.content(battery: reading("038", value: nil, provenance: .estimated),
+                                                         adapter: reading("054", value: nil, provenance: .measured), adapterConnected: true)
+            XCTAssertNil(unavailable.batteryValue)
+            XCTAssertNil(unavailable.adapterValue)
+            XCTAssertEqual(unavailable.legendDescription, "Батарея —, Адаптер —")
+            // The chart still names a line that has data but no catalog reading (live SMC samples between registry reads).
+            let battery = combinedSeries([-1, -2]), adapter = combinedSeries([3, 4])
+            let named = PowerCombinedBlock.specs(content: unavailable, battery: battery, adapter: adapter)
+            XCTAssertEqual(MetricChartView.accessibilityText(specs: named, unit: "Вт"), "\(L10n.text("Chart")), Вт: Батарея —, Адаптер —")
+            // Stale freshness of the battery reading mutes the whole header.
+            let stale = CatalogReading(definition: BatteryCatalog.definition("038"), value: .decimal(-4), source: "fixture", keyPath: "input",
+                                       collectedAt: Date(), provenance: .estimated, freshness: .stale)
+            XCTAssertTrue(PowerCombinedBlock.content(battery: stale, adapter: nil, adapterConnected: true).isStale)
+        }
+    }
+    func testAdapterMissingDrawsOnlyBatteryLineAndAMutedDashNoCaption() {
         let battery = combinedSeries([-10, -9.5, -10.4]), adapter = combinedSeries([5, 6, 7])
-        let absent = L10n.text("Adapter not connected — no adapter line")
-        XCTAssertEqual(absent, L10n.language == "ru" ? "Адаптер не подключён — линии адаптера нет" : "Adapter not connected — no adapter line")
-        for adapterReading in [nil, reading("054", value: nil, provenance: .measured)] {
+        for adapterReading in [nil, reading("054", value: 9, provenance: .measured)] {
             let content = PowerCombinedBlock.content(battery: reading("038", value: -10.4, provenance: .estimated), adapter: adapterReading, adapterConnected: false)
-            XCTAssertEqual(content.absentMessage, absent, "The message appears exactly once.")
+            // Even a reading that is still around does not show: the adapter is known to be unplugged.
+            XCTAssertNil(content.adapterValue)
             XCTAssertNil(content.adapterLabel)
-            // Even if the history still holds earlier adapter samples, an unplugged adapter draws no line and does not widen the axis.
+            XCTAssertFalse(content.drawsAdapter)
+            XCTAssertNotNil(content.batteryValue)
+            XCTAssertTrue(content.legendDescription.hasSuffix(L10n.text("Adapter not connected — no reading")), "VoiceOver hears that the adapter is unplugged.")
+            // An unplugged adapter draws no line and does not widen the axis, even if the history holds earlier samples.
             let specs = PowerCombinedBlock.specs(content: content, battery: battery, adapter: adapter)
             XCTAssertEqual(specs.map(\.id), ["038"], "Only the battery series is drawn, never a zero adapter line.")
             XCTAssertEqual(PowerCombinedBlock.combinedScale(battery: battery, adapter: content.drawsAdapter ? adapter : nil),
@@ -164,29 +164,47 @@ import PowerTelemetry
         }
         // Unknown external-power state counts as connected: both lines, no "not connected" claim.
         let unknown = PowerCombinedBlock.content(battery: reading("038", value: -10.4, provenance: .estimated), adapter: nil, adapterConnected: true)
-        XCTAssertNil(unknown.absentMessage)
+        XCTAssertNil(unknown.adapterValue, "Unknown adapter reading: a dash, not a value.")
+        XCTAssertFalse(unknown.legendDescription.contains(L10n.text("Adapter not connected — no reading")))
         XCTAssertEqual(PowerCombinedBlock.specs(content: unknown, battery: battery, adapter: adapter).map(\.id), ["038", "054"])
-        // No battery reading: no label at all, never a zero.
-        let nothing = PowerCombinedBlock.content(battery: nil, adapter: nil, adapterConnected: true)
-        XCTAssertNil(nothing.batteryLabel)
     }
-    func testNoLegendIsRendered() {
-        let battery = combinedSeries([-10, -9, -10]), adapter = combinedSeries([30, 31, 32])
-        let content = PowerCombinedBlock.content(battery: reading("038", value: -10, provenance: .estimated),
-                                                 adapter: reading("054", value: 32, provenance: .measured), adapterConnected: true)
-        let specs = PowerCombinedBlock.specs(content: content, battery: battery, adapter: adapter)
-        let layout = MetricChartView.layout(specs: specs, scale: PowerCombinedBlock.combinedScale(battery: battery, adapter: adapter), density: .full)
-        XCTAssertEqual(specs.count, 2)
-        XCTAssertFalse(layout.hasLegend)
-        XCTAssertFalse(layout.isDashedEmpty)
-        XCTAssertTrue(specs.allSatisfy { $0.endLabel != nil }, "Lines are named by end labels instead.")
+    func testBothLinesCarrySpokenNamesAndTheChartReadsThemOut() throws {
+        withLanguage("ru") {
+            let battery = combinedSeries([-10, -9, -10]), adapter = combinedSeries([30, 31, 32])
+            let content = PowerCombinedBlock.content(battery: reading("038", value: -4.5, provenance: .estimated),
+                                                     adapter: reading("054", value: 30.7, provenance: .measured), adapterConnected: true)
+            let specs = PowerCombinedBlock.specs(content: content, battery: battery, adapter: adapter)
+            let layout = MetricChartView.layout(specs: specs, scale: PowerCombinedBlock.combinedScale(battery: battery, adapter: adapter), density: .full)
+            XCTAssertEqual(specs.count, 2)
+            XCTAssertFalse(layout.hasLegend, "The legend lives in the card header, not in the chart.")
+            XCTAssertFalse(layout.isDashedEmpty)
+            XCTAssertEqual(specs.compactMap(\.accessibilityName), ["Батарея -4,5", "Адаптер 30,7"])
+            XCTAssertEqual(MetricChartView.accessibilityText(specs: specs, unit: "Вт"), "\(L10n.text("Chart")), Вт: Батарея -4,5, Адаптер 30,7")
+        }
+    }
+    /// The header (title, gap, legend) is laid out at its ideal width: it must fit the card's inner width with the widest
+    /// realistic values in both languages, so nothing is truncated or wrapped.
+    func testHeaderFitsTheCardWithTheWidestValuesInBothLanguages() {
+        let inner = QuickPanelMetrics.width - 2 * QuickPanelMetrics.padding - 2 * 12
+        for language in ["ru", "en"] {
+            withLanguage(language) {
+                for (battery, adapter) in [(-100.5, 100.0), (-4.0, 30.7), (-4.0, nil), (11.9, 30.7), (nil, nil)] as [(Double?, Double?)] {
+                    let content = PowerCombinedBlock.content(
+                        battery: battery.map { reading("038", value: $0, provenance: .estimated) },
+                        adapter: adapter.map { reading("054", value: $0, provenance: .measured) }, adapterConnected: adapter != nil)
+                    let host = NSHostingController(rootView: PowerCombinedBlock.header(content: content, unit: "Вт").fixedSize())
+                    let width = host.sizeThatFits(in: NSSize(width: 1000, height: 100)).width
+                    XCTAssertLessThanOrEqual(width, inner, "\(language) \(String(describing: battery)) \(String(describing: adapter)): header \(width) pt in \(inner) pt")
+                }
+            }
+        }
     }
     func testCombinedStringsHaveRuAndEn() throws {
         let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Sources/TilveroApp/Resources/Localizable.xcstrings")
         let root = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
         let strings = try XCTUnwrap(root["strings"] as? [String: [String: Any]])
-        for key in MetricCaption.combinedKeys + [OverviewMetric.powerCombined.title, "Power"] {
+        for key in [OverviewMetric.powerCombined.title, "Power", "Battery (short)", "Adapter", MetricCaption.adapterAbsentKey] {
             let localizations = try XCTUnwrap(strings[key]?["localizations"] as? [String: [String: Any]], key)
             for language in ["en", "ru"] {
                 let unit = localizations[language]?["stringUnit"] as? [String: String] ?? [:]
@@ -194,6 +212,7 @@ import PowerTelemetry
                 XCTAssertFalse((unit["value"] ?? "").isEmpty, "\(key) \(language)")
             }
         }
+        XCTAssertNil(strings["Adapter not connected — no adapter line"], "The caption under the combined chart is gone.")
         XCTAssertEqual(OverviewMetric.powerCombined.title, "Power: combined chart")
     }
     func testCombinedChartRendersTwoRealLinesInLightAndDark() async throws {
@@ -213,6 +232,41 @@ import PowerTelemetry
             XCTAssertEqual(one.blue, 0, "No adapter line while unplugged (\(scheme)).")
             XCTAssertEqual(two.size.width, 320)
         }
+    }
+    /// Rightmost dark pixel of the last time-label row of a rendered card (the last label ends where the plot ends).
+    private func rightmostTimeLabelInk<V: View>(_ block: V, width: CGFloat) throws -> (x: Int, imageWidth: Int) {
+        let view = block.frame(width: width).background(Color.white).environment(\.colorScheme, .light)
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = 1
+        let bitmap = NSBitmapImageRep(cgImage: try XCTUnwrap(renderer.cgImage))
+        var rightmost = -1
+        // The card ends 12 pt of padding below the 10 pt time labels: look at that band only.
+        for y in (bitmap.pixelsHigh - 12 - 14)..<(bitmap.pixelsHigh - 12) {
+            for x in 4..<(bitmap.pixelsWide - 4) {
+                guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB), color.brightnessComponent < 0.75 else { continue }
+                rightmost = max(rightmost, x)
+            }
+        }
+        return (rightmost, bitmap.pixelsWide)
+    }
+    /// The combined card used to reserve a 96 pt column right of the plot for end labels; the legend moved to the header,
+    /// so its plot is as wide as the one of a single-series card (the temperature card is a bare MetricChartView in the same chrome).
+    func testCombinedPlotIsAsWideAsASingleSeriesCardsPlot() async throws {
+        let discharge = try await renderModel(minutesOfHistory: 55, adapterConnected: false)
+        defer { discharge.cleanup() }
+        let model = discharge.model
+        let battery = model.metricSeries(id: "038")
+        let reference = VStack(alignment: .leading, spacing: 6) {
+            Text("x")
+            MetricChartView(specs: [MetricChartSeriesSpec(id: "038", series: battery, color: .orange)],
+                            scale: PowerCombinedBlock.combinedScale(battery: battery, adapter: nil), window: model.overviewChartWindow,
+                            unit: "W", density: model.overviewPreferences.chartSize.density, fillsSingleSeries: false)
+        }.metricCardChrome()
+        let combined = try rightmostTimeLabelInk(PowerCombinedBlock(model: model), width: 320)
+        let single = try rightmostTimeLabelInk(reference, width: 320)
+        XCTAssertGreaterThan(single.x, 0)
+        XCTAssertEqual(combined.x, single.x, accuracy: 1, "No end-label column: the last time label ends at the same x.")
+        XCTAssertGreaterThan(combined.x, combined.imageWidth - 12 - 12 - 4, "The plot reaches the card's right padding (was 96 pt short).")
     }
     /// Popover width minus the panel's padding on both sides, two tiles and the gap between them.
     private var tileWidth: CGFloat { (QuickPanelMetrics.width - 2 * QuickPanelMetrics.padding - PowerTilesBlock.spacing) / 2 }
@@ -454,12 +508,13 @@ import PowerTelemetry
         // B: the tile series is empty, the message sits in the chart frame and not in a caption.
         let tile = PowerTilesBlock.tileLines(id: "054", reading: model.snapshot.catalog.first { $0.id == "054" }, adapterConnected: false)
         XCTAssertEqual(tile.absentMessage, absent)
-        // C: no adapter series, the message once.
+        // C: no adapter series; the legend says it with a muted dash (no caption).
         let content = PowerCombinedBlock.content(battery: model.snapshot.catalog.first { $0.id == "038" }, adapter: model.snapshot.catalog.first { $0.id == "054" },
                                                  adapterConnected: model.snapshot.adapterIsConnected)
         XCTAssertFalse(content.drawsAdapter)
         XCTAssertEqual(PowerCombinedBlock.specs(content: content, battery: model.metricSeries(id: "038"), adapter: nil).map(\.id), ["038"])
-        XCTAssertNotNil(content.absentMessage)
+        XCTAssertNil(content.adapterValue, "The legend shows a dash for the unplugged adapter.")
+        XCTAssertTrue(content.legendDescription.hasSuffix(absent))
         // The battery series is untouched by the rule.
         XCTAssertFalse(model.chartSeries(id: "038").points.isEmpty)
         // The sparkline-style adapter card lists the message once as a caption.
