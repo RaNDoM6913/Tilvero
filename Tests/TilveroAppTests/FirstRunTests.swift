@@ -112,11 +112,11 @@ final class FirstRunFlowTests: XCTestCase {
 
     func testRecommendedChoicesNeedNoPasswordAndOneClick() {
         var flow = FirstRunFlow()
-        XCTAssertEqual(flow.choices, FirstRunChoices(launchAtLogin: true, keepHistory: true, chargeLimit: true, lidClosed: false, chargeByTime: false))
+        XCTAssertEqual(flow.choices, FirstRunChoices(launchAtLogin: true, keepHistory: true, lidClosed: false, chargeByTime: false))
         XCTAssertEqual(flow.buttons, FirstRunButtons(primary: .start, secondary: .skip, terminalLink: false))
         XCTAssertEqual(flow.handle(.start), [.applyEveryday(launchAtLogin: true, keepHistory: true)])
         XCTAssertEqual(flow.step, .applying)
-        XCTAssertEqual(flow.handle(.everydayApplied(.enabled)), [.reveal(afterSuccess: false, coachChargeLimit: true)])
+        XCTAssertEqual(flow.handle(.everydayApplied(.enabled)), [.reveal(afterSuccess: false)])
         XCTAssertEqual(flow.step, .done)
         XCTAssertEqual(flow.handle(.revealed), [.finish])
         XCTAssertEqual(flow.step, .finished)
@@ -132,15 +132,15 @@ final class FirstRunFlowTests: XCTestCase {
         XCTAssertEqual(flow.buttons, FirstRunButtons(secondary: .cancel))
         XCTAssertEqual(flow.handle(.permissionFinished(.succeeded([.lidClosed, .chargeByTime]))), [.turnOnLid])
         XCTAssertEqual(flow.step, .enablingLid)
-        XCTAssertEqual(flow.handle(.lidTurnedOn(true)), [.reveal(afterSuccess: true, coachChargeLimit: true)])
+        XCTAssertEqual(flow.handle(.lidTurnedOn(true)), [.reveal(afterSuccess: true)])
         XCTAssertEqual(flow.granted, [.lidClosed, .chargeByTime])
     }
 
     func testChargeByTimeAloneNeedsNoLidStep() {
-        var flow = FirstRunFlow(); flow.choices.chargeByTime = true; flow.choices.chargeLimit = false
+        var flow = FirstRunFlow(); flow.choices.chargeByTime = true
         flow.handle(.start)
         XCTAssertEqual(flow.handle(.everydayApplied(nil)), [.requestPermission([.chargeByTime], .systemPrompt)])
-        XCTAssertEqual(flow.handle(.permissionFinished(.succeeded([.chargeByTime]))), [.reveal(afterSuccess: true, coachChargeLimit: false)])
+        XCTAssertEqual(flow.handle(.permissionFinished(.succeeded([.chargeByTime]))), [.reveal(afterSuccess: true)])
     }
 
     func testTheTerminalFallbackIsOneClick() {
@@ -176,7 +176,7 @@ final class FirstRunFlowTests: XCTestCase {
         flow.choices.lidClosed = false; flow.choices.chargeByTime = false
         XCTAssertEqual(flow.buttons, FirstRunButtons(primary: .start, secondary: .skip))
         flow.handle(.start)
-        XCTAssertEqual(flow.handle(.everydayApplied(nil)), [.reveal(afterSuccess: false, coachChargeLimit: true)])
+        XCTAssertEqual(flow.handle(.everydayApplied(nil)), [.reveal(afterSuccess: false)])
     }
 
     func testCancelWhileWaitingStopsTheRequest() {
@@ -190,7 +190,7 @@ final class FirstRunFlowTests: XCTestCase {
 
     func testWithoutPasswordOpensTheAppWithTheLockedFeaturesOff() {
         var flow = locked(); flow.handle(.start); flow.handle(.everydayApplied(nil)); flow.handle(.permissionFinished(.cancelled))
-        XCTAssertEqual(flow.handle(.continueWithout), [.reveal(afterSuccess: false, coachChargeLimit: true)])
+        XCTAssertEqual(flow.handle(.continueWithout), [.reveal(afterSuccess: false)])
         XCTAssertFalse(flow.choices.lidClosed); XCTAssertFalse(flow.choices.chargeByTime)
     }
 
@@ -209,7 +209,7 @@ final class FirstRunFlowTests: XCTestCase {
         XCTAssertEqual(declined.step, .enablingLid)
         var timedOut = FirstRunFlow(); timedOut.choices.chargeByTime = true
         timedOut.handle(.useTerminal); timedOut.handle(.everydayApplied(nil)); timedOut.handle(.permissionFinished(.timedOut))
-        XCTAssertEqual(timedOut.handle(.lateGrant([.chargeByTime])), [.reveal(afterSuccess: true, coachChargeLimit: true)])
+        XCTAssertEqual(timedOut.handle(.lateGrant([.chargeByTime])), [.reveal(afterSuccess: true)])
         var partial = locked(); partial.handle(.useTerminal); partial.handle(.everydayApplied(nil)); partial.handle(.cancel)
         XCTAssertEqual(partial.handle(.lateGrant([.chargeByTime])), [], "still missing the lid: stays with Try again")
         XCTAssertEqual(partial.granted, [.chargeByTime])
@@ -233,9 +233,9 @@ final class FirstRunFlowTests: XCTestCase {
 
     func testSkipChangesNothingAndOpensTheApp() {
         var flow = FirstRunFlow()
-        XCTAssertEqual(flow.handle(.skip), [.reveal(afterSuccess: false, coachChargeLimit: false)])
+        XCTAssertEqual(flow.handle(.skip), [.reveal(afterSuccess: false)])
         var waiting = locked(); waiting.handle(.useTerminal); waiting.handle(.everydayApplied(nil))
-        XCTAssertEqual(waiting.handle(.skip), [.cancelPermissionRequest, .reveal(afterSuccess: false, coachChargeLimit: false)])
+        XCTAssertEqual(waiting.handle(.skip), [.cancelPermissionRequest, .reveal(afterSuccess: false)])
     }
 
     func testLoginApprovalAndARefusedLidNeedOneMoreLook() {
@@ -245,7 +245,7 @@ final class FirstRunFlowTests: XCTestCase {
         XCTAssertEqual(flow.attention, [.loginNeedsApproval])
         XCTAssertEqual(flow.buttons, FirstRunButtons(primary: .start))
         XCTAssertEqual(flow.handle(.openLoginSettings), [.openLoginItemsSettings])
-        XCTAssertEqual(flow.handle(.start), [.reveal(afterSuccess: false, coachChargeLimit: true)])
+        XCTAssertEqual(flow.handle(.start), [.reveal(afterSuccess: false)])
 
         var failed = FirstRunFlow(); failed.handle(.start); failed.handle(.everydayApplied(.failed))
         XCTAssertEqual(failed.attention, [.loginFailed])
@@ -1062,7 +1062,6 @@ final class FirstRunMotionTests: XCTestCase {
     func testReduceMotionIsStaticAndShort() {
         XCTAssertEqual(M.check(0, reduceMotion: true), 1)
         XCTAssertEqual(M.iconFill(0, reduceMotion: true), 1, "icon full at once")
-        XCTAssertEqual(M.coach(1.3, reduceMotion: true).pulse, 0, "no pulse")
         XCTAssertLessThanOrEqual(M.handOffDuration(reduceMotion: true), 0.2)
         XCTAssertLessThanOrEqual(M.crossfadeDuration(reduceMotion: true), 0.2)
         XCTAssertLessThan(M.successBeat(reduceMotion: true), M.successBeat(reduceMotion: false))
@@ -1123,8 +1122,6 @@ final class FirstRunMotionTests: XCTestCase {
         XCTAssertEqual(M.check(0.3, reduceMotion: false), 1)
         XCTAssertEqual(M.iconFillLevel(0, level: 80, reduceMotion: false), 0)
         XCTAssertEqual(M.iconFillLevel(M.iconFillDuration, level: 80, reduceMotion: false), 80)
-        XCTAssertEqual(M.coach(M.coachDuration, reduceMotion: false), .init(opacity: 0, pulse: 0))
-        XCTAssertEqual(M.coach(3, reduceMotion: false).pulse, 0, "two pulses, then rest")
         XCTAssertEqual(M.handOffDuration(reduceMotion: false), 0.35)
         // The whole landing is about one second.
         XCTAssertLessThanOrEqual(M.successBeat(reduceMotion: false) + M.handOffDuration(reduceMotion: false) + M.iconFillDuration, 1.5)
@@ -1133,17 +1130,17 @@ final class FirstRunMotionTests: XCTestCase {
 
 final class FirstRunCopyTests: XCTestCase {
     static let labels = [
-        "firstRun.title", "firstRun.launchAtLogin", "firstRun.keepHistory", "firstRun.chargeLimit", "firstRun.lidClosed", "firstRun.chargeByTime",
+        "firstRun.title", "firstRun.launchAtLogin", "firstRun.keepHistory", "firstRun.lidClosed", "firstRun.chargeByTime",
         "firstRun.badge.password", "firstRun.badge.allowed", "firstRun.start", "firstRun.allowAndStart", "firstRun.tryAgain", "firstRun.withoutPassword",
         "firstRun.skip", "firstRun.cancel", "firstRun.close", "firstRun.useTerminal", "firstRun.openApp", "firstRun.openSettings", "firstRun.copy",
-        "firstRun.showCommand", "firstRun.hideCommand", "firstRun.done", "firstRun.preview", "firstRun.coach", "firstRun.info.title",
+        "firstRun.showCommand", "firstRun.hideCommand", "firstRun.done", "firstRun.preview", "firstRun.info.title",
         "firstRun.enabling", "firstRun.waiting.system", "firstRun.waiting.terminal", "firstRun.declined", "firstRun.failed", "firstRun.failed.terminal",
         "firstRun.passwordNote", "firstRun.readyNote", "firstRun.iconHidden.title",
         "firstRun.attention.loginNeedsApproval", "firstRun.attention.loginFailed", "firstRun.attention.lidRefused",
         "setup.permissions.allow", "setup.permissions.allowed", "setup.permissions.notAllowed", "setup.permissions.granted", "setup.permissions.removed",
         "setup.permissions.removeAll", "setup.permissions.removeInTerminal", "setup.permissions.title", "setup.permissions.removalCommand",
         "setup.permissions.otherRule"]
-    static let lines = ["firstRun.subtitle", "firstRun.launchAtLogin.detail", "firstRun.keepHistory.detail", "firstRun.chargeLimit.detail",
+    static let lines = ["firstRun.subtitle", "firstRun.launchAtLogin.detail", "firstRun.keepHistory.detail",
                         "firstRun.lidClosed.detail", "firstRun.chargeByTime.detail", "firstRun.iconHidden.text",
                         "firstRun.timedOut", "firstRun.declined.terminal",
                         "setup.permissions.blocked.lid", "setup.permissions.blocked.wake"]
@@ -1242,9 +1239,7 @@ final class FirstRunCopyTests: XCTestCase {
         try await wait { host.popovers == 1 }
         XCTAssertTrue(requests.isEmpty, "no password without locked features")
         XCTAssertEqual(coordinator.session.step, .finished)
-        XCTAssertTrue(coordinator.session.coachVisible, "the charge limit coach runs on the real menu")
-        try await wait { host.finished == 1 }
-        XCTAssertFalse(coordinator.session.coachVisible)
+        try await wait { host.finished == 1 }   // nothing waits after the menu opened: no coach, no tour
     }
 
     func testLockedFeaturesAskOnceThenTurnTheLidOn() async throws {
@@ -1252,7 +1247,6 @@ final class FirstRunCopyTests: XCTestCase {
         coordinator.start()
         coordinator.session.flow.choices.lidClosed = true
         coordinator.session.flow.choices.chargeByTime = true
-        coordinator.session.flow.choices.chargeLimit = false
         coordinator.session.send(.start)
         try await wait { host.finished == 1 }
         XCTAssertEqual(requests.count, 1)
@@ -1308,20 +1302,30 @@ final class FirstRunCopyTests: XCTestCase {
         let (coordinator, host) = make()
         coordinator.session.forceReduceMotion = false
         coordinator.session.speed = 4
-        coordinator.session.send(.skip)   // no coach: the flow finishes right after the landing
+        coordinator.session.send(.skip)   // the flow finishes right after the landing
         try await wait { host.finished == 1 }
         XCTAssertTrue(host.fills.contains { $0 != nil }, "the fill really ran")
         XCTAssertEqual(host.fills.last, .some(nil), "back to the real level before the host frees the coordinator")
         XCTAssertEqual(host.fillsAtFinish.last, .some(nil))
     }
 
-    func testClosingTheMenuEndsTheCoach() async throws {
+    /// Every way out (Start, Skip, Without password, after a look) lands in the icon and opens the real menu, then ends.
+    func testEveryExitOpensTheRealMenuAndEndsWithoutWaiting() async throws {
+        for exit in [[FirstRunEvent.start], [.skip]] {
+            let (coordinator, host) = make()
+            exit.forEach(coordinator.session.send)
+            try await wait { host.finished == 1 }
+            XCTAssertEqual(host.popovers, 1)
+            coordinator.teardown()
+        }
+        permission = .cancelled
         let (coordinator, host) = make()
+        coordinator.session.flow.choices.chargeByTime = true
         coordinator.session.send(.start)
-        try await wait { host.popovers == 1 }
-        coordinator.popoverDidClose()
+        try await wait { coordinator.session.step == .declined }
+        coordinator.session.send(.continueWithout)
         try await wait { host.finished == 1 }
-        XCTAssertFalse(coordinator.session.coachVisible)
+        XCTAssertEqual(host.popovers, 1)
         coordinator.teardown()
     }
 }

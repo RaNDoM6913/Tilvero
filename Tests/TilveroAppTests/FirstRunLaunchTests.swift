@@ -2,6 +2,7 @@
 // Copyright (c) 2026 RaNDoM6913
 
 import AppKit
+import SwiftUI
 import XCTest
 @testable import TilveroApp
 
@@ -50,7 +51,11 @@ import XCTest
         XCTAssertTrue(window.isVisible, file: file, line: line)
         XCTAssertEqual(window.alphaValue, 1, accuracy: 0.01, file: file, line: line)
         XCTAssertGreaterThanOrEqual(window.frame.width, 400, file: file, line: line)
-        XCTAssertGreaterThanOrEqual(window.frame.height, 400, "never a 0 × 0 window", file: file, line: line)
+        XCTAssertGreaterThanOrEqual(window.frame.height, 300, "never a 0 × 0 window", file: file, line: line)
+        // The window always matches its current content (a kept measuring view lagged one state behind).
+        let ideal = FirstRunWindowGeometry.usableSize(NSHostingController(rootView: FirstRunWindowView(session: coordinator.session))
+            .sizeThatFits(in: NSSize(width: FirstRunWindowView.width, height: 4000)))
+        XCTAssertEqual(window.frame.height, ideal.height, accuracy: 1, "sized to the current step", file: file, line: line)
         let screen = try XCTUnwrap(window.screen ?? NSScreen.main, file: file, line: line).visibleFrame
         XCTAssertTrue(screen.contains(window.frame), "on screen", file: file, line: line)
         XCTAssertEqual(window.frame.midX, screen.midX, accuracy: 2, file: file, line: line)
@@ -99,9 +104,7 @@ import XCTest
         coordinator.start()
         coordinator.session.send(.start)
         try await wait { host.popovers == 1 }
-        XCTAssertTrue(coordinator.session.coachVisible, "charge limit chosen: the coach runs on the real menu")
-        coordinator.popoverDidClose()   // closing the menu ends the coach and the flow
-        try await wait { host.finished == 1 }
+        try await wait { host.finished == 1 }   // the real menu opens; nothing else follows
         XCTAssertEqual(requests, 0)
     }
 

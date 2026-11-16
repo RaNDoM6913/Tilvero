@@ -295,12 +295,12 @@ enum FirstRunLogin {
 
     private var hostingView: FirstMouseHostingView<FirstRunWindowView>?
 
-    /// A separate, never-displayed controller of the same view measures the content (NSHostingView has no
-    /// `sizeThatFits`, and its `fittingSize` is zero with `sizingOptions = []`).
-    private lazy var measurer = NSHostingController(rootView: FirstRunWindowView(session: session))
-
+    /// A fresh, never-displayed controller of the same view measures the current content (NSHostingView has no
+    /// `sizeThatFits`, its `fittingSize` is zero with `sizingOptions = []`, and a kept controller would update its
+    /// graph only later, one state behind).
     private func measuredSize() -> NSSize {
-        FirstRunWindowGeometry.usableSize(measurer.sizeThatFits(in: NSSize(width: FirstRunWindowView.width, height: 4000)))
+        let measurer = NSHostingController(rootView: FirstRunWindowView(session: session))
+        return FirstRunWindowGeometry.usableSize(measurer.sizeThatFits(in: NSSize(width: FirstRunWindowView.width, height: 4000)))
     }
 
     private func resizeWindowToFit() {
