@@ -102,11 +102,15 @@ import PowerCore
         .help(content.legendDescription)
     }
 
+    /// The icon carries the series colour (it matches the chart line); the number stays in the primary text colour
+    /// for readability, like the values of the other Overview blocks.
     private static func legendGroup(symbol: String, value: String?, color: Color) -> some View {
         HStack(spacing: 3) {
-            Image(systemName: symbol).font(.system(size: 10)).accessibilityHidden(true)
+            Image(systemName: symbol).font(.system(size: 12)).accessibilityHidden(true)
+                .foregroundStyle(value == nil ? AnyShapeStyle(.secondary) : AnyShapeStyle(color))
             Text(value ?? "—").lineLimit(1)
-        }.foregroundStyle(value == nil ? AnyShapeStyle(.secondary) : AnyShapeStyle(color))
+                .foregroundStyle(value == nil ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
+        }
     }
 
     /// Title on the left, legend on the right; the legend is never truncated. A stale reading mutes the whole heading
