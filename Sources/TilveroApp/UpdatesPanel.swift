@@ -90,20 +90,25 @@ import SwiftUI
     @ViewBuilder private var result: some View {
         switch service.phase {
         case .idle:
-            Text(L10n.text("Check published releases when you are ready.")).foregroundStyle(.secondary)
-            releasesButton
+            // After a relaunch the last successful (dated) check is shown, so the quick-menu notice leads somewhere.
+            if let snapshot = service.lastSuccess { releaseResult(snapshot.result) } else {
+                Text(L10n.text("Check published releases when you are ready.")).foregroundStyle(.secondary)
+                releasesButton
+            }
         case .checking:
             Text(L10n.text("Reading published release information…")).foregroundStyle(.secondary)
         case .cancelled:
             Text(L10n.text("Update check cancelled."))
-            releasesButton
+            if let snapshot = service.lastSuccess { releaseResult(snapshot.result) } else { releasesButton }
         case .failed(let failure):
             Label(L10n.text("Could not check for updates."), systemImage: "wifi.exclamationmark").font(.headline)
             Text(L10n.text(failureLabel(failure))).foregroundStyle(.secondary)
             HStack {
                 Button(L10n.text("Try Again"), action: check)
-                releasesButton
+                if service.lastSuccess == nil { releasesButton }
             }
+            // The quick-menu notice survives a failed check; the dated earlier result stays reachable here.
+            if let snapshot = service.lastSuccess { releaseResult(snapshot.result) }
         case .succeeded(let snapshot):
             releaseResult(snapshot.result)
         }

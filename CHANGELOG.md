@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.7.1 — Update Notice Source Preview — 2026-11-18
+
+A polish release: a clearer battery-health card, an update notice in the quick menu, and one animation fix.
+
+**Added**
+- The quick menu header shows a wide "New version X" capsule between the name and the gear when the last successful update check found a
+  release newer than the installed build. It opens Settings > Updates and only informs.
+- Update checks are now on by default: one check a day while Tilvero runs (a few public GitHub requests), the first about two minutes after launch;
+  a failed check is retried after an hour.
+  No account is used and no readings are sent; the switch in Settings > Updates turns it off. Installing an update is still manual:
+  release pages publish source, you build it with Xcode, and nothing is downloaded or installed automatically.
+
+**Changed**
+- The Overview "Capacity retention" card shows the cycle count on the left and "Wear x %" on the right on a larger second line; the full-charge
+  and design capacities sit small below.
+- The Updates page keeps showing the dated result of the last successful check when it is idle, cancelled or the latest check failed.
+
+**Fixed**
+- The Keep Awake and Sleep timer header switch animates again: starting or ending a session rebuilt it in the middle of the click.
+
+Source for Apple silicon with macOS 26.0+ and full Xcode; no app or DMG. The real administrator dialog and the Terminal
+route, the login item of a copy in /Applications and waking a sleeping Mac on schedule still need your own device check.
+
 ## 0.7.0 — First Run Source Preview — 2026-11-17
 
 A first-run setup and a tidier Overview.

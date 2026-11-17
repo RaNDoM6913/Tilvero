@@ -1,8 +1,8 @@
 ![Tilvero — Battery, power and activity. Swift 6, macOS 26+, Apple silicon. Source preview.](.github/assets/cover.png)
 
 <p align="center">
-  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.7.0"><img src="https://img.shields.io/badge/source-preview-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Source preview" height="28"></a>
-  <a href="docs/GITHUB_TRAFFIC.md"><img src="https://img.shields.io/badge/zip%20%E2%80%A2%20clones%20%E2%80%A2%20unique-15%20%E2%80%A2%201521%20%E2%80%A2%20398-2F6E4B?style=for-the-badge&amp;labelColor=172A22" alt="Source ZIP downloads 15, Git clones 1521, unique cloners 398" height="28"></a>
+  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.7.1"><img src="https://img.shields.io/badge/source-preview-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Source preview" height="28"></a>
+  <a href="docs/GITHUB_TRAFFIC.md"><img src="https://img.shields.io/badge/zip%20%E2%80%A2%20clones%20%E2%80%A2%20unique-18%20%E2%80%A2%201677%20%E2%80%A2%20409-2F6E4B?style=for-the-badge&amp;labelColor=172A22" alt="Source ZIP downloads 18, Git clones 1677, unique cloners 409" height="28"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="License: GPL-3.0-only" height="28"></a>
 </p>
 
@@ -30,34 +30,35 @@ establish hardware support or qualify a release binary.</sub>
 - **First run:** a brand-new install opens one setup window (launch at login, history, the closed-lid option and charge by time).
   Existing installs never see it.
 
-**Latest: [0.7.0 Source Preview](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.7.0) for developers.**
-[Get the source](https://github.com/RaNDoM6913/Tilvero/releases/download/v0.7.0/Tilvero-0.7.0-source.zip)
-· [Release notes and checksums](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.7.0)
+**Latest: [0.7.1 Source Preview](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.7.1) for developers.**
+[Get the source](https://github.com/RaNDoM6913/Tilvero/releases/download/v0.7.1/Tilvero-0.7.1-source.zip)
+· [Release notes and checksums](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.7.1)
 · [Build and run](#build-and-run) · [Roadmap](ROADMAP.md)
-· Earlier: [0.6.2](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.6.2),
-[0.6.1](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.6.1)
+· Earlier: [0.7.0](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.7.0),
+[0.6.2](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.6.2)
 
 A signed, notarized Mac download is still in preparation. The planned
 **Monitoring Preview** DMG will be read-only; this repository also contains
 separately gated development controls. [Availability and installation](docs/INSTALL.md).
 
-## What's new in 0.7.0
+## What's new in 0.7.1
 
-A first-run setup and a tidier Overview.
+A polish release: a clearer battery-health card and a quiet update notice.
 
 **New**
-- **A guided first run.** On a brand-new install one window sets everything up: launch at login, history, the closed-lid option and charge by time, all on, with one switch each. The two that need the administrator password share a single macOS dialog (or, if you prefer, a prepared Terminal window), and Tilvero never sees the password. A ring then pulses around the menu bar icon until the quick menu opens. Existing installs never see it.
-- **A starter Overview.** New installs begin with Keep Awake, the combined power chart, temperature and battery health instead of every block.
-- **Remove all permissions.** Settings > Setup lists each administrator permission Tilvero holds, with one button that removes them all and a command to do it yourself.
+- **A "New version" notice in the quick menu.** When the last update check found a release newer than your build, a wide capsule appears in the header between the name and the gear and opens Settings > Updates. It only informs.
+- **Update checks are on by default.** Tilvero asks GitHub once a day while it runs (the first time about two minutes after launch). It is a few public requests: no account, no readings sent. Turn it off in Settings > Updates. Installing is still manual: a release publishes source, which you build with Xcode; nothing is downloaded or installed for you.
 
 **Changed**
-- **The combined power chart names its lines in a header legend** (adapter in blue, battery in orange) instead of end labels, so the plot is as wide as the card.
-- **One title style for every Overview block**, the same as Keep Awake.
-- The Keep Awake timer pills count down every second, the menu bar battery fill ends on a whole point like the system battery, and the keyboard backlight row has no on/off switch.
+- **The battery-health card on the Overview shows the cycle count and the wear on a larger line**, with the capacities small below.
+- The Updates page keeps showing the dated result of the last successful check, even when a later check fails or is cancelled.
 
-## What was new in 0.6.2
+**Fixed**
+- The Keep Awake and Sleep timer switch animates again; it was rebuilt in the middle of the click.
 
-A polish release for the charts and the menu bar icon: a whole-number chart axis, a menu bar battery closer to the system one, and a quieter Charge page.
+## What was new in 0.7.0
+
+A first-run setup for new installs, a starter Overview with Keep Awake, power, temperature and battery health, and one title style for every Overview block.
 
 Full history: [CHANGELOG](CHANGELOG.md).
 
@@ -99,7 +100,7 @@ You need **Apple silicon, macOS 26.0+ and a full Xcode installation** with a
 compatible macOS SDK and Swift 6. Command Line Tools alone are not the validated route.
 
 ```sh
-git clone --branch v0.7.0 https://github.com/RaNDoM6913/Tilvero.git
+git clone --branch v0.7.1 https://github.com/RaNDoM6913/Tilvero.git
 cd Tilvero
 bash scripts/test.sh
 bash scripts/build-local-app.sh

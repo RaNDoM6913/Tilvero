@@ -67,8 +67,10 @@ struct QuickPanel: View {
     private var content: some View {
         VStack(alignment: .leading, spacing: studioPresentation.spacing(14)) {
             HStack {
-                StudioText(AppIdentity.displayName, id: "quick.brand").font(.headline)
-                Spacer()
+                StudioText(AppIdentity.displayName, id: "quick.brand").font(.headline).layoutPriority(1)
+                QuickUpdatePill(service: model.updates) {
+                    model.selectedSettingsPage = .updates; model.selectedSection = .settings; model.openDetails?()
+                }
                 if model.isDemo { Text(L10n.text("Simulation")).font(.caption).foregroundStyle(.secondary) }
                 settingsMenu
             }
@@ -165,6 +167,34 @@ struct QuickPanel: View {
         } label: { Image(systemName: "gearshape") }
         .menuStyle(.borderlessButton).fixedSize().accessibilityLabel(L10n.text("Settings"))
         .studioElement("quick.settings", label: "Quick menu settings")
+    }
+}
+
+/// Fills the header between the name and the gear: a wide capsule while a newer published release is known from the
+/// last successful check, otherwise plain space. It only informs; the Updates page shows the release and its notes.
+struct QuickUpdatePill: View {
+    /// Layout height of the header row without the pill (16 pt), so the popover does not jump when a check finishes while
+    /// it is open; the capsule is drawn 3 pt beyond it above and below.
+    static let height: CGFloat = 16
+    @ObservedObject var service: UpdateCheckService
+    let open: () -> Void
+    var body: some View {
+        if let release = service.newerRelease {
+            Button(action: open) {
+                // The tag keeps a beta suffix ("0.8.0-beta.1"), so a beta and the later stable release differ.
+                Label(String(format: L10n.text("New version %@"), String(release.tag.dropFirst())), systemImage: "arrow.down.circle.fill")
+                    .font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.accentColor)
+                    .lineLimit(1).minimumScaleFactor(0.75)
+                    .padding(.horizontal, 10).frame(maxWidth: .infinity, minHeight: Self.height, maxHeight: Self.height)
+                    .background(Capsule().fill(Color.accentColor.opacity(0.16)).padding(.vertical, -3))
+                    .contentShape(Capsule().inset(by: -3))
+            }
+            .buttonStyle(.plain).padding(.horizontal, 8)
+            .help(L10n.text("Open Updates"))
+            .accessibilityIdentifier("quick.updateAvailable")
+        } else {
+            Spacer()
+        }
     }
 }
 

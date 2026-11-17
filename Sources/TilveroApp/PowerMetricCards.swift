@@ -211,10 +211,21 @@ extension MetricChartSeries {
     private func value(_ id: String) -> String {
         model.snapshot.catalog.first { $0.id == id }.map { CatalogDataPresentation.value($0, reveal: false, fahrenheit: false) } ?? "—"
     }
+    /// Wear is derived: 100 minus the calculated retention (full-charge / design capacity); macOS has no separate value.
+    private var wear: String {
+        guard let retention = model.snapshot.catalog.first(where: { $0.id == "026" })?.value?.doubleValue else { return "—" }
+        return (100 - retention).formatted(.number.locale(L10n.locale).precision(.fractionLength(0...2))) + " %"
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             PowerMetricCard(model: model, title: "Capacity retention", symbol: "heart", id: "026", color: .pink)
-            HStack { Text(L10n.text("Cycle count") + ": " + value("027")); Spacer(); Text(value("030") + " / " + value("029")) }
+            HStack(alignment: .firstTextBaseline, spacing: 5) {
+                Text(value("027")).font(.system(size: 13, weight: .medium))
+                Spacer(minLength: 8)
+                Text(L10n.text("Wear")).font(.system(size: 12)).foregroundStyle(.secondary)
+                Text(wear).font(.system(size: 13, weight: .medium))
+            }.monospacedDigit().lineLimit(1).padding(.top, 2)
+            HStack { Spacer(); Text(value("030") + " / " + value("029")).monospacedDigit() }
                 .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }.help(L10n.text("Calculated full-charge / design capacity. This is distinct from the macOS maximum-capacity estimate."))
     }

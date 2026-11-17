@@ -32,6 +32,9 @@ enum UpdateCheckPhase: Equatable, Sendable {
     private var checkTask: Task<UpdateDiscoveryResult, Error>?
     private var schedule: Task<Void, Never>?
     private static let preferencePrefix = "Tilvero.Updates."
+    static let firstCheckDelay: Double = 120
+    /// A failed automatic check (offline at launch, rate limit) is retried after an hour, not a day later.
+    static let retryAfterFailureDelay: Double = 3_600
 
     init(identity: UpdateIdentity = .current(), defaults: UserDefaults = .standard,
          discovery: UpdateDiscovery = UpdateDiscovery(), now: @escaping @MainActor () -> Date = { Date() },
@@ -42,7 +45,8 @@ enum UpdateCheckPhase: Equatable, Sendable {
         self.identity = identity; self.defaults = defaults; self.discovery = discovery; self.now = now
         self.interval = max(60, interval); self.sleeper = sleeper
         channel = defaults.string(forKey: Self.preferencePrefix + "channel").flatMap(UpdateChannel.init(rawValue:)) ?? identity.defaultChannel
-        automaticallyChecks = defaults.object(forKey: Self.preferencePrefix + "automaticallyChecks") as? Bool ?? false
+        // On unless the user turned it off: one public GitHub request a day while Tilvero runs (no account, no readings sent).
+        automaticallyChecks = defaults.object(forKey: Self.preferencePrefix + "automaticallyChecks") as? Bool ?? true
         if let data = defaults.data(forKey: cacheKey), data.count <= 262_144,
            let cached = try? JSONDecoder().decode(UpdateCachedCheck.self, from: data),
            cached.identity == identity, cached.snapshot.channel == channel,
@@ -81,6 +85,24 @@ enum UpdateCheckPhase: Equatable, Sendable {
         }
     }
 
+    /// The release from the last successful check that is newer than this build (by machine build number), or nil.
+    /// A failed or cancelled later check keeps it: the result stays dated and the Updates page shows it.
+    var newerRelease: UpdateRelease? { lastSuccess.flatMap { Self.newerRelease(in: $0.result, than: identity) } }
+
+    static func newerRelease(in result: UpdateDiscoveryResult, than identity: UpdateIdentity) -> UpdateRelease? {
+        guard let installed = identity.build else { return nil }
+        // The same record the Updates page shows (release ?? sourceRelease): an app release when one is available,
+        // the source release only when nothing else is offered; "current" never produces a notice.
+        let candidate: UpdateRelease?
+        switch result.availability {
+        case .appAvailable: candidate = result.release
+        case .sourceOnly: candidate = result.sourceRelease
+        case .current, .manual, .noCompatibleRelease: candidate = nil
+        }
+        guard let candidate, candidate.build.flatMap({ UpdateIdentity.compareBuilds($0, installed) }) == .orderedDescending else { return nil }
+        return candidate
+    }
+
     func cancel() {
         guard let task = checkTask else { return }
         generation &+= 1
@@ -111,14 +133,16 @@ enum UpdateCheckPhase: Equatable, Sendable {
     private func reschedule() {
         schedule?.cancel(); schedule = nil
         guard started && automaticallyChecks else { return }
-        let delay = max(60, interval - (lastSuccess.map { max(0, now().timeIntervalSince($0.checkedAt)) } ?? 0))
+        // Never checked for this build and channel: shortly after launch (not a day later, which a daily restart would
+        // postpone forever); otherwise when the last success turns a day old.
+        let delay = lastSuccess.map { max(60, interval - max(0, now().timeIntervalSince($0.checkedAt))) } ?? Self.firstCheckDelay
         schedule = Task { [weak self, sleeper, interval] in
             var next = delay
             while !Task.isCancelled {
                 do { try await sleeper(next) } catch { return }
                 guard !Task.isCancelled, let self, self.started, self.automaticallyChecks else { return }
                 await self.check()
-                next = interval
+                if case .failed = self.phase { next = min(interval, Self.retryAfterFailureDelay) } else { next = interval }
             }
         }
     }
