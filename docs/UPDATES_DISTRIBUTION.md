@@ -11,7 +11,7 @@ The first installer host must satisfy all of these checks against its actual bun
 - Exact `io.github.random6913.tilvero`, production data scope, Monitoring profile, integer build and no app helper/service contents.
 - Valid Apple Developer ID Application signature and the configured actual Team ID. Ad hoc, development, Lab and lid-trial identities remain manual.
 - Sealed updater configuration with an existing 32-byte Ed25519 public key and HTTPS feed. Feed signing and pre-extraction verification are required; feed-signing failures never expire into a permissive fallback.
-- Automatic checks, downloads, installation options, profiling and release-note JavaScript disabled. The app's separately persisted opt-in informational scheduler never grants installation permission.
+- Automatic checks, downloads, installation options, profiling and release-note JavaScript disabled. The app's separately persisted informational scheduler (on by default, switchable off by the user) never grants installation permission.
 
 A signed appcast candidate must additionally have a strictly greater integer build, an application DMG, valid signed-feed status and enclosure attributes `tilveroBundleID`, `tilveroProfile=monitoring`, `tilveroTeamID` and `tilveroArchitecture=arm64` matching the installed profile. Sparkle validates archive signatures and the replacement app signature. Stable/beta selection adds only the beta channel; it never changes feed/profile/identity or admits a downgrade.
 

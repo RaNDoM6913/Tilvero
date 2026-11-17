@@ -31,7 +31,7 @@ This UI acceptance does not renew hardware-control qualification after an OS upg
 | --- | --- | --- |
 | Battery and adapter readings | Implemented; actual local app observations | The 115-field catalog is a schema, not a promise of 115 available measurements |
 | Menu bar and detail window | Implemented; native UI, keyboard and appearance checks recorded | Full VoiceOver speech acceptance remains open |
-| Updates | Native version/build, source-release discovery, notes, retry and opt-in checking; qualified Sparkle integration | Development/Lab/trial stay manual; actual signed feed, trusted binary and downloaded-install acceptance remain open |
+| Updates | Native version/build, source-release discovery, notes, retry and daily checking (on by default, can be turned off); qualified Sparkle integration | Development/Lab/trial stay manual; actual signed feed, trusted binary and downloaded-install acceptance remain open |
 | Local history and CSV/JSON export | Implemented and fixture-tested; actual history observed | Gaps stay visible; no invented samples; preview exports before sharing |
 | Application activity | Read-only process counters, search, filtering and ranking | CPU energy/power estimates cover CPU activity only; accessible processes may be a partial set |
 | Sleep & drain | Read-only observation and fixture coverage | New app-observed intervals only; completed real sleep/wake validation remains a device gate |
@@ -76,7 +76,7 @@ privileged qualification gate. See the [helper architecture](../Helper/README.md
 
 ## Validation and distribution
 
-The 0.7.0 source passed the default suite on 2026-11-17 (**1,133 Swift tests, 3 skipped, 0 failures, and 87 Python release-tool tests**). The earlier Sleep-controls source milestone passed the complete **557 Swift tests and 61 Python release-tool tests**, built SwiftPM Release and Xcode Debug bundles, and verified local ad-hoc integrity. An earlier complete run failed eight protected migration-journal operations; a standalone Foundation probe reproduced unavailable Class B reopen/read operations. A later unchanged-source run passed after those protected operations became available, with the same protection class and `0600` permissions. The precise external authentication/system transition remains unknown. These results apply to the recorded source milestone, not automatically
+The 0.7.1 source passed the default suite on 2026-11-17 (**1,137 Swift tests, 3 skipped, 0 failures, and 83 Python release-tool tests**). The earlier Sleep-controls source milestone passed the complete **557 Swift tests and 61 Python release-tool tests**, built SwiftPM Release and Xcode Debug bundles, and verified local ad-hoc integrity. An earlier complete run failed eight protected migration-journal operations; a standalone Foundation probe reproduced unavailable Class B reopen/read operations. A later unchanged-source run passed after those protected operations became available, with the same protection class and `0600` permissions. The precise external authentication/system transition remains unknown. These results apply to the recorded source milestone, not automatically
 to a later release commit. [Testing and validation](TESTING.md) summarizes public coverage and its limits.
 
 **Implemented** means code exists. **Fixture-tested** means deterministic inputs

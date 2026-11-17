@@ -7,7 +7,7 @@
 ### Available now: source preview
 
 Tilvero is available as source for **Apple silicon, macOS 26.0+**. Use the
-[v0.7.0 source release](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.7.0)
+[v0.7.1 source release](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.7.1)
 and follow [Build and run](../README.md#build-and-run).
 A source archive requires a full Xcode installation; it is not an installable app.
 
@@ -23,7 +23,7 @@ Awake. Monitoring, history and diagnostics need no administrator approval.
 
 ### Verify a source release
 
-The release supplies `Tilvero-0.7.0-source.zip`,
+The release supplies `Tilvero-0.7.1-source.zip`,
 `source-release.json` and `SHA256SUMS`. Download all three from the same explicit
 release, then run `shasum -a 256 -c SHA256SUMS` in their folder. Every entry must
 match. The source manifest identifies the tag, exact commit and source ZIP hash;
@@ -33,7 +33,7 @@ use the build commands below, starting with `bash scripts/test.sh`.
 ### Source-build essentials
 
 ```sh
-git clone --branch v0.7.0 https://github.com/RaNDoM6913/Tilvero.git
+git clone --branch v0.7.1 https://github.com/RaNDoM6913/Tilvero.git
 cd Tilvero
 bash scripts/test.sh
 bash scripts/build-local-app.sh
@@ -68,7 +68,8 @@ around rejection. A checksum confirms integrity, not signing trust or notarizati
 
 ### Updates and local data
 
-Updates are manual. Read migration notes, quit the running version normally,
+Updates are manual. Tilvero checks GitHub once a day for a newer release (one public request, no readings sent; switch it off in
+Settings > Updates) and shows a "New version" notice, but never downloads or installs anything. Read migration notes, quit the running version normally,
 then replace it with the verified new app. Preserve history and preferences;
 report an import failure instead of deleting the old store. Do not run prototype
 and production copies together during migration.
@@ -90,7 +91,7 @@ before sharing them. No automatic updater is enabled.
 ### Сейчас доступны исходники
 
 Tilvero доступен в исходниках для **Apple silicon, macOS 26.0+**. Скачайте
-[исходники v0.7.0](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.7.0)
+[исходники v0.7.1](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.7.1)
 и следуйте инструкции [«Сборка и запуск»](../README.ru.md#сборка-и-запуск).
 Архив исходников требует полной установки Xcode; это не готовое приложение.
 
@@ -107,7 +108,7 @@ DMG **Monitoring Preview** не будет содержать помощника
 
 ### Проверка выпуска исходников
 
-Выпуск содержит `Tilvero-0.7.0-source.zip`,
+Выпуск содержит `Tilvero-0.7.1-source.zip`,
 `source-release.json` и `SHA256SUMS`. Скачайте все три файла из одного конкретного
 выпуска и выполните в их папке `shasum -a 256 -c SHA256SUMS`; все записи должны
 совпасть. Манифест исходников указывает тег, точный коммит и сумму ZIP, но не
@@ -117,7 +118,7 @@ DMG **Monitoring Preview** не будет содержать помощника
 ### Сборка из исходников
 
 ```sh
-git clone --branch v0.7.0 https://github.com/RaNDoM6913/Tilvero.git
+git clone --branch v0.7.1 https://github.com/RaNDoM6913/Tilvero.git
 cd Tilvero
 bash scripts/test.sh
 bash scripts/build-local-app.sh
@@ -154,7 +155,9 @@ bash scripts/run-local.sh
 
 ### Обновление и данные
 
-Обновление ручное: прочитайте заметки о переносе, штатно завершите приложение
+Обновление ручное. Tilvero раз в сутки проверяет GitHub на новый выпуск (один публичный запрос, показания не отправляются;
+отключается в Настройки > Обновления) и показывает пометку «Новая версия», но ничего не скачивает и не устанавливает.
+Прочитайте заметки о переносе, штатно завершите приложение
 и замените его проверенной новой версией. Сохраните историю и настройки;
 о сбое импорта сообщите, не удаляя старую базу. Не запускайте прототип
 и production-копию одновременно во время переноса.

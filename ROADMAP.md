@@ -6,7 +6,7 @@ Tilvero focuses on battery, charging, power and cooling in a native, offline mac
 
 Live monitoring, a compact menu bar panel (Overview, Sleep and Charge pages, with a first-run setup for new installs), searchable readings, local history, redacted exports, Russian/English UI and explicit simulation are available in source builds. Control policies and recovery boundaries have software coverage; privileged hardware writes (helper, fans, energy modes) beyond the native macOS charge limit remain gated by the [compatibility gates](docs/COMPATIBILITY.md).
 
-Settings now includes release discovery and notes with opt-in automatic checking.
+Settings now includes release discovery and notes with automatic checking (on by default, once a day, can be turned off).
 Source archives remain informational. Native Sparkle installation is implemented
 behind exact signed Monitoring identity, feed and recovery gates; actual trusted
 binary distribution and downloaded-update acceptance are still pending. The menu
