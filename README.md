@@ -1,7 +1,7 @@
 ![Tilvero — Battery, power and activity. Swift 6, macOS 26+, Apple silicon. Source preview.](.github/assets/cover.png)
 
 <p align="center">
-  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.6.2"><img src="https://img.shields.io/badge/source-preview-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Source preview" height="28"></a>
+  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.7.0"><img src="https://img.shields.io/badge/source-preview-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Source preview" height="28"></a>
   <a href="docs/GITHUB_TRAFFIC.md"><img src="https://img.shields.io/badge/zip%20%E2%80%A2%20clones%20%E2%80%A2%20unique-15%20%E2%80%A2%201521%20%E2%80%A2%20398-2F6E4B?style=for-the-badge&amp;labelColor=172A22" alt="Source ZIP downloads 15, Git clones 1521, unique cloners 398" height="28"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="License: GPL-3.0-only" height="28"></a>
 </p>
@@ -28,36 +28,34 @@ establish hardware support or qualify a release binary.</sub>
   and Tilvero lifts the limit just in time, waking a sleeping Mac on schedule (one optional administrator permission;
   waking with the lid closed is still being verified on real hardware).
 
-**Latest: [0.6.2 Source Preview](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.6.2) for developers.**
-[Get the source](https://github.com/RaNDoM6913/Tilvero/releases/download/v0.6.2/Tilvero-0.6.2-source.zip)
-· [Release notes and checksums](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.6.2)
+**Latest: [0.7.0 Source Preview](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.7.0) for developers.**
+[Get the source](https://github.com/RaNDoM6913/Tilvero/releases/download/v0.7.0/Tilvero-0.7.0-source.zip)
+· [Release notes and checksums](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.7.0)
 · [Build and run](#build-and-run) · [Roadmap](ROADMAP.md)
-· Earlier: [0.6.1](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.6.1),
-[0.6.0](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.6.0)
+· Earlier: [0.6.2](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.6.2),
+[0.6.1](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.6.1)
 
 A signed, notarized Mac download is still in preparation. The planned
 **Monitoring Preview** DMG will be read-only; this repository also contains
 separately gated development controls. [Availability and installation](docs/INSTALL.md).
 
-## What's new in 0.6.2
+## What's new in 0.7.0
 
-A polish release for the charts and the menu bar icon.
+A first-run setup and a tidier Overview.
+
+**New**
+- **A guided first run.** On a brand-new install one window sets everything up: launch at login, history, the closed-lid option and charge by time, all on, with one switch each. The two that need the administrator password share a single macOS dialog (or, if you prefer, a prepared Terminal window), and Tilvero never sees the password. A ring then pulses around the menu bar icon until the quick menu opens. Existing installs never see it.
+- **A starter Overview.** New installs begin with Keep Awake, the combined power chart, temperature and battery health instead of every block.
+- **Remove all permissions.** Settings > Setup lists each administrator permission Tilvero holds, with one button that removes them all and a command to do it yourself.
 
 **Changed**
-- **Cleaner chart axis.** Whole numbers only, and the numbers sit right under the card's icon, so the plot gains 8-19 pt of width.
-- **The menu bar battery looks like the system one.** A solid white body, as the system battery's, and at 100 % the numerals and the charging bolt match its size and weight. Pressing the icon still adapts to the highlight.
-- **The Charge page is quieter.** No line and no cancel button for a waiting limit: move the slider back to the limit macOS holds to cancel the wait.
+- **The combined power chart names its lines in a header legend** (adapter in blue, battery in orange) instead of end labels, so the plot is as wide as the card.
+- **One title style for every Overview block**, the same as Keep Awake.
+- The Keep Awake timer pills count down every second, the menu bar battery fill ends on a whole point like the system battery, and the keyboard backlight row has no on/off switch.
 
-## What was new in 0.6.1
+## What was new in 0.6.2
 
-A bug-fix release for charge by time and the charge limit.
-
-**Fixed**
-- **Charge by time now plans.** It always answered "Not enough battery data yet": the plan needs the battery's energy, which no source published. It is now taken from the full capacity and the pack voltage. While the Mac charges to 100 %, the plan follows macOS's own time to full plus 10 minutes.
-- **The 80 % limit at 80 % charge applies at once**, as in System Settings. Only a limit below the charge still waits for natural discharge.
-- **No more stuck "session needs review".** A waiting limit that wrote nothing is dropped at launch and when the limit changes in macOS, instead of blocking every new limit. Failure lines go away on their own.
-- **No blinking.** "Charge to 100% once" and the time pill stay still while a new limit is applied.
-- **A cleaner time picker**, built like the Keep Awake one, and a cross in the time pill that cancels the plan in one tap. When the plan cannot make it, one button moves the time to the first one that works.
+A polish release for the charts and the menu bar icon: a whole-number chart axis, a menu bar battery closer to the system one, and a quieter Charge page.
 
 Full history: [CHANGELOG](CHANGELOG.md).
 
@@ -99,7 +97,7 @@ You need **Apple silicon, macOS 26.0+ and a full Xcode installation** with a
 compatible macOS SDK and Swift 6. Command Line Tools alone are not the validated route.
 
 ```sh
-git clone --branch v0.6.2 https://github.com/RaNDoM6913/Tilvero.git
+git clone --branch v0.7.0 https://github.com/RaNDoM6913/Tilvero.git
 cd Tilvero
 bash scripts/test.sh
 bash scripts/build-local-app.sh
