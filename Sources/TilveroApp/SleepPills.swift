@@ -227,6 +227,36 @@ struct SleepPillItem: Identifiable, Equatable {
     }
 }
 
+/// A header row (title, shortcuts, switch) whose layout depends on the width: `ViewThatFits` tries the roomy variant and
+/// falls back to the compact one. A switch inside the variants is a different view in each, so every swap (starting a
+/// session adds the end time and shortcuts) rebuilt the `NSSwitch` mid-click: the on/off animation was cut and the
+/// thumb jumped. The real switch therefore lives in an overlay outside `ViewThatFits`; each variant only reserves the
+/// switch's space with an invisible twin (`SwitchSlot`) so the fitting decision stays exact.
+@MainActor struct SwitchHeaderRow<Variant: View, Control: View>: View {
+    let height: CGFloat
+    let variant: (_ compact: Bool, _ slot: SwitchSlot) -> Variant
+    let control: Control
+    init(height: CGFloat, @ViewBuilder variant: @escaping (_ compact: Bool, _ slot: SwitchSlot) -> Variant, @ViewBuilder control: () -> Control) {
+        self.height = height; self.variant = variant; self.control = control()
+    }
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            variant(false, SwitchSlot())
+            variant(true, SwitchSlot())
+        }
+        .frame(height: height)
+        .overlay(alignment: .trailing) { control }
+    }
+}
+
+/// The size of a regular switch, without the switch: invisible, not focusable, not announced.
+@MainActor struct SwitchSlot: View {
+    var body: some View {
+        Toggle("", isOn: .constant(false)).toggleStyle(.switch).controlSize(.regular).labelsHidden().fixedSize()
+            .hidden().accessibilityHidden(true).allowsHitTesting(false)
+    }
+}
+
 @MainActor struct SleepTimerPillsPanel: View {
     private struct WheelCommit {
         let identity: PopoverCloseIdentity
@@ -325,18 +355,24 @@ struct SleepPillItem: Identifiable, Equatable {
     private var masterRow: some View {
         // A running timer's header is crowded (chips, end clock and switch): in a wide clock format ("10:18 PM") the info
         // button gives way, so the switch always stays inside the row.
-        ViewThatFits(in: .horizontal) {
-            masterRowContent(showsInfo: true)
-            masterRowContent(showsInfo: false)
-        }
-        .frame(height: 32)
-    }
-    private func masterRowContent(showsInfo: Bool) -> some View {
-        // A failed release keeps the switch on. Acquisition failures without a
-        // session UUID retain the explicit recovery action instead of inventing one.
         let token = service.isActive ? service.sessionID.map(SleepControlToken.timer) : nil
         let canStop = token != nil && (service.needsHoldRelease || service.isEditable || service.phase == .preparing)
-        return HStack(spacing: 3) {
+        return SwitchHeaderRow(height: 32) { compact, slot in
+            masterRowContent(showsInfo: !compact, token: token, slot: slot)
+        } control: {
+            // A failed release keeps the switch on. Acquisition failures without a
+            // session UUID retain the explicit recovery action instead of inventing one.
+            Toggle(L10n.text("Sleep timer"), isOn: Binding(
+                get: { service.isActive },
+                set: { setEnabled($0, token: token) }))
+                .toggleStyle(.switch).controlSize(.regular).labelsHidden().fixedSize()
+                .disabled(service.isActive ? !canStop : !SleepPillActions.canChooseTimer(model))
+                .accessibilityIdentifier("sleep-timer-master")
+                .studioElement("timer.master", label: "Sleep timer master switch")
+        }
+    }
+    private func masterRowContent(showsInfo: Bool, token: SleepControlToken?, slot: SwitchSlot) -> some View {
+        HStack(spacing: 3) {
             StudioText(L10n.text("Sleep timer"), id: "timer.heading")
                 .font(.system(size: 14, weight: .semibold)).fixedSize()
             if showsInfo {
@@ -354,13 +390,7 @@ struct SleepPillItem: Identifiable, Equatable {
                     .lineLimit(1).fixedSize()
                     .studioElement("timer.endClock", label: "Sleep time")
             }
-            Toggle(L10n.text("Sleep timer"), isOn: Binding(
-                get: { service.isActive },
-                set: { setEnabled($0, token: token) }))
-                .toggleStyle(.switch).controlSize(.regular).labelsHidden().fixedSize()
-                .disabled(service.isActive ? !canStop : !SleepPillActions.canChooseTimer(model))
-                .accessibilityIdentifier("sleep-timer-master")
-                .studioElement("timer.master", label: "Sleep timer master switch")
+            slot
         }
         .studioElement("timer.header", kind: "container", label: "Sleep timer controls")
     }
@@ -520,16 +550,22 @@ struct SleepPillItem: Identifiable, Equatable {
     }
     private var masterRow: some View {
         // The end time sits right of the title when it fits next to the shortcuts; otherwise it is left out.
-        ViewThatFits(in: .horizontal) {
-            masterRowContent(showsEnd: true)
-            masterRowContent(showsEnd: false)
+        let token = service.ownedAssertionID.map(SleepControlToken.awake)
+        return SwitchHeaderRow(height: 32) { compact, slot in
+            masterRowContent(showsEnd: !compact, token: token, slot: slot)
+        } control: {
+            Toggle(L10n.text("Keep Awake"), isOn: Binding(
+                get: { service.hasOwnedAssertion },
+                set: { setEnabled($0, token: token) }))
+                .toggleStyle(.switch).controlSize(.regular).labelsHidden().fixedSize()
+                .disabled(!service.hasOwnedAssertion && !SleepPillActions.canChooseAwake(model))
+                .accessibilityIdentifier("keep-awake-master")
+                .studioElement("awake.master", label: "Keep Awake master switch")
         }
-        .frame(height: 32)
         .studioElement("awake.header", kind: "container", label: "Keep Awake controls")
     }
-    private func masterRowContent(showsEnd: Bool) -> some View {
-        let token = service.ownedAssertionID.map(SleepControlToken.awake)
-        return HStack(spacing: 6) {
+    private func masterRowContent(showsEnd: Bool, token: SleepControlToken?, slot: SwitchSlot) -> some View {
+        HStack(spacing: 6) {
             StudioText(L10n.text("Keep Awake"), id: "awake.heading")
                 .font(.system(size: 14, weight: .semibold)).fixedSize()
             SectionInfoButton(title: L10n.text("Keep Awake"), paragraphs: [
@@ -545,13 +581,7 @@ struct SleepPillItem: Identifiable, Equatable {
                 extensionButton(15, token: token)
                 extensionButton(60, token: token)
             }
-            Toggle(L10n.text("Keep Awake"), isOn: Binding(
-                get: { service.hasOwnedAssertion },
-                set: { setEnabled($0, token: token) }))
-                .toggleStyle(.switch).controlSize(.regular).labelsHidden().fixedSize()
-                .disabled(!service.hasOwnedAssertion && !SleepPillActions.canChooseAwake(model))
-                .accessibilityIdentifier("keep-awake-master")
-                .studioElement("awake.master", label: "Keep Awake master switch")
+            slot
         }
     }
     private func extensionButton(_ minutes: Int, token: SleepControlToken) -> some View {
