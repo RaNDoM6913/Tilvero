@@ -32,6 +32,7 @@ enum UpdateCheckPhase: Equatable, Sendable {
     private var checkTask: Task<UpdateDiscoveryResult, Error>?
     private var schedule: Task<Void, Never>?
     private static let preferencePrefix = "Tilvero.Updates."
+    static let firstCheckDelay: Double = 120
 
     init(identity: UpdateIdentity = .current(), defaults: UserDefaults = .standard,
          discovery: UpdateDiscovery = UpdateDiscovery(), now: @escaping @MainActor () -> Date = { Date() },
@@ -42,7 +43,8 @@ enum UpdateCheckPhase: Equatable, Sendable {
         self.identity = identity; self.defaults = defaults; self.discovery = discovery; self.now = now
         self.interval = max(60, interval); self.sleeper = sleeper
         channel = defaults.string(forKey: Self.preferencePrefix + "channel").flatMap(UpdateChannel.init(rawValue:)) ?? identity.defaultChannel
-        automaticallyChecks = defaults.object(forKey: Self.preferencePrefix + "automaticallyChecks") as? Bool ?? false
+        // On unless the user turned it off: one public GitHub request a day while Tilvero runs (no account, no readings sent).
+        automaticallyChecks = defaults.object(forKey: Self.preferencePrefix + "automaticallyChecks") as? Bool ?? true
         if let data = defaults.data(forKey: cacheKey), data.count <= 262_144,
            let cached = try? JSONDecoder().decode(UpdateCachedCheck.self, from: data),
            cached.identity == identity, cached.snapshot.channel == channel,
@@ -129,7 +131,9 @@ enum UpdateCheckPhase: Equatable, Sendable {
     private func reschedule() {
         schedule?.cancel(); schedule = nil
         guard started && automaticallyChecks else { return }
-        let delay = max(60, interval - (lastSuccess.map { max(0, now().timeIntervalSince($0.checkedAt)) } ?? 0))
+        // Never checked for this build and channel: shortly after launch (not a day later, which a daily restart would
+        // postpone forever); otherwise when the last success turns a day old.
+        let delay = lastSuccess.map { max(60, interval - max(0, now().timeIntervalSince($0.checkedAt))) } ?? Self.firstCheckDelay
         schedule = Task { [weak self, sleeper, interval] in
             var next = delay
             while !Task.isCancelled {

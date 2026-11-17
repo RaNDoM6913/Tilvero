@@ -36,11 +36,24 @@ import XCTest
         XCTAssertNil(UpdateCheckService.newerRelease(in: .init(availability: .sourceOnly, release: nil, sourceRelease: release("0.7.1", build: "90")), than: identity(build: nil)))
     }
 
-    func testOptionalAutomaticCheckingStartsOffAndStopCancelsInFlightWork() async throws {
+    func testFirstAutomaticCheckComesShortlyAfterLaunchThenDaily() async throws {
+        let fixture = UpdateMetadataFixture.source(), transport = UpdateFixtureTransport(responses: fixture.responses)
+        var delays: [Double] = []
+        let service = UpdateCheckService(identity: fixture.identity, defaults: defaults(), discovery: UpdateDiscovery(transport: transport),
+            sleeper: { delays.append($0); if delays.count > 1 { try await Task.sleep(for: .seconds(60)) } })
+        service.setChannel(.beta)
+        service.start()
+        while service.lastSuccess == nil { await Task.yield() }
+        while delays.count < 2 { await Task.yield() }
+        service.stop()
+        XCTAssertEqual(delays, [UpdateCheckService.firstCheckDelay, 86_400])
+    }
+
+    func testAutomaticCheckingStartsOnWithoutAnImmediateRequestAndStopCancelsInFlightWork() async throws {
         let fixture = UpdateMetadataFixture.source(), transport = UpdateFixtureTransport(responses: [:])
         await transport.suspend()
         let service = UpdateCheckService(identity: fixture.identity, defaults: defaults(), discovery: UpdateDiscovery(transport: transport))
-        XCTAssertFalse(service.automaticallyChecks)
+        XCTAssertTrue(service.automaticallyChecks)
         service.start()
         let initiallyEmpty = await transport.requests.isEmpty
         XCTAssertTrue(initiallyEmpty)
@@ -106,6 +119,7 @@ import XCTest
         var sleeps = 0
         let service = UpdateCheckService(identity: fixture.identity, defaults: defaults(), discovery: UpdateDiscovery(transport: transport),
             sleeper: { _ in sleeps += 1; try await Task.sleep(for: .seconds(60)) })
+        service.setAutomaticallyChecks(false)
         service.start()
         await Task.yield()
         XCTAssertEqual(sleeps, 0)

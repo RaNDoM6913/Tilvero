@@ -12,7 +12,7 @@ A source prerelease and a trusted Mac download are separate deliverables.
 | OS | macOS 26.0 or later |
 | Build tools | Full Xcode with a compatible macOS SDK and Swift 6; Command Line Tools alone are not the validated route |
 | Interface | Native SwiftUI and AppKit; Russian and English |
-| Connectivity | Offline monitoring core; optional release checks use HTTPS without an account or telemetry upload |
+| Connectivity | Offline monitoring core; a daily release check (on by default, can be turned off in Settings → Updates) uses HTTPS without an account or telemetry upload |
 | Monitoring | Runs without administrator approval or helper enrollment |
 
 The deployment target does not prove every model/OS combination has been tested.
