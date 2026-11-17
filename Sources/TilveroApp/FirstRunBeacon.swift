@@ -16,6 +16,8 @@ import QuartzCore
 
     func show(around button: NSRect, reduceMotion: Bool) {
         let frame = Self.ringFrame(around: button)
+        // Called every second while the ring is wanted: an unchanged ring is left alone (no animation restart).
+        if let current = window, current.isVisible, current.frame == frame { return }
         let panel = window ?? makeWindow()
         window = panel
         panel.setFrame(frame, display: false)

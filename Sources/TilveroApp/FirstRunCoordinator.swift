@@ -231,8 +231,9 @@ extension FirstRunHost {
             self.fillIcon(delay: reduce ? 0 : FirstRunMotion.handOffDuration(reduceMotion: false) * 0.6)
             self.after(FirstRunMotion.handOffDuration(reduceMotion: reduce) / speed) { [weak self] in
                 guard let self, my == self.token else { return }
-                self.host?.firstRunOpenPopover()
+                // Armed first: with Reduce Motion the menu can open (and be closed again) before this returns.
                 self.host?.firstRunPointAtIcon()
+                self.host?.firstRunOpenPopover()
                 self.session.send(.revealed)
             }
         }
