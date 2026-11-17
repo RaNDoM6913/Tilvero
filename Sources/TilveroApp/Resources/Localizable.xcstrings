@@ -1345,6 +1345,38 @@
         }
       }
     },
+    "New version %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New version %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Новая версия %@"
+          }
+        }
+      }
+    },
+    "Open Updates": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Updates"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть обновления"
+          }
+        }
+      }
+    },
     "Wear": {
       "localizations": {
         "en": {

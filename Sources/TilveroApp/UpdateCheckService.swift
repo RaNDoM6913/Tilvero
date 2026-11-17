@@ -81,6 +81,24 @@ enum UpdateCheckPhase: Equatable, Sendable {
         }
     }
 
+    /// The release from the last successful check that is newer than this build (by machine build number), or nil.
+    /// A failed or cancelled later check keeps it: the result stays dated and the Updates page shows it.
+    var newerRelease: UpdateRelease? { lastSuccess.flatMap { Self.newerRelease(in: $0.result, than: identity) } }
+
+    static func newerRelease(in result: UpdateDiscoveryResult, than identity: UpdateIdentity) -> UpdateRelease? {
+        guard let installed = identity.build else { return nil }
+        // The same record the Updates page shows (release ?? sourceRelease): an app release when one is available,
+        // the source release only when nothing else is offered; "current" never produces a notice.
+        let candidate: UpdateRelease?
+        switch result.availability {
+        case .appAvailable: candidate = result.release
+        case .sourceOnly: candidate = result.sourceRelease
+        case .current, .manual, .noCompatibleRelease: candidate = nil
+        }
+        guard let candidate, candidate.build.flatMap({ UpdateIdentity.compareBuilds($0, installed) }) == .orderedDescending else { return nil }
+        return candidate
+    }
+
     func cancel() {
         guard let task = checkTask else { return }
         generation &+= 1
