@@ -46,6 +46,7 @@ the destination must not exist. Keep one development copy running at a time and
 quit normally before switching copies, so active sessions can end and recovery
 can complete. Diagnostics identifies the running bundle path.
 
+A brand-new install opens a first-run setup window once; an existing install never sees it.
 The menu bar battery opens the quick panel. **History & reports…** opens the detail
 window; the gear opens Settings. In the app, **⌘⌥B** toggles the panel and **⌘,**
 opens Settings. Reopening Tilvero restores a window when its menu item is hidden.
@@ -129,6 +130,7 @@ bash scripts/run-local.sh
 Перед переключением завершайте приложение штатно, чтобы закончились активные
 сеансы и восстановление. Путь работающей копии виден в диагностике.
 
+На совсем новой установке один раз появляется окно первого запуска; уже установленная копия его не показывает.
 Значок батареи открывает быструю панель. **«История и отчёты…»** открывает
 подробное окно, шестерёнка — настройки. В приложении **⌘⌥B** переключает панель,
 **⌘,** открывает настройки. Повторное открытие Tilvero восстанавливает окно,
