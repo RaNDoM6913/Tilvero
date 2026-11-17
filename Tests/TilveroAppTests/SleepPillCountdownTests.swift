@@ -7,7 +7,7 @@ import AppKit
 import PowerCore
 @testable import TilveroApp
 
-private final class CountdownLid: LidSleepSystem, @unchecked Sendable {
+final class CountdownLid: LidSleepSystem, @unchecked Sendable {
     var ruleFilePresent: Bool { true }
     func readSleepDisabled() async -> Bool? { false }
     func passwordlessPathWorks() async -> Bool { true }
@@ -18,7 +18,7 @@ private final class CountdownLid: LidSleepSystem, @unchecked Sendable {
     func lidClosedWouldSleep() -> Bool { false }
     func requestSleep() -> Bool { true }
 }
-@MainActor private final class CountdownTimerTransport: SleepTimerTransport {
+@MainActor final class CountdownTimerTransport: SleepTimerTransport {
     var hasIdleHold = false
     func acquireIdleHold(seconds: Int) throws { hasIdleHold = true }
     func extendIdleHold() throws {}
