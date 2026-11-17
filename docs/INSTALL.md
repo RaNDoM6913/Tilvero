@@ -68,7 +68,7 @@ around rejection. A checksum confirms integrity, not signing trust or notarizati
 
 ### Updates and local data
 
-Updates are manual. Tilvero checks GitHub once a day for a newer release (one public request, no readings sent; switch it off in
+Updates are manual. Tilvero checks GitHub once a day for a newer release (a few public requests, no readings sent; switch it off in
 Settings > Updates) and shows a "New version" notice, but never downloads or installs anything. Read migration notes, quit the running version normally,
 then replace it with the verified new app. Preserve history and preferences;
 report an import failure instead of deleting the old store. Do not run prototype
@@ -155,7 +155,7 @@ bash scripts/run-local.sh
 
 ### Обновление и данные
 
-Обновление ручное. Tilvero раз в сутки проверяет GitHub на новый выпуск (один публичный запрос, показания не отправляются;
+Обновление ручное. Tilvero раз в сутки проверяет GitHub на новый выпуск (несколько публичных запросов, показания не отправляются;
 отключается в Настройки > Обновления) и показывает пометку «Новая версия», но ничего не скачивает и не устанавливает.
 Прочитайте заметки о переносе, штатно завершите приложение
 и замените его проверенной новой версией. Сохраните историю и настройки;

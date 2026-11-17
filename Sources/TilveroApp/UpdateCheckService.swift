@@ -33,6 +33,8 @@ enum UpdateCheckPhase: Equatable, Sendable {
     private var schedule: Task<Void, Never>?
     private static let preferencePrefix = "Tilvero.Updates."
     static let firstCheckDelay: Double = 120
+    /// A failed automatic check (offline at launch, rate limit) is retried after an hour, not a day later.
+    static let retryAfterFailureDelay: Double = 3_600
 
     init(identity: UpdateIdentity = .current(), defaults: UserDefaults = .standard,
          discovery: UpdateDiscovery = UpdateDiscovery(), now: @escaping @MainActor () -> Date = { Date() },
@@ -140,7 +142,7 @@ enum UpdateCheckPhase: Equatable, Sendable {
                 do { try await sleeper(next) } catch { return }
                 guard !Task.isCancelled, let self, self.started, self.automaticallyChecks else { return }
                 await self.check()
-                next = interval
+                if case .failed = self.phase { next = min(interval, Self.retryAfterFailureDelay) } else { next = interval }
             }
         }
     }

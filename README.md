@@ -47,7 +47,7 @@ A polish release: a clearer battery-health card and a quiet update notice.
 
 **New**
 - **A "New version" notice in the quick menu.** When the last update check found a release newer than your build, a wide capsule appears in the header between the name and the gear and opens Settings > Updates. It only informs.
-- **Update checks are on by default.** Tilvero asks GitHub once a day while it runs (the first time about two minutes after launch). It is one public request: no account, no readings sent. Turn it off in Settings > Updates. Installing is still manual: a release publishes source, which you build with Xcode; nothing is downloaded or installed for you.
+- **Update checks are on by default.** Tilvero asks GitHub once a day while it runs (the first time about two minutes after launch). It is a few public requests: no account, no readings sent. Turn it off in Settings > Updates. Installing is still manual: a release publishes source, which you build with Xcode; nothing is downloaded or installed for you.
 
 **Changed**
 - **The battery-health card on the Overview shows the cycle count and the wear on a larger line**, with the capacities small below.

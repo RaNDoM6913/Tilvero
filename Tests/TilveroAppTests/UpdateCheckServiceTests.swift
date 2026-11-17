@@ -36,6 +36,18 @@ import XCTest
         XCTAssertNil(UpdateCheckService.newerRelease(in: .init(availability: .sourceOnly, release: nil, sourceRelease: release("0.7.1", build: "90")), than: identity(build: nil)))
     }
 
+    func testFailedAutomaticCheckIsRetriedAfterAnHour() async throws {
+        let fixture = UpdateMetadataFixture.source(), transport = UpdateFixtureTransport(responses: fixture.responses)
+        await transport.setFailure(URLError(.notConnectedToInternet))
+        var delays: [Double] = []
+        let service = UpdateCheckService(identity: fixture.identity, defaults: defaults(), discovery: UpdateDiscovery(transport: transport),
+            sleeper: { delays.append($0); if delays.count > 1 { try await Task.sleep(for: .seconds(60)) } })
+        service.start()
+        while delays.count < 2 { await Task.yield() }
+        service.stop()
+        XCTAssertEqual(delays, [UpdateCheckService.firstCheckDelay, UpdateCheckService.retryAfterFailureDelay])
+    }
+
     func testFirstAutomaticCheckComesShortlyAfterLaunchThenDaily() async throws {
         let fixture = UpdateMetadataFixture.source(), transport = UpdateFixtureTransport(responses: fixture.responses)
         var delays: [Double] = []
