@@ -1471,7 +1471,14 @@ final class CancellableProcessRunTests: XCTestCase {
         beacon.show(around: button, reduceMotion: false)
         XCTAssertTrue(beacon.isShown)
         XCTAssertTrue(beacon.window?.ignoresMouseEvents == true, "never in the way of the real icon")
-        beacon.show(around: button, reduceMotion: true)   // a second call reuses the window
+        let first = beacon.window
+        beacon.show(around: button, reduceMotion: false)   // unchanged position: nothing is rebuilt, the pulse is not restarted
+        XCTAssertTrue(beacon.window === first)
+        XCTAssertNotNil(beacon.window?.contentView?.layer?.animation(forKey: "beacon"))
+        beacon.show(around: button.offsetBy(dx: -30, dy: 0), reduceMotion: true)   // the icon moved: the ring follows, still pulse-free
+        XCTAssertTrue(beacon.window === first)
+        XCTAssertEqual(beacon.window?.frame, FirstRunBeacon.ringFrame(around: button.offsetBy(dx: -30, dy: 0)))
+        XCTAssertNil(beacon.window?.contentView?.layer?.animation(forKey: "beacon"), "Reduce Motion: a still ring")
         XCTAssertTrue(beacon.isShown)
         beacon.hide()
         XCTAssertFalse(beacon.isShown)

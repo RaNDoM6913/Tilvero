@@ -832,25 +832,33 @@ extension TilveroAppDelegate: FirstRunHost {
     func firstRunPointAtIcon() {
         firstRunBeaconArmed = true
         firstRunBeaconTasks.forEach { $0.cancel() }
+        // The ring follows the icon once a second while armed (the icon moves when the percentage changes or another
+        // menu bar item appears, or goes under the notch or to another display) and goes away when the icon is not
+        // really on screen. Cancelling the task never counts as the time running out.
         firstRunBeaconTasks = [Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .milliseconds(900))
-            self?.refreshFirstRunBeacon()
-            try? await Task.sleep(for: .seconds(300))
+            let end = Date().addingTimeInterval(300)
+            do {
+                try await Task.sleep(for: .milliseconds(900))
+                while Date() < end {
+                    guard let self, self.firstRunBeaconArmed else { return }
+                    self.refreshFirstRunBeacon()
+                    try await Task.sleep(for: .seconds(1))
+                }
+            } catch { return }
             self?.disarmFirstRunBeacon()
         }]
     }
     func refreshFirstRunBeacon() {
-        guard firstRunBeaconArmed, !popover.isShown, let frame = firstRunStatusButtonFrame, firstRunStatusItemVisible else {
-            if !firstRunBeaconArmed || popover.isShown { firstRunBeacon.hide() }
-            return
-        }
+        guard firstRunBeaconArmed, !popover.isShown, firstRunStatusItemVisible,
+              statusItem?.button?.window?.occlusionState.contains(.visible) == true,
+              let frame = firstRunStatusButtonFrame else { firstRunBeacon.hide(); return }
         firstRunBeacon.show(around: frame, reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
     }
     func firstRunPopoverShown() {
         guard firstRunBeaconArmed else { return }
         firstRunBeacon.hide()
         firstRunBeaconTasks.append(Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(3))
+            do { try await Task.sleep(for: .seconds(3)) } catch { return }
             if self?.popover.isShown == true { self?.disarmFirstRunBeacon() }
         })
     }
