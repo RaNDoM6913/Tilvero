@@ -93,15 +93,15 @@ struct FirstRunWindowView: View {
 
     private func content(entrance t: Double) -> some View {
         let e = M.entrance(t, reduceMotion: reduce)
-        return VStack(alignment: .leading, spacing: 18) {
-            header(M.hero(t, reduceMotion: reduce))
+        return VStack(alignment: .leading, spacing: 12) {
+            header(M.hero(t, reduceMotion: reduce)).padding(.bottom, 10)
             choices(t)
             status.id(flow.step).transition(.opacity)
             if flow.step == .waitingTerminal { terminalHint.transition(.opacity) }
             if session.showsCommand, flow.step == .waitingTerminal, let text = session.commandText { commandBox(text).transition(.opacity) }
-            buttons
+            buttons.padding(.top, 4)
         }
-        .padding(.horizontal, 24).padding(.top, 14).padding(.bottom, 22)
+        .padding(.horizontal, 24).padding(.top, 28).padding(.bottom, 24)
         .animation(stepAnimation, value: flow.step)
         .animation(stepAnimation, value: session.showsCommand)
         .opacity(e.opacity).scaleEffect(e.scale).offset(y: e.rise)
@@ -111,7 +111,7 @@ struct FirstRunWindowView: View {
 
     /// The battery sits centered at the height of the window buttons, the title and subtitle under it.
     private func header(_ hero: FirstRunMotion.Hero) -> some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 12) {
             FirstRunHeroBattery(frame: hero)
             VStack(alignment: .center, spacing: 3) {
                 HStack(spacing: 8) {
@@ -197,7 +197,7 @@ struct FirstRunWindowView: View {
     @ViewBuilder private var status: some View {
         switch flow.step {
         case .choosing:
-            if !flow.missingLocked.isEmpty { note("lock.fill", "firstRun.passwordNote", info: true) } else { note("checkmark.circle", "firstRun.readyNote") }
+            if !flow.missingLocked.isEmpty { note("lock.fill", "firstRun.passwordNote", info: true, terminalLink: true) } else { note("checkmark.circle", "firstRun.readyNote") }
         case .applying, .enablingLid: progress("firstRun.enabling")
         case .waitingSystem: progress("firstRun.waiting.system")
         case .waitingTerminal:
@@ -210,9 +210,9 @@ struct FirstRunWindowView: View {
                         .buttonStyle(.link).font(.system(size: 12)).accessibilityIdentifier("firstRun.showCommand")
                 }
             }.frame(minHeight: 20)
-        case .declined: note("hand.raised", flow.route == .terminal ? "firstRun.declined.terminal" : "firstRun.declined", info: true)
-        case .failed: note("exclamationmark.circle", flow.route == .terminal ? "firstRun.failed.terminal" : "firstRun.failed", info: true)
-        case .timedOut: note("clock", "firstRun.timedOut", info: true)
+        case .declined: note("hand.raised", flow.route == .terminal ? "firstRun.declined.terminal" : "firstRun.declined", info: true, terminalLink: true)
+        case .failed: note("exclamationmark.circle", flow.route == .terminal ? "firstRun.failed.terminal" : "firstRun.failed", info: true, terminalLink: true)
+        case .timedOut: note("clock", "firstRun.timedOut", info: true, terminalLink: true)
         case .attention: attentionList
         case .done:
             HStack(spacing: 8) {
@@ -233,12 +233,19 @@ struct FirstRunWindowView: View {
         }
     }
 
-    private func note(_ symbol: String, _ key: String, info: Bool = false) -> some View {
+    /// One line under the choices. `terminalLink`: the "Use Terminal instead" link sits at its right end while a password
+    /// feature is still missing (the same row, so it never changes the window height).
+    private func note(_ symbol: String, _ key: String, info: Bool = false, terminalLink: Bool = false) -> some View {
         HStack(spacing: 7) {
             Image(systemName: symbol).font(.system(size: 12)).foregroundStyle(.secondary).frame(width: 18).accessibilityHidden(true)
-            Text(L10n.text(key)).font(.system(size: 13)).foregroundStyle(.secondary)
+            Text(L10n.text(key)).font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8)
             if info { SectionInfoButton(title: L10n.text("firstRun.info.title"), paragraphs: Self.infoKeys.map(L10n.text), id: "firstRun.info") }
-            Spacer(minLength: 0)
+            Spacer(minLength: 8)
+            if terminalLink && flow.buttons.terminalLink {
+                Button(L10n.text("firstRun.useTerminal")) { session.send(.useTerminal) }
+                    .buttonStyle(.link).font(.system(size: 12)).lineLimit(1).fixedSize()
+                    .accessibilityIdentifier("firstRun.useTerminal")
+            }
         }.frame(minHeight: 20)
     }
 
@@ -288,19 +295,10 @@ struct FirstRunWindowView: View {
 
     private var buttons: some View {
         let model = flow.buttons
-        return VStack(alignment: .trailing, spacing: 8) {
-            HStack(spacing: 10) {
-                if let secondary = model.secondary { secondaryButton(secondary) }
-                Spacer(minLength: 8)
-                if let primary = model.primary { primaryButton(primary) }
-            }
-            if model.terminalLink || flow.choicesEditable {
-                // Reserved while the choices can change, so ticking a password feature never changes the height.
-                Button(L10n.text("firstRun.useTerminal")) { session.send(.useTerminal) }
-                    .buttonStyle(.link).font(.system(size: 12)).accessibilityIdentifier("firstRun.useTerminal")
-                    .opacity(model.terminalLink ? 1 : 0).disabled(!model.terminalLink).accessibilityHidden(!model.terminalLink)
-                    .animation(.easeInOut(duration: M.crossfadeDuration(reduceMotion: reduce)), value: model.terminalLink)
-            }
+        return HStack(spacing: 10) {
+            if let secondary = model.secondary { secondaryButton(secondary) }
+            Spacer(minLength: 8)
+            if let primary = model.primary { primaryButton(primary) }
         }
         .frame(minHeight: 34)
     }
