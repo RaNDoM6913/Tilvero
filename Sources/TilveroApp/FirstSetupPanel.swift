@@ -28,6 +28,9 @@ import SwiftUI
                 group("Additional features", symbol: "slider.horizontal.3") {
                     rows([.nativeCharging, .fans, .helperPowerModes, .closedLid], in: readiness)
                 }
+                if let permissions = model.privilegedPermissions {
+                    group("setup.permissions.title", symbol: "lock") { PrivilegedPermissionsSection(controller: permissions) }
+                }
                 group("Your choices", symbol: "person.crop.circle") {
                     Toggle(L10n.text("Save battery history"), isOn: Binding(
                         get: { readiness.inputs.historyEnabled },

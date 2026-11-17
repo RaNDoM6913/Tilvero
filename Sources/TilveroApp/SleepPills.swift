@@ -176,6 +176,17 @@ enum SleepPillActionError: LocalizedError, Equatable {
     }
 }
 
+/// One preset pill as data. The pill row sits in a one-second `TimelineView`, but a `ForEach` over constants is not
+/// re-run by the tick: the selection and the countdown travel in the element so a changed second is a changed element.
+struct SleepPillItem: Identifiable, Equatable {
+    let minutes: Int
+    let countdown: String?
+    var id: Int { minutes }
+    static func items(of presets: [Int], applied: SleepPillSelection?, countdown: String) -> [SleepPillItem] {
+        presets.map { SleepPillItem(minutes: $0, countdown: applied == .preset($0) ? countdown : nil) }
+    }
+}
+
 @MainActor private struct SleepDurationPill: View {
     let title: String
     let selected: Bool
@@ -240,12 +251,15 @@ enum SleepPillActionError: LocalizedError, Equatable {
             TimelineView(.periodic(from: .now, by: 1)) { tick in
                 let _ = tick.date   // the content must read the tick, or SwiftUI may keep the first rendering
                 let selection = SleepPillActions.timerSelection(model)
+                let countdown = KeepAwakePresentation.countdown(service.remainingSeconds)
                 HStack(spacing: 6) {
-                    ForEach([15, 30, 60], id: \.self) { minutes in
-                        pill("\(minutes) " + L10n.text("min"), selection: .preset(minutes), applied: selection,
-                             id: "timer.preset.\(minutes)") { apply(minutes: minutes, custom: false) }
+                    // The elements carry the selection and the countdown: a ForEach over constants is not re-evaluated
+                    // by the tick, so the preset pills' text used to refresh only when something else invalidated them.
+                    ForEach(SleepPillItem.items(of: [15, 30, 60], applied: selection, countdown: countdown)) { item in
+                        pill("\(item.minutes) " + L10n.text("min"), selection: .preset(item.minutes), applied: selection,
+                             countdown: item.countdown, id: "timer.preset.\(item.minutes)") { apply(minutes: item.minutes, custom: false) }
                     }
-                    pill(L10n.text("Custom timer time"), selection: .custom, applied: selection, id: "timer.custom") {
+                    pill(L10n.text("Custom timer time"), selection: .custom, applied: selection, countdown: countdown, id: "timer.custom") {
                         wheelPresentationID = UUID(); committedWheelValue = nil
                         showsWheel = true; error = nil
                     }
@@ -375,11 +389,11 @@ enum SleepPillActionError: LocalizedError, Equatable {
             apply(minutes: min(1440, (service.remainingSeconds + 59) / 60 + minutes), custom: true)
         }
     }
-    private func pill(_ title: String, selection: SleepPillSelection, applied: SleepPillSelection?,
+    private func pill(_ title: String, selection: SleepPillSelection, applied: SleepPillSelection?, countdown: String?,
                       id: String, action: @escaping () -> Void) -> some View {
         let selected = applied == selection
         return SleepDurationPill(title: title, selected: selected,
-            countdown: selected ? KeepAwakePresentation.countdown(service.remainingSeconds) : nil,
+            countdown: selected ? countdown : nil,
             id: id, captionID: id + ".caption", action: {
                 // Tapping the running pill ends the timer (like the Overview Keep Awake strip); the others start it.
                 if selected { setEnabled(false, token: SleepPillActions.controlToken(model, awake: false)) }
@@ -455,15 +469,18 @@ enum SleepPillActionError: LocalizedError, Equatable {
             TimelineView(.periodic(from: .now, by: 1)) { tick in
                 let _ = tick.date   // the content must read the tick, or SwiftUI may keep the first rendering
                 let applied = SleepPillActions.awakeSelection(model)
+                let countdown = KeepAwakePresentation.countdown(service.remainingSeconds)
                 LazyVGrid(columns: columns, spacing: 6) {
-                    ForEach(KeepAwakeDuration.allCases) { duration in
-                        pill(durationLabel(duration), option: .preset(duration.rawValue), applied: applied, raw: duration.rawValue) {
-                            apply(.duration(duration.rawValue))
+                    // Elements carry the state so the tick re-evaluates them (see SleepTimerPillsPanel).
+                    ForEach(SleepPillItem.items(of: KeepAwakeDuration.allCases.map(\.rawValue), applied: applied, countdown: countdown)) { item in
+                        let duration = KeepAwakeDuration(rawValue: item.minutes)!
+                        pill(durationLabel(duration), option: .preset(item.minutes), applied: applied, countdown: item.countdown, raw: item.minutes) {
+                            apply(.duration(item.minutes))
                         }
                     }
-                    pill("∞", option: .untilStopped, applied: applied, raw: 0,
+                    pill("∞", option: .untilStopped, applied: applied, countdown: countdown, raw: 0,
                          accessibilityTitle: L10n.text("Until stopped")) { apply(.untilStopped) }
-                    pill(L10n.text("Until…"), option: .until, applied: applied, raw: -2) { wheelMode = .until; error = nil }
+                    pill(L10n.text("Until…"), option: .until, applied: applied, countdown: countdown, raw: -2) { wheelMode = .until; error = nil }
                         .background { wheelAnchor(mode: .until) }
                 }
             }
@@ -562,12 +579,12 @@ enum SleepPillActionError: LocalizedError, Equatable {
     private func durationLabel(_ duration: KeepAwakeDuration) -> String {
         duration.rawValue < 60 ? "\(duration.rawValue) " + L10n.text("min") : "\(duration.rawValue / 60) " + L10n.text("h")
     }
-    private func pill(_ title: String, option: SleepPillSelection, applied: SleepPillSelection?,
+    private func pill(_ title: String, option: SleepPillSelection, applied: SleepPillSelection?, countdown: String?,
                       raw: Int, accessibilityTitle: String? = nil, action: @escaping () -> Void) -> some View {
         let selected = applied == option
         let token = service.ownedAssertionID.map(SleepControlToken.awake)
         return SleepDurationPill(title: title, selected: selected,
-            countdown: selected && option != .untilStopped ? KeepAwakePresentation.countdown(service.remainingSeconds) : nil,
+            countdown: selected && option != .untilStopped ? countdown : nil,
             id: "keep-awake-option-\(raw)", captionID: "awake.option.\(raw).caption",
             accessibilityTitle: accessibilityTitle, selectedHelp: endSessionLabel, action: {
                 if selected { setEnabled(false, token: token) }

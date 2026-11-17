@@ -100,6 +100,17 @@ struct OverviewPreferences: Codable, Equatable {
     /// One height for every chart on the page; the default stays unwritten so untouched preferences stay unchanged.
     var chartSize: MetricChartSize = .standard
     init() {}
+    /// The page a brand-new install starts with: keep awake, the combined power chart, a temperature strip and battery
+    /// health on top, everything else hidden, strip-height charts. It is written once by the first run (never by
+    /// `init()`: untouched preferences of existing users must keep their page across updates).
+    static let firstRunDefault: OverviewPreferences = {
+        let visible: [OverviewMetric] = [.keepAwake, .powerCombined, .temperature, .batteryHealth]
+        var value = OverviewPreferences()
+        value.order = visible + OverviewMetric.allCases.filter { !visible.contains($0) }
+        value.hidden = Set(OverviewMetric.allCases).subtracting(visible)
+        value.chartSize = .strip
+        return value
+    }()
     private enum CodingKeys: String, CodingKey { case order, hidden, chartSize }
     /// Metrics that can draw a chart always do (the sparkline option is gone); a saved `chartStyles` key is ignored.
     func chartStyle(for metric: OverviewMetric) -> MetricChartStyle { metric.supportsChartStyle ? .chart : .sparkline }

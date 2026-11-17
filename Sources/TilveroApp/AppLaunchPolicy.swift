@@ -52,6 +52,17 @@ struct AppLaunchPolicy: Equatable {
 /// window over the user's work by itself. The details window opens only from the user's own action (the menu bar
 /// icon's menu, reopening the app) or the explicit `--show-details` flag. The first-run setup is a Settings page,
 /// not a launch-time window.
+///
+/// Exactly one exception exists: the first-run setup window, at the very first launch of a fresh install only
+/// (`FirstRunDecision.show`). The user has just opened the app deliberately, so that one window opens centered and in
+/// front like any setup window (never floating). Every other launch stays quiet.
 enum LaunchPresentation {
+    enum Window: Equatable { case none, details, firstRun }
+
     static func opensDetailsAtLaunch(arguments: [String]) -> Bool { arguments.contains("--show-details") }
+
+    static func window(arguments: [String], firstRun: FirstRunDecision) -> Window {
+        if opensDetailsAtLaunch(arguments: arguments) { return .details }
+        return firstRun == .show ? .firstRun : .none
+    }
 }

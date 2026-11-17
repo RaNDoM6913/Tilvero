@@ -19,8 +19,8 @@ import AppKit
 /// The only place that runs `sudo -n pmset schedule`. Never exercised by default tests.
 @MainActor final class NativeWakeScheduler: WakeScheduling {
     static let owner = "Tilvero"
+    /// The older one-feature file (still read; new permissions go into the merged file, see `PrivilegedRuleInstaller`).
     static let rulePath = "/etc/sudoers.d/tilvero-wake"
-    static let tempRulePath = "/etc/sudoers.d/tilvero-wake.tmp"
 
     /// `pmset schedule` takes the date in the local time zone, in this exact shape (it is also how `pmset -g sched` prints it).
     static func pmsetDate(_ date: Date, timeZone: TimeZone = .current) -> String {
@@ -39,16 +39,14 @@ import AppKit
     static func rule(uid: uid_t) -> String {
         "#\(uid) ALL=(root) NOPASSWD: /usr/bin/pmset schedule wake *, /usr/bin/pmset schedule cancel wake *"
     }
-    static func installCommand(uid: uid_t) -> String {
-        "mkdir -p /etc/sudoers.d && echo '\(rule(uid: uid))' > \(tempRulePath) && chmod 0440 \(tempRulePath) && /usr/sbin/visudo -c -f \(tempRulePath) && mv \(tempRulePath) \(rulePath) || { rm -f \(tempRulePath); exit 1; }"
-    }
     /// Is our wake for `date` in the output of `pmset -g sched`?
     static func schedulePresent(_ output: String, date: Date, timeZone: TimeZone = .current) -> Bool {
         let stamp = pmsetDate(date, timeZone: timeZone)
         return output.split(separator: "\n").contains { $0.contains("wake at " + stamp) && $0.contains("'" + owner + "'") }
     }
 
-    var isPermitted: Bool { FileManager.default.fileExists(atPath: Self.rulePath) }
+    /// The own `tilvero-wake` file or the merged `tilvero` file written with this feature (see `PrivilegedRuleInstaller`).
+    var isPermitted: Bool { PrivilegedRulePresence.isPresent(.chargeByTime) }
 
     func schedule(_ date: Date) async -> Bool {
         guard isPermitted else { return false }
@@ -63,14 +61,8 @@ import AppKit
         let listed = await Self.run("/usr/bin/pmset", ["-g", "sched"])
         return listed.status == 0 && !Self.schedulePresent(listed.output, date: date)
     }
-    func installPermission() async -> Bool {
-        let prompt = L10n.text("Tilvero asks to allow scheduling one wake, so a Mac asleep overnight can start charging on time.")
-        let literal = "\"" + Self.installCommand(uid: getuid()).replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\""
-        let promptLiteral = "\"" + prompt.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\""
-        NSApplication.shared.activate()
-        let result = await Self.run("/usr/bin/osascript", ["-e", "do shell script \(literal) with administrator privileges with prompt \(promptLiteral)"], timeout: 600)
-        return result.status == 0 && isPermitted
-    }
+    /// The shared installer: the wake line goes into the merged rule file (one validated root script, one dialog).
+    func installPermission() async -> Bool { await PrivilegedRuleInstaller.runNative(.install([.chargeByTime])) && isPermitted }
 
     private final class Once: @unchecked Sendable {
         private let lock = NSLock(); private var done = false
