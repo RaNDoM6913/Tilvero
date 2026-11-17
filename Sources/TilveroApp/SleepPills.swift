@@ -370,6 +370,7 @@ struct SleepPillItem: Identifiable, Equatable {
                 .accessibilityIdentifier("sleep-timer-master")
                 .studioElement("timer.master", label: "Sleep timer master switch")
         }
+        .studioElement("timer.header", kind: "container", label: "Sleep timer controls")
     }
     private func masterRowContent(showsInfo: Bool, token: SleepControlToken?, slot: SwitchSlot) -> some View {
         HStack(spacing: 3) {
@@ -392,7 +393,6 @@ struct SleepPillItem: Identifiable, Equatable {
             }
             slot
         }
-        .studioElement("timer.header", kind: "container", label: "Sleep timer controls")
     }
     /// "+5 min" / "+15 min" next to the end time of a running timer. Fifteen uses the verified extension; five restarts with the longer total.
     private func addChip(_ minutes: Int, token: SleepControlToken?) -> some View {

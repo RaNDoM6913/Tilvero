@@ -20,7 +20,7 @@ import PowerCore
     private func makeRig(awakePage: Bool) async -> Rig {
         let timer = SleepTimerService(driver: CountdownTimerTransport(), allowed: true)
         let awake = KeepAwakeService(driver: AwakeFixture())
-        let suite = "SwitchId\(UUID())", prefs = UserDefaults(suiteName: suite)!
+        let suite = "TilveroTests.SwitchId.\(UUID().uuidString)", prefs = UserDefaults(suiteName: suite)!
         addTeardownBlock { prefs.removePersistentDomain(forName: suite) }
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"),
@@ -47,9 +47,18 @@ import PowerCore
         }
     }
     private func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
-    /// The master switch is the topmost switch of the page.
+    /// Whether the view, or any ancestor, is hidden or fully transparent (the invisible `SwitchSlot` twins, should one ever be an AppKit view).
+    private func isVisible(_ view: NSView) -> Bool {
+        var current: NSView? = view
+        while let candidate = current {
+            if candidate.isHidden || candidate.alphaValue == 0 { return false }
+            current = candidate.superview
+        }
+        return true
+    }
+    /// The master switch is the topmost visible switch of the page.
     private func masterSwitch(_ rig: Rig) -> NSSwitch? {
-        descendants(rig.host).compactMap { $0 as? NSSwitch }
+        descendants(rig.host).compactMap { $0 as? NSSwitch }.filter(isVisible)
             .max { $0.convert($0.bounds, to: nil).minY < $1.convert($1.bounds, to: nil).minY }
     }
     private func signature(_ layer: CALayer) -> String {
@@ -72,6 +81,10 @@ import PowerCore
         return (signatures.count, replaced)
     }
 
+    /// With Reduce Motion the switch is allowed to jump, so the frame-count checks apply only without it; the identity
+    /// checks (the switch is never rebuilt) hold either way.
+    private var switchMayAnimate: Bool { !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
+
     func testKeepAwakeSwitchAnimatesAndKeepsItsViewWhenASessionStartsAndEnds() async throws {
         try await inEachLanguage { language in
             let rig = await makeRig(awakePage: true)
@@ -87,12 +100,12 @@ import PowerCore
             let clickOn = await watch(rig, seconds: 0.7) { self.masterSwitch(rig)?.performClick(nil) }
             XCTAssertTrue(rig.awake.hasOwnedAssertion, "the click must start Keep Awake")
             XCTAssertFalse(clickOn.replaced, "the clicked switch was replaced by a new one")
-            XCTAssertGreaterThanOrEqual(clickOn.frames, 5, "the switch must animate on, not jump (\(clickOn.frames) renderings, \(language))")
+            if switchMayAnimate { XCTAssertGreaterThanOrEqual(clickOn.frames, 5, "the switch must animate on, not jump (\(clickOn.frames) renderings, \(language))") }
             try await Task.sleep(for: .milliseconds(500))
             let clickOff = await watch(rig, seconds: 0.7) { self.masterSwitch(rig)?.performClick(nil) }
             XCTAssertFalse(rig.awake.hasOwnedAssertion)
             XCTAssertFalse(clickOff.replaced)
-            XCTAssertGreaterThanOrEqual(clickOff.frames, 5, "the switch must animate off, not jump (\(clickOff.frames) renderings, \(language))")
+            if switchMayAnimate { XCTAssertGreaterThanOrEqual(clickOff.frames, 5, "the switch must animate off, not jump (\(clickOff.frames) renderings, \(language))") }
         }
     }
 
@@ -107,12 +120,12 @@ import PowerCore
             let started = await watch(rig, seconds: 0.7) { try? rig.timer.selectDuration(minutes: minutes) }
             XCTAssertTrue(rig.timer.isActive)
             XCTAssertFalse(started.replaced, "starting the timer rebuilt the switch (\(language))")
-            XCTAssertGreaterThanOrEqual(started.frames, 5, "the switch must animate on (\(started.frames) renderings, \(language))")
+            if switchMayAnimate { XCTAssertGreaterThanOrEqual(started.frames, 5, "the switch must animate on (\(started.frames) renderings, \(language))") }
             try await Task.sleep(for: .milliseconds(500))
             let clickOff = await watch(rig, seconds: 0.7) { self.masterSwitch(rig)?.performClick(nil) }
             XCTAssertFalse(rig.timer.isActive)
             XCTAssertFalse(clickOff.replaced, "ending the timer rebuilt the switch (\(language))")
-            XCTAssertGreaterThanOrEqual(clickOff.frames, 5, "the switch must animate off (\(clickOff.frames) renderings, \(language))")
+            if switchMayAnimate { XCTAssertGreaterThanOrEqual(clickOff.frames, 5, "the switch must animate off (\(clickOff.frames) renderings, \(language))") }
         }
     }
 }
