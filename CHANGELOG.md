@@ -18,7 +18,7 @@ A first-run setup and a tidier Overview.
 - Keep Awake timer pills count down every second; the menu bar battery fill ends on a whole point; the keyboard backlight row has no
   on/off switch.
 
-Source for Apple silicon with macOS 26.0+ and full Xcode; no app or DMG. Tested on one Mac: the real administrator dialog and the Terminal
+Source for Apple silicon with macOS 26.0+ and full Xcode; no app or DMG. The real administrator dialog and the Terminal
 route, the login item from a non-/Applications path and waking a sleeping Mac on schedule still need your own device check.
 
 ## 0.6.2 — Chart and Menu Bar Icon Source Preview — 2026-11-15
