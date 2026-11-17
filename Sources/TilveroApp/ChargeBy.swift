@@ -219,7 +219,8 @@ struct ChargeByObservation: Equatable {
 
     /// A wake exists for the planned start, or it is scheduled now. Nothing is claimed unless it was read back.
     private func ensureWake() async {
-        guard var current = state, current.phase == .armed, wake.isPermitted else { return }
+        // While the permission is being removed a new wake could never be cancelled again.
+        guard var current = state, current.phase == .armed, wake.isPermitted, !PrivilegedRuleInstaller.removalInProgress else { return }
         let wanted = current.startAt.addingTimeInterval(-ChargeByRule.wakeLead)
         guard wanted > now().addingTimeInterval(30) else { return }   // too close: the ticks and the sleep fallback cover it
         if let existing = current.wakeAt, abs(existing.timeIntervalSince(wanted)) < 60 { return }

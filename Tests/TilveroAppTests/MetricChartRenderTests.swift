@@ -17,7 +17,7 @@ import XCTest
     }
 
     private func spec(_ id: String, _ points: [HistoryChartPoint], now: Date? = nil, label: String? = nil) -> MetricChartSeriesSpec {
-        MetricChartSeriesSpec(id: id, series: .make(points: points, window: window, now: now ?? self.now), color: .orange, endLabel: label)
+        MetricChartSeriesSpec(id: id, series: .make(points: points, window: window, now: now ?? self.now), color: .orange, accessibilityName: label)
     }
 
     private var dataSpec: MetricChartSeriesSpec { spec("p", (0...12).map { point(Double($0) * 5, -10 + Double($0 % 3)) }) }
@@ -77,24 +77,6 @@ import XCTest
         XCTAssertEqual(MetricChartView.layout(specs: [gapSpec], scale: scale, density: .full).hatchedGapCount, 1)
         XCTAssertEqual(MetricChartView.layout(specs: [gapSpec, gapSpec], scale: scale, density: .full).hatchedGapCount, 1,
                        "A shared gap is hatched once.")
-    }
-
-    func testEmptySeriesDoesNotPushARealEndLabel() {
-        // An empty spec (or one without a label) is nil and must not move the real label from y = 10.
-        let placed = MetricChartView.placeEndLabels([nil, 10, nil], minGap: 14, height: 120)
-        XCTAssertEqual(placed[1], 10)
-        XCTAssertNil(placed[0])
-        XCTAssertNil(placed[2])
-        XCTAssertEqual(MetricChartView.placeEndLabels([60, 62, 118], minGap: 14, height: 120).map { $0! }, [55, 69, 113])
-    }
-
-    func testEndLabelsNearTheBottomKeepTheGapAndStayInsidePlot() {
-        // Two at the bottom: pushed to 116, then the overflow shifts both up so the last sits at height - gap/2.
-        XCTAssertEqual(MetricChartView.placeEndLabels([110, 112], minGap: 12, height: 120).map { $0! }, [102, 114])
-        // Three: raw 112/113/118 -> 112/124/136 -> shift 22 -> 90/102/114.
-        XCTAssertEqual(MetricChartView.placeEndLabels([112, 113, 118], minGap: 12, height: 120).map { $0! }, [90, 102, 114])
-        // Input order does not matter.
-        XCTAssertEqual(MetricChartView.placeEndLabels([118, 112, nil], minGap: 12, height: 120), [114, 102, nil])
     }
 
     func testAccessibilityTextForDataStaleAndEmpty() {

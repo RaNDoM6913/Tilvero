@@ -243,16 +243,11 @@ private final class FakeLidSystem: LidSleepSystem, @unchecked Sendable {
     func testNativeHelpersBuildTheNarrowRuleAndParseTheState() {
         XCTAssertEqual(NativeLidSleepSystem.rule(uid: 501),
                        "#501 ALL=(root) NOPASSWD: /usr/bin/pmset disablesleep 1, /usr/bin/pmset disablesleep 0")
-        let command = NativeLidSleepSystem.installCommand(uid: 501)
-        XCTAssertTrue(command.contains("/usr/sbin/visudo -c -f /etc/sudoers.d/tilvero-lid.tmp"), "The rule is validated before it is moved into place.")
-        XCTAssertTrue(command.contains("mv /etc/sudoers.d/tilvero-lid.tmp /etc/sudoers.d/tilvero-lid"))
-        XCTAssertTrue(command.contains("{ rm -f /etc/sudoers.d/tilvero-lid.tmp; exit 1; }"))
-        XCTAssertFalse(command.contains("chmod 0755"), "The system directory is not touched.")
-        XCTAssertTrue(command.contains("chmod 0440"))
+        // Installing now goes through the shared, validated root script (see SudoersRules): same line, merged file.
+        XCTAssertEqual(SudoersRules.rule(uid: 501, feature: .lidClosed), NativeLidSleepSystem.rule(uid: 501))
         XCTAssertTrue(NativeLidSleepSystem.sleepDisabled(inPmsetOutput: " SleepDisabled\t\t1\n"))
         XCTAssertFalse(NativeLidSleepSystem.sleepDisabled(inPmsetOutput: " SleepDisabled\t\t0\n"))
         XCTAssertFalse(NativeLidSleepSystem.sleepDisabled(inPmsetOutput: "sleep 10\n"))
-        XCTAssertEqual(NativeLidSleepSystem.appleScriptLiteral(#"a "quoted" \ path"#), #""a \"quoted\" \\ path""#)
     }
 
     /// The option is on first; Keep Awake is started by the user later: the override follows that session only.

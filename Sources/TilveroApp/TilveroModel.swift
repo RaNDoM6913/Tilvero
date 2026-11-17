@@ -133,6 +133,13 @@ final class TilveroModel: ObservableObject {
     @Published var overviewPreferences: OverviewPreferences { didSet {
         if let data = try? JSONEncoder().encode(overviewPreferences) { preferences.set(data, forKey: "overviewPreferences.v1") }
     } }
+    /// First run only: gives a brand-new install the starter Overview. Nothing happens when a layout is already
+    /// stored (the user customised it, or an earlier first run wrote it) or in demo.
+    @discardableResult func applyFirstRunOverviewLayout() -> Bool {
+        guard !isDemo, preferences.object(forKey: "overviewPreferences.v1") == nil else { return false }
+        overviewPreferences = .firstRunDefault
+        return true
+    }
     @Published private(set) var modeLibrary: ModeLibrary
     @Published private(set) var modeReport: ModeApplicationReport?
     @Published var selectedMode: WorkMode = .economy
@@ -387,6 +394,8 @@ final class TilveroModel: ObservableObject {
     var quickPanelSection: QuickPanelSection = .overview { didSet { if oldValue != quickPanelSection { updateLiveCharts() } } }
     var isDetailVisible = false
     var openDetails: (@MainActor () -> Void)?
+    /// Settings > Setup: the administrator permissions (nil in demo, monitoring-only and test sessions).
+    var privilegedPermissions: PrivilegedPermissionsController? { willSet { objectWillChange.send() } }
     var onPresentationChange: (@MainActor () -> Void)?
     private var pollingTask: Task<Void, Never>?
     private var isReading = false

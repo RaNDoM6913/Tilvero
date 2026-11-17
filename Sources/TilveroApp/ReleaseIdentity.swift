@@ -8,10 +8,13 @@ struct ReleaseIdentity {
     static let prototypeBundleIdentifier = "local.tilvero.prototype"
     static let laboratoryBundleIdentifier = "local.tilvero.lab"
     static let lidTrialBundleIdentifier = "local.tilvero.lidtrial"
+    /// Separate "Tilvero First Run" app for playing the first-run flow; never competes with an installed copy.
+    static let firstRunPreviewBundleIdentifier = "local.tilvero.firstrun"
     let bundleIdentifier: String
     let isProduction: Bool
     let isLaboratory: Bool
     let isLidTrial: Bool
+    let isFirstRunPreview: Bool
 
     enum MetadataError: Error { case invalidIdentity }
 
@@ -21,9 +24,13 @@ struct ReleaseIdentity {
         guard !identifier.isEmpty else { throw MetadataError.invalidIdentity }
         let scope = metadata["TilveroDataScope"] as? String
         isLidTrial = identifier == Self.lidTrialBundleIdentifier
+        isFirstRunPreview = identifier == Self.firstRunPreviewBundleIdentifier
         isLaboratory = identifier == Self.laboratoryBundleIdentifier || isLidTrial
         if identifier == Self.prototypeBundleIdentifier {
             guard scope == nil || scope == "prototype" else { throw MetadataError.invalidIdentity }
+            isProduction = false
+        } else if isFirstRunPreview {
+            guard scope == "first-run-preview" else { throw MetadataError.invalidIdentity }
             isProduction = false
         } else if isLidTrial {
             guard scope == "lid-trial", metadata["TilveroLidTrialHost"] as? Bool == true else { throw MetadataError.invalidIdentity }
@@ -39,7 +46,7 @@ struct ReleaseIdentity {
     }
 
     var reopenNotificationName: Notification.Name {
-        Notification.Name(isProduction || isLaboratory ? "\(bundleIdentifier).showDetails" : "local.tilvero.showDetails")
+        Notification.Name(isProduction || isLaboratory || isFirstRunPreview ? "\(bundleIdentifier).showDetails" : "local.tilvero.showDetails")
     }
 
     static func current(bundle: Bundle = .main) throws -> ReleaseIdentity {
@@ -47,7 +54,7 @@ struct ReleaseIdentity {
     }
 
     func historyURL(applicationSupport: URL) -> URL {
-        applicationSupport.appendingPathComponent(isLidTrial ? "Tilvero/LidTrial/History.sqlite" : isLaboratory ? "Tilvero/Laboratory/History.sqlite" : isProduction ? "Tilvero/Production/History.sqlite" : "Tilvero/History.sqlite")
+        applicationSupport.appendingPathComponent(isLidTrial ? "Tilvero/LidTrial/History.sqlite" : isFirstRunPreview ? "Tilvero/FirstRunPreview/History.sqlite" : isLaboratory ? "Tilvero/Laboratory/History.sqlite" : isProduction ? "Tilvero/Production/History.sqlite" : "Tilvero/History.sqlite")
     }
 
     func historyURL() -> URL {

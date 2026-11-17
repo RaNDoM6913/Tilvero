@@ -198,7 +198,8 @@ enum LidMode: Equatable { case keepAwake, scheduledSleep }
     }
 
     private func enable(_ mode: LidMode, allowPrompt: Bool) async {
-        guard allowed, !busy, !needsRecovery, !isOn, isActive(mode) else { return }
+        // While the permission is being removed an override could not be ended again: it never starts then.
+        guard allowed, !busy, !needsRecovery, !isOn, isActive(mode), !PrivilegedRuleInstaller.removalInProgress else { return }
         busy = true; failure = nil; pendingEnd = false
         defer { busy = false }
         generation &+= 1
@@ -332,8 +333,8 @@ enum LidMode: Equatable { case keepAwake, scheduledSleep }
 
 /// The only place that runs `pmset`, `sudo`, `osascript` or reads the lid. Never exercised by default tests.
 struct NativeLidSleepSystem: LidSleepSystem {
+    /// The older one-feature file (still read; new permissions go into the merged file, see `PrivilegedRuleInstaller`).
     static let rulePath = "/etc/sudoers.d/tilvero-lid"
-    static let tempRulePath = "/etc/sudoers.d/tilvero-lid.tmp"
 
     /// Granted by uid, not by user name: a uid interpolates as bare digits that neither sudoers nor the shell can
     /// read as anything else (short names on SSO-enrolled Macs can be e-mail addresses).
@@ -343,15 +344,9 @@ struct NativeLidSleepSystem: LidSleepSystem {
     static func sleepDisabled(inPmsetOutput output: String) -> Bool {
         output.range(of: #"SleepDisabled\s+1"#, options: .regularExpression) != nil
     }
-    static func installCommand(uid: uid_t) -> String {
-        // Written to a temporary name (sudo ignores names containing a dot), validated, then moved into place.
-        "mkdir -p /etc/sudoers.d && echo '\(rule(uid: uid))' > \(tempRulePath) && chmod 0440 \(tempRulePath) && /usr/sbin/visudo -c -f \(tempRulePath) && mv \(tempRulePath) \(rulePath) || { rm -f \(tempRulePath); exit 1; }"
-    }
-    static func appleScriptLiteral(_ value: String) -> String {
-        "\"" + value.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\""
-    }
 
-    var ruleFilePresent: Bool { FileManager.default.fileExists(atPath: Self.rulePath) }
+    /// The own `tilvero-lid` file or the merged `tilvero` file written with this feature (see `PrivilegedRuleInstaller`).
+    var ruleFilePresent: Bool { PrivilegedRulePresence.isPresent(.lidClosed) }
 
     func readSleepDisabled() async -> Bool? {
         let result = await Self.run("/usr/bin/pmset", ["-g"])
@@ -365,14 +360,12 @@ struct NativeLidSleepSystem: LidSleepSystem {
     func setSleepDisabledPasswordless(_ disabled: Bool) async -> Bool {
         await Self.run("/usr/bin/sudo", ["-n", "/usr/bin/pmset", "disablesleep", disabled ? "1" : "0"]).status == 0
     }
-    func installRule() async -> Bool {
-        await Self.administrator(Self.installCommand(uid: getuid()), prompt: L10n.text("Tilvero asks to allow one command, pmset disablesleep, without a password, so Keep Awake can work with the lid closed."))
-    }
-    func removeRule() async -> Bool {
-        await Self.administrator("rm -f \(Self.rulePath)", prompt: L10n.text("Tilvero asks to remove its closed-lid permission."))
-    }
+    /// The shared installer: the lid line goes into the merged rule file (one validated root script, one dialog).
+    func installRule() async -> Bool { await PrivilegedRuleInstaller.runNative(.install([.lidClosed])) }
+    /// The exact inverse: the lid line leaves the merged and the old file; every other line stays.
+    func removeRule() async -> Bool { await PrivilegedRuleInstaller.runNative(.remove([.lidClosed])) }
     func restoreWithAuthorization() async -> Bool {
-        await Self.administrator("/usr/bin/pmset disablesleep 0", prompt: L10n.text("Tilvero asks to restore normal sleep."))
+        await OsascriptAdministratorExecutor().run(script: "/usr/bin/pmset disablesleep 0", prompt: L10n.text("Tilvero asks to restore normal sleep.")) == .succeeded
     }
     func lidClosedWouldSleep() -> Bool {
         let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPMrootDomain"))
@@ -389,13 +382,6 @@ struct NativeLidSleepSystem: LidSleepSystem {
         guard connection != 0 else { return false }
         defer { IOServiceClose(connection) }
         return IOPMSleepSystem(connection) == kIOReturnSuccess
-    }
-
-    private static func administrator(_ command: String, prompt: String) async -> Bool {
-        let source = "do shell script \(appleScriptLiteral(command)) with administrator privileges with prompt \(appleScriptLiteral(prompt))"
-        // The dialog attaches to the requesting process; an inactive menu-bar app would open it behind other windows.
-        await MainActor.run { NSApplication.shared.activate() }
-        return await run("/usr/bin/osascript", ["-e", source], timeout: 600).status == 0
     }
 
     private final class Once: @unchecked Sendable {

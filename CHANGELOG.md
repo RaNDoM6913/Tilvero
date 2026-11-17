@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.7.0 — First Run Source Preview — 2026-11-17
+
+A first-run setup and a tidier Overview.
+
+**Added**
+- A guided first run for brand-new installs: one window with launch at login, history, the closed-lid option and charge by time (all on by
+  default). The two administrator-permission features share one macOS dialog or a prepared Terminal window; Tilvero never sees the
+  password. Existing installs never see the window. A pulsing ring marks the menu bar icon until the quick menu opens.
+- A starter Overview for new installs: Keep Awake, the combined power chart, temperature and battery health.
+- Settings > Setup lists the administrator permissions Tilvero holds, with a button and a copyable command that remove them all. One merged
+  rule file replaces the separate closed-lid and charge-by-time files (the old ones are still recognised and cleaned up).
+
+**Changed**
+- The combined power chart names its lines in a header legend instead of end labels; the plot now has the card's full width.
+- Every Overview block title uses the Keep Awake style.
+- Keep Awake timer pills count down every second; the menu bar battery fill ends on a whole point; the keyboard backlight row has no
+  on/off switch.
+
+Source for Apple silicon with macOS 26.0+ and full Xcode; no app or DMG. Tested on one Mac: the real administrator dialog and the Terminal
+route, the login item from a non-/Applications path and waking a sleeping Mac on schedule still need your own device check.
+
 ## 0.6.2 — Chart and Menu Bar Icon Source Preview — 2026-11-15
 
 A polish release; no new features.

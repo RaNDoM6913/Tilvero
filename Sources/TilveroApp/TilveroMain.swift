@@ -9,6 +9,7 @@ import PowerDiagnostics
 import OSLog
 import ChargeBackends
 import Carbon
+import ServiceManagement
 
 enum SleepTimerQuitReason {
     static func isSystem(_ reason: AEEventID?) -> Bool {
@@ -102,8 +103,14 @@ struct TilveroMain {
         // Studio composes memory-only ports and never takes a real control lease.
         launchPolicy = .resolve(metadata: Bundle.main.infoDictionary ?? [:], arguments: ["--monitor-only"])
         #endif
+        var preview = false
         do {
             identity = try ReleaseIdentity.current()
+            #if !TILVERO_LAB_STUDIO
+            // The first-run preview is a monitoring-only session on isolated data: no lease, no migration, no control.
+            preview = FirstRunPreview.requested(arguments: CommandLine.arguments, isProductionIdentity: identity.isProduction, isPreviewIdentity: identity.isFirstRunPreview)
+            if preview { launchPolicy = .resolve(metadata: Bundle.main.infoDictionary ?? [:], arguments: ["--monitor-only"]) }
+            #endif
             #if TILVERO_LAB_STUDIO
             guard identity.isLaboratory,
                   Bundle.main.object(forInfoDictionaryKey: "TilveroStudioBuild") as? Bool == true,
@@ -119,7 +126,7 @@ struct TilveroMain {
                 do { controllerLease = try ControllerSessionLease.acquire() }
                 catch { launchPolicy = launchPolicy.tighteningForUnavailableController() }
             }
-            if identity.isProduction {
+            if identity.isProduction && !preview {
                 let defaults = UserDefaults.standard
                 let source = defaults.persistentDomain(forName: ReleaseIdentity.prototypeBundleIdentifier) ?? [:]
                 let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -151,7 +158,24 @@ struct TilveroMain {
                 russian: "Tilvero не смог безопасно подготовить данные. Запуск остановлен. После устранения проблемы перенос можно повторить; существующие данные сохранены.")
             return nil
         }
-        return TilveroAppDelegate(historyURL: identity.historyURL(), launchPolicy: launchPolicy, controllerLease: controllerLease)
+        var firstRun = FirstRunLaunchMode.none
+        #if !TILVERO_LAB_STUDIO
+        if preview {
+            firstRun = .preview(FirstRunPreview.Environment.make())
+        } else {
+            // Read before the model writes anything (it stores a history choice and creates the store on start).
+            let signals = FirstRunSignals.read(defaults: .standard, historyURL: identity.historyURL())
+            var context = FirstRunLaunchContext.current(arguments: CommandLine.arguments, policy: launchPolicy)
+            context.launchedAsLoginItem = context.launchedAsLoginItem || LaunchFacts.launchedAsLoginItem
+            context.laboratoryIdentity = identity.isLaboratory   // lab and lid trial (isLaboratory covers both)
+            switch FirstRunDecision.decide(signals: signals, context: context) {
+            case .show: firstRun = .show
+            case .markSilently: FirstRunDecision.markIntroduced(.standard)
+            case .nothing: break
+            }
+        }
+        #endif
+        return TilveroAppDelegate(historyURL: identity.historyURL(), launchPolicy: launchPolicy, controllerLease: controllerLease, firstRun: firstRun)
     }
 
     // Do not read app localization/defaults before migration has committed.
@@ -173,7 +197,12 @@ struct TilveroMain {
 @MainActor
 private final class TilveroStartupDelegate: NSObject, NSApplicationDelegate {
     private var runningDelegate: TilveroAppDelegate?
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        // The launch Apple event is only current during launch; read it before any asynchronous work.
+        LaunchFacts.launchedAsLoginItem = LaunchFacts.launchedAsLoginItem || LoginLaunchDetector.launchedAsLoginItem()
+    }
     func applicationDidFinishLaunching(_ notification: Notification) {
+        LaunchFacts.launchedAsLoginItem = LaunchFacts.launchedAsLoginItem || LoginLaunchDetector.launchedAsLoginItem()
         Task { @MainActor in
             let application = NSApplication.shared
             guard let delegate = TilveroMain.prepare(application: application) else {
@@ -188,9 +217,29 @@ private final class TilveroStartupDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+@MainActor enum LaunchFacts {
+    static var launchedAsLoginItem = false
+}
+
+/// What the first run does in this process: nothing (the usual quiet launch), the real first run, or the preview.
+enum FirstRunLaunchMode {
+    case none, show
+    case preview(FirstRunPreview.Environment)
+    var isPreview: Bool { if case .preview = self { true } else { false } }
+}
+
 @MainActor
 final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var model: TilveroModel
+    private let firstRunMode: FirstRunLaunchMode
+    private var firstRun: FirstRunCoordinator?
+    private var firstRunIconFill: Double?
+    private let firstRunBeacon = FirstRunBeacon()
+    private var firstRunBeaconArmed = false
+    private var firstRunBeaconTasks: [Task<Void, Never>] = []
+    private var previewControls: FirstRunPreview.Controls?
+    private var previewInstaller: PrivilegedRuleInstaller?
+    private var previewPanel: NSWindow?
     #if TILVERO_LAB_STUDIO
     private let studio: LabStudioState
     private let sandbox: LabSandboxSession
@@ -199,7 +248,8 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     // does not release it; delegate destruction/process exit does.
     private let controllerLease: ControllerSessionLease?
 
-    init(historyURL: URL, launchPolicy: AppLaunchPolicy, controllerLease: ControllerSessionLease?) {
+    init(historyURL: URL, launchPolicy: AppLaunchPolicy, controllerLease: ControllerSessionLease?, firstRun: FirstRunLaunchMode = .none) {
+        firstRunMode = firstRun
         #if TILVERO_LAB_STUDIO
         let root = URL(fileURLWithPath: Bundle.main.object(forInfoDictionaryKey: "TilveroStudioRoot") as! String)
         sandbox = LabSandboxSession(root: root)
@@ -208,7 +258,13 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         self.controllerLease = nil
         #else
         self.controllerLease = controllerLease
-        model = TilveroModel(isDemo: CommandLine.arguments.contains("--demo"), launchPolicy: launchPolicy, historyURL: historyURL)
+        if case .preview(let environment) = firstRun {
+            // Isolated preferences and history, inert lid system and login port: the preview writes nothing real.
+            model = TilveroModel(isDemo: false, launchPolicy: launchPolicy, preferences: environment.defaults, historyURL: environment.historyURL,
+                                 lidSleepSystem: FirstRunPreview.InertLidSystem(), sideEffects: FirstRunPreview.sideEffects)
+        } else {
+            model = TilveroModel(isDemo: CommandLine.arguments.contains("--demo"), launchPolicy: launchPolicy, historyURL: historyURL)
+        }
         #endif
         super.init()
         #if TILVERO_LAB_STUDIO
@@ -270,13 +326,92 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         DistributedNotificationCenter.default().addObserver(self, selector: #selector(reopenDetails), name: (try? ReleaseIdentity.current().reopenNotificationName) ?? Notification.Name("local.tilvero.showDetails"), object: nil)
         buildMenu()
         updateStatusItem()
+        configurePermissions()
         model.start()
         runMotionProbeIfRequested()
         #if TILVERO_LAB_STUDIO
         showDetails()
         #else
-        if LaunchPresentation.opensDetailsAtLaunch(arguments: CommandLine.arguments) { showDetails() }
+        let firstRunDecision: FirstRunDecision = { if case .none = firstRunMode { return .nothing } else { return .show } }()
+        switch LaunchPresentation.window(arguments: CommandLine.arguments, firstRun: firstRunDecision) {
+        case .details: showDetails()
+        case .firstRun: startFirstRun()
+        case .none: break
+        }
         #endif
+    }
+
+    // MARK: First run (first launch only, or the preview)
+
+    private func startFirstRun() {
+        let preview = firstRunMode.isPreview
+        let session = FirstRunSession(isPreview: preview)
+        let ports: FirstRunPorts
+        if case .preview(let environment) = firstRunMode {
+            // Never falls back to the real ports: a preview without its fakes shows nothing.
+            guard let controls = previewControls, let installer = previewInstaller else { return }
+            // The preview model reads the isolated defaults, so the starter page shows in the preview's real quick menu.
+            ports = FirstRunPreview.ports(controls: controls, defaults: environment.defaults, installer: installer,
+                                          applyOverviewDefaults: { [weak self] in self?.model.applyFirstRunOverviewLayout() })
+        } else {
+            let installer = PrivilegedRuleInstaller.native(defaults: .standard)
+            let login = FirstRunLogin.Native()
+            ports = FirstRunPorts(
+                markIntroduced: { FirstRunDecision.markIntroduced(.standard) },
+                setHistory: { [weak self] keep in if let model = self?.model, model.historyEnabled != keep { model.historyEnabled = keep } },
+                setLogin: { login.set($0) },
+                openLoginItemsSettings: { SMAppService.openSystemSettingsLoginItems() },
+                requestPermission: { features, route in await installer.install(features, route: route) },
+                commandText: { installer.commandText(.install($0)) },
+                nudge: { installer.nudge() },
+                observeLateGrant: { handler in installer.observeLateSuccess { if case .install(let f) = $0 { handler(f) } } },
+                turnOnLid: { [weak self] in
+                    guard let lid = self?.model.lidSleep else { return false }
+                    await lid.setPreferred(true, for: .keepAwake)
+                    return lid.isPreferred
+                },
+                applyOverviewDefaults: { [weak self] in self?.model.applyFirstRunOverviewLayout() })
+        }
+        let coordinator = FirstRunCoordinator(session: session, ports: ports, host: self)
+        firstRun = coordinator
+        if preview { showPreviewPanel(coordinator) }
+        coordinator.start()
+    }
+
+    /// The Setup page's administrator-permission section (real installer; the preview's fake one; none for demo,
+    /// monitoring-only and Studio sessions).
+    private func configurePermissions() {
+        #if !TILVERO_LAB_STUDIO
+        if case .preview(let environment) = firstRunMode {
+            let controls = FirstRunPreview.Controls()
+            previewControls = controls
+            let installer = FirstRunPreview.installer(controls: controls, defaults: environment.defaults)
+            previewInstaller = installer
+            model.privilegedPermissions = PrivilegedPermissionsController(installer: installer, model: model)
+        } else if !model.isDemo && !model.launchPolicy.monitoringOnly {
+            model.privilegedPermissions = PrivilegedPermissionsController(installer: .native(defaults: .standard), model: model)
+        }
+        #endif
+    }
+
+    private func showPreviewPanel(_ coordinator: FirstRunCoordinator) {
+        guard let controls = previewControls else { return }
+        let panel = FirstRunDebugPanel(session: coordinator.session, controls: controls,
+            restart: { [weak self, weak coordinator] in
+                guard self != nil, let coordinator else { return }
+                coordinator.restart()
+            },
+            jump: { [weak self, weak coordinator] step in
+                guard self != nil, let coordinator else { return }
+                coordinator.jump(to: step)
+            })
+        let window = NSWindow(contentViewController: NSHostingController(rootView: panel))
+        window.title = "Tilvero · First-run preview"
+        window.styleMask = [.titled, .closable, .miniaturizable]
+        window.isReleasedWhenClosed = false
+        window.setFrameOrigin(NSPoint(x: 24, y: (NSScreen.main?.visibleFrame.maxY ?? 900) - 640))
+        window.orderFront(nil)
+        previewPanel = window
     }
 
     private func configureQuickPanel() {
@@ -379,6 +514,8 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         return .terminateLater
     }
     func applicationWillTerminate(_ notification: Notification) {
+        firstRun?.teardown()
+        if case .preview(let environment) = firstRunMode { environment.discard() }
         sleepTimerWarning?.close()
         stopPopoverEventMonitors()
         model.stop()
@@ -602,7 +739,9 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
 
     private func updateStatusItem() {
         guard let button = statusItem?.button else { return }
-        let level = model.snapshot.chargePercent.availability == .available || model.snapshot.chargePercent.freshness == .stale ? ReadingPresentation.validLevel(model.snapshot.chargePercent.value) : nil
+        let measured = model.snapshot.chargePercent.availability == .available || model.snapshot.chargePercent.freshness == .stale ? ReadingPresentation.validLevel(model.snapshot.chargePercent.value) : nil
+        // First launch only: the fill grows from 0 to the real level (real frames of the same image).
+        let level = firstRunIconFill.map { fill in measured.map { Int((Double($0) * fill).rounded()) } ?? 0 } ?? measured
         let power = model.snapshot.isExternalPower
         let attached = power.availability == .available && power.freshness != .stale && power.value == true
         let awake = KeepAwakeStatusIndicator(service: model.keepAwake)
@@ -619,7 +758,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         button.alternateImage = awake == .active || lowOnBattery || model.menuBarBatteryAppearance == .macOS27 ? icon(pressed: true) : nil
         let percentageTitle = model.displayStyle == .beside ? NativeStatusPresentation.percentageTitle(level: level) : ""
         // Development-only marker: fixtures must remain identifiable even when closed.
-        button.title = percentageTitle + (model.isDemo ? " DEMO" : "")
+        button.title = percentageTitle + (model.isDemo ? " DEMO" : "") + (firstRunMode.isPreview ? " PREVIEW" : "")
         let mode = (model.isDemo ? L10n.text("Simulation") + " · " : "") + (model.snapshot.chargePercent.freshness == .stale ? L10n.text("Stale") + " · " : "")
         let awakeSuffix = awake.accessibilitySuffix.map { " · " + $0 } ?? ""
         button.toolTip = "\(AppIdentity.displayName) · \(mode)\(model.chargeText) · \(model.chargingStateText)\(awakeSuffix)"
@@ -641,6 +780,7 @@ extension TilveroAppDelegate: NSPopoverDelegate {
         studio.setRegistryVisible("popover", true)
         #endif
         activatePopoverWindow()
+        firstRunPopoverShown()
         popoverLog.info("Quick panel opened; active: \(NSApplication.shared.isActive, privacy: .public); key: \(self.popover.contentViewController?.view.window?.isKeyWindow ?? false, privacy: .public)")
     }
     func popoverDidClose(_ notification: Notification) {
@@ -648,6 +788,7 @@ extension TilveroAppDelegate: NSPopoverDelegate {
         studio.setRegistryVisible("popover", false)
         #endif
         popoverGeneration &+= 1
+        refreshFirstRunBeacon()
         stopPopoverEventMonitors()
         statusItem?.button?.state = .off
         statusItem?.button?.highlight(false)
@@ -663,6 +804,78 @@ extension TilveroAppDelegate: NSPopoverDelegate {
             }
         }
         popoverLog.info("Quick panel closed; event monitors removed")
+    }
+}
+
+extension TilveroAppDelegate: FirstRunHost {
+    var firstRunStatusButtonFrame: NSRect? {
+        guard let button = statusItem?.button, let window = button.window else { return nil }
+        return window.convertToScreen(button.convert(button.bounds, to: nil))
+    }
+    var firstRunStatusItemVisible: Bool {
+        if previewControls?.forceHiddenIcon == true { return false }
+        let screens = NSScreen.screens.map {
+            StatusItemVisibility.Screen(frame: $0.frame, auxiliaryLeft: $0.auxiliaryTopLeftArea, auxiliaryRight: $0.auxiliaryTopRightArea)
+        }
+        let window = statusItem?.button?.window
+        return StatusItemVisibility.isVisible(button: firstRunStatusButtonFrame, screens: screens,
+                                              windowVisible: window?.isVisible == true)
+    }
+    /// The real quick menu on Overview, whatever tab it showed before (a fresh panel resets its selected tab).
+    func firstRunOpenPopover() {
+        configureQuickPanel()
+        if !popover.isShown && !activationGate.isWaiting { togglePopover() }
+    }
+    func firstRunOpenDetails() { showDetails() }
+    /// The ring shows whenever the quick menu is closed after the hand-off (the system dialog can take focus and close
+    /// it at once). It goes away when the menu opens and stays open for a moment, or after five minutes.
+    func firstRunPointAtIcon() {
+        firstRunBeaconArmed = true
+        firstRunBeaconTasks.forEach { $0.cancel() }
+        // The ring follows the icon once a second while armed (the icon moves when the percentage changes or another
+        // menu bar item appears, or goes under the notch or to another display) and goes away when the icon is not
+        // really on screen. Cancelling the task never counts as the time running out.
+        firstRunBeaconTasks = [Task { @MainActor [weak self] in
+            let end = Date().addingTimeInterval(300)
+            do {
+                try await Task.sleep(for: .milliseconds(900))
+                while Date() < end {
+                    guard let self, self.firstRunBeaconArmed else { return }
+                    self.refreshFirstRunBeacon()
+                    try await Task.sleep(for: .seconds(1))
+                }
+            } catch { return }
+            self?.disarmFirstRunBeacon()
+        }]
+    }
+    func refreshFirstRunBeacon() {
+        guard firstRunBeaconArmed, !popover.isShown, firstRunStatusItemVisible,
+              statusItem?.button?.window?.occlusionState.contains(.visible) == true,
+              let frame = firstRunStatusButtonFrame else { firstRunBeacon.hide(); return }
+        firstRunBeacon.show(around: frame, reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
+    }
+    func firstRunPopoverShown() {
+        guard firstRunBeaconArmed else { return }
+        firstRunBeacon.hide()
+        firstRunBeaconTasks.append(Task { @MainActor [weak self] in
+            do { try await Task.sleep(for: .seconds(3)) } catch { return }
+            if self?.popover.isShown == true { self?.disarmFirstRunBeacon() }
+        })
+    }
+    func disarmFirstRunBeacon() {
+        firstRunBeaconArmed = false
+        firstRunBeaconTasks.forEach { $0.cancel() }
+        firstRunBeaconTasks = []
+        firstRunBeacon.hide()
+    }
+    func firstRunDrawIcon(fill: Double?) {
+        firstRunIconFill = fill
+        updateStatusItem()
+    }
+    func firstRunFinished() {
+        if firstRunIconFill != nil { firstRunIconFill = nil; updateStatusItem() }   // never a fraction of the real level
+        // The preview keeps its coordinator so the debug panel can play it again.
+        if !firstRunMode.isPreview { firstRun = nil }
     }
 }
 

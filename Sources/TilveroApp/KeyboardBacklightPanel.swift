@@ -61,7 +61,7 @@ import KeyboardBackends
     }
 }
 
-/// Quick-menu row: on/off and brightness. Only user gestures write; opening the panel only reads.
+/// Quick-menu row: brightness only (a slider at 0 % is off; no separate switch). Only user gestures write; opening the panel only reads.
 @MainActor struct KeyboardBacklightQuickRow: View {
     @ObservedObject var service: KeyboardBacklightService
     @State private var draft = 0.0
@@ -81,12 +81,6 @@ import KeyboardBackends
                     HStack {
                         Label(L10n.text("Keyboard backlight"), systemImage: "keyboard")
                         Spacer()
-                        Toggle(L10n.text("Keyboard backlight"), isOn: Binding(get: { service.pendingEnabled ?? service.isEnabled ?? (observation.brightness > 0) },
-                                                                                  set: { value in Task { await service.setEnabled(value) } }))
-                            .labelsHidden().toggleStyle(.switch).controlSize(.small)
-                            .disabled(service.isBusy)
-                            .accessibilityIdentifier("quick-keyboard-backlight-toggle")
-                            .studioElement("quick.keyboard.toggle", label: "Keyboard backlight switch")
                     }.font(.system(size: 13, weight: .medium))
                     HStack(spacing: 6) {
                         Image(systemName: "light.min").foregroundStyle(.secondary).accessibilityHidden(true)

@@ -17,7 +17,7 @@ import PowerCore
                 switch item {
                 case .forecast:
                     HStack(alignment: .firstTextBaseline) {
-                        Label(L10n.text("Time to 20%"), systemImage: "clock")
+                        Label(L10n.text("Time to 20%"), systemImage: "clock").font(.overviewBlockTitle)
                         Spacer()
                         VStack(alignment: .trailing, spacing: 2) {
                             StudioText(estimateText, id: "overview.forecast.value").monospacedDigit()
