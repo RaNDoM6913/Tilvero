@@ -846,6 +846,7 @@ final class TilveroModel: ObservableObject {
                     await self.refresh()
                     await self.refreshNativeCharge()
                     await self.refreshProcessActivity()
+                    // After the native read: it reuses that read's `pmset -g battlimit` answer (one launch per cycle).
                     if self.systemChargeLimit.map({ Date().timeIntervalSince($0.collectedAt) >= 30 }) ?? true {
                         await self.refreshSystemChargeLimit()
                     }

@@ -150,7 +150,11 @@ public actor PowerUIChargeClient: NativeChargeTransport {
               let optimized = raw["optimizedCharging"] as? Bool, let targets = raw["targets"] as? [Int],
               (80...100).contains(target), targets == targets.sorted(), Set(targets).count == targets.count,
               !targets.isEmpty, targets.allSatisfy({ (80...100).contains($0) }) else { throw PolicyError.readbackMismatch }
-        let limits = try? SystemChargeLimitParser.parse(BoundedProcess.read(executable: "/usr/bin/pmset", arguments: ["-g", "battlimit"]))
+        // Always a fresh run (this read is also every readback around a native write); the answer is shared with the
+        // read-only system observation of the same poll cycle.
+        let output = try? BatteryLimitReadings.query()
+        if let output { BatteryLimitReadings.shared.record(output) }
+        let limits = output.flatMap { try? SystemChargeLimitParser.parse($0) }
         return .init(configuration: .init(enabled: enabled, target: target, optimizedCharging: optimized), supportedTargets: targets,
                      registeredManualLimit: limits?.manualLimit,
                      policyReadbackAvailable: limits != nil && limits?.manualLimitIsConflicting == false,

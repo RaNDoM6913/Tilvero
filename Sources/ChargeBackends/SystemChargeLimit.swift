@@ -59,8 +59,44 @@ public struct SystemChargeLimitObservation: Codable, Sendable, Equatable {
         let age = now.timeIntervalSince(collectedAt)
         return limits != nil && age >= -5 && age <= 65
     }
-    public static func read() -> Self {
-        let limits = try? SystemChargeLimitParser.parse(BoundedProcess.read(executable: "/usr/bin/pmset", arguments: ["-g", "battlimit"]))
-        return .init(limits: limits)
+    /// Reuses an answer the native charge read got within the last few seconds (the same command, read in the same poll
+    /// cycle); otherwise runs `pmset -g battlimit` itself and records it. The observation keeps the original read time.
+    public static func read(readings: BatteryLimitReadings = .shared, maximumAge: TimeInterval = BatteryLimitReadings.reuseWindow,
+                            query: () throws -> String = BatteryLimitReadings.query) -> Self {
+        if let recent = readings.recent(maximumAge: maximumAge) {
+            return .init(collectedAt: recent.collectedAt, limits: try? SystemChargeLimitParser.parse(recent.output))
+        }
+        let collectedAt = Date()
+        guard let output = try? query() else { return .init(collectedAt: collectedAt, limits: nil) }
+        readings.record(output, collectedAt: collectedAt)
+        return .init(collectedAt: collectedAt, limits: try? SystemChargeLimitParser.parse(output))
+    }
+}
+
+/// The latest `pmset -g battlimit` answer, so one poll cycle launches the command once: the native charge read runs it
+/// and records the answer, and the read-only system observation that follows reuses it. Only that observation reuses
+/// it; the native read, and with it every readback before and after a native write, always runs the command itself.
+public final class BatteryLimitReadings: @unchecked Sendable {
+    public static let shared = BatteryLimitReadings()
+    /// Long enough to span one poll cycle, short enough that a change made elsewhere shows up on the next one.
+    public static let reuseWindow: TimeInterval = 5
+    public static func query() throws -> String { try BoundedProcess.read(executable: "/usr/bin/pmset", arguments: ["-g", "battlimit"]) }
+
+    private let lock = NSLock()
+    private var latest: (output: String, collectedAt: Date, instant: ContinuousClock.Instant)?
+    /// A clock that keeps counting while the Mac sleeps, so an answer from before a sleep is never taken as recent.
+    private let now: @Sendable () -> ContinuousClock.Instant
+    public init(now: @escaping @Sendable () -> ContinuousClock.Instant = { ContinuousClock.now }) { self.now = now }
+
+    public func record(_ output: String, collectedAt: Date = Date()) {
+        let instant = now()
+        lock.withLock { latest = (output, collectedAt, instant) }
+    }
+    public func recent(maximumAge: TimeInterval) -> (output: String, collectedAt: Date)? {
+        let instant = now()
+        return lock.withLock {
+            guard let latest, maximumAge > 0, instant >= latest.instant, instant - latest.instant <= .seconds(maximumAge) else { return nil }
+            return (latest.output, latest.collectedAt)
+        }
     }
 }
