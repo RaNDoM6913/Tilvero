@@ -16,8 +16,9 @@ enum HistorySQLiteFile {
         let databaseBytes: Int64
         /// Database plus write-ahead log, as Finder would count them.
         var fileBytes: Int64 { databaseBytes + walBytes }
-        /// Pages holding data; freed pages wait in the freelist until an (incremental) vacuum returns them.
-        var usedBytes: Int64 { max(0, pageCount - freePages) * pageSize + walBytes }
+        /// Pages holding data. `page_count` already includes pages that live only in the WAL, so the log is not added
+        /// again; freed pages wait in the freelist until an (incremental) vacuum returns them.
+        var usedBytes: Int64 { max(0, pageCount - freePages) * pageSize }
     }
 
     static func fileBytes(_ url: URL) -> Int64 { size(url.path) + size(url.path + "-wal") }

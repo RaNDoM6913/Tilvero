@@ -3,7 +3,16 @@
 
 import Foundation
 import CoreData
+import Synchronization
 import PowerCore
+
+/// Set when the store is closing for termination: long work (export, backfill, rebuild, size trims, VACUUM) stops at
+/// its next batch boundary so the final close is not held up behind it.
+final class HistoryInterruption: Sendable {
+    private let flag = Atomic<Bool>(false)
+    var isRequested: Bool { flag.load(ordering: .acquiring) }
+    func request() { flag.store(true, ordering: .releasing) }
+}
 
 /// Diagnostics a test or the app can read without touching Core Data objects.
 public struct HistoryStoreDiagnostics: Sendable, Equatable {
@@ -60,8 +69,11 @@ final class HistoryStoreCore: @unchecked Sendable {
     private static let maintenanceRowBudget = 20000
     private static let sleepRowLimit = 2000
 
-    init(url: URL?, configuration: HistoryConfiguration) throws {
-        self.url = url; self.configuration = configuration
+    /// Set by the facade when the store closes for termination; long work stops at its next batch boundary.
+    let interruption: HistoryInterruption
+
+    init(url: URL?, configuration: HistoryConfiguration, interruption: HistoryInterruption = HistoryInterruption()) throws {
+        self.url = url; self.configuration = configuration; self.interruption = interruption
         sleepRetentionDays = max(1, configuration.detailedDays)
         if let url { fileURL = url; ephemeralDirectory = nil }
         else {
@@ -74,7 +86,7 @@ final class HistoryStoreCore: @unchecked Sendable {
         context = NSManagedObjectContext(concurrencyType: .privateQueueConcurrencyType)
         context.persistentStoreCoordinator = coordinator
         context.undoManager = nil
-        if Thread.isMainThread { mainThreadOperations += 1 }
+        noteThread()
         do {
             try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true,
                 attributes: [.posixPermissions: 0o700])
@@ -99,6 +111,12 @@ final class HistoryStoreCore: @unchecked Sendable {
     }
 
     deinit { removeEphemeralFiles() }
+
+    /// Counts store work that ran on the main thread. Called at the entry of every operation, wherever it executes
+    /// (the synchronous open and the termination close run on their caller's thread; everything else on the queue).
+    func noteThread() { if Thread.isMainThread { mainThreadOperations += 1 } }
+
+    private func checkInterruption() throws { if interruption.isRequested { throw HistoryStoreError.unavailable } }
 
     private func removeEphemeralFiles() {
         if let ephemeralDirectory { try? FileManager.default.removeItem(at: ephemeralDirectory) }
@@ -148,7 +166,7 @@ final class HistoryStoreCore: @unchecked Sendable {
     /// Fills the scalar columns of up to `limit` version-2 rows from their payloads. Idempotent and resumable: a row is
     /// selected only while `columnsVersion` is 0. Returns true once nothing is left (and the summary is current).
     func backfill(limit: Int) throws -> Bool {
-        try ensureOpen()
+        try ensureOpen(); try checkInterruption()
         if backfillComplete { if state == nil { try rebuildSummary() }; return true }
         let pending = try objects(NSPredicate(format: "columnsVersion == %d", HistorySchema.Columns.pending), sort: "sequence",
                                   ascending: true, limit: max(1, limit))
@@ -263,7 +281,7 @@ final class HistoryStoreCore: @unchecked Sendable {
             writesSinceMaintenance = 0
             // The sample is already saved: a failed maintenance step is retried with the next record, never loses it.
             do { try maintain(referenceDate: at); lastMaintenanceError = nil }
-            catch { lastMaintenanceError = String(describing: error); maintenanceBacklog = true }
+            catch { context.rollback(); context.reset(); lastMaintenanceError = String(describing: error); maintenanceBacklog = true }
         }
     }
 
@@ -290,6 +308,7 @@ final class HistoryStoreCore: @unchecked Sendable {
             var decoded: [NSManagedObjectID: HistorySample] = [:]
             if !needsPayload.isEmpty {
                 for chunk in stride(from: 0, to: needsPayload.count, by: 500).map({ Array(needsPayload[$0..<min($0 + 500, needsPayload.count)]) }) {
+                    try checkInterruption()
                     let request = NSFetchRequest<NSManagedObject>(entityName: HistorySchema.entityName)
                     request.predicate = NSPredicate(format: "self IN %@", chunk)
                     for object in try context.fetch(request) {
@@ -399,6 +418,7 @@ final class HistoryStoreCore: @unchecked Sendable {
         var closed: [HistorySession] = []
         var after: Int64 = Int64.min
         while true {
+            try checkInterruption()
             let predicate = NSPredicate(format: "kind == %@ AND columnsVersion == %d AND sequence > %lld", "sample", HistorySchema.Columns.valid, after)
             let rows = try context.fetch(dictionaryRequest(predicate, keys: Self.sampleKeys, sort: "sequence", ascending: true, limit: 5000))
             for row in rows { if let scalars = Self.scalars(fromColumns: row) { closed += rebuilt.fold(scalars) } }
@@ -426,6 +446,7 @@ final class HistoryStoreCore: @unchecked Sendable {
     }
 
     func catalogReadings(at date: Date, summaryMaxAge: TimeInterval, waitForBackfill: Bool) throws -> [CatalogReading] {
+        try ensureOpen()
         let summary: HistorySummary
         let seriesCache: [String: HistorySummaryState.Series]
         if summaryMaxAge > 0, let cached = catalogSummary, date >= cached.at, date.timeIntervalSince(cached.at) < summaryMaxAge {
@@ -568,7 +589,13 @@ final class HistoryStoreCore: @unchecked Sendable {
     /// Bounded, incremental housekeeping: retention, newly expired hour buckets, the sample cap, sleep pruning, the size
     /// budget and a small incremental vacuum step. A backlog larger than one budget continues with the next record.
     func maintain(referenceDate: Date) throws {
-        try ensureOpen()
+        try ensureOpen(); try checkInterruption()
+        // A failed step must not leave half-made deletions in the context for the next save to commit.
+        do { try maintainSteps(referenceDate: referenceDate) }
+        catch { context.rollback(); context.reset(); throw clean(error) }
+    }
+
+    private func maintainSteps(referenceDate: Date) throws {
         maintenanceBacklog = false
         let retentionCutoff = referenceDate.addingTimeInterval(-Double(configuration.retentionDays) * 86400)
         // Samples first (their totals leave the summary), then gaps and the old capacity publication.
@@ -593,9 +620,12 @@ final class HistoryStoreCore: @unchecked Sendable {
         }
     }
 
-    /// Hour buckets that expired since the last run (rows with isAggregate == NO in the expired window), merged into
-    /// their bucket's aggregate. Existing aggregates contribute through their columns; only the newest member of a group
-    /// is decoded, as the template for the aggregate's catalog.
+    /// Hour buckets that expired since the last run (rows with isAggregate == NO in the expired window). Inside a bucket
+    /// each run of consecutive rows (sequence order) with the same segment and power flags becomes one aggregate, merged
+    /// with that run's earlier aggregate if the bucket was partly done before. The aggregate takes the run's first id and
+    /// observedFrom and its last collectedAt, so a rescan finds the same sessions the running summary recorded.
+    /// Existing aggregates contribute through their columns; only one payload per run is decoded, as the template for the
+    /// aggregate's catalog, and a run without a decodable payload is aggregated from its columns alone.
     private func aggregateExpiredBuckets(referenceDate: Date) throws {
         guard var working = state else { return }
         let interval = configuration.aggregateIntervalSeconds
@@ -609,70 +639,91 @@ final class HistoryStoreCore: @unchecked Sendable {
                                                        sort: "atDate", ascending: true, limit: Self.maintenanceRowBudget + 1, objectID: true))
         var nextLower = bucketStart(bucket(cutoff))
         if rows.count > Self.maintenanceRowBudget, let rest = rows[Self.maintenanceRowBudget]["atDate"] as? Date {
-            // The rest continues with the next record. A bucket split across runs is merged into its aggregate then.
+            // The rest continues with the next record. A run split across passes is merged into its aggregate then.
             rows = Array(rows.prefix(Self.maintenanceRowBudget))
             nextLower = bucketStart(bucket(rest))
             maintenanceBacklog = true
         }
         lastAggregationRows = rows.count
-        struct Key: Hashable { let segment: UUID; let bucket: Int64; let charging: Bool?; let external: Bool? }
-        func key(_ s: HistoryScalars) -> Key { Key(segment: s.segmentID, bucket: bucket(s.collectedAt), charging: s.isCharging, external: s.isExternalPower) }
-        var groups: [Key: [(NSManagedObjectID, HistoryScalars)]] = [:]
+        typealias Member = (id: NSManagedObjectID, sample: HistorySample, sequence: Int64)
+        var buckets: [Int64: [Member]] = [:]
         for row in rows {
-            guard let id = row["objectID"] as? NSManagedObjectID, let scalars = Self.scalars(fromColumns: row) else { continue }
-            groups[key(scalars), default: []].append((id, scalars))
+            guard let id = row["objectID"] as? NSManagedObjectID, let sample = Self.sample(fromColumns: row),
+                  let sequence = (row["sequence"] as? NSNumber)?.int64Value else { continue }
+            buckets[bucket(sample.collectedAt), default: []].append((id, sample, sequence))
         }
-        if let first = groups.keys.map(\.bucket).min(), let last = groups.keys.map(\.bucket).max() {
+        if let first = buckets.keys.min(), let last = buckets.keys.max() {
             let existing = NSPredicate(format: "kind == %@ AND isAggregate == YES AND columnsVersion == %d AND atDate >= %@ AND atDate < %@",
                                        "sample", HistorySchema.Columns.valid, bucketStart(first) as NSDate, bucketStart(last + 1) as NSDate)
             for row in try context.fetch(dictionaryRequest(existing, keys: Self.sampleKeys, sort: "sequence", ascending: true, limit: 0, objectID: true)) {
-                guard let id = row["objectID"] as? NSManagedObjectID, let scalars = Self.scalars(fromColumns: row), groups[key(scalars)] != nil else { continue }
-                groups[key(scalars)]!.append((id, scalars))
+                guard let id = row["objectID"] as? NSManagedObjectID, let sample = Self.sample(fromColumns: row),
+                      let sequence = (row["sequence"] as? NSNumber)?.int64Value, buckets[bucket(sample.collectedAt)] != nil else { continue }
+                buckets[bucket(sample.collectedAt)]!.append((id, sample, sequence))
             }
         }
+        var runs: [[Member]] = []
+        for members in buckets.values {
+            var current: [Member] = []
+            for member in members.sorted(by: { $0.sequence < $1.sequence }) {
+                if let previous = current.last, previous.sample.segmentID != member.sample.segmentID
+                    || previous.sample.isCharging != member.sample.isCharging || previous.sample.isExternalPower != member.sample.isExternalPower {
+                    runs.append(current); current = []
+                }
+                current.append(member)
+            }
+            if !current.isEmpty { runs.append(current) }
+        }
         var removedRows = 0
-        for members in groups.values where members.count > 1 {
-            try autoreleasepool {
-                let sorted = members.sorted { $0.1.collectedAt != $1.1.collectedAt ? $0.1.collectedAt < $1.1.collectedAt : $0.1.sequence < $1.1.sequence }
-                let samples = sorted.map(\.1), last = sorted.last!
-                func average(_ path: KeyPath<HistoryScalars, Double?>) -> Double? {
+        for run in runs where run.count > 1 {
+            try checkInterruption()
+            autoreleasepool {
+                let samples = run.map(\.sample), first = samples.first!, last = run.last!
+                func average(_ path: KeyPath<HistorySample, Double?>) -> Double? {
                     let valid = samples.compactMap { sample in sample[keyPath: path].map { ($0, sample.aggregateCount) } }
                     let count = valid.reduce(0) { $0 + $1.1 }
                     return count == 0 ? nil : valid.reduce(0) { $0 + $1.0 * Double($1.1) } / Double(count)
                 }
-                let lastObject = context.object(with: last.0)
-                let template = try decode(HistorySample.self, object: lastObject)
-                let aggregate = HistorySample(id: template.id, collectedAt: template.collectedAt, monotonicTime: template.monotonicTime,
-                    timeZoneOffsetSeconds: template.timeZoneOffsetSeconds, segmentID: template.segmentID,
+                // The newest decodable payload is the catalog template; without one the aggregate carries columns only.
+                let template = run.reversed().lazy.compactMap { try? self.decode(HistorySample.self, object: self.context.object(with: $0.id)) }.first
+                let readings: [CatalogReading] = (template?.readings ?? []).map { field in
+                    let value: Double?
+                    switch field.id { case "011": value = average(\.chargePercent); case "039": value = average(\.temperatureCelsius); case "038": value = average(\.batteryPowerWatts); case "026": value = average(\.capacityRetentionPercent); default: return field }
+                    return CatalogReading(definition: field.definition, value: value.map(CatalogValue.decimal), unit: field.unit,
+                        source: "PowerPersistence", keyPath: "hourlyWeightedMean/\(field.id)", collectedAt: last.sample.collectedAt,
+                        provenance: .recorded, freshness: .unknown, reason: "Weighted aggregate of recorded samples; gaps and segment boundaries are preserved.")
+                }
+                let aggregate = HistorySample(id: first.id, collectedAt: last.sample.collectedAt, monotonicTime: last.sample.monotonicTime,
+                    timeZoneOffsetSeconds: last.sample.timeZoneOffsetSeconds, segmentID: last.sample.segmentID,
                     chargePercent: average(\.chargePercent), temperatureCelsius: average(\.temperatureCelsius), batteryPowerWatts: average(\.batteryPowerWatts),
-                    capacityRetentionPercent: average(\.capacityRetentionPercent), cycleCount: template.cycleCount,
-                    isCharging: template.isCharging, isExternalPower: template.isExternalPower, isAggregate: true,
-                    aggregateCount: samples.reduce(0) { $0 + $1.aggregateCount }, readings: template.readings.map { field in
-                        let value: Double?
-                        switch field.id { case "011": value = average(\.chargePercent); case "039": value = average(\.temperatureCelsius); case "038": value = average(\.batteryPowerWatts); case "026": value = average(\.capacityRetentionPercent); default: return field }
-                        return CatalogReading(definition: field.definition, value: value.map(CatalogValue.decimal), unit: field.unit,
-                            source: "PowerPersistence", keyPath: "hourlyWeightedMean/\(field.id)", collectedAt: template.collectedAt,
-                            provenance: .recorded, freshness: .unknown, reason: "Weighted aggregate of recorded samples; gaps and segment boundaries are preserved.")
-                    },
-                    observedFrom: samples.first!.observedFrom, coveredSeconds: samples.reduce(0) { $0 + $1.coveredSeconds },
-                    energyEvidenceVersion: 1, chargedWh: samples.contains { $0.chargedWh != nil } ? samples.reduce(0) { $0 + ($1.chargedWh ?? 0) } : nil, dischargedWh: samples.contains { $0.dischargedWh != nil } ? samples.reduce(0) { $0 + ($1.dischargedWh ?? 0) } : nil, externalPowerSeconds: samples.reduce(0) { $0 + $1.externalPowerSeconds })
-                lastObject.setValue(try Self.compressedJSON(aggregate), forKey: "payload")
+                    capacityRetentionPercent: average(\.capacityRetentionPercent), cycleCount: last.sample.cycleCount,
+                    isCharging: last.sample.isCharging, isExternalPower: last.sample.isExternalPower, isAggregate: true,
+                    aggregateCount: samples.reduce(0) { $0 + $1.aggregateCount }, readings: readings,
+                    observedFrom: first.observedFrom, coveredSeconds: samples.reduce(0) { $0 + $1.coveredSeconds },
+                    energyEvidenceVersion: 1, chargedWh: samples.contains { $0.chargedWh != nil } ? samples.reduce(0) { $0 + ($1.chargedWh ?? 0) } : nil,
+                    dischargedWh: samples.contains { $0.dischargedWh != nil } ? samples.reduce(0) { $0 + ($1.dischargedWh ?? 0) } : nil,
+                    externalPowerSeconds: samples.reduce(0) { $0 + $1.externalPowerSeconds })
+                let lastObject = context.object(with: last.id)
+                guard let payload = try? Self.compressedJSON(aggregate) else { return }
+                lastObject.setValue(payload, forKey: "payload")
                 writeColumns(aggregate, to: lastObject)
-                for (id, _) in sorted.dropLast() { context.delete(context.object(with: id)) }
-                removedRows += sorted.count - 1
-                // Merging keeps every total; only the per-series point counts shrink, and a series whose newest point
-                // was merged now ends at the aggregate.
-                let merged = HistoryScalars(aggregate, sequence: last.1.sequence)
-                let removedSequences = Set(samples.map(\.sequence))
+                for member in run.dropLast() { context.delete(context.object(with: member.id)) }
+                removedRows += run.count - 1
+                // Merging keeps every total. Rows with an energy interval and per-series point counts shrink to one, and
+                // a series whose newest point was merged now ends at the aggregate.
+                let merged = HistoryScalars(aggregate, sequence: last.sequence)
+                let energyMembers = samples.filter { $0.chargedWh != nil || $0.dischargedWh != nil }.count
+                working.energyRows -= max(0, energyMembers - (merged.hasEnergy ? 1 : 0))
+                let removedSequences = Set(run.map(\.sequence))
                 for (id, value) in merged.seriesValues {
                     guard var entry = working.series[id] else { continue }
-                    let before = samples.filter { scalars in scalars.seriesValues.first { $0.0 == id }?.1 != nil }.count
+                    let before = samples.filter { sample in HistoryScalars(sample, sequence: 0).seriesValues.first { $0.0 == id }?.1 != nil }.count
                     entry.count -= max(0, before - (value == nil ? 0 : 1))
                     if removedSequences.contains(entry.latestSequence), let value { entry.latest = value; entry.latestSequence = merged.sequence }
                     working.series[id] = entry.count > 0 ? entry : nil
                 }
             }
         }
+        working.normalize()
         working.aggregatedThrough = max(working.aggregatedThrough ?? .distantPast, nextLower)
         try writeState(working)
         try save()
@@ -751,8 +802,11 @@ final class HistoryStoreCore: @unchecked Sendable {
     }
 
     /// Keeps History.sqlite + WAL under `maximumStorageBytes`. Above 90 % it first returns freed pages, then removes the
-    /// oldest history (the hourly-aggregate era first, then detailed days older than `protectedDays`, never newer) down
-    /// to 85 %, and records a `.storageLimit` gap so charts start at a boundary instead of implying continuity.
+    /// oldest history (the hourly-aggregate era first, then detailed days older than `protectedDays`, never newer) until the
+    /// pages in use are at 85 %, and records a `.storageLimit` gap so charts start at a boundary instead of implying
+    /// continuity. Decisions use pages in use, not the file size: a checkpoint held up by a reader keeps the WAL file large
+    /// without the data being large. One run removes at most 10 % of the samples and stops as soon as a step frees
+    /// nothing, so a stuck measurement can never wipe the history; a remainder continues with the next record.
     private func enforceStorageBudget(referenceDate: Date) throws {
         guard url != nil, backfillComplete, state != nil, var pages = HistorySQLiteFile.pages(fileURL) else { return }
         let limit = Double(configuration.maximumStorageBytes)
@@ -763,24 +817,26 @@ final class HistoryStoreCore: @unchecked Sendable {
         guard Double(pages.usedBytes) > target else { return }
         let detailCutoff = referenceDate.addingTimeInterval(-Double(configuration.detailedDays) * 86400)
         let protectedFrom = referenceDate.addingTimeInterval(-Double(configuration.protectedDays) * 86400)
+        var allowance = max(1, sampleRows / 10)
         var removedFrom: Date?
-        var iterations = 0
         let backlog = maintenanceBacklog
-        while Double(pages.usedBytes) > target, iterations < 200 {
-            iterations += 1
+        while Double(pages.usedBytes) > target, allowance > 0 {
+            try checkInterruption()
             // Oldest first, by time: the aggregate era (before the detailed period), then detailed days, never the protected ones.
-            let eras = [min(detailCutoff, protectedFrom), protectedFrom]
             var removed: [HistoryScalars] = []
-            for upper in eras {
-                removed = try trimOldestSamples(NSPredicate(format: "kind == %@ AND atDate < %@", "sample", upper as NSDate), limit: 2000, sortKey: "atDate")
+            for upper in [min(detailCutoff, protectedFrom), protectedFrom] {
+                removed = try trimOldestSamples(NSPredicate(format: "kind == %@ AND atDate < %@", "sample", upper as NSDate),
+                                                limit: min(2000, allowance), sortKey: "atDate")
                 if !removed.isEmpty { break }
             }
             guard let first = removed.map(\.observedFrom).min() else { break }
+            allowance -= removed.count
             removedFrom = min(removedFrom ?? first, first)
             HistorySQLiteFile.incrementalVacuum(fileURL, pages: nil)
-            pages = HistorySQLiteFile.pages(fileURL) ?? pages
+            guard let next = HistorySQLiteFile.pages(fileURL), next.usedBytes < pages.usedBytes else { break }
+            pages = next
         }
-        maintenanceBacklog = backlog
+        maintenanceBacklog = backlog || (Double(pages.usedBytes) > target && allowance <= 0)
         guard let removedFrom else { return }
         let boundary = try context.fetch(dictionaryRequest(kind("sample"), keys: ["observedFrom", "atDate"], sort: "atDate", ascending: true, limit: 1)).first
         let end = (boundary?["observedFrom"] as? Date) ?? (boundary?["atDate"] as? Date) ?? protectedFrom
@@ -805,6 +861,7 @@ final class HistoryStoreCore: @unchecked Sendable {
               HistoryVacuumPolicy.fullVacuumIsDue(now: now, lastFullVacuum: working.lastFullVacuum, onExternalPower: onExternalPower,
                                                   idle: idle, fileBytes: HistorySQLiteFile.fileBytes(fileURL)) else { return false }
         context.reset()
+        try checkInterruption()
         guard HistorySQLiteFile.vacuum(fileURL) else { return false }
         working.lastFullVacuum = now
         try writeState(working)
@@ -862,7 +919,8 @@ final class HistoryStoreCore: @unchecked Sendable {
             let text = !numeric && ["=", "+", "-", "@", "\t", "\r"].contains(where: value.hasPrefix) ? "'" + value : value
             return "\"" + text.replacingOccurrences(of: "\"", with: "\"\"") + "\""
         }
-        for sample in try samples(since: nil, limit: configuration.maximumSamples, readingsSince: nil) {
+        for (index, sample) in try samples(since: nil, limit: configuration.maximumSamples, readingsSince: nil).enumerated() {
+            if index % 500 == 0 { try checkInterruption() }
             for field in sample.readings {
                 rows.append(["sample", formatter.string(from: sample.collectedAt), sample.segmentID.uuidString, field.id,
                     field.value.map { value in

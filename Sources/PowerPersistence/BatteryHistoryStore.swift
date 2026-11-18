@@ -13,13 +13,22 @@ import PowerCore
 /// the main thread. A store migrated from schema version 2 backfills its scalar columns in batches (`completeBackfill`);
 /// until then `summaryIfReady()` reports nothing rather than a partial or zero summary.
 public final class BatteryHistoryStore: @unchecked Sendable {
+    /// The result of a close that runs on the store's queue while the caller waits with a timeout.
+    private final class CloseOutcome: @unchecked Sendable {
+        private let lock = NSLock()
+        private var stored: Error?
+        func set(_ error: Error?) { lock.withLock { stored = error } }
+        var failure: Error? { lock.withLock { stored } }
+    }
+
     private let core: HistoryStoreCore
     private let context: NSManagedObjectContext
+    private let interruption = HistoryInterruption()
     public let url: URL?
     public let retentionDays: Int
 
     public init(url: URL?, configuration: HistoryConfiguration = .init()) throws {
-        core = try HistoryStoreCore(url: url, configuration: configuration)
+        core = try HistoryStoreCore(url: url, configuration: configuration, interruption: interruption)
         context = core.context
         self.url = url
         retentionDays = configuration.retentionDays
@@ -33,7 +42,7 @@ public final class BatteryHistoryStore: @unchecked Sendable {
     private func run<T: Sendable>(_ body: @escaping @Sendable (HistoryStoreCore) throws -> T) async throws -> T {
         let core = self.core
         return try await context.perform {
-            if Thread.isMainThread { core.mainThreadOperations += 1 }
+            core.noteThread()
             return try body(core)
         }
     }
@@ -41,8 +50,8 @@ public final class BatteryHistoryStore: @unchecked Sendable {
     // MARK: Recording
 
     public func record(_ snapshot: BatterySnapshot) async throws { try await run { try $0.record(snapshot) } }
-    public func markGap(reason: HistoryGapReason, at: Date = Date()) async throws { try await run { try $0.markGap(reason: reason, at: at) } }
-    public func markGap(_ reason: HistoryGapReason, at: Date = Date()) async throws { try await markGap(reason: reason, at: at) }
+    /// `at` is when the boundary happened; callers capture it when the event occurs, not when the queue gets to it.
+    public func markGap(reason: HistoryGapReason, at: Date) async throws { try await run { try $0.markGap(reason: reason, at: at) } }
 
     // MARK: Reading
 
@@ -100,18 +109,27 @@ public final class BatteryHistoryStore: @unchecked Sendable {
 
     public func close() async throws { try await run { try $0.close() } }
 
-    /// For application termination only: writes the final sleep reports and closes, blocking the caller until the
-    /// queue has finished earlier work. Everything else goes through the asynchronous API.
-    public func closeImmediately(upserting records: [SleepSessionRecord]) throws {
+    /// For application termination only: writes the final sleep reports and closes. Long work already on the queue
+    /// (export, backfill, rebuild, size trims, VACUUM) stops at its next batch boundary, and the caller waits at most
+    /// `timeout` seconds; if the queue is still busy then, the reports are written and the store closed as soon as it
+    /// frees up, while the caller goes on. Everything else goes through the asynchronous API.
+    public func closeImmediately(upserting records: [SleepSessionRecord], timeout: TimeInterval = 3) throws {
+        interruption.request()
         let core = self.core
-        try context.performAndWait {
+        let finished = DispatchSemaphore(value: 0)
+        let outcome = CloseOutcome()
+        context.perform {
+            core.noteThread()
             var failure: Error?
             for record in records {
                 do { try core.upsertSleepSession(record) } catch { failure = failure ?? error }
             }
-            try core.close()
-            if let failure { throw failure }
+            do { try core.close() } catch { failure = failure ?? error }
+            outcome.set(failure)
+            finished.signal()
         }
+        guard finished.wait(timeout: .now() + max(0, timeout)) == .success else { throw HistoryStoreError.unavailable }
+        if let failure = outcome.failure { throw failure }
     }
 
     // MARK: Export (payload-based, off the caller's thread)

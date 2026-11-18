@@ -3,6 +3,7 @@
 
 import XCTest
 import Foundation
+import SQLite3
 @testable import PowerCore
 @testable import PowerPersistence
 
@@ -121,9 +122,17 @@ import Foundation
         let protectedFrom = now.addingTimeInterval(-7 * 86400)
         let protected = Set(before.filter { $0.collectedAt >= protectedFrom }.map(\.id))
 
-        let elapsed = try await seconds { try await store.maintain(referenceDate: now) }
+        // One run removes at most 10 % of the samples; the remainder follows with later maintenance (each record continues).
+        let firstRun = try await seconds { try await store.maintain(referenceDate: now) }
+        let afterFirstRun = try await store.samples(limit: 100000, readingsSince: .distantFuture)
+        XCTAssertGreaterThanOrEqual(afterFirstRun.count, before.count - before.count / 10, "At most 10 % per maintenance run.")
+        var elapsed = firstRun
+        var usage = try await store.storageUsage()
+        for _ in 0..<40 where Double(usage.bytes) > 0.9 * Double(limit) {
+            elapsed += try await seconds { try await store.maintain(referenceDate: now) }
+            usage = try await store.storageUsage()
+        }
         let after = try await store.samples(limit: 100000, readingsSince: .distantFuture)
-        let usage = try await store.storageUsage()
         XCTAssertLessThanOrEqual(Double(usage.bytes), 0.9 * Double(limit), "Usage after enforcement: \(usage.bytes) bytes")
         XCTAssertTrue(protected.isSubset(of: Set(after.map(\.id))), "The last 7 days are never removed.")
         let kept = Set(after.map(\.id))
@@ -145,6 +154,38 @@ import Foundation
         try await store.close()
     }
 
+    /// A reader holding an old snapshot blocks the WAL checkpoint, so the files stay large while the data shrinks. The
+    /// budget follows pages in use, removes at most 10 % per run and stops when a step frees nothing: history is never wiped.
+    func testSizeBudgetWithABlockedCheckpointNeverWipesHistory() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("TilveroHistorySizeReader-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let url = folder.appendingPathComponent("History.sqlite")
+        let now = Date()
+        try VersionTwoFixture.write(try SyntheticHistory.versionTwoRows(now: now, detailed: 720, spacing: 3600, aggregates: 4080, noise: true), to: url)
+        let limit: Int64 = 1024 * 1024
+        let store = try await BatteryHistoryStore.open(url: url, configuration: .init(maximumStorageBytes: limit))
+        try await store.completeBackfill()
+        let before = try await store.samples(limit: 100000, readingsSince: .distantFuture)
+        let reader = try HeldReader(url)
+        for _ in 0..<3 { try await store.maintain(referenceDate: now) }
+        let held = try await store.samples(limit: 100000, readingsSince: .distantFuture)
+        var budget = before.count
+        for _ in 0..<3 { budget -= budget / 10 }
+        XCTAssertGreaterThanOrEqual(held.count, budget - 3, "Three runs remove at most 10 % each, checkpoint or not.")
+        XCTAssertLessThan(held.count, before.count, "Pages in use still fall, so trimming proceeds.")
+        let blocked = try await store.storageUsage()
+        reader.release()
+        var usage = try await store.storageUsage()
+        for _ in 0..<40 where Double(usage.bytes) > 0.9 * Double(limit) {
+            try await store.maintain(referenceDate: now)
+            usage = try await store.storageUsage()
+        }
+        XCTAssertLessThanOrEqual(Double(usage.bytes), 0.9 * Double(limit), "Released: the files shrink (\(blocked.bytes) → \(usage.bytes)).")
+        let after = try await store.samples(limit: 100000, readingsSince: .distantFuture)
+        XCTAssertTrue(Set(before.filter { $0.collectedAt >= now.addingTimeInterval(-7 * 86400) }.map(\.id)).isSubset(of: Set(after.map(\.id))))
+        try await store.close()
+    }
+
     /// When the protected week alone exceeds the budget nothing inside it is touched.
     func testSizeBudgetNeverCutsIntoTheProtectedWeek() async throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("TilveroHistorySizeWeek-\(UUID())")
@@ -162,4 +203,18 @@ import Foundation
         XCTAssertFalse(summary.gaps.contains { $0.reason == .storageLimit })
         try await store.close()
     }
+}
+
+/// A second connection that keeps a read transaction open, as another process reading the file would.
+private final class HeldReader {
+    private var db: OpaquePointer?
+    init(_ url: URL) throws {
+        guard sqlite3_open_v2(url.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else { throw HistoryStoreError.unavailable }
+        guard sqlite3_exec(db, "BEGIN; SELECT count(*) FROM ZHISTORYRECORD;", nil, nil, nil) == SQLITE_OK else { throw HistoryStoreError.unavailable }
+    }
+    func release() {
+        guard let db else { return }
+        sqlite3_exec(db, "COMMIT", nil, nil, nil); sqlite3_close(db); self.db = nil
+    }
+    deinit { release() }
 }

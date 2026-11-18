@@ -46,6 +46,7 @@ final class SnapshotBox: @unchecked Sendable {
         let box = SnapshotBox(snapshot(at: now, minutesAgo: 0, adapterConnected: adapterConnected))
         let model = TilveroModel(isDemo: false, preferences: defaults, historyURL: url, snapshotProvider: { box.value })
         await model.refresh()
+        await model.waitForHistoryWork()   // history is recorded off the refresh, by the store queue
         return SeriesFixture(model: model, box: box, base: now, cleanup: {
             model.stop(); TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root)
         })
@@ -80,6 +81,7 @@ final class SnapshotBox: @unchecked Sendable {
         // A new snapshot (and the sample the refresh records) invalidates every id.
         fixture.box.value = SeriesFixture.snapshot(at: fixture.base.addingTimeInterval(60), minutesAgo: -1, adapterConnected: true)
         await model.refresh()
+        await model.waitForHistoryWork()   // history is recorded off the refresh, by the store queue
         counter = model.metricSeriesComputations
         _ = model.metricSeries(id: "038"); _ = model.metricSeries(id: "038")
         _ = model.metricSeries(id: "054"); _ = model.metricSeries(id: "054")

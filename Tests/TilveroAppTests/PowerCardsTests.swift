@@ -363,6 +363,7 @@ import PowerTelemetry
         let latest = snapshot(0)
         let model = TilveroModel(isDemo: false, preferences: defaults, historyURL: url, snapshotProvider: { latest })
         await model.refresh()
+        await model.waitForHistoryWork()   // history is recorded off the refresh, by the store queue
         return (model, { model.stop(); TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) })
     }
     func testTilesRenderRealSeriesAndEmptyStatesInLightAndDark() async throws {
@@ -480,6 +481,7 @@ import PowerTelemetry
         let latest = snapshot(0)
         let model = TilveroModel(isDemo: false, preferences: defaults, historyURL: url, snapshotProvider: { latest })
         await model.refresh()
+        await model.waitForHistoryWork()   // history is recorded off the refresh, by the store queue
         return (model, { model.stop(); TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) })
     }
     func testAdapterConnectedAccessorTreatsUnknownAsConnected() async throws {

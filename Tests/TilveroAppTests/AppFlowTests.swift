@@ -98,6 +98,7 @@ final class AppFlowTests: XCTestCase {
             BatterySnapshot(chargePercent: .init(value: 73, source: "fixture", freshness: .fresh), isExternalPower: .init(value: false, source: "fixture"))
         })
         await first.refresh()
+        await first.waitForHistoryWork()   // history is recorded off the refresh, by the store queue
         XCTAssertNil(first.control)
         XCTAssertFalse(first.canEdit)
         XCTAssertEqual(first.history.last?.chargePercent, 73)

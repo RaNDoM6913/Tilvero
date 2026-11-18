@@ -4,6 +4,7 @@
 import XCTest
 import Foundation
 import CoreData
+import SQLite3
 @testable import PowerCore
 @testable import PowerPersistence
 
@@ -66,9 +67,9 @@ import CoreData
         try await reopened.close()
     }
 
-    /// Merging expired hours keeps every total; sessions keep the start observed when they were recorded (a rescan of
-    /// aggregates could only place them at bucket boundaries), so only the totals are compared here.
-    func testAggregationKeepsTheRunningTotals() async throws {
+    /// Merging expired hours keeps every total, and each run of equal power flags stays its own aggregate with its first
+    /// sample's identity, so the sessions a rescan finds are the ones the running summary recorded.
+    func testAggregationKeepsTheRunningSummaryEqualToARescan() async throws {
         let store = try BatteryHistoryStore(url: nil, configuration: .init(maximumSamples: 1000, detailedDays: 0, aggregateIntervalSeconds: 600))
         let start = Date().addingTimeInterval(-86400)
         for index in 0..<300 {
@@ -76,13 +77,7 @@ import CoreData
             if index % 60 == 59 {
                 let running = try await store.summary()
                 let rebuilt = try await store.rebuiltSummary()
-                XCTAssertEqual(running.sampleCount, rebuilt.sampleCount)
-                XCTAssertEqual(running.monitoringStart, rebuilt.monitoringStart)
-                XCTAssertEqual(running.gaps, rebuilt.gaps)
-                XCTAssertEqual(running.coveredSeconds, rebuilt.coveredSeconds, accuracy: 1e-6)
-                XCTAssertEqual(running.estimatedChargedWh ?? -1, rebuilt.estimatedChargedWh ?? -1, accuracy: 1e-9)
-                XCTAssertEqual(running.estimatedDischargedWh ?? -1, rebuilt.estimatedDischargedWh ?? -1, accuracy: 1e-9)
-                XCTAssertEqual(running.observedExternalPowerSeconds, rebuilt.observedExternalPowerSeconds, accuracy: 1e-6)
+                assertEquivalent(running, rebuilt, "after \(index + 1) records with aggregation")
             }
         }
         let samples = try await store.samples(limit: 100000, readingsSince: .distantFuture)
@@ -91,6 +86,91 @@ import CoreData
         XCTAssertEqual(summary.sampleCount, 300)
         XCTAssertEqual(summary.sampleCount, samples.reduce(0) { $0 + $1.aggregateCount })
         try await store.close()
+    }
+
+    /// Aggregation and oldest-first trims together; once no retained row carries an energy interval the estimate is
+    /// unavailable again (nil), never a leftover ~0 Wh.
+    func testAggregationAndTrimsAgreeWithARescanAndDropEnergyToUnavailable() async throws {
+        let store = try BatteryHistoryStore(url: nil, configuration: .init(maximumSamples: 30, detailedDays: 0, aggregateIntervalSeconds: 600))
+        let start = Date().addingTimeInterval(-86400)
+        for index in 0..<200 {
+            let measured = snapshot(index, start: start)
+            // Power stops being measured after 60 samples: later rows carry no energy interval.
+            let catalog = index < 60 ? measured.catalog : measured.catalog.filter { $0.id != "038" }
+            try await store.record(BatterySnapshot(chargePercent: measured.chargePercent, isCharging: measured.isCharging,
+                isExternalPower: measured.isExternalPower, collectedAt: measured.collectedAt, catalog: catalog,
+                monotonicTime: measured.monotonicTime, batteryIdentityToken: measured.batteryIdentityToken))
+            if index % 20 == 19 {
+                let running = try await store.summary()
+                let rebuilt = try await store.rebuiltSummary()
+                assertEquivalent(running, rebuilt, "after \(index + 1) records with aggregation and trims")
+            }
+        }
+        let summary = try await store.summary()
+        XCTAssertNil(summary.estimatedChargedWh, "No retained energy interval: unavailable, not zero.")
+        XCTAssertNil(summary.estimatedDischargedWh)
+        try await store.close()
+    }
+
+    /// A row whose payload went bad after it was written cannot block aggregation of its hour: another member's payload
+    /// (or the columns alone) makes the aggregate, and maintenance reports no error.
+    func testAnUndecodableTemplateRowDoesNotBlockAggregation() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("TilveroHistoryTemplate-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let url = folder.appendingPathComponent("History.sqlite")
+        let configuration = HistoryConfiguration(maximumSamples: 1000, detailedDays: 0, aggregateIntervalSeconds: 3600)
+        let start = Date().addingTimeInterval(-6 * 3600)
+        let writer = try BatteryHistoryStore(url: url, configuration: configuration)
+        for index in 0..<50 { try await writer.record(snapshot(index, start: start)) }
+        try await writer.close()
+        var db: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(url.path, &db), SQLITE_OK)
+        XCTAssertEqual(sqlite3_exec(db, "UPDATE ZHISTORYRECORD SET ZPAYLOAD = x'00' WHERE ZKIND = 'sample'", nil, nil, nil), SQLITE_OK)
+        sqlite3_close(db)
+        let store = try BatteryHistoryStore(url: url, configuration: configuration)
+        let before = try await store.summary()
+        try await store.maintain(referenceDate: Date())
+        let diagnostics = await store.diagnostics()
+        XCTAssertNil(diagnostics.lastMaintenanceError)
+        let samples = try await store.samples(limit: 1000, readingsSince: .distantFuture)
+        XCTAssertTrue(samples.contains { $0.isAggregate }, "The expired runs were aggregated from their columns.")
+        let after = try await store.summary()
+        XCTAssertEqual(after.sampleCount, before.sampleCount)
+        try await store.close()
+    }
+
+    /// The main-thread probe counts real main-thread work: a synchronous open from the main actor shows up, the async API does not.
+    func testMainThreadProbeSeesSynchronousWorkOnly() async throws {
+        let synchronous = try BatteryHistoryStore(url: nil)
+        try await synchronous.record(snapshot(0, start: Date()))
+        let counted = await synchronous.diagnostics()
+        XCTAssertEqual(counted.mainThreadOperations, 1, "The synchronous open ran here, on the main thread.")
+        let opened = try await BatteryHistoryStore.open(url: nil)
+        try await opened.record(snapshot(0, start: Date()))
+        _ = try await opened.summary()
+        let clean = await opened.diagnostics()
+        XCTAssertEqual(clean.mainThreadOperations, 0)
+        try opened.closeImmediately(upserting: [])
+        let afterClose = await opened.diagnostics()
+        XCTAssertEqual(afterClose.mainThreadOperations, 0, "The termination close runs on the store queue too.")
+        try await synchronous.close()
+    }
+
+    /// Closing for termination interrupts a long export at its next batch instead of waiting for it.
+    func testTerminationCloseDoesNotWaitForALongExport() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("TilveroHistoryClose-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let url = folder.appendingPathComponent("History.sqlite")
+        try VersionTwoFixture.write(try SyntheticHistory.versionTwoRows(now: Date(), detailed: 20000, spacing: 60, aggregates: 0), to: url)
+        let store = try await BatteryHistoryStore.open(url: url, configuration: .init(maximumSamples: 100000))
+        try await store.completeBackfill()
+        let export = Task.detached { try await store.exportCSV() }
+        try await Task.sleep(for: .milliseconds(30))
+        let start = ContinuousClock.now
+        try store.closeImmediately(upserting: [], timeout: 10)
+        let waited = ContinuousClock.now - start
+        XCTAssertLessThan(waited, .seconds(2), "The close waited \(waited) for the export.")
+        do { _ = try await export.value; XCTFail("An export interrupted by the close must not return partial data.") } catch {}
     }
 
     func testAMissingOrStaleSummaryRowIsRebuiltOnOpen() async throws {

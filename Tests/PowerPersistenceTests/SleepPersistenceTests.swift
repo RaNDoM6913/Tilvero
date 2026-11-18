@@ -90,12 +90,12 @@ import PowerCore
             try await first.close()
             try inject(payload, at: url)
             let reopened = try BatteryHistoryStore(url: url)
-            await assertThrows { try await reopened.sleepSessions() }
+            await assertThrows { _ = try await reopened.sleepSessions() }
             await assertThrows { try await reopened.upsertSleepSession(self.record()) }
             // Backfill and maintenance flag the row; they never delete or rewrite it.
             try await reopened.completeBackfill()
             try await reopened.maintain()
-            await assertThrows { try await reopened.sleepSessions() }
+            await assertThrows { _ = try await reopened.sleepSessions() }
             let charge = try await reopened.samples().first?.chargePercent
             XCTAssertEqual(charge, 71)
             try await reopened.close()
