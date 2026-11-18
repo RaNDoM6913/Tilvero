@@ -95,25 +95,28 @@ enum ProcessActivitySearch {
     }
 }
 
-/// How often the process table is scanned. While a surface that lists processes is on screen (the quick panel's
-/// applications block, the Activity page, the quick panel preview in Settings) every poll scans; otherwise at most every
-/// two minutes, which still feeds the high-CPU highlights at a fraction of the cost.
+/// How often the process table is scanned. While processes are shown, or would be the moment the popover opens (the
+/// Overview applications block is enabled, or the Activity page is on screen), every poll scans, so an opening popover
+/// already has a current sample and the block never pops in. Otherwise at most every two minutes, which still feeds the
+/// high-CPU highlights at a fraction of the cost.
 enum ProcessScanCadence {
-    static let visibleInterval: TimeInterval = 2
-    static let hiddenInterval: TimeInterval = 120
-    /// Longest interval the sampler and the highlights count: the hidden cadence, one closed-panel poll (30 s) and slack.
+    /// Poll cadence: the polling loop's own sleep (5 s or 30 s) sets the pace; this only absorbs back-to-back requests.
+    static let pollInterval: TimeInterval = 2
+    static let slowInterval: TimeInterval = 120
+    /// Longest interval the sampler and the highlights count: the slow cadence, one closed-panel poll (30 s) and slack.
     static let longestInterval: TimeInterval = 180
-    /// Between two scans made while visible (every poll) a longer pause is a collection gap, not an interval.
-    static let visibleGap: TimeInterval = 45
+    /// Between two scans made at the poll cadence a longer pause is a collection gap, not an interval.
+    static let pollGap: TimeInterval = 45
 
-    static func isDue(sinceLastScan: TimeInterval?, visible: Bool, force: Bool = false) -> Bool {
+    static func isDue(sinceLastScan: TimeInterval?, followsPoll: Bool, force: Bool = false) -> Bool {
         if force { return true }
         guard let sinceLastScan, sinceLastScan >= 0 else { return true }
-        return sinceLastScan >= (visible ? visibleInterval : hiddenInterval)
+        return sinceLastScan >= (followsPoll ? pollInterval : slowInterval)
     }
-    /// The longest interval the highlights accept for this scan.
-    static func maximumInterval(previousVisible: Bool, visible: Bool) -> TimeInterval {
-        previousVisible && visible ? visibleGap : longestInterval
+    /// The longest interval the highlights accept for this scan: the gap rule applies only when both this scan and the
+    /// previous one were made at the poll cadence with nothing switching to the slow cadence in between.
+    static func maximumInterval(previousFollowedPoll: Bool, followsPoll: Bool) -> TimeInterval {
+        previousFollowedPoll && followsPoll ? pollGap : longestInterval
     }
 }
 
@@ -122,7 +125,7 @@ struct SustainedCPUActivity {
     private var runs: [String: Run] = [:]
     mutating func reset() { runs.removeAll() }
     /// `maximumInterval`: a longer interval is a gap and clears every run (see `ProcessScanCadence`).
-    mutating func accept(_ snapshot: ProcessActivitySnapshot, monotonic: Double, maximumInterval: Double = ProcessScanCadence.visibleGap) -> [ProcessActivityRow] {
+    mutating func accept(_ snapshot: ProcessActivitySnapshot, monotonic: Double, maximumInterval: Double = ProcessScanCadence.pollGap) -> [ProcessActivityRow] {
         guard !snapshot.isWarmingUp, snapshot.collectionError == nil,
               let interval = snapshot.intervalSeconds, interval.isFinite, interval >= 0.05, interval <= maximumInterval, monotonic.isFinite else {
             reset(); return []

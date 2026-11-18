@@ -121,7 +121,8 @@ final class TilveroModel: ObservableObject {
     private var processMonitorStopped = false
     private var processRevision: UInt64 = 0
     private var lastProcessRefreshUptime: Double?
-    private var lastProcessScanVisible = false
+    /// The last scan was made at the poll cadence, and nothing has switched scans to the slow cadence since.
+    private var lastScanFollowedPoll = false
     @Published private(set) var sleepActivity: SleepAssertionSnapshot?
     /// macOS Low Power Mode, kept current from `NSProcessInfoPowerStateDidChange` (read-only; Tilvero never sets it here).
     @Published private(set) var isLowPowerModeEnabled = false
@@ -135,10 +136,11 @@ final class TilveroModel: ObservableObject {
     @Published var selectedSettingsPage: SettingsPage = .general
     @Published var selectedSection: InfoSection = .overview { didSet {
         preferences.set(selectedSection.rawValue, forKey: "lastSection")
-        if oldValue != selectedSection { activityPageMayHaveAppeared() }
+        if oldValue != selectedSection { processScanSurfacesChanged(); activityPageMayHaveAppeared() }
     } }
     @Published var overviewPreferences: OverviewPreferences { didSet {
         if let data = try? JSONEncoder().encode(overviewPreferences) { preferences.set(data, forKey: "overviewPreferences.v1") }
+        processScanSurfacesChanged()
     } }
     /// First run only: gives a brand-new install the starter Overview. Nothing happens when a layout is already
     /// stored (the user customised it, or an earlier first run wrote it) or in demo.
@@ -402,7 +404,11 @@ final class TilveroModel: ObservableObject {
     var isPopoverVisible = false { didSet { if oldValue != isPopoverVisible { updateLiveCharts() } } }
     /// The quick panel's page (reported by the panel itself): live charts run only on Overview.
     var quickPanelSection: QuickPanelSection = .overview { didSet { if oldValue != quickPanelSection { updateLiveCharts() } } }
-    var isDetailVisible = false { didSet { if isDetailVisible && !oldValue { activityPageMayHaveAppeared() } } }
+    var isDetailVisible = false { didSet {
+        guard isDetailVisible != oldValue else { return }
+        processScanSurfacesChanged()
+        if isDetailVisible { activityPageMayHaveAppeared() }
+    } }
     var openDetails: (@MainActor () -> Void)?
     /// Settings > Setup: the administrator permissions (nil in demo, monitoring-only and test sessions).
     var privilegedPermissions: PrivilegedPermissionsController? { willSet { objectWillChange.send() } }
@@ -931,17 +937,17 @@ final class TilveroModel: ObservableObject {
             }
         }
     }
-    /// A surface that lists processes is on screen: the quick panel's applications block, the Activity page, or the
-    /// quick panel preview in Settings. Otherwise the scan runs only every two minutes (`ProcessScanCadence`).
-    var processListIsVisible: Bool {
-        (isPopoverVisible && quickPanelSection == .overview && visibleOverviewMetrics.contains(.applications))
-            || (isDetailVisible && (selectedSection == .activity || (selectedSection == .settings && selectedSettingsPage == .quickPanel)))
+    /// Scans follow the poll while processes are shown or would be the moment the popover opens: the Overview
+    /// applications block is enabled (popover open or not, so it never pops in on opening), or the Activity page is on
+    /// screen. Otherwise the scan runs only every two minutes (`ProcessScanCadence`).
+    var processScansFollowPoll: Bool {
+        visibleOverviewMetrics.contains(.applications) || (isDetailVisible && selectedSection == .activity)
     }
     func refreshProcessActivity(force: Bool = false) async {
         guard !isDemo, !sleeping, !processMonitorStopped, !isReadingProcesses else { return }
-        let visible = processListIsVisible
+        let followsPoll = processScansFollowPoll
         let sinceLastScan = lastProcessRefreshUptime.map { ProcessInfo.processInfo.systemUptime - $0 }
-        guard ProcessScanCadence.isDue(sinceLastScan: sinceLastScan, visible: visible, force: force) else { return }
+        guard ProcessScanCadence.isDue(sinceLastScan: sinceLastScan, followsPoll: followsPoll, force: force) else { return }
         isReadingProcesses = true
         let revision = processRevision
         defer { isReadingProcesses = false }
@@ -950,9 +956,15 @@ final class TilveroModel: ObservableObject {
         let activity = processSampler.accept(observed)
         processActivity = activity
         highCPUApplications = processHighlights.accept(activity, monotonic: observed.monotonic,
-            maximumInterval: ProcessScanCadence.maximumInterval(previousVisible: lastProcessScanVisible, visible: visible))
-        lastProcessScanVisible = visible
+            maximumInterval: ProcessScanCadence.maximumInterval(previousFollowedPoll: lastScanFollowedPoll, followsPoll: followsPoll))
+        lastScanFollowedPoll = followsPoll
         lastProcessRefreshUptime = ProcessInfo.processInfo.systemUptime
+    }
+    /// When nothing keeps scans at the poll cadence any more, the next interval may be up to two minutes long: the last
+    /// scan stops counting as a poll-cadence one, so that interval is not taken for a collection gap (which would clear
+    /// a high-CPU app that is still busy when the page or block comes back).
+    private func processScanSurfacesChanged() {
+        if !processScansFollowPoll { lastScanFollowedPoll = false }
     }
     /// The Activity page just came on screen: scan now instead of waiting for the next poll (the last scan may be two
     /// minutes old while nothing listed processes).

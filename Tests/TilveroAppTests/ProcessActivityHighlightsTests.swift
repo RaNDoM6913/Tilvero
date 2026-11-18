@@ -89,19 +89,20 @@ final class ProcessActivityHighlightsTests: XCTestCase {
         }
     }
 
-    func testScanCadenceIsEveryPollWhileListedAndTwoMinutesOtherwise() {
-        XCTAssertTrue(ProcessScanCadence.isDue(sinceLastScan: nil, visible: false), "The first scan always runs")
-        XCTAssertFalse(ProcessScanCadence.isDue(sinceLastScan: 1.9, visible: true))
-        XCTAssertTrue(ProcessScanCadence.isDue(sinceLastScan: 2, visible: true))
-        XCTAssertFalse(ProcessScanCadence.isDue(sinceLastScan: 30, visible: false), "A closed panel no longer scans every poll")
-        XCTAssertFalse(ProcessScanCadence.isDue(sinceLastScan: 119.9, visible: false))
-        XCTAssertTrue(ProcessScanCadence.isDue(sinceLastScan: 120, visible: false))
-        XCTAssertTrue(ProcessScanCadence.isDue(sinceLastScan: 5, visible: false, force: true))
-        XCTAssertTrue(ProcessScanCadence.isDue(sinceLastScan: -1, visible: false), "A clock that went backwards never blocks scans")
-        XCTAssertEqual(ProcessScanCadence.maximumInterval(previousVisible: true, visible: true), 45)
-        XCTAssertEqual(ProcessScanCadence.maximumInterval(previousVisible: false, visible: true), ProcessScanCadence.longestInterval)
-        XCTAssertEqual(ProcessScanCadence.maximumInterval(previousVisible: true, visible: false), ProcessScanCadence.longestInterval)
-        XCTAssertGreaterThanOrEqual(ProcessScanCadence.longestInterval, ProcessScanCadence.hiddenInterval + 30, "One closed-panel poll of slack")
+    func testScanCadenceFollowsThePollWhileProcessesAreShownAndIsTwoMinutesOtherwise() {
+        XCTAssertTrue(ProcessScanCadence.isDue(sinceLastScan: nil, followsPoll: false), "The first scan always runs")
+        XCTAssertFalse(ProcessScanCadence.isDue(sinceLastScan: 1.9, followsPoll: true))
+        XCTAssertTrue(ProcessScanCadence.isDue(sinceLastScan: 2, followsPoll: true))
+        XCTAssertFalse(ProcessScanCadence.isDue(sinceLastScan: 30, followsPoll: false), "Nothing shows processes: no scan on every poll")
+        XCTAssertFalse(ProcessScanCadence.isDue(sinceLastScan: 119.9, followsPoll: false))
+        XCTAssertTrue(ProcessScanCadence.isDue(sinceLastScan: 120, followsPoll: false))
+        XCTAssertTrue(ProcessScanCadence.isDue(sinceLastScan: 5, followsPoll: false, force: true))
+        XCTAssertTrue(ProcessScanCadence.isDue(sinceLastScan: -1, followsPoll: false), "A clock that went backwards never blocks scans")
+        XCTAssertEqual(ProcessScanCadence.maximumInterval(previousFollowedPoll: true, followsPoll: true), ProcessScanCadence.pollGap)
+        XCTAssertEqual(ProcessScanCadence.maximumInterval(previousFollowedPoll: false, followsPoll: true), ProcessScanCadence.longestInterval)
+        XCTAssertEqual(ProcessScanCadence.maximumInterval(previousFollowedPoll: true, followsPoll: false), ProcessScanCadence.longestInterval)
+        XCTAssertGreaterThanOrEqual(ProcessScanCadence.longestInterval, ProcessScanCadence.slowInterval + 30, "One closed-panel poll of slack")
+        XCTAssertGreaterThan(ProcessScanCadence.pollGap, 30 + 5, "A closed-panel poll (30 s) is an interval, not a gap")
     }
 
     func testHiddenTwoMinuteScansStillConfirmSustainedLoadAndOpeningContinuesTheRun() {
@@ -110,7 +111,7 @@ final class ProcessActivityHighlightsTests: XCTestCase {
         func read(_ time: Double, visible: (Bool, Bool) = (false, false)) -> [ProcessActivityRow] {
             let counters = [ProcessResourceCounter(pid: 1, start: 1, name: "worker", application: app, cpuTicks: UInt64(time * 0.7 * 1e9))]
             return highlights.accept(sampler.accept(.init(collectedAt: Date(), monotonic: time, counters: counters)), monotonic: time,
-                                     maximumInterval: ProcessScanCadence.maximumInterval(previousVisible: visible.0, visible: visible.1))
+                                     maximumInterval: ProcessScanCadence.maximumInterval(previousFollowedPoll: visible.0, followsPoll: visible.1))
         }
         XCTAssertTrue(read(0).isEmpty)
         XCTAssertTrue(read(121).isEmpty)

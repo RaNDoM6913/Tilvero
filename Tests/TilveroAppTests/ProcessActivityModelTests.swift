@@ -60,33 +60,49 @@ import AppKit
         XCTAssertNil(model.processActivity)
         model.stop()
     }
-    func testClosedSurfacesScanAtTheSlowCadenceAndListingSurfacesAreRecognised() async throws {
+    func testScansFollowThePollWhileTheApplicationsBlockIsEnabledOrTheActivityPageIsShown() async throws {
         let prefs = makeTestDefaults("ProcessCadence").defaults
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let fixture = ProcessModelFixture()
         let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"), processActivityProvider: { await fixture.read() })
         defer { model.stop() }
-        XCTAssertFalse(model.processListIsVisible)
+        XCTAssertFalse(model.processScansFollowPoll, "The applications block is hidden by default")
         await model.refreshProcessActivity()
         await model.refreshProcessActivity()
         let scans = await fixture.time
-        XCTAssertEqual(scans, 1, "With nothing listing processes the next poll does not scan again")
-        model.isPopoverVisible = true; model.quickPanelSection = .overview
-        XCTAssertFalse(model.processListIsVisible, "The applications block is hidden by default")
-        model.overviewPreferences.hidden.remove(.applications)
-        XCTAssertTrue(model.processListIsVisible)
+        XCTAssertEqual(scans, 1, "With nothing showing processes the next poll does not scan again")
+        model.isPopoverVisible = true; model.quickPanelSection = .charge
+        XCTAssertFalse(model.processScansFollowPoll, "An open popover alone does not count")
         model.isPopoverVisible = false
+        model.overviewPreferences.hidden.remove(.applications)
+        XCTAssertTrue(model.processScansFollowPoll, "An enabled block keeps the poll cadence even while the popover is closed")
+        model.overviewPreferences.hidden.insert(.applications)
         model.selectedSection = .activity
-        XCTAssertFalse(model.processListIsVisible, "The Activity page counts only while the window is shown")
+        XCTAssertFalse(model.processScansFollowPoll, "The Activity page counts only while the window is shown")
         model.isDetailVisible = true
-        XCTAssertTrue(model.processListIsVisible)
-        model.selectedSection = .settings; model.selectedSettingsPage = .quickPanel
-        XCTAssertTrue(model.processListIsVisible, "The quick panel preview lists applications too")
+        XCTAssertTrue(model.processScansFollowPoll)
+    }
+    func testReopeningTheActivityPageAfterAMinuteKeepsABusyAppHighlighted() async throws {
+        let prefs = makeTestDefaults("ProcessReopen").defaults
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fixture = HighLoadProcessFixture()
+        let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"), processActivityProvider: { await fixture.read() })
+        defer { model.stop() }
+        model.selectedSection = .activity; model.isDetailVisible = true
+        for _ in 0..<4 { await model.refreshProcessActivity(force: true) }   // 0, 10, 20, 30 s at the poll cadence
+        XCTAssertEqual(model.highCPUApplications.map(\.name), ["Fixture app"])
+        model.isDetailVisible = false   // the page closes; scans drop to the slow cadence
+        await fixture.skip(seconds: 50)
+        model.isDetailVisible = true    // and it is back after a minute, before any slow scan ran
+        await model.refreshProcessActivity(force: true)   // a 60 s interval
+        XCTAssertEqual(model.highCPUApplications.map(\.name), ["Fixture app"], "A minute away is an interval, not a collection gap")
     }
 }
 private actor HighLoadProcessFixture {
     var time = -10
+    func skip(seconds: Int) { time += seconds }
     func read() -> ProcessResourceCollection {
         time += 10
         let scale = ProcessActivityProvider.timebase
