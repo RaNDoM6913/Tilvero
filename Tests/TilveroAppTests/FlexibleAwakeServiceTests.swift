@@ -238,8 +238,8 @@ import IOKit.pwr_mgt
     }
 
     func testSharedDraftPersistsFiniteCustomOnlyAndNeverResumes() throws {
-        let suite = "TilveroFlexibleDraft-\(UUID())", prefs = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { prefs.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name("FlexibleDraft"), prefs = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         let driver = AwakeFixture(), model = TilveroModel(isDemo: true, preferences: prefs, keepAwakeTransport: driver)
         defer { model.stop() }
         XCTAssertEqual(model.keepAwakeDraft, .duration(.halfHour))
@@ -339,9 +339,9 @@ import IOKit.pwr_mgt
     }
 
     func testModelDraftSelectionDoesNotAlterActiveSessionAndExplicitInfinityDoesNotPersist() throws {
-        let suite = "TilveroFlexibleLiveDraft-\(UUID())", prefs = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let suite = TestDefaults.name("FlexibleLiveDraft"), prefs = TestDefaults.defaults(suite)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         prefs.set(false, forKey: "historyEnabled")
         let driver = AwakeFixture()
         let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"),
@@ -384,9 +384,9 @@ import IOKit.pwr_mgt
     }
 
     func testCleanedExtensionFailureRemainsVisibleThroughGlobalModelNotice() throws {
-        let suite = "TilveroAwakeFailureNotice-\(UUID())", prefs = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let suite = TestDefaults.name("AwakeFailureNotice"), prefs = TestDefaults.defaults(suite)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         prefs.set(false, forKey: "historyEnabled")
         let driver = AwakeFixture()
         let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"),

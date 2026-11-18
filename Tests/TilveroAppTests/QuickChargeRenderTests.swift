@@ -33,9 +33,9 @@ private actor RenderChargeTransport: NativeChargeTransport {
     }
 
     func testNativeChargePageUsesTheNewPanelAndHasNoLegacyControls() async throws {
-        let suite = "ChargeRender-\(UUID())", prefs = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let suite = TestDefaults.name("ChargeRender"), prefs = TestDefaults.defaults(suite)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         prefs.set(false, forKey: "historyEnabled")
         let m = await model(admitted: true, prefs: prefs, root: root)
         defer { m.stop() }
@@ -61,9 +61,9 @@ private actor RenderChargeTransport: NativeChargeTransport {
                 let saved = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
                 UserDefaults.standard.setVolatileDomain(saved.merging(["language": language]) { _, v in v }, forName: UserDefaults.argumentDomain)
                 defer { UserDefaults.standard.setVolatileDomain(saved, forName: UserDefaults.argumentDomain) }
-                let suite = "ChargeRender-\(UUID())", prefs = try XCTUnwrap(UserDefaults(suiteName: suite))
+                let suite = TestDefaults.name("ChargeRender"), prefs = TestDefaults.defaults(suite)
                 let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-                defer { prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+                defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
                 prefs.set(false, forKey: "historyEnabled")
                 let m = await model(admitted: admitted, prefs: prefs, root: root)
                 defer { m.stop() }
@@ -88,9 +88,9 @@ private actor RenderChargeTransport: NativeChargeTransport {
 /// The page must not move while the limit is applied: same height before, during and after, no transient text rows.
 @MainActor final class QuickChargeStabilityTests: XCTestCase {
     func testChangingTheLimitNeverResizesThePage() async throws {
-        let suite = "ChargeStable-\(UUID())", prefs = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let suite = TestDefaults.name("ChargeStable"), prefs = TestDefaults.defaults(suite)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         prefs.set(false, forKey: "historyEnabled")
         let native = NativeChargeService(client: StableChargeTransport(), journalURL: root.appendingPathComponent("native.json"), admitted: true,
                                          batteryProvider: { ChargeObservation(percent: 60, externalPower: true, fresh: true) })

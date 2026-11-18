@@ -7,11 +7,11 @@ import ChargeBackends
 
 @MainActor final class SystemChargeLimitModelTests: XCTestCase {
     func testReadbackRefreshDoesNotClaimTilveroOwnershipOrPermitWrites() async throws {
-        let suite = "TilveroTests.\(UUID().uuidString)"
-        let preferences = UserDefaults(suiteName: suite)!
+        let suite = TestDefaults.name()
+        let preferences = TestDefaults.defaults(suite)
         preferences.set(false, forKey: "historyEnabled")
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { preferences.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         let limits = try SystemChargeLimitParser.parse("Battery level limits:\n({Terminated=0;chargeSocLimitReason=manualChargeLimit;chargeSocLimitSoc=85;})")
         let model = TilveroModel(isDemo: false, preferences: preferences, historyURL: root.appendingPathComponent("History.sqlite"),
                                 systemChargeLimitProvider: { .init(limits: limits) })
@@ -25,8 +25,8 @@ import ChargeBackends
     }
 
     func testSimulationNeverQueriesSystemLimits() async {
-        let suite = "TilveroTests.\(UUID().uuidString)"; let preferences = UserDefaults(suiteName: suite)!
-        defer { preferences.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name(); let preferences = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         let model = TilveroModel(isDemo: true, preferences: preferences, systemChargeLimitProvider: {
             XCTFail("Demo must not query or present physical settings")
             return .init(limits: nil)

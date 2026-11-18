@@ -8,8 +8,8 @@ import PowerCore
 @MainActor final class ModePlanTests: XCTestCase {
     // Catches accidentally coupling Save or relaunch to control application.
     func testSavePersistsDraftButNeverAppliesIt() async throws {
-        let suite = "TilveroModes-\(UUID().uuidString)", preferences = UserDefaults(suiteName: suite)!
-        defer { preferences.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name("Modes"), preferences = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         let model = TilveroModel(isDemo: true, preferences: preferences)
         await model.refresh()
         let before = model.control?.charge
@@ -45,8 +45,8 @@ import PowerCore
 
     // Catches invalid saved values leaking into control requests.
     func testInvalidDraftIsRejectedWithoutReplacingSavedPlan() throws {
-        let suite = "TilveroModes-\(UUID().uuidString)", preferences = UserDefaults(suiteName: suite)!
-        defer { preferences.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name("Modes"), preferences = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         let model = TilveroModel(isDemo: true, preferences: preferences)
         let before = model.modeLibrary
         for (charge, idle, brightness) in [(79,5,50),(90,0,50),(90,5,101)] {
@@ -59,8 +59,8 @@ import PowerCore
 
     // Uses the real simulator boundary: only an explicit Apply changes charge intent.
     func testExplicitApplyReportsPendingChargeAndExclusionsSeparately() async throws {
-        let suite = "TilveroModes-\(UUID().uuidString)", preferences = UserDefaults(suiteName: suite)!
-        defer { preferences.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name("Modes"), preferences = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         let model = TilveroModel(isDemo: true, preferences: preferences)
         model.demoPercent = 98
         await model.refresh()

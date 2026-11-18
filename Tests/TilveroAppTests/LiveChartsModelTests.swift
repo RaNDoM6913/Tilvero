@@ -13,7 +13,7 @@ private final class Counter: @unchecked Sendable {
 
 @MainActor final class LiveChartsModelTests: XCTestCase {
     private func make(isDemo: Bool = false, counter: Counter) -> (TilveroModel, () -> Void) {
-        let suite = "LiveCharts-\(UUID())", prefs = UserDefaults(suiteName: suite)!
+        let suite = TestDefaults.name("LiveCharts"), prefs = TestDefaults.defaults(suite)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let model = TilveroModel(isDemo: isDemo, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"),
                                  liveSampler: {
@@ -21,7 +21,7 @@ private final class Counter: @unchecked Sendable {
                                      return LivePowerSample(collectedAt: Date().addingTimeInterval(0.01 * Double(i)),
                                                             systemWatts: Double(i), adapterWatts: 10, temperatureCelsius: 33)
                                  })
-        return (model, { model.stop(); prefs.removePersistentDomain(forName: suite) })
+        return (model, { model.stop(); TestDefaults.remove(suite) })
     }
 
     func testLiveTicksFeedTheOverviewSeriesOnlyWhileTheMenuIsOpenOnOverview() async {

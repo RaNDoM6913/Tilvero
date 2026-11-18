@@ -95,12 +95,12 @@ private final class CommandRecorder: @unchecked Sendable {
     override func setUp() async throws {
         directory = FileManager.default.temporaryDirectory.appendingPathComponent("TilveroTests-LidWatchdog-\(UUID().uuidString)", isDirectory: true)
         store = LidOverrideMarkerStore(directory: directory)
-        suite = "TilveroTests-LidWatchdog-\(UUID().uuidString)"
-        defaults = UserDefaults(suiteName: suite)
+        suite = TestDefaults.name("LidWatchdog")
+        defaults = TestDefaults.defaults(suite)
     }
 
     override func tearDown() async throws {
-        defaults.removePersistentDomain(forName: suite)
+        TestDefaults.remove(suite)
         try? FileManager.default.removeItem(at: directory)
     }
 

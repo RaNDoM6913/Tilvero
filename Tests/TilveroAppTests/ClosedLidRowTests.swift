@@ -45,12 +45,12 @@ import XCTest
     }
 
     @MainActor private struct Fixture {
-        let suite = "ClosedLidRow-\(UUID())"
+        let suite = TestDefaults.name("ClosedLidRow")
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("ClosedLidRow-\(UUID())")
         let preferences: UserDefaults
         let model: TilveroModel
         init() throws {
-            preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
+            preferences = TestDefaults.defaults(suite)
             preferences.set(false, forKey: "historyEnabled")
             model = TilveroModel(isDemo: true, preferences: preferences,
                 historyURL: root.appendingPathComponent("History.sqlite"),
@@ -58,7 +58,7 @@ import XCTest
         }
         func cleanUp() {
             model.stop()
-            preferences.removePersistentDomain(forName: suite)
+            TestDefaults.remove(suite)
             try? FileManager.default.removeItem(at: root)
         }
     }
@@ -68,9 +68,9 @@ extension ClosedLidRowTests {
     /// Renders the real Keep Awake page (RU/EN) when TILVERO_LOOK_DIR is set.
     func testRenderKeepAwakePage() async throws {
         guard let folder = ProcessInfo.processInfo.environment["TILVERO_LOOK_DIR"] else { throw XCTSkip("render is opt-in") }
-        let suite = "KeepRender-\(UUID())", prefs = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let suite = TestDefaults.name("KeepRender"), prefs = TestDefaults.defaults(suite)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         prefs.set(false, forKey: "historyEnabled")
         let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"),
                                  snapshotProvider: { .unavailable(reason: "fixture") })

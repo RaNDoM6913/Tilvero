@@ -14,7 +14,7 @@ import XCTest
         defer { UserDefaults.standard.setVolatileDomain(saved, forName: UserDefaults.argumentDomain) }
         for language in ["ru", "en"] {
             UserDefaults.standard.setVolatileDomain(saved.merging(["language": language]) { _, value in value }, forName: UserDefaults.argumentDomain)
-            let suite = "TimerRender-\(UUID())", prefs = UserDefaults(suiteName: suite)!
+            let suite = TestDefaults.name("TimerRender"), prefs = TestDefaults.defaults(suite)
             let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
             let driver = RenderSleepDriver(), clock = RenderSleepClock()
             let service = SleepTimerService(driver: driver, monotonic: { clock.value }, suspending: { clock.value }, sleeper: { _ in try await Task.sleep(for: .seconds(3600)) })
@@ -39,7 +39,7 @@ import XCTest
             try await render(SleepTimerWarningContent(service: service, openDetails: {}), size: NSSize(width: 440, height: 180), name: "\(language)-minute-warning", dark: true)
             XCTAssertTrue(service.isWarning)
             XCTAssertEqual(driver.requests, 0)
-            model.stop(); prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root)
+            model.stop(); TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root)
         }
     }
     private func render<V: View>(_ view: V, size: NSSize, name: String, dark: Bool = false) async throws {

@@ -43,8 +43,8 @@ private final class FitLid: LidSleepSystem, @unchecked Sendable {
             UserDefaults.standard.setVolatileDomain(saved.merging(["language": language]) { _, v in v }, forName: UserDefaults.argumentDomain)
             defer { UserDefaults.standard.setVolatileDomain(saved, forName: UserDefaults.argumentDomain) }
             let service = SleepTimerService(driver: FitTimer(), allowed: true, sleeper: { _ in try await Task.sleep(for: .seconds(86_400)) })
-            let suite = "TilveroTests.Fit.\(UUID().uuidString)", prefs = UserDefaults(suiteName: suite)!
-            defer { prefs.removePersistentDomain(forName: suite) }
+            let suite = TestDefaults.name("Fit"), prefs = TestDefaults.defaults(suite)
+            defer { TestDefaults.remove(suite) }
             let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
             let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"),
                                      sleepTimerService: service, lidSleepSystem: FitLid())

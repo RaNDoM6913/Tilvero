@@ -179,9 +179,9 @@ import XCTest
     }
 
     func testPanelRendersInTheQuickSleepPage() async throws {
-        let suite = "ChargeSleep-\(UUID())", prefs = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let suite = TestDefaults.name("ChargeSleep"), prefs = TestDefaults.defaults(suite)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         prefs.set(false, forKey: "historyEnabled")
         let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"),
                                  snapshotProvider: { .unavailable(reason: "fixture") },

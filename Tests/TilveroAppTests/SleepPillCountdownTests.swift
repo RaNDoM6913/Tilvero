@@ -41,8 +41,8 @@ final class CountdownLid: LidSleepSystem, @unchecked Sendable {
         UserDefaults.standard.set(true, forKey: "TilveroReleaseTabs")
         let service = SleepTimerService(driver: CountdownTimerTransport(), allowed: true)
         let awake = KeepAwakeService(driver: AwakeFixture())
-        let suite = "Cd\(UUID())", prefs = UserDefaults(suiteName: suite)!
-        addTeardownBlock { prefs.removePersistentDomain(forName: suite); UserDefaults.standard.removeObject(forKey: "TilveroReleaseTabs") }
+        let suite = TestDefaults.name("Cd"), prefs = TestDefaults.defaults(suite)
+        addTeardownBlock { TestDefaults.remove(suite); UserDefaults.standard.removeObject(forKey: "TilveroReleaseTabs") }
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"),
                                  keepAwakeService: awake, sleepTimerService: service, lidSleepSystem: CountdownLid())

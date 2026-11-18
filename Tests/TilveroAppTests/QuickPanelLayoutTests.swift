@@ -223,8 +223,8 @@ final class QuickPanelLayoutTests: XCTestCase {
         let suite: String
         let directory: URL
         init(isDemo: Bool) throws {
-            suite = "TilveroPanelLayoutTests.\(UUID().uuidString)"
-            preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
+            suite = TestDefaults.name("PanelLayoutTests")
+            preferences = TestDefaults.defaults(suite)
             preferences.set(false, forKey: "historyEnabled")
             directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
             model = TilveroModel(isDemo: isDemo, preferences: preferences,
@@ -233,7 +233,7 @@ final class QuickPanelLayoutTests: XCTestCase {
         }
         func cleanUp() {
             model.stop()
-            preferences.removePersistentDomain(forName: suite)
+            TestDefaults.remove(suite)
             try? FileManager.default.removeItem(at: directory)
         }
     }

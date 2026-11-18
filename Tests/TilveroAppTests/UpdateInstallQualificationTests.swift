@@ -56,10 +56,10 @@ final class UpdateInstallQualificationTests: XCTestCase {
     }
 
     @MainActor func testSealedFeedOverridesStaleHostDefaultsWithoutNetworkOrPreferenceCleanup() throws {
-        let identifier = "TilveroUpdateFeedTest.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: identifier))
+        let identifier = TestDefaults.name("UpdateFeedTest")
+        let defaults = TestDefaults.defaults(identifier)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("UpdateFeed-\(UUID())")
-        defer { defaults.removePersistentDomain(forName: identifier); try? FileManager.default.removeItem(at: root) }
+        defer { TestDefaults.remove(identifier); try? FileManager.default.removeItem(at: root) }
         let app = root.appendingPathComponent("Fixture.app"), contents = app.appendingPathComponent("Contents")
         try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
         let expected = "https://updates.example.org/monitoring/appcast.xml"

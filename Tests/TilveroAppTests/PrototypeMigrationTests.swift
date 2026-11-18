@@ -194,11 +194,11 @@ import PowerPersistence
     @MainActor private final class Fixture {
         enum Interrupted: Error { case expected }
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("TilveroMigrationTests-\(UUID())")
-        let suite = "TilveroMigrationTests.\(UUID())"
+        let suite = TestDefaults.name("MigrationTests")
         let destination: UserDefaults
         var source: URL { directory.appendingPathComponent("Prototype/History.sqlite") }
         var target: URL { directory.appendingPathComponent("Production/History.sqlite") }
-        init() throws { destination = try XCTUnwrap(UserDefaults(suiteName: suite)) }
+        init() throws { destination = TestDefaults.defaults(suite) }
         func environment(source: [String: Any], running: Bool = false) -> PrototypeMigration.Environment {
             .init(sourcePreferences: source, destinationPreferences: destination, sourceStore: self.source,
                   destinationStore: target, isPrototypeRunning: { running })
@@ -215,6 +215,6 @@ import PowerPersistence
             }
             return result
         }
-        func clean() { destination.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: directory) }
+        func clean() { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: directory) }
     }
 }

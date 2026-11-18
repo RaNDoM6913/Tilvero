@@ -50,9 +50,9 @@ import PowerCore
 }
 
 @MainActor private final class ModelInjectionFixture {
-    let suite = "TilveroModelInjection-\(UUID().uuidString)"
+    let suite = TestDefaults.name("ModelInjection")
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    lazy var preferences = UserDefaults(suiteName: suite)!
+    lazy var preferences = TestDefaults.defaults(suite)
     var loginChanges = 0
     var settingsRequests = 0
     var sideEffects: TilveroModelSideEffects {
@@ -60,7 +60,7 @@ import PowerCore
             toggleLogin: { self.loginChanges += 1 }, openBatterySettings: { self.settingsRequests += 1 },
             rawCatalog: { [CatalogReading(definition: BatteryCatalog.definition("001"), value: .text("Sandbox inventory"), source: "Injection fixture", provenance: .reported, freshness: .fresh)] })
     }
-    func cleanup() { preferences.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+    func cleanup() { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
 }
 @MainActor private final class InjectionAwakeClock { var now = ContinuousClock.now }
 private actor InjectionNativeTransport: NativeChargeTransport {

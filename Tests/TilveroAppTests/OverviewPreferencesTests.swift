@@ -6,8 +6,8 @@ import XCTest
 
 @MainActor final class OverviewPreferencesTests: XCTestCase {
     func testPreferencesPersistWithoutMutatingTelemetryOrControl() async throws {
-        let suite = "TilveroOverview-\(UUID().uuidString)", preferences = UserDefaults(suiteName: suite)!
-        defer { preferences.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name("Overview"), preferences = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         let model = TilveroModel(isDemo: true, preferences: preferences)
         await model.refresh()
         let telemetry = model.snapshot, control = model.control
@@ -56,8 +56,8 @@ import XCTest
         XCTAssertEqual(OverviewPreferences.load(nil), old, "no stored value still loads the old page")
     }
     func testTheFirstRunLayoutIsWrittenOnlyWhenNothingIsStored() throws {
-        let suite = "TilveroOverviewFirstRun-\(UUID().uuidString)", preferences = UserDefaults(suiteName: suite)!
-        defer { preferences.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name("OverviewFirstRun"), preferences = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         let fresh = TilveroModel(isDemo: false, preferences: preferences)
         defer { fresh.stop() }
         XCTAssertEqual(fresh.overviewPreferences, OverviewPreferences(), "nothing changes before the first run")
@@ -74,15 +74,15 @@ import XCTest
         XCTAssertEqual(reopened.overviewPreferences, customised)
     }
     func testAnExistingStoredLayoutIsNeverReplacedAndDemoIsLeftAlone() throws {
-        let suite = "TilveroOverviewKept-\(UUID().uuidString)", preferences = UserDefaults(suiteName: suite)!
-        defer { preferences.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name("OverviewKept"), preferences = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         preferences.set(try JSONEncoder().encode(OverviewPreferences()), forKey: "overviewPreferences.v1")   // even the old default, explicitly stored
         let model = TilveroModel(isDemo: false, preferences: preferences)
         defer { model.stop() }
         XCTAssertFalse(model.applyFirstRunOverviewLayout())
         XCTAssertEqual(model.overviewPreferences, OverviewPreferences())
-        let demoSuite = "TilveroOverviewDemo-\(UUID().uuidString)", demoPreferences = UserDefaults(suiteName: demoSuite)!
-        defer { demoPreferences.removePersistentDomain(forName: demoSuite) }
+        let demoSuite = TestDefaults.name("OverviewDemo"), demoPreferences = TestDefaults.defaults(demoSuite)
+        defer { TestDefaults.remove(demoSuite) }
         let demo = TilveroModel(isDemo: true, preferences: demoPreferences)
         defer { demo.stop() }
         XCTAssertFalse(demo.applyFirstRunOverviewLayout())

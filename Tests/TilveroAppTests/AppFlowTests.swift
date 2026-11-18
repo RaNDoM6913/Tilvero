@@ -9,9 +9,9 @@ import PowerCore
 @MainActor
 final class AppFlowTests: XCTestCase {
     func testDraftChangesNeverApplyUntilExplicitActionAndDismissDiscards() async throws {
-        let suite = "TilveroTests.\(UUID().uuidString)"
-        let preferences = UserDefaults(suiteName: suite)!
-        defer { preferences.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name()
+        let preferences = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         let model = TilveroModel(isDemo: true, preferences: preferences)
         await model.refresh()
         let before = model.control!.charge
@@ -34,8 +34,8 @@ final class AppFlowTests: XCTestCase {
     func testLiveRefreshPersistsReadingsAcrossStoreReopenWithoutSimulatorOrControl() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let url = directory.appendingPathComponent("History.sqlite")
-        let suite = "TilveroTests.\(UUID().uuidString)"; let preferences = UserDefaults(suiteName: suite)!
-        defer { preferences.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: directory) }
+        let suite = TestDefaults.name(); let preferences = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: directory) }
         let first = TilveroModel(isDemo: false, preferences: preferences, historyURL: url, snapshotProvider: {
             BatterySnapshot(chargePercent: .init(value: 73, source: "fixture", freshness: .fresh), isExternalPower: .init(value: false, source: "fixture"))
         })
@@ -54,9 +54,9 @@ final class AppFlowTests: XCTestCase {
 @MainActor
 final class QuickPanelDraftLifecycleTests: XCTestCase {
     func testDismissDiscardsDraftUnlessAnotherVisibleChargingEditorOwnsIt() async throws {
-        let suite = "TilveroTests.\(UUID().uuidString)"
-        let preferences = UserDefaults(suiteName: suite)!
-        defer { preferences.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name()
+        let preferences = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         let model = TilveroModel(isDemo: true, preferences: preferences)
         await model.refresh()
         let original = model.control!.charge
@@ -76,9 +76,9 @@ final class QuickPanelDraftLifecycleTests: XCTestCase {
 @MainActor
 final class MenuBarSizingPreferenceTests: XCTestCase {
     func testSizingPersistsAndInvalidScaleCannotMutateMeasurementsOrPolicy() async throws {
-        let suite = "TilveroTests.\(UUID().uuidString)"
-        let preferences = UserDefaults(suiteName: suite)!
-        defer { preferences.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name()
+        let preferences = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         let model = TilveroModel(isDemo: true, preferences: preferences)
         await model.refresh()
         let reading = model.snapshot.chargePercent
@@ -112,9 +112,9 @@ final class MenuBarBatteryAppearancePreferenceTests: XCTestCase {
     }
 
     func testChangingAndRestoringAppearancePreservesPlacementSizingMeasurementsAndPolicy() async throws {
-        let suite = "TilveroTests.\(UUID().uuidString)"
-        let preferences = UserDefaults(suiteName: suite)!
-        defer { preferences.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name()
+        let preferences = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         preferences.set(MenuBarBatteryAppearance.macOS26.rawValue, forKey: "menuBarBatteryAppearance")
         preferences.set(MenuBarDisplayStyle.beside.rawValue, forKey: "menuBarDisplayStyle")
         preferences.set(MenuBarTextSize.larger.rawValue, forKey: "menuBarTextSize")
@@ -140,9 +140,9 @@ final class MenuBarBatteryAppearancePreferenceTests: XCTestCase {
 
     func testMissingPlacementUsesAppearanceDefaultWhileAnExplicitPlacementSurvives() {
         for appearance in MenuBarBatteryAppearance.allCases {
-            let suite = "TilveroTests.\(UUID().uuidString)"
-            let preferences = UserDefaults(suiteName: suite)!
-            defer { preferences.removePersistentDomain(forName: suite) }
+            let suite = TestDefaults.name()
+            let preferences = TestDefaults.defaults(suite)
+            defer { TestDefaults.remove(suite) }
             preferences.set(appearance.rawValue, forKey: "menuBarBatteryAppearance")
             XCTAssertEqual(TilveroModel(isDemo: true, preferences: preferences).displayStyle, appearance.defaultDisplayStyle)
             preferences.set(MenuBarDisplayStyle.iconOnly.rawValue, forKey: "menuBarDisplayStyle")

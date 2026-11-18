@@ -76,14 +76,14 @@ final class FakeWatchdogLauncher: LidWatchdogLaunching, @unchecked Sendable {
 
 @MainActor final class LidSleepOverrideTests: XCTestCase {
     private func make(_ system: FakeLidSystem, awake: Bool = true, launcher: FakeWatchdogLauncher = FakeWatchdogLauncher()) -> (LidSleepOverrideService, UserDefaults, () -> Void, () -> Void) {
-        let suite = "TilveroTests-LidSleep-\(UUID())", defaults = UserDefaults(suiteName: suite)!
+        let suite = TestDefaults.name("LidSleep"), defaults = TestDefaults.defaults(suite)
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("TilveroTests-LidMarker-\(UUID().uuidString)", isDirectory: true)
         var awakeFlag = awake
         let service = LidSleepOverrideService(system: system, defaults: defaults, allowed: true,
                                               markers: LidOverrideMarkerStore(directory: directory), watchdog: launcher,
                                               awakeIsActive: { awakeFlag }, lidSleepRetryDelay: .milliseconds(1))
         return (service, defaults, { awakeFlag = false }, {
-            defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: directory)
+            TestDefaults.remove(suite); try? FileManager.default.removeItem(at: directory)
         })
     }
 
@@ -293,9 +293,9 @@ final class FakeWatchdogLauncher: LidWatchdogLaunching, @unchecked Sendable {
     /// The option is on first; Keep Awake is started by the user later: the override follows that session only.
     func testTheOptionAppliesToTheNextKeepAwakeSessionAndNeverStartsOne() async throws {
         let system = FakeLidSystem()
-        let suite = "LidModel-\(UUID())", prefs = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let suite = TestDefaults.name("LidModel"), prefs = TestDefaults.defaults(suite)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         prefs.set(false, forKey: "historyEnabled")
         let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"),
                                  snapshotProvider: { .unavailable(reason: "fixture") },
@@ -320,9 +320,9 @@ final class FakeWatchdogLauncher: LidWatchdogLaunching, @unchecked Sendable {
 
     func testASessionThatStartsByItselfNeverRaisesAPasswordPrompt() async throws {
         let system = FakeLidSystem()
-        let suite = "LidModel2-\(UUID())", prefs = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let suite = TestDefaults.name("LidModel2"), prefs = TestDefaults.defaults(suite)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         prefs.set(false, forKey: "historyEnabled")
         let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"),
                                  snapshotProvider: { .unavailable(reason: "fixture") },
@@ -343,7 +343,7 @@ final class FakeWatchdogLauncher: LidWatchdogLaunching, @unchecked Sendable {
     private func makeTimer(_ system: FakeLidSystem, awake: Bool = false) -> (service: LidSleepOverrideService, phases: PassthroughSubject<SleepTimerPhase, Never>,
                                                                               setTimerActive: (Bool) -> Void, defaults: UserDefaults, cleanUp: () -> Void,
                                                                               charge: PassthroughSubject<Bool, Never>) {
-        let suite = "TilveroTests-LidSleepTimer-\(UUID())", defaults = UserDefaults(suiteName: suite)!
+        let suite = TestDefaults.name("LidSleepTimer"), defaults = TestDefaults.defaults(suite)
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("TilveroTests-LidMarker-\(UUID().uuidString)", isDirectory: true)
         var timerFlag = false
         let awakeFlag = awake
@@ -355,7 +355,7 @@ final class FakeWatchdogLauncher: LidWatchdogLaunching, @unchecked Sendable {
         let charge = PassthroughSubject<Bool, Never>()
         service.bindSleepAtCharge(armed: charge.eraseToAnyPublisher())
         return (service, phases, { timerFlag = $0 }, defaults, {
-            defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: directory)
+            TestDefaults.remove(suite); try? FileManager.default.removeItem(at: directory)
         }, charge)
     }
     private func settle() async { for _ in 0..<20 { await Task.yield(); try? await Task.sleep(for: .milliseconds(5)) } }

@@ -157,10 +157,10 @@ import CoreData
         init() throws {
             directory = FileManager.default.temporaryDirectory.appendingPathComponent("TilveroSleepIntegration-\(UUID())")
             url = directory.appendingPathComponent("History.sqlite")
-            suite = "TilveroSleepIntegration.\(UUID())"
-            preferences = UserDefaults(suiteName: suite)!
+            suite = TestDefaults.name("SleepIntegration")
+            preferences = TestDefaults.defaults(suite)
         }
-        func cleanup() { preferences.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: directory) }
+        func cleanup() { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: directory) }
     }
 }
 

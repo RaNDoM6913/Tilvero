@@ -24,11 +24,11 @@ import XCTest
                      sleepTimerTransport: ExclusivityDriver())
     }
     private func fixture() throws -> (TilveroModel, UserDefaults, () -> Void) {
-        let suite = "Exclusive-\(UUID())", prefs = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let suite = TestDefaults.name("Exclusive"), prefs = TestDefaults.defaults(suite)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         prefs.set(false, forKey: "historyEnabled")
         let model = makeModel(prefs, root: root)
-        return (model, prefs, { model.stop(); prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) })
+        return (model, prefs, { model.stop(); TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) })
     }
     private func knowCharge(_ model: TilveroModel) async {
         await model.sleepAtCharge.observe(percent: 64, fresh: true, externalPower: false)
@@ -104,9 +104,9 @@ import XCTest
     }
 
     func testAwakeIndicatorColorIsPersistedAndUsedByTheIcon() throws {
-        let suite = "AwakeColor-\(UUID())", prefs = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let suite = TestDefaults.name("AwakeColor"), prefs = TestDefaults.defaults(suite)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         prefs.set(false, forKey: "historyEnabled")
         let first = makeModel(prefs, root: root)
         XCTAssertEqual(first.awakeIndicatorColor, .blue, "Blue by default.")

@@ -9,10 +9,10 @@ import PowerPrivileged
 
 @MainActor final class LidTrialRuntimeTests: XCTestCase {
     func testTrialModelKeepsAwakeAndLidAdmissionSeparateFromOrdinaryHardware() async throws {
-        let suite = "LidTrialRuntime-" + UUID().uuidString
-        let preferences = UserDefaults(suiteName: suite)!
+        let suite = TestDefaults.name("LidTrialRuntime")
+        let preferences = TestDefaults.defaults(suite)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
-        defer { preferences.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         let policy = AppLaunchPolicy.resolve(metadata: ["CFBundleIdentifier": ReleaseIdentity.lidTrialBundleIdentifier])
         let awake = AwakeFixture()
         let model = TilveroModel(isDemo: false, launchPolicy: policy, preferences: preferences,
@@ -41,11 +41,11 @@ import PowerPrivileged
     }
 
     func testTrialHardwarePolicyCannotQualifyApplyRecoverEnrollOrMutateKeyboard() async throws {
-        let suite = "LidTrialPorts-" + UUID().uuidString
-        let preferences = UserDefaults(suiteName: suite)!
+        let suite = TestDefaults.name("LidTrialPorts")
+        let preferences = TestDefaults.defaults(suite)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { preferences.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         let policy = AppLaunchPolicy.resolve(metadata: ["CFBundleIdentifier": ReleaseIdentity.lidTrialBundleIdentifier]).ordinaryHardwarePolicy
         let journal = root.appendingPathComponent("native-charge-session.json")
         let original = Data("Preserve unrelated recovery data".utf8)

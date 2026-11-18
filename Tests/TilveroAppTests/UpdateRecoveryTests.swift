@@ -149,14 +149,14 @@ final class UpdateRecoveryTests: XCTestCase {
 }
 
 @MainActor private struct UpdateModelFixture {
-    let suite = "UpdateRecoveryModel-\(UUID())"
+    let suite = TestDefaults.name("UpdateRecoveryModel")
     let root: URL
     let preferences: UserDefaults
     var lease: URL { root.appendingPathComponent("lease") }
     init() throws {
         root = FileManager.default.temporaryDirectory.appendingPathComponent("UpdateModel-\(UUID())")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
-        preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
+        preferences = TestDefaults.defaults(suite)
     }
     func model(native: NativeChargeService? = nil, awake: KeepAwakeService? = nil,
                evidence: @escaping () -> [UpdateEvidenceProbe.Result]) -> TilveroModel {
@@ -168,5 +168,5 @@ final class UpdateRecoveryTests: XCTestCase {
                         "CFBundleShortVersionString": "0.1.0", "CFBundleVersion": "4"]),
                      updateEvidence: evidence, updateLeaseDirectory: lease)
     }
-    func cleanUp() { preferences.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+    func cleanUp() { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
 }

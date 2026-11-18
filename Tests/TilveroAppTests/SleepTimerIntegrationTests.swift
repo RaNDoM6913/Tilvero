@@ -8,9 +8,9 @@ import Carbon
 
 @MainActor final class SleepTimerIntegrationTests: XCTestCase {
     func testDirectSelectionStartsAndReplacesButEditingCustomDraftDoesNotApply() throws {
-        let suite = "SleepDirect-\(UUID())", prefs = UserDefaults(suiteName: suite)!
+        let suite = TestDefaults.name("SleepDirect"), prefs = TestDefaults.defaults(suite)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         let driver = IntegrationSleepDriver(), clock = IntegrationSleepClock()
         let service = SleepTimerService(driver: driver, monotonic: { clock.value }, suspending: { clock.value }, sleeper: { _ in try await Task.sleep(for: .seconds(3600)) })
         let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"), sleepTimerService: service)
@@ -46,9 +46,9 @@ import Carbon
     }
 
     func testTheTimerLidOptionSetsAndLiftsTheOverrideThroughTheModel() async throws {
-        let suite = "SleepTimerLid-\(UUID())", prefs = UserDefaults(suiteName: suite)!
+        let suite = TestDefaults.name("SleepTimerLid"), prefs = TestDefaults.defaults(suite)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         let driver = IntegrationSleepDriver(), clock = IntegrationSleepClock(), system = ModelFakeLid()
         let service = SleepTimerService(driver: driver, monotonic: { clock.value }, suspending: { clock.value }, sleeper: { _ in try await Task.sleep(for: .seconds(3600)) })
         let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"),
@@ -67,9 +67,9 @@ import Carbon
         XCTAssertFalse(model.lidSleep.isOn)
     }
     func testTheSameSwitchCoversSleepAtChargeThroughTheModel() async throws {
-        let suite = "SleepChargeLid-\(UUID())", prefs = UserDefaults(suiteName: suite)!
+        let suite = TestDefaults.name("SleepChargeLid"), prefs = TestDefaults.defaults(suite)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         let driver = IntegrationSleepDriver(), system = ModelFakeLid()
         let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"),
                                  sleepTimerTransport: driver, lidSleepSystem: system)
@@ -115,8 +115,8 @@ import Carbon
         XCTAssertTrue(try XCTUnwrap(timer.first).contains("Sleep at charge"), "The timer text names both functions")
     }
     func testSavedNonPresetDurationRemainsSelectedAsCustomWithoutStarting() {
-        let suite = "SleepCustomReload-\(UUID())", prefs = UserDefaults(suiteName: suite)!
-        defer { prefs.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name("SleepCustomReload"), prefs = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         prefs.set(45, forKey: "sleepTimerMinutes")
         let model = TilveroModel(isDemo: true, preferences: prefs)
         XCTAssertEqual(model.sleepTimerMinutes, "45")
@@ -124,8 +124,8 @@ import Carbon
         XCTAssertFalse(model.sleepTimer.isActive)
     }
     func testFirstNormalQuitCannotPassWhenTimerHoldReleaseFailsAndSystemQuitDoesNotWait() async throws {
-        let suite = "SleepHoldQuit-\(UUID())", prefs = UserDefaults(suiteName: suite)!
-        defer { prefs.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name("SleepHoldQuit"), prefs = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         let driver = IntegrationSleepDriver()
         let service = SleepTimerService(driver: driver, sleeper: { _ in try await Task.sleep(for: .seconds(3600)) })
         let model = TilveroModel(isDemo: true, preferences: prefs, sleepTimerService: service)
@@ -157,8 +157,8 @@ import Carbon
         XCTAssertEqual(SleepTimerInput.minutes("1"), 1)
     }
     func testDefaultSimulationCannotStartPhysicalSleepAndOnlyDraftPersists() throws {
-        let suite = "SleepDraft-\(UUID())", prefs = UserDefaults(suiteName: suite)!
-        defer { prefs.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name("SleepDraft"), prefs = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         let driver = IntegrationSleepDriver()
         let model = TilveroModel(isDemo: true, preferences: prefs, sleepTimerTransport: driver)
         model.sleepTimerMinutes = "45"
@@ -169,9 +169,9 @@ import Carbon
         XCTAssertEqual(driver.requests, 0)
     }
     func testInFlightRefreshFinishesBeforeExpiryCanSubmitAndNewAutoActionsAreGated() async throws {
-        let suite = "SleepRefresh-\(UUID())", prefs = UserDefaults(suiteName: suite)!
+        let suite = TestDefaults.name("SleepRefresh"), prefs = TestDefaults.defaults(suite)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         let driver = IntegrationSleepDriver(), clock = IntegrationSleepClock(), gate = IntegrationSnapshotGate()
         let service = SleepTimerService(driver: driver, monotonic: { clock.value }, suspending: { clock.value }, sleeper: { _ in try await Task.sleep(for: .seconds(3600)) })
         let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"),
@@ -191,9 +191,9 @@ import Carbon
         service.systemDidWake(); model.stop()
     }
     func testTimerStartFailureRetainsKeepAwake() throws {
-        let suite = "SleepAwakeToTimerFail-\(UUID())", prefs = UserDefaults(suiteName: suite)!
+        let suite = TestDefaults.name("SleepAwakeToTimerFail"), prefs = TestDefaults.defaults(suite)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         let awake = AwakeFixture(), driver = IntegrationSleepDriver()
         let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"),
             keepAwakeTransport: awake, sleepTimerTransport: driver)
@@ -210,9 +210,9 @@ import Carbon
         model.stop()
     }
     func testOppositeModesRequireConfirmationAndFailedAwakeAcquisitionRetainsTimer() throws {
-        let suite = "SleepModes-\(UUID())", prefs = UserDefaults(suiteName: suite)!
+        let suite = TestDefaults.name("SleepModes"), prefs = TestDefaults.defaults(suite)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         let awake = AwakeFixture(), driver = IntegrationSleepDriver()
         let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"),
             keepAwakeTransport: awake, sleepTimerTransport: driver)

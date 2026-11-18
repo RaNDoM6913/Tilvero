@@ -35,7 +35,7 @@ final class SnapshotBox: @unchecked Sendable {
     static func make(minutesOfHistory: Int = 55, adapterConnected: Bool = true) async throws -> SeriesFixture {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        let suite = "TilveroSeries-\(UUID())", defaults = UserDefaults(suiteName: suite)!
+        let suite = TestDefaults.name("Series"), defaults = TestDefaults.defaults(suite)
         let url = root.appendingPathComponent("history.sqlite")
         let now = Date()
         let store = try BatteryHistoryStore(url: url)
@@ -47,7 +47,7 @@ final class SnapshotBox: @unchecked Sendable {
         let model = TilveroModel(isDemo: false, preferences: defaults, historyURL: url, snapshotProvider: { box.value })
         await model.refresh()
         return SeriesFixture(model: model, box: box, base: now, cleanup: {
-            model.stop(); defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root)
+            model.stop(); TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root)
         })
     }
 }

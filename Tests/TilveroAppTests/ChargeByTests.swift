@@ -76,8 +76,8 @@ import PowerCore
         func end(_ token: AnyObject) { ended += 1 }
     }
     private func makeService(env: Env, wake: Wake = Wake(), clock: @escaping @MainActor () -> Date) -> (ChargeByService, UserDefaults, Holder) {
-        let suite = "TilveroChargeBy-\(UUID())"; let defaults = UserDefaults(suiteName: suite)!
-        addTeardownBlock { defaults.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name("ChargeBy"); let defaults = TestDefaults.defaults(suite)
+        addTeardownBlock { TestDefaults.remove(suite) }
         let holder = Holder()
         let service = ChargeByService(defaults: defaults, wake: wake, holder: holder, now: clock)
         service.environment = env

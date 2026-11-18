@@ -8,7 +8,7 @@ import PowerCore
 /// Live IOKit readings carry freshness `.unknown`; the pills were dead on a real Mac because only `.fresh` counted.
 @MainActor final class SleepAtChargeLiveProbeTests: XCTestCase {
     private func model(freshness: TelemetryFreshness, percent: Int = 64) throws -> (TilveroModel, () -> Void) {
-        let suite = "LiveProbe-\(UUID())", prefs = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let suite = TestDefaults.name("LiveProbe"), prefs = TestDefaults.defaults(suite)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         prefs.set(false, forKey: "historyEnabled")
         let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"),
@@ -16,7 +16,7 @@ import PowerCore
             BatterySnapshot(chargePercent: .init(value: percent, source: "fixture", freshness: freshness),
                             isExternalPower: .init(value: false, source: "fixture", freshness: freshness))
         })
-        return (model, { model.stop(); prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) })
+        return (model, { model.stop(); TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) })
     }
 
     func testReadingsWithUnknownFreshnessEnableTheLevelsBelowTheCharge() async throws {

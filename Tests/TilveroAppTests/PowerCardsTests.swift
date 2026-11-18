@@ -343,7 +343,7 @@ import PowerTelemetry
     private func renderModel(minutesOfHistory: Int, adapterConnected: Bool) async throws -> (model: TilveroModel, cleanup: () -> Void) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        let suite = "TilveroTiles-\(UUID())", defaults = UserDefaults(suiteName: suite)!
+        let suite = TestDefaults.name("Tiles"), defaults = TestDefaults.defaults(suite)
         let url = root.appendingPathComponent("history.sqlite")
         let now = Date()
         func snapshot(_ minutesAgo: Double) -> BatterySnapshot {
@@ -363,7 +363,7 @@ import PowerTelemetry
         let latest = snapshot(0)
         let model = TilveroModel(isDemo: false, preferences: defaults, historyURL: url, snapshotProvider: { latest })
         await model.refresh()
-        return (model, { model.stop(); defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) })
+        return (model, { model.stop(); TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) })
     }
     func testTilesRenderRealSeriesAndEmptyStatesInLightAndDark() async throws {
         let withData = try await renderModel(minutesOfHistory: 55, adapterConnected: true)
@@ -462,7 +462,7 @@ import PowerTelemetry
     private func unpluggedModel(external: Bool?) async throws -> (model: TilveroModel, cleanup: () -> Void) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        let suite = "TilveroUnplugged-\(UUID())", defaults = UserDefaults(suiteName: suite)!
+        let suite = TestDefaults.name("Unplugged"), defaults = TestDefaults.defaults(suite)
         let url = root.appendingPathComponent("history.sqlite")
         let now = Date()
         func snapshot(_ minutesAgo: Double) -> BatterySnapshot {
@@ -481,7 +481,7 @@ import PowerTelemetry
         let latest = snapshot(0)
         let model = TilveroModel(isDemo: false, preferences: defaults, historyURL: url, snapshotProvider: { latest })
         await model.refresh()
-        return (model, { model.stop(); defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) })
+        return (model, { model.stop(); TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) })
     }
     func testAdapterConnectedAccessorTreatsUnknownAsConnected() async throws {
         for (external, expected) in [(false as Bool?, false), (true, true), (nil, true)] {

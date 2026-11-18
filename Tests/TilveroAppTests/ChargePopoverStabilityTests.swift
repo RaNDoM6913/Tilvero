@@ -9,9 +9,9 @@ import ChargeBackends
 
 @MainActor final class ChargePopoverStabilityTests: XCTestCase {
     func testChargeReadDoesNotRepeatedlyResizeOrRestartFromLayout() async throws {
-        let suite = "ChargeStability-\(UUID())", preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let suite = TestDefaults.name("ChargeStability"), preferences = TestDefaults.defaults(suite)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("ChargeStability-\(UUID())")
-        defer { preferences.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         preferences.set(false, forKey: "historyEnabled")
         let transport = PopoverReadTransport()
         let native = NativeChargeService(client: transport, journalURL: root.appendingPathComponent("native.json"), admitted: true)
@@ -45,9 +45,9 @@ import ChargeBackends
     }
 
     func testOpeningChargeAfterThePanelOpenedResizesOnceEvenWithoutAdmission() async throws {
-        let suite = "ChargeOpenOnce-\(UUID())", preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let suite = TestDefaults.name("ChargeOpenOnce"), preferences = TestDefaults.defaults(suite)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("ChargeOpenOnce-\(UUID())")
-        defer { preferences.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         preferences.set(false, forKey: "historyEnabled")
         let transport = PopoverReadTransport()
         // Not admitted (for example after an OS update): the panel still discovers the interface up front.
@@ -236,7 +236,7 @@ import ChargeBackends
 }
 
 @MainActor private struct StatusFixture {
-    let suite = "ChargeStatusFixture-\(UUID())"
+    let suite = TestDefaults.name("ChargeStatusFixture")
     let preferences: UserDefaults
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("ChargeStatusFixture-\(UUID())")
     let transport = PopoverReadTransport()
@@ -244,7 +244,7 @@ import ChargeBackends
     let model: TilveroModel
 
     init(journal: NativeChargeJournal? = nil, operationTimeout: Duration = .seconds(15)) throws {
-        preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
+        preferences = TestDefaults.defaults(suite)
         preferences.set(false, forKey: "historyEnabled")
         let url = root.appendingPathComponent("native.json")
         if let journal {
@@ -258,7 +258,7 @@ import ChargeBackends
     }
     func cleanUp() {
         model.stop()
-        preferences.removePersistentDomain(forName: suite)
+        TestDefaults.remove(suite)
         try? FileManager.default.removeItem(at: root)
     }
 }

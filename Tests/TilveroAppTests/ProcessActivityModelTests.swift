@@ -9,8 +9,8 @@ import AppKit
 
 @MainActor final class ProcessActivityModelTests: XCTestCase {
     func testSimulationNeverCollectsProcesses() async {
-        let suite = "TilveroProcess-\(UUID())", prefs = UserDefaults(suiteName: suite)!
-        defer { prefs.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name("Process"), prefs = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         let model = TilveroModel(isDemo: true, preferences: prefs, processActivityProvider: {
             XCTFail("Simulation must never read physical processes")
             return .init(collectedAt: Date(), monotonic: 1, counters: [])
@@ -22,9 +22,9 @@ import AppKit
         XCTAssertLessThan(host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 1000)).height, 1)
     }
     func testHighLoadFlowsIntoCompactPanelAndSleepClearsIt() async throws {
-        let suite = "TilveroHighCPU-\(UUID())", prefs = UserDefaults(suiteName: suite)!
+        let suite = TestDefaults.name("HighCPU"), prefs = TestDefaults.defaults(suite)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         let fixture = HighLoadProcessFixture()
         let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"), processActivityProvider: { await fixture.read() })
         let host = NSHostingController(rootView: ProcessActivityPanel(model: model, compact: true))
@@ -42,9 +42,9 @@ import AppKit
         model.stop()
     }
     func testProcessBaselineAndRatesStayEphemeralAndSleepResetsCoverage() async throws {
-        let suite = "TilveroProcess-\(UUID())", prefs = UserDefaults(suiteName: suite)!
+        let suite = TestDefaults.name("Process"), prefs = TestDefaults.defaults(suite)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         let fixture = ProcessModelFixture()
         let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"), processActivityProvider: { await fixture.read() })
         await model.refreshProcessActivity(force: true)
