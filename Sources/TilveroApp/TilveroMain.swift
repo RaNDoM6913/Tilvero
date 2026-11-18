@@ -436,7 +436,8 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         popover.contentViewController = panel
         popover.contentSize = panel.preferredContentSize
         popover.delegate = self
-        panel.didClose()   // created closed: nothing measures on model changes until the popover shows
+        // A panel made for a closed popover measures nothing until it shows; a rebuild while it is shown (first run) stays live.
+        if !popover.isShown { panel.didClose() }
 
     }
 
