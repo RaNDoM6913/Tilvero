@@ -1377,22 +1377,6 @@
         }
       }
     },
-    "Wear": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wear"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Износ"
-          }
-        }
-      }
-    },
     "Cycle count": {
       "localizations": {
         "en": {
@@ -17677,6 +17661,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Разрешено другим правилом"
+          }
+        }
+      }
+    },
+    "%@ · wear %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · wear %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · износ %@"
           }
         }
       }

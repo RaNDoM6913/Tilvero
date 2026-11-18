@@ -216,18 +216,25 @@ extension MetricChartSeries {
         guard let retention = model.snapshot.catalog.first(where: { $0.id == "026" })?.value?.doubleValue else { return "—" }
         return (100 - retention).formatted(.number.locale(L10n.locale).precision(.fractionLength(0...2))) + " %"
     }
+    private func number(_ id: String) -> String {
+        model.snapshot.catalog.first { $0.id == id }?.value?.doubleValue
+            .map { $0.formatted(.number.locale(L10n.locale).precision(.fractionLength(0))) } ?? "—"
+    }
+    /// One card like the chart blocks: the title and retention, then one line with the cycle count and wear on the left
+    /// and full-charge / design capacity on the right.
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             PowerMetricCard(model: model, title: "Capacity retention", symbol: "heart", id: "026", color: .pink)
-            HStack(alignment: .firstTextBaseline, spacing: 5) {
-                Text(value("027")).font(.system(size: 13, weight: .medium))
-                Spacer(minLength: 8)
-                Text(L10n.text("Wear")).font(.system(size: 12)).foregroundStyle(.secondary)
-                Text(wear).font(.system(size: 13, weight: .medium))
-            }.monospacedDigit().lineLimit(1).padding(.top, 2)
-            HStack { Spacer(); Text(value("030") + " / " + value("029")).monospacedDigit() }
-                .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-        }.help(L10n.text("Calculated full-charge / design capacity. This is distinct from the macOS maximum-capacity estimate."))
+            HStack(alignment: .firstTextBaseline) {
+                Text(String(format: L10n.text("%@ · wear %@"), value("027"), wear))
+                    .font(.system(size: 13, weight: .medium)).lineLimit(1).minimumScaleFactor(0.85)
+                Spacer(minLength: 6)
+                Text(number("030") + " / " + number("029") + " " + CatalogDataPresentation.unit("mAh"))
+                    .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1).fixedSize()
+            }.monospacedDigit()
+        }
+        .metricCardChrome()
+        .help(L10n.text("Calculated full-charge / design capacity. This is distinct from the macOS maximum-capacity estimate."))
     }
 }
 
