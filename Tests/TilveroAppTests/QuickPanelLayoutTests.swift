@@ -182,8 +182,7 @@ final class QuickPanelLayoutTests: XCTestCase {
         defer { fixture.cleanUp() }
         let host = QuickPanelHostingController(model: fixture.model, maximumHeight: 900)
         host.didClose()
-        try await Task.sleep(for: .milliseconds(700))   // past any fit queued by the first measurement
-        let closed = host.measurementCount
+        let closed = host.measurementCount   // a fit queued before closing bails out on its own
         for _ in 0..<5 {
             fixture.model.objectWillChange.send()
             try await Task.sleep(for: .milliseconds(20))
@@ -195,7 +194,8 @@ final class QuickPanelLayoutTests: XCTestCase {
         XCTAssertEqual(host.measurementCount, closed + 1, "Showing measures once, for the new height")
         XCTAssertTrue(host.isPresented)
         fixture.model.objectWillChange.send()
-        try await Task.sleep(for: .milliseconds(700))
+        let deadline = Date().addingTimeInterval(5)   // the fit waits for 0.5 s of geometry quiet
+        while host.measurementCount <= closed + 1, Date() < deadline { try await Task.sleep(for: .milliseconds(20)) }
         XCTAssertGreaterThan(host.measurementCount, closed + 1, "While shown, the safety-net fit runs again")
     }
 
