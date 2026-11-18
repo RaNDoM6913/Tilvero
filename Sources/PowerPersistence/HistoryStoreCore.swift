@@ -548,10 +548,10 @@ final class HistoryStoreCore: @unchecked Sendable {
         for object in try objects(NSPredicate(format: "kind == %@ AND atDate < %@", "sleep", cutoff as NSDate), sort: "sequence", ascending: true, limit: 0) {
             context.delete(object)
         }
-        let retained = try objects(NSPredicate(format: "kind == %@ AND atDate >= %@", "sleep", cutoff as NSDate), sort: "sequence", ascending: true, limit: 0)
-            .filter { !$0.isDeleted }
-        // Pending inserts are fetched too (the context includes unsaved objects), so the cap counts the upserted row.
-        for object in retained.dropLast(Self.sleepRowLimit) { context.delete(object) }
+        // Counts and fetches include the pending upsert, so the cap counts it; only the excess rows are touched.
+        let retained = NSPredicate(format: "kind == %@ AND atDate >= %@", "sleep", cutoff as NSDate)
+        let excess = try count(retained) - Self.sleepRowLimit
+        if excess > 0 { for object in try objects(retained, sort: "sequence", ascending: true, limit: excess) { context.delete(object) } }
     }
 
     // MARK: - Retention, maintenance, size budget
@@ -716,7 +716,7 @@ final class HistoryStoreCore: @unchecked Sendable {
     /// the new oldest sample now starts there with an unknown original start; one that ended before it disappears.
     private func reconcileSessions(_ working: inout HistorySummaryState) throws {
         let oldestPredicate = NSPredicate(format: "kind == %@ AND columnsVersion == %d", "sample", HistorySchema.Columns.valid)
-        let deleted = context.deletedObjects.map(\.objectID)
+        let deleted = Set(context.deletedObjects.map(\.objectID))
         var request = dictionaryRequest(oldestPredicate, keys: Self.sampleKeys, sort: "sequence", ascending: true, limit: deleted.count + 1, objectID: true)
         let candidates = try context.fetch(request).filter { row in (row["objectID"] as? NSManagedObjectID).map { !deleted.contains($0) } ?? false }
         guard let oldest = candidates.first.flatMap(Self.scalars(fromColumns:)) else {
