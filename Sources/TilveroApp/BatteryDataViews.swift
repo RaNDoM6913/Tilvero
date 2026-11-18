@@ -506,6 +506,7 @@ struct ReadingInfoPresentation {
     @State private var showRecorded = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
+        let _ = RenderProbe.hit("PowerDataPanel")
         VStack(alignment: .leading, spacing: 22) {
             Picker(L10n.text("Power section"), selection: $tab) {
                 ForEach(PowerDataTab.allCases) { StudioText(L10n.text($0.title), id: "power.tab." + $0.rawValue).tag($0) }

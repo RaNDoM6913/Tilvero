@@ -83,6 +83,7 @@ struct BatteryInfoView: View {
     @State private var measurementsExpanded = false
     private var query: String { CatalogDataGroup.normalizedSearch(search) }
     var body: some View {
+        let _ = RenderProbe.hit("BatteryInfoView")
         HStack(spacing: 0) {
             sidebar.frame(width: 182)
             ZStack(alignment: .topLeading) {

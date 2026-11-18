@@ -17,6 +17,7 @@ import ChargeBackends
     private var targets: [Int] { model.nativeCharge.authorizedPersistentTargets.sorted() }
 
     var body: some View {
+        let _ = RenderProbe.hit("QuickNativeChargePanel")
         let state = model.nativeCharge.presentation()
         VStack(alignment: .leading, spacing: 14) {
             if model.canShowChargeControls, !targets.isEmpty { controls(state) } else { validationHeader(state) }

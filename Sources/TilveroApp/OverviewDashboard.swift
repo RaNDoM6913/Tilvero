@@ -18,6 +18,7 @@ import PowerPersistence
     private func reading(_ id: String) -> CatalogReading? { model.snapshot.catalog.first { $0.id == id } }
 
     var body: some View {
+        let _ = RenderProbe.hit("OverviewDashboard")
         VStack(spacing: studioPresentation.spacing(18)) {
             chargeHeader
             ViewThatFits(in: .horizontal) {

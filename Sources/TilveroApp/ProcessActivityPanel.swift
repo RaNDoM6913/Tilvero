@@ -162,6 +162,7 @@ struct SustainedCPUActivity {
     @State private var expanded: Set<String> = []
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
+        let _ = RenderProbe.hit(compact ? "ProcessActivityPanel.compact" : "ProcessActivityPanel")
         if compact { compactContent } else { detailedContent }
     }
     private var compactRows: [ProcessActivityRow] {

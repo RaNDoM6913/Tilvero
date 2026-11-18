@@ -43,6 +43,7 @@ enum OverviewHeroLimit: Equatable {
     }
 
     var body: some View {
+        let _ = RenderProbe.hit("OverviewHero")
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {

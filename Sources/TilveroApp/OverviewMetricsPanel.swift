@@ -12,6 +12,7 @@ import PowerCore
     /// Opens the Sleep page from the Keep Awake block; `nil` in the passive preview.
     var openSleep: (@MainActor () -> Void)?
     var body: some View {
+        let _ = RenderProbe.hit("OverviewMetricsPanel")
         VStack(alignment: .leading, spacing: 12) {
             ForEach(model.visibleOverviewMetrics) { item in
                 switch item {

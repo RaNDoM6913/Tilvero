@@ -50,6 +50,7 @@ struct QuickPanel: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        let _ = RenderProbe.hit("QuickPanel." + section.rawValue)
         QuickPanelViewport(maximumHeight: maximumHeight) { content }
         .frame(width: QuickPanelMetrics.width)
         .environment(\.locale, L10n.locale)
