@@ -20,6 +20,9 @@ struct ChargeByPlanState: Codable, Equatable {
     var startAt: Date
     /// The wake that was scheduled and read back, nil when none is.
     var wakeAt: Date?
+    /// The exact `pmset` date string that wake was made with; cancelling uses it, not a new formatting of `wakeAt`
+    /// (after a time-zone or DST change that would name a different entry). Nil in plans saved before it was kept.
+    var wakeStamp: String? = nil
 }
 
 enum ChargeByAction: Equatable {
@@ -210,9 +213,9 @@ struct ChargeByObservation: Equatable {
         guard let computed = computePlan(for: current, observation: observation) else { return }
         plan = computed
         if force || abs(computed.startAt.timeIntervalSince(current.startAt)) > Self.replanThreshold {
-            let old = current.wakeAt
-            current.startAt = computed.startAt; current.wakeAt = nil; state = current; save()
-            if let old { _ = await wake.cancel(old) }
+            let old = current.wakeAt, oldStamp = current.wakeStamp
+            current.startAt = computed.startAt; current.wakeAt = nil; current.wakeStamp = nil; state = current; save()
+            if let old { _ = await wake.cancel(old, stamp: oldStamp) }
             await ensureWake()
         }
     }
@@ -224,9 +227,9 @@ struct ChargeByObservation: Equatable {
         let wanted = current.startAt.addingTimeInterval(-ChargeByRule.wakeLead)
         guard wanted > now().addingTimeInterval(30) else { return }   // too close: the ticks and the sleep fallback cover it
         if let existing = current.wakeAt, abs(existing.timeIntervalSince(wanted)) < 60 { return }
-        if let existing = current.wakeAt { _ = await wake.cancel(existing) }
-        let ok = await wake.schedule(wanted)
-        current.wakeAt = ok ? wanted : nil
+        if let existing = current.wakeAt { _ = await wake.cancel(existing, stamp: current.wakeStamp) }
+        let stamp = await wake.schedule(wanted)
+        current.wakeAt = stamp != nil ? wanted : nil; current.wakeStamp = stamp
         state = current; save(); objectWillChange.send()
     }
 
@@ -243,8 +246,8 @@ struct ChargeByObservation: Equatable {
             defer { holder.end(token); isWorking = false }
             guard await environment.apply(limit: level) else { message = "The charge limit could not be raised. Tilvero will try again."; return false }
             var updated = current; updated.phase = .charging; state = updated; message = nil; save()
-            if let wakeAt = current.wakeAt { _ = await wake.cancel(wakeAt) }
-            var charging = updated; charging.wakeAt = nil; state = charging; save()
+            if let wakeAt = current.wakeAt { _ = await wake.cancel(wakeAt, stamp: current.wakeStamp) }
+            var charging = updated; charging.wakeAt = nil; charging.wakeStamp = nil; state = charging; save()
             return true
         case .restore(let limit):
             isWorking = true
@@ -256,7 +259,7 @@ struct ChargeByObservation: Equatable {
     }
 
     private func finish(removeWake: Bool) async {
-        if removeWake, let wakeAt = state?.wakeAt { _ = await wake.cancel(wakeAt) }
+        if removeWake, let wakeAt = state?.wakeAt { _ = await wake.cancel(wakeAt, stamp: state?.wakeStamp) }
         state = nil; plan = nil; defaults.removeObject(forKey: Self.key)
     }
     private func save() {
