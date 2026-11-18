@@ -8,15 +8,17 @@ import PowerTelemetry
 import PowerPersistence
 @testable import TilveroApp
 
+private final class ErrorBox: @unchecked Sendable { var error: Error? }
+
 @MainActor final class PrototypeMigrationTests: XCTestCase {
     private let salt = "5DDA446B-1515-42C4-823F-4FC532F3A8D1"
 
-    func testPairedMigrationPrecedesFirstReadingAndPreservesIdentityHistoryAndSource() throws {
+    func testPairedMigrationPrecedesFirstReadingAndPreservesIdentityHistoryAndSource() async throws {
         let f = try Fixture(); defer { f.clean() }
         let provider = MacBatteryProvider(identitySalt: salt)
         let snapshot = provider.normalize(powerSource: [:], registry: ["Serial": "ISOLATED_FIXTURE"])
         let source = try BatteryHistoryStore(url: f.source)
-        try source.record(snapshot); try source.close()
+        try await source.record(snapshot); try await source.close()
         let original = try Data(contentsOf: f.source)
         let result = try PrototypeMigration.prepare(environment: f.environment(source: ["identitySalt": salt, "language": "ru"]))
         guard case .migrated(let receipt) = result else { return XCTFail("Expected paired import") }
@@ -25,13 +27,15 @@ import PowerPersistence
         XCTAssertEqual(f.destination.string(forKey: "language"), "ru")
         XCTAssertEqual(try Data(contentsOf: f.source), original)
         let imported = try BatteryHistoryStore(url: f.target)
-        XCTAssertEqual(try imported.samples().count, 1)
+        let importedCount = try await imported.samples().count
+        XCTAssertEqual(importedCount, 1)
         let next = MacBatteryProvider(identitySalt: try XCTUnwrap(f.destination.string(forKey: "identitySalt")))
             .normalize(powerSource: [:], registry: ["Serial": "ISOLATED_FIXTURE"])
         XCTAssertEqual(next.batteryIdentityToken, snapshot.batteryIdentityToken)
-        try imported.record(next)
-        XCTAssertFalse(try imported.summary().gaps.contains { $0.reason == .batteryReplacement })
-        try imported.close()
+        try await imported.record(next)
+        let gaps = try await imported.summary().gaps
+        XCTAssertFalse(gaps.contains { $0.reason == .batteryReplacement })
+        try await imported.close()
         XCTAssertEqual(try PrototypeMigration.prepare(environment: f.environment(source: ["identitySalt": salt])), .notNeeded)
     }
 
@@ -72,11 +76,11 @@ import PowerPersistence
         XCTAssertNil(f.destination.object(forKey: "identitySalt"))
     }
 
-    func testExistingProductionStoreIsNeverReplacedOrPairedWithLegacySalt() throws {
+    func testExistingProductionStoreIsNeverReplacedOrPairedWithLegacySalt() async throws {
         let f = try Fixture(); defer { f.clean() }; try f.makeHistory()
         let production = try BatteryHistoryStore(url: f.target)
-        try production.record(BatterySnapshot(chargePercent: .init(value: 42, source: "isolated fixture")))
-        try production.close()
+        try await production.record(BatterySnapshot(chargePercent: .init(value: 42, source: "isolated fixture")))
+        try await production.close()
         let original = try Data(contentsOf: f.target)
         let destinationSalt = "A09090DD-8CA1-410C-8514-C5AE60EE56F7"
         f.destination.set(destinationSalt, forKey: "identitySalt")
@@ -92,7 +96,7 @@ import PowerPersistence
         XCTAssertFalse(FileManager.default.fileExists(atPath: f.target.deletingLastPathComponent().path))
     }
 
-    func testInterruptionsRecoverBeforeModelUseAndDoNotTouchSource() throws {
+    func testInterruptionsRecoverBeforeModelUseAndDoNotTouchSource() async throws {
         for step in PrototypeMigration.Checkpoint.allCases {
             let f = try Fixture(); defer { f.clean() }; try f.makeHistory()
             let original = try Data(contentsOf: f.source)
@@ -104,23 +108,25 @@ import PowerPersistence
             XCTAssertEqual(f.destination.string(forKey: "identitySalt"), salt)
             XCTAssertEqual(try Data(contentsOf: f.source), original)
             let store = try BatteryHistoryStore(url: f.target)
-            XCTAssertEqual(try store.samples().first?.chargePercent, 73)
-            try store.close()
+            let charge = try await store.samples().first?.chargePercent
+            XCTAssertEqual(charge, 73)
+            try await store.close()
             XCTAssertEqual(try PrototypeMigration.prepare(environment: f.environment(source: ["identitySalt": salt])), .notNeeded)
         }
     }
 
-    func testCopyIncludesUncheckpointedWALAndDoesNotMutateSource() throws {
+    func testCopyIncludesUncheckpointedWALAndDoesNotMutateSource() async throws {
         let f = try Fixture(); defer { f.clean() }
         let source = try BatteryHistoryStore(url: f.source)
-        try source.record(BatterySnapshot(chargePercent: .init(value: 61, source: "isolated fixture")))
+        try await source.record(BatterySnapshot(chargePercent: .init(value: 61, source: "isolated fixture")))
         let before = try f.storeBytes(at: f.source)
         XCTAssertTrue(before.keys.contains("-wal"))
         try BatteryHistoryStore.copyForPrototypeMigration(from: f.source, to: f.target)
         XCTAssertEqual(try f.storeBytes(at: f.source), before)
         let copied = try BatteryHistoryStore(url: f.target)
-        XCTAssertEqual(try copied.samples().first?.chargePercent, 61)
-        try copied.close(); try source.close()
+        let charge = try await copied.samples().first?.chargePercent
+        XCTAssertEqual(charge, 61)
+        try await copied.close(); try await source.close()
     }
 
     func testFailedCopyAndChangedSaltDuringRecoveryNeverExposePartialImport() throws {
@@ -162,7 +168,7 @@ import PowerPersistence
         var environment = f.environment(source: ["identitySalt": salt])
         environment.onCheckpoint = { if $0 == .storeStaged { throw Fixture.Interrupted.expected } }
         XCTAssertThrowsError(try PrototypeMigration.prepare(environment: environment))
-        let foreign = try BatteryHistoryStore(url: f.target); try foreign.close()
+        let foreign = try BatteryHistoryStore(url: f.target); try foreign.closeImmediately(upserting: [])
         XCTAssertEqual(try PrototypeMigration.prepare(environment: f.environment(source: ["identitySalt": salt])), .conflictingIdentity)
         XCTAssertNil(f.destination.object(forKey: "identitySalt"))
     }
@@ -204,9 +210,14 @@ import PowerPersistence
                   destinationStore: target, isPrototypeRunning: { running })
         }
         func makeHistory() throws {
+            // Synchronous fixture helper: the termination path writes and closes on the calling thread.
             let store = try BatteryHistoryStore(url: source)
-            try store.record(BatterySnapshot(chargePercent: .init(value: 73, source: "isolated fixture")))
-            try store.close()
+            let done = DispatchSemaphore(value: 0)
+            let box = ErrorBox()
+            Task.detached { do { try await store.record(BatterySnapshot(chargePercent: .init(value: 73, source: "isolated fixture"))) } catch { box.error = error }; done.signal() }
+            done.wait()
+            if let error = box.error { throw error }
+            try store.closeImmediately(upserting: [])
         }
         func storeBytes(at url: URL) throws -> [String: Data] {
             var result: [String: Data] = [:]

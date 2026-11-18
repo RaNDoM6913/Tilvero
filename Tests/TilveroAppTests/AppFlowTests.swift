@@ -103,6 +103,8 @@ final class AppFlowTests: XCTestCase {
         XCTAssertEqual(first.history.last?.chargePercent, 73)
         first.stop()
         let second = TilveroModel(isDemo: false, preferences: preferences, historyURL: url)
+        XCTAssertTrue(second.history.isEmpty, "The store opens off the main actor; nothing is shown before it is read.")
+        await second.waitForHistoryWork()
         XCTAssertEqual(second.history.last?.chargePercent, 73)
         XCTAssertNil(second.control)
         second.stop()

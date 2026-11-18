@@ -353,7 +353,7 @@ import XCTest
         XCTAssertFalse(f.model.keepAwake.hasOwnedAssertion)
     }
 
-    func testNonPresetCustomDurationStartsAndReplacesWithConfirmedCustomIdentity() throws {
+    func testNonPresetCustomDurationStartsAndReplacesWithConfirmedCustomIdentity() async throws {
         let f = try PillFixture(); defer { f.cleanUp() }
         try SleepPillActions.awake(f.model, request: .duration(7))
         let awakeID = f.model.keepAwake.ownedAssertionID
@@ -367,6 +367,7 @@ import XCTest
         try SleepPillActions.timer(f.model, minutes: 7, custom: true)
         XCTAssertEqual(f.model.sleepTimer.remainingSeconds, 420)
         XCTAssertEqual(SleepPillActions.timerSelection(f.model), .custom)
+        await f.model.waitForHistoryWork()   // the store opens off the main actor
         XCTAssertTrue(FileManager.default.fileExists(atPath: f.root.appendingPathComponent("History.sqlite").path))
     }
 

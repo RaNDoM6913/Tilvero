@@ -108,8 +108,11 @@ final class TilveroModel: ObservableObject {
     @Published private(set) var storeError: String?
     @Published private(set) var history: [HistorySample] = [] { didSet { seriesCacheKey = nil } }
     @Published private(set) var historySummary: HistorySummary?
+    /// What History.sqlite and its WAL occupy against the store's ceiling; nil until the store has been read.
+    @Published private(set) var historyStorage: HistoryStorageUsage?
+    /// True from launch until the store is open and the first week, summary and sleep reports are loaded.
+    @Published private(set) var historyLoading = false
     private var lastFullHistoryReload: Date?
-    private var lastHistorySummary: Date?
     @Published private(set) var sleepSessions: [SleepSessionRecord] = []
     @Published private(set) var processActivity: ProcessActivitySnapshot?
     @Published private(set) var highCPUApplications: [ProcessActivityRow] = []
@@ -161,7 +164,9 @@ final class TilveroModel: ObservableObject {
     @Published var historyEnabled: Bool { didSet {
         if !historyEnabled { weeklyCapacity = nil }
         preferences.set(historyEnabled, forKey: "historyEnabled")
-        do { try store?.markGap(reason: .explicitBoundary) } catch { storeError = String(describing: error) }
+        historyWork { [weak self] store in
+            do { try await store.markGap(reason: .explicitBoundary) } catch { self?.storeError = String(describing: error) }
+        }
         lastPersisted = nil
         resetSleepObservation(reason: .historyDisabled, persist: !historyEnabled)
     } }
@@ -430,6 +435,12 @@ final class TilveroModel: ObservableObject {
     private var inspectedRaw: [CatalogReading] = []
     private var simulator: SimulationController?
     private var store: BatteryHistoryStore?
+    /// History work runs off the main actor (the store serialises it on its own queue). This chain keeps the model's
+    /// multi-step operations (open → first loads, record → reload, erase → reload) in the order they were requested.
+    private var historyChain: Task<Void, Never>?
+    private var historyStopped = false
+    /// Bumped by an erase: loads that began before it cannot publish pre-erase rows.
+    private var historyEpoch: UInt64 = 0
     private let observer = PowerSourceObserver()
     private var arbiter = ProfileArbiter()
     private let preferences: UserDefaults
@@ -566,13 +577,7 @@ final class TilveroModel: ObservableObject {
         } else {
             do {
                 let url = try historyURL ?? ReleaseIdentity.current().historyURL()
-                store = try BatteryHistoryStore(url: url)
-                // Independent history readers must still run if sleep-codec validation
-                // rejects retention. Never turn a preserved corrupt record into empty success.
-                do { try store?.configureRetention(retentionDays) }
-                catch { storeError = String(describing: error) }
-                reloadHistory()
-                reloadSleepSessions()
+                openHistory(at: url)
             }
             catch { storeError = String(describing: error) }
         }
@@ -894,8 +899,15 @@ final class TilveroModel: ObservableObject {
         processMonitorStopped = true; processRevision &+= 1; processSampler.reset(); processActivity = nil
         processHighlights.reset(); highCPUApplications = []
         try? keepAwake.stop()
-        resetSleepObservation(reason: .applicationStopped, persist: true)
-        pollingTask?.cancel(); pollingTask = nil; observer.stop(); try? store?.close()
+        let finalSleepRecords = resetSleepObservation(reason: .applicationStopped, persist: true, deferWrite: true)
+        pollingTask?.cancel(); pollingTask = nil; observer.stop()
+        // The process may exit right after this returns: write the last sleep report and close synchronously.
+        historyStopped = true
+        if let store {
+            self.store = nil
+            do { try store.closeImmediately(upserting: finalSleepRecords) }
+            catch { sleepReportError = L10n.text("Sleep report storage is unavailable. Existing data was preserved.") }
+        }
     }
     func setSleeping(_ value: Bool) {
         if value { sleepTimer.systemWillSleep(); sleepAtCharge.systemWillSleep(); keepAwakeUntilCharge.systemWillSleep() } else { sleepTimer.systemDidWake(); sleepAtCharge.systemDidWake(); keepAwakeUntilCharge.systemDidWake() }
@@ -914,7 +926,9 @@ final class TilveroModel: ObservableObject {
                 saveSleepChanges(sleepTracker.accept(.willSleep(stamp: sleepStamp(), latestEndpoint: lastRawSleepEndpoint)))
             }
             if !isDemo { Task { if !(await liveControl.prepareForSleep()) { notice = L10n.text("Recovery required") } } }
-            do { try store?.markGap(reason: .sleep) } catch { storeError = String(describing: error) }
+            historyWork { [weak self] store in
+                do { try await store.markGap(reason: .sleep) } catch { self?.storeError = String(describing: error) }
+            }
         } else {
             observedWake = true
             lastWakeAt = Date()
@@ -1033,20 +1047,32 @@ final class TilveroModel: ObservableObject {
                 Task { await refreshSleepActivity() }
             }
             if historyEnabled {
-                do {
-                    let changed = lastPersisted.map { $0.isCharging.value != snapshot.isCharging.value || $0.isExternalPower.value != snapshot.isExternalPower.value || $0.batteryIdentityToken != snapshot.batteryIdentityToken || $0.chargePercent.availability != snapshot.chargePercent.availability } ?? true
-                    if changed || lastPersisted.map({ previous in
-                        let age = snapshot.monotonicTime.flatMap { current in previous.monotonicTime.map { current - $0 } } ?? snapshot.collectedAt.timeIntervalSince(previous.collectedAt)
-                        return age >= 60 || age < 0
-                    }) ?? true {
-                        try store?.record(snapshot); lastPersisted = snapshot; reloadHistory(incremental: true)
-                        let capacity = try? store?.weeklyCapacity(for: raw)
-                        if weeklyCapacity != capacity { weeklyCapacity = capacity }
+                let changed = lastPersisted.map { $0.isCharging.value != snapshot.isCharging.value || $0.isExternalPower.value != snapshot.isExternalPower.value || $0.batteryIdentityToken != snapshot.batteryIdentityToken || $0.chargePercent.availability != snapshot.chargePercent.availability } ?? true
+                let due = changed || lastPersisted.map({ previous in
+                    let age = snapshot.monotonicTime.flatMap { current in previous.monotonicTime.map { current - $0 } } ?? snapshot.collectedAt.timeIntervalSince(previous.collectedAt)
+                    return age >= 60 || age < 0
+                }) ?? true
+                let observed = snapshot
+                let onExternalPower = raw.isExternalPower.availability == .available && raw.isExternalPower.freshness != .stale ? raw.isExternalPower.value : nil
+                // Awaited (off the main actor): the store opens asynchronously at launch, so the first refresh waits for it.
+                let rows = await historyWork { [weak self] store -> [CatalogReading]? in
+                    guard let self else { return nil }
+                    do {
+                        // Recording may have been switched off, or a sleep/erase boundary passed, while this waited.
+                        if due, self.historyEnabled, readEpoch == self.lifecycleEpoch {
+                            try await store.record(observed); self.lastPersisted = observed
+                            await self.loadHistory(from: store, incremental: true)
+                            let capacity = try? await store.weeklyCapacity(for: raw)
+                            if self.weeklyCapacity != capacity { self.weeklyCapacity = capacity }
+                            self.vacuumHistoryIfDue(store, onExternalPower: onExternalPower)
+                        }
+                        let rows = try await store.catalogReadings(at: observed.collectedAt, summaryMaxAge: 600, waitForBackfill: false)
+                        self.storeError = nil
+                        return rows
                     }
-                    if let rows = try store?.catalogReadings(at: snapshot.collectedAt, summaryMaxAge: 600) { snapshot = snapshot.replacingCatalog(rows) }
-                    storeError = nil
-                }
-                catch { storeError = String(describing: error) }
+                    catch { self.storeError = String(describing: error); return nil }
+                }.value ?? nil
+                if let rows { snapshot = snapshot.replacingCatalog(rows) }
             }
         }
         snapshot = snapshot.replacingCatalog(ControlCatalog.readings(state: chargeState, capabilities: liveControl.capabilities, fans: isDemo ? nil : liveControl.fanObservation, isDemo: isDemo, connected: liveControl.connected, at: snapshot.collectedAt))
@@ -1391,57 +1417,143 @@ final class TilveroModel: ObservableObject {
         await refreshSimulation()
     }
     private func persistArbiter() { if let data = try? JSONEncoder().encode(arbiter) { preferences.set(data, forKey: isDemo ? "demoArbiter" : "arbiter") } }
-    /// A full reload decodes the whole week; the regular minute record only appends the new samples.
-    /// Older samples keep scalars only (the per-metric charts read the catalog of the last hour).
-    func reloadHistory(incremental: Bool = false) {
+    /// Opens the store off the main actor, then loads the week, the summary and the sleep reports. Until then the
+    /// history views show their loading/empty states; nothing is invented in the meantime.
+    private func openHistory(at url: URL) {
+        historyLoading = true
+        historyChain = Task { @MainActor [weak self] in
+            // A model stopped (or released) before this task ran never opens, so nothing is created behind its back.
+            guard self?.historyStopped == false else { self?.historyLoading = false; return }
+            let opened: BatteryHistoryStore
+            do { opened = try await BatteryHistoryStore.open(url: url) }
+            catch { self?.storeError = String(describing: error); self?.historyLoading = false; return }
+            guard let self, !self.historyStopped else { try? await opened.close(); return }
+            self.store = opened
+            // Independent history readers must still run if sleep-codec validation
+            // rejects retention. Never turn a preserved corrupt record into empty success.
+            do { try await opened.configureRetention(self.retentionDays) } catch { self.storeError = String(describing: error) }
+            await self.loadHistory(from: opened)
+            await self.loadSleepSessions(from: opened)
+            self.historyLoading = false
+            self.finishBackfill(opened)
+        }
+    }
+
+    /// A store migrated from schema 2 fills its scalar columns in the background; the summary appears once it is done.
+    private func finishBackfill(_ store: BatteryHistoryStore) {
+        Task.detached(priority: .utility) { [weak self] in
+            do { try await store.completeBackfill() }
+            catch { await MainActor.run { self?.storeError = String(describing: error) }; return }
+            await MainActor.run {
+                _ = self?.historyWork { [weak self] store in
+                    guard let self, self.historySummary == nil else { return }
+                    do { self.historySummary = try await store.summaryIfReady() } catch { self.storeError = String(describing: error) }
+                }
+            }
+        }
+    }
+
+    /// Runs `body` with the open store after all earlier history work. Without a store (it failed to open or the model
+    /// stopped) `unavailable` runs instead.
+    @discardableResult
+    private func historyWork<T: Sendable>(unavailable: (@MainActor () -> Void)? = nil,
+                                          _ body: @escaping @MainActor (BatteryHistoryStore) async -> T) -> Task<T?, Never> {
+        let previous = historyChain
+        let task = Task { @MainActor [weak self] () -> T? in
+            await previous?.value
+            guard let self else { return nil }
+            guard let store = self.store, !self.historyStopped else { unavailable?(); return nil }
+            return await body(store)
+        }
+        historyChain = Task { _ = await task.value }
+        return task
+    }
+
+    /// Waits until every history operation requested so far has finished.
+    func waitForHistoryWork() async {
+        while let tail = historyChain {
+            await tail.value
+            if historyChain == tail { return }
+        }
+    }
+
+    /// A full reload reads the week from scalar columns (catalog only for the last three hours); the regular minute
+    /// record only appends the new samples. The summary is the store's running total, so reading it costs nothing.
+    private func loadHistory(from store: BatteryHistoryStore, incremental: Bool = false) async {
         let now = Date()
+        let epoch = historyEpoch
         do {
             let weekStart = now.addingTimeInterval(-7 * 86400)
             if incremental, let last = history.last, let lastFull = lastFullHistoryReload, now.timeIntervalSince(lastFull) < 1800 {
                 let seen = Set(history.suffix(8).map(\.id))
-                let fresh = try store?.samples(since: last.collectedAt, readingsSince: now.addingTimeInterval(-3 * 3600)) ?? []
+                let fresh = try await store.samples(since: last.collectedAt, readingsSince: now.addingTimeInterval(-3 * 3600))
+                guard epoch == historyEpoch else { return }
                 let appended = fresh.filter { !seen.contains($0.id) && $0.collectedAt >= last.collectedAt }
                 if !appended.isEmpty {
                     history = history.filter { $0.collectedAt >= weekStart } + appended
                 }
-                if let lastSummary = lastHistorySummary, now.timeIntervalSince(lastSummary) < 300 { return }
             } else {
-                history = try store?.samples(since: weekStart, readingsSince: now.addingTimeInterval(-3 * 3600)) ?? []
+                let week = try await store.samples(since: weekStart, readingsSince: now.addingTimeInterval(-3 * 3600))
+                guard epoch == historyEpoch else { return }
+                history = week
                 lastFullHistoryReload = now
             }
-            historySummary = try store?.summary()
-            lastHistorySummary = now
+            // nil while a migrated store is still backfilling: the summary stays unavailable, never partial.
+            let summary = try await store.summaryIfReady()
+            guard epoch == historyEpoch else { return }
+            if let summary { historySummary = summary }
+            historyStorage = try? await store.storageUsage()
         }
         catch { storeError = String(describing: error) }
     }
+
+    /// A full VACUUM at most weekly, only while no Tilvero window is shown and the Mac runs on the adapter.
+    private func vacuumHistoryIfDue(_ store: BatteryHistoryStore, onExternalPower: Bool?) {
+        let idle = !isPopoverVisible && !isDetailVisible
+        guard idle, onExternalPower == true else { return }
+        Task.detached(priority: .background) { _ = try? await store.vacuumIfDue(onExternalPower: onExternalPower, idle: idle) }
+    }
+
     private func configureRetention() {
-        do { try store?.configureRetention(retentionDays) } catch { storeError = String(describing: error) }
-        reloadHistory(); reloadSleepSessions()
+        let days = retentionDays
+        historyWork { [weak self] store in
+            guard let self else { return }
+            do { try await store.configureRetention(days) } catch { self.storeError = String(describing: error) }
+            await self.loadHistory(from: store)
+            await self.loadSleepSessions(from: store)
+        }
     }
     func eraseHistory() {
         resetSleepObservation(reason: .historyErased, persist: false)
-        do {
-            try store?.erase(); lastPersisted = nil; weeklyCapacity = nil
-            reloadHistory(); reloadSleepSessions()
+        // Shown at once; the store erases off the main actor and the reload below restores rows if it failed.
+        historyEpoch &+= 1
+        lastPersisted = nil; weeklyCapacity = nil
+        history = []; historySummary = nil; sleepSessions = []
+        historyWork { [weak self] store in
+            guard let self else { return }
+            do { try await store.erase() } catch { self.storeError = String(describing: error) }
+            await self.loadHistory(from: store)
+            await self.loadSleepSessions(from: store)
         }
-        catch { storeError = String(describing: error) }
     }
     private func sleepStamp() -> SleepObservationStamp {
         SleepObservationStamp(wallDate: Date(), continuousSeconds: HelperClock.continuousSeconds(), runID: sleepRunID)
     }
     private func saveSleepChanges(_ records: [SleepSessionRecord]) {
         guard !isDemo, !records.isEmpty else { return }
-        do {
-            guard let store else { throw HistoryStoreError.unavailable }
-            for record in records { try store.upsertSleepSession(record) }
-            reloadSleepSessions()
-        } catch { sleepReportError = L10n.text("Sleep report storage is unavailable. Existing data was preserved.") }
+        let unavailable = L10n.text("Sleep report storage is unavailable. Existing data was preserved.")
+        historyWork(unavailable: { [weak self] in self?.sleepReportError = unavailable }) { [weak self] store in
+            guard let self else { return }
+            do {
+                for record in records { try await store.upsertSleepSession(record) }
+                await self.loadSleepSessions(from: store)
+            } catch { self.sleepReportError = unavailable }
+        }
     }
-    private func reloadSleepSessions() {
+    private func loadSleepSessions(from store: BatteryHistoryStore) async {
         guard !isDemo else { sleepSessions = []; return }
         do {
-            guard let store else { throw HistoryStoreError.unavailable }
-            var records = try store.sleepSessions(limit: 2000)
+            var records = try await store.sleepSessions(limit: 2000)
             // Older-run pending observations can never resume, even when history
             // is off and we deliberately avoid writing recovery metadata to disk.
             let staleIDs = Set(records.filter { row in
@@ -1450,15 +1562,20 @@ final class TilveroModel: ObservableObject {
             if !staleIDs.isEmpty {
                 let stamp = sleepStamp()
                 records = records.map { staleIDs.contains($0.id) ? $0.interrupted(reason: .applicationRestarted, at: stamp) : $0 }
-                if historyEnabled { for record in records where staleIDs.contains(record.id) { try store.upsertSleepSession(record) } }
+                if historyEnabled { for record in records where staleIDs.contains(record.id) { try await store.upsertSleepSession(record) } }
             }
             sleepSessions = records; sleepReportError = nil
         } catch { sleepReportError = L10n.text("Sleep report storage is unavailable. Existing data was preserved.") }
     }
-    private func resetSleepObservation(reason: SleepInterruptionReason, persist: Bool) {
+    /// With `deferWrite` the interrupted records are returned for the caller to write (termination) instead of queued.
+    @discardableResult
+    private func resetSleepObservation(reason: SleepInterruptionReason, persist: Bool, deferWrite: Bool = false) -> [SleepSessionRecord] {
         lifecycleEpoch &+= 1
-        if persist && !isDemo { saveSleepChanges(sleepTracker.accept(.interrupted(reason: reason, stamp: sleepStamp()))) }
+        var records: [SleepSessionRecord] = []
+        if persist && !isDemo { records = sleepTracker.accept(.interrupted(reason: reason, stamp: sleepStamp())) }
+        if !deferWrite { saveSleepChanges(records) }
         sleepTracker = SleepSessionTracker(postWakeSettleSeconds: postWakeSettleSeconds); lastRawSleepEndpoint = nil; queuedWakeRefresh = false; observedWake = false
+        return deferWrite ? records : []
     }
     /// `reusingRecent: false` for the explicit Refresh: a fresh `pmset` run, never the answer of a recent native read.
     func refreshSystemChargeLimit(reusingRecent: Bool = true) async {
@@ -1487,13 +1604,19 @@ final class TilveroModel: ObservableObject {
         }
     }
     func prepareExport(diagnostics: Bool = false, csv: Bool = false) {
-        do {
-            let data: Data
-            if diagnostics { data = try DoctorReport(snapshot: snapshot).encodedJSON() }
-            else { guard let store else { return }; data = try csv ? store.exportCSV() : store.exportJSON() }
-            exportData = data; exportType = csv ? .commaSeparatedText : .json
-            exportPreview = String(data: data.prefix(6000), encoding: .utf8) ?? ""
-        } catch { notice = String(describing: error) }
+        if diagnostics {
+            do { presentExport(try DoctorReport(snapshot: snapshot).encodedJSON(), csv: false) } catch { notice = String(describing: error) }
+            return
+        }
+        // Decoding every stored payload happens on the store's queue, not here.
+        historyWork { [weak self] store in
+            do { self?.presentExport(try await csv ? store.exportCSV() : store.exportJSON(), csv: csv) }
+            catch { self?.notice = String(describing: error) }
+        }
+    }
+    private func presentExport(_ data: Data, csv: Bool) {
+        exportData = data; exportType = csv ? .commaSeparatedText : .json
+        exportPreview = String(data: data.prefix(6000), encoding: .utf8) ?? ""
     }
     func saveExport() {
         guard let data = exportData else { return }

@@ -74,12 +74,15 @@ import CoreData
                                  snapshotProvider: { SleepSnapshotQueue.sample(80) })
         defer { model.stop() }
         await model.refresh(); model.setSleeping(true)
+        await model.waitForHistoryWork()
         XCTAssertEqual(model.sleepSessions.count, 1)
         model.historyEnabled = false
+        await model.waitForHistoryWork()
         XCTAssertEqual(model.sleepSessions.first?.phase, .incomplete)
         XCTAssertTrue(model.sleepSessions.first?.issues.contains(.historyDisabled) == true)
         let count = model.sleepSessions.count
         model.setSleeping(false); await model.refresh()
+        await model.waitForHistoryWork()
         XCTAssertEqual(model.sleepSessions.count, count)
         XCTAssertNil(model.sleepSessions.first?.after)
     }
@@ -88,15 +91,23 @@ import CoreData
         let fixture = try Fixture(); defer { fixture.cleanup() }
         let store = try BatteryHistoryStore(url: fixture.url)
         let stamp = SleepObservationStamp(wallDate: Date(), continuousSeconds: 100, runID: UUID())
-        try store.upsertSleepSession(.init(sleepBoundary: stamp, phase: .awaitingWake))
-        try store.close()
+        try await store.upsertSleepSession(.init(sleepBoundary: stamp, phase: .awaitingWake))
+        try await store.close()
         let model = TilveroModel(isDemo: false, preferences: fixture.preferences, historyURL: fixture.url)
         defer { model.stop() }
+        await model.waitForHistoryWork()
         XCTAssertEqual(model.sleepSessions.first?.phase, .incomplete)
         XCTAssertTrue(model.sleepSessions.first?.issues.contains(.applicationRestarted) == true)
         model.eraseHistory()
         XCTAssertTrue(model.sleepSessions.isEmpty)
         XCTAssertTrue(model.history.isEmpty)
+        await model.waitForHistoryWork()
+        XCTAssertTrue(model.sleepSessions.isEmpty, "The erase reached the same store.")
+        XCTAssertTrue(model.history.isEmpty)
+        let reopened = try BatteryHistoryStore(url: fixture.url)
+        let remaining = try await reopened.sleepSessions()
+        XCTAssertTrue(remaining.isEmpty)
+        try await reopened.close()
     }
 
     func testSimulationCannotCollectOrPersistSleepReports() async throws {
@@ -110,16 +121,18 @@ import CoreData
         XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.url.path))
     }
 
-    func testDisabledHistoryRelaunchRemainsIncompleteAfterRetentionReload() throws {
+    func testDisabledHistoryRelaunchRemainsIncompleteAfterRetentionReload() async throws {
         let fixture = try Fixture(); defer { fixture.cleanup() }
         fixture.preferences.set(false, forKey: "historyEnabled")
         let store = try BatteryHistoryStore(url: fixture.url)
         let stamp = SleepObservationStamp(wallDate: Date(), continuousSeconds: 100, runID: UUID())
-        try store.upsertSleepSession(.init(sleepBoundary: stamp, phase: .awaitingWake)); try store.close()
+        try await store.upsertSleepSession(.init(sleepBoundary: stamp, phase: .awaitingWake)); try await store.close()
         let model = TilveroModel(isDemo: false, preferences: fixture.preferences, historyURL: fixture.url)
         defer { model.stop() }
+        await model.waitForHistoryWork()
         XCTAssertEqual(model.sleepSessions.first?.phase, .incomplete)
         model.retentionDays = 7
+        await model.waitForHistoryWork()
         XCTAssertEqual(model.sleepSessions.first?.phase, .incomplete)
         XCTAssertTrue(model.sleepSessions.first?.issues.contains(.applicationRestarted) == true)
     }
@@ -127,8 +140,8 @@ import CoreData
     func testCorruptSleepPayloadDoesNotHideBatteryHistoryOrBecomeEmptySuccess() async throws {
         let fixture = try Fixture(); defer { fixture.cleanup() }
         let store = try BatteryHistoryStore(url: fixture.url)
-        try store.record(SleepSnapshotQueue.sample(80)); try store.close()
-        let coordinator = NSPersistentStoreCoordinator(managedObjectModel: BatteryHistoryStore.model(version: 2))
+        try await store.record(SleepSnapshotQueue.sample(80)); try await store.close()
+        let coordinator = NSPersistentStoreCoordinator(managedObjectModel: BatteryHistoryStore.model(version: BatteryHistoryStore.currentSchemaVersion))
         let disk = try coordinator.addPersistentStore(ofType: NSSQLiteStoreType, configurationName: nil, at: fixture.url)
         let context = NSManagedObjectContext(concurrencyType: .mainQueueConcurrencyType)
         context.persistentStoreCoordinator = coordinator
@@ -143,9 +156,11 @@ import CoreData
         let model = TilveroModel(isDemo: false, preferences: fixture.preferences, historyURL: fixture.url,
                                  snapshotProvider: { SleepSnapshotQueue.sample(79) })
         defer { model.stop() }
+        await model.waitForHistoryWork()
         XCTAssertEqual(model.history.last?.chargePercent, 80)
         XCTAssertNotNil(model.sleepReportError)
         await model.refresh()
+        await model.waitForHistoryWork()
         XCTAssertNotNil(model.sleepReportError, "A successful battery refresh cannot erase the independent sleep-store error.")
     }
 

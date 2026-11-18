@@ -40,9 +40,9 @@ final class SnapshotBox: @unchecked Sendable {
         let now = Date()
         let store = try BatteryHistoryStore(url: url)
         for minute in stride(from: Double(minutesOfHistory), to: 0, by: -1) {
-            try store.record(snapshot(at: now.addingTimeInterval(-minute * 60), minutesAgo: minute, adapterConnected: adapterConnected))
+            try await store.record(snapshot(at: now.addingTimeInterval(-minute * 60), minutesAgo: minute, adapterConnected: adapterConnected))
         }
-        try store.close()
+        try await store.close()
         let box = SnapshotBox(snapshot(at: now, minutesAgo: 0, adapterConnected: adapterConnected))
         let model = TilveroModel(isDemo: false, preferences: defaults, historyURL: url, snapshotProvider: { box.value })
         await model.refresh()
