@@ -1,14 +1,9 @@
 # Tilvero publication graphics
 
-Both language versions of the README open with `cover.png`: the owner-selected
-dark energy-wave banner, generated with the built-in ImageGen tool on 2026-10-31
-and selected on 2026-11-01. It uses the current wave identity from
-[`Assets/AppIcon.png`](../../Assets/AppIcon.png). The original 1983 × 793 PNG is
-retained without edits; see [its prompt, copy and SHA-256](COVER_PROMPT.md).
-Its three information pills read **Swift 6**, **macOS 26+** and **Apple silicon**;
-availability is **Source preview**. This is brand artwork, not an app screenshot
-or a claim of hardware support or release qualification. The app icon files are
-unchanged by this README refresh.
+Both READMEs open with the approved 1983 × 793 Midnight energy banner.
+The 2026-11-18 revision uses a solid green fill for the small wave and smooths
+the tips of both waves. Its three pills read **Swift 6**, **macOS 26+** and
+**Apple silicon**. [Artwork provenance and checksum](COVER_PROMPT.md).
 
 The README badge row uses Shields' `for-the-badge` style: 28 px high, Verdana
 uppercase type, dark pine labels (`#172A22`) and green values (`#2F6E4B`).

@@ -1,21 +1,23 @@
 # Application and disk-image artwork
 
 Original Tilvero artwork, Copyright (c) 2026 RaNDoM6913, GPL-3.0-only.
-`AppIcon.svg` is the editable vector composition; `scripts/render-app-icon.swift`
-exports its AppKit geometry at exactly 1024 pixels (independent of display scale).
-No third-party artwork, fonts or Apple system icons are copied.
 
-Regenerate on macOS using the selected full Xcode toolchain:
+The default light icon uses the outline of the small wave in the approved
+README banner. The wave has a uniform green fill (`#17AA50`).
+`AppIcon.svg` is the editable master. `AppIcon.png` and `AppIcon-1024.png`
+are the approved 1024 px raster. Xcode uses the ten macOS renditions in
+`Config/Assets.xcassets/AppIcon.appiconset`. SwiftPM packaging uses
+`AppIcon.icns`.
+
+To export the master, install librsvg and ImageMagick and run from the repository:
 
 ```sh
-source scripts/toolchain.sh
-swift scripts/render-app-icon.swift Assets/AppIcon-1024.png
-bash scripts/generate-app-icons.sh --source Assets/AppIcon-1024.png --output /new/export/directory
+swift scripts/render-app-icon.swift /tmp/Tilvero-Light.png
+bash scripts/generate-app-icons.sh --source /tmp/Tilvero-Light.png --output /tmp/Tilvero-Light-export
 ```
 
-The resulting ICNS is checked in as `AppIcon.icns` and `DMG/VolumeIcon.icns`;
-PNG sizes and Contents.json in Config/Assets.xcassets/AppIcon.appiconset are the
-corresponding macOS asset catalog. The volume uses the same original mark.
-The initial DMG deliberately uses native Finder layout without a background or
-third-party layout dependency. Finder/Dock and trusted installed UI acceptance
-remain distinct from inspecting these exported pixels.
+`IconVariants/Tilvero-Night` and `IconVariants/Tilvero-Mono` preserve the
+approved alternatives for a future Settings selector. Each contains an SVG
+master, a 1024 px PNG and a macOS ICNS. Both use the light icon's wave outline.
+
+The disk-image volume has separate artwork in `DMG/VolumeIcon.icns`.
