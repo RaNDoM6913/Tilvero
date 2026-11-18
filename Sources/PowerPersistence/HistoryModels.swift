@@ -165,8 +165,11 @@ public struct HistorySummary: Codable, Sendable, Equatable {
 }
 public enum HistoryStoreError: Error, LocalizedError, Sendable, Equatable {
     case unavailable, corruptRecord, unsupportedSchema, simulationExcluded
+    /// The pre-upgrade backup could not be written; the store was left on its old schema and is retried next launch.
+    case migrationBackupFailed
     public var errorDescription: String? {
         switch self {
+        case .migrationBackupFailed: return "History could not be backed up before its upgrade. It was left unchanged; the upgrade is retried at the next launch."
         case .unavailable: return "The local history store is unavailable. Existing files were preserved."
         case .corruptRecord: return "A history record is invalid; existing data was preserved."
         case .unsupportedSchema: return "This history schema is not supported by this app version."

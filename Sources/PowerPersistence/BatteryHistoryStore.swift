@@ -173,8 +173,9 @@ public final class BatteryHistoryStore: @unchecked Sendable {
         try coordinator.replacePersistentStore(at: destination,
             destinationOptions: [NSSQLitePragmasOption: ["journal_mode": "DELETE"]],
             withPersistentStoreFrom: source, sourceOptions: [NSReadOnlyPersistentStoreOption: true], ofType: NSSQLiteStoreType)
-        // Upgrade only the private copy before its stable identity enters the migration journal.
-        let copy = try HistoryStoreCore(url: destination, configuration: .init())
+        // Upgrade only the private copy before its stable identity enters the migration journal (the untouched source
+        // is the pre-upgrade copy here, so no backup is written next to it).
+        let copy = try HistoryStoreCore(url: destination, configuration: .init(), makesMigrationBackup: false)
         try copy.context.performAndWait { try copy.close() }
         // Opening only the copy with DELETE consolidates any copied WAL before a single-file promotion.
         let detachedCoordinator = NSPersistentStoreCoordinator(managedObjectModel: model(version: HistorySchema.currentVersion))

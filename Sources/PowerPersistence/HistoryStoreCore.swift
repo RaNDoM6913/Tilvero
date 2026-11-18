@@ -72,7 +72,8 @@ final class HistoryStoreCore: @unchecked Sendable {
     /// Set by the facade when the store closes for termination; long work stops at its next batch boundary.
     let interruption: HistoryInterruption
 
-    init(url: URL?, configuration: HistoryConfiguration, interruption: HistoryInterruption = HistoryInterruption()) throws {
+    init(url: URL?, configuration: HistoryConfiguration, interruption: HistoryInterruption = HistoryInterruption(),
+         makesMigrationBackup: Bool = true) throws {
         self.url = url; self.configuration = configuration; self.interruption = interruption
         sleepRetentionDays = max(1, configuration.detailedDays)
         if let url { fileURL = url; ephemeralDirectory = nil }
@@ -91,11 +92,14 @@ final class HistoryStoreCore: @unchecked Sendable {
             try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true,
                 attributes: [.posixPermissions: 0o700])
             var options: [String: Any] = [NSSQLitePragmasOption: ["journal_mode": "WAL", "auto_vacuum": "INCREMENTAL"]]
+            if url != nil { HistoryMigrationBackup.removeExpired(for: fileURL) }
             if FileManager.default.fileExists(atPath: fileURL.path) {
                 let metadata = try NSPersistentStoreCoordinator.metadataForPersistentStore(ofType: NSSQLiteStoreType, at: fileURL)
                 if HistorySchema.declaresNewerVersion(metadata) { throw HistoryStoreError.unsupportedSchema }
                 guard let version = HistorySchema.compatibleVersion(metadata) else { throw HistoryStoreError.unsupportedSchema }
                 if version < HistorySchema.currentVersion {
+                    // A rollback to the previous app needs the old schema: back it up first, or do not migrate now.
+                    if url != nil, makesMigrationBackup { try HistoryMigrationBackup.ensure(for: fileURL, version: version) }
                     options[NSMigratePersistentStoresAutomaticallyOption] = true
                     options[NSInferMappingModelAutomaticallyOption] = true
                     options[NSPersistentStoreStagedMigrationManagerOptionKey] = HistorySchema.stagedMigrationManager()
