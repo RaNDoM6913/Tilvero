@@ -17728,6 +17728,22 @@
           }
         }
       }
+    },
+    "History size: %lld MB of %lld MB": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "History size: %lld MB of %lld MB"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Размер истории: %lld МБ из %lld МБ"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

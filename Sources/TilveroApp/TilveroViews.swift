@@ -381,6 +381,9 @@ private struct HistoryPanel: View {
                             Spacer()
                             Text(points.first?.collectedAt.formatted(.dateTime.locale(L10n.locale)) ?? "")
                         }.font(.caption).foregroundStyle(.secondary)
+                    } else if model.historyLoading {
+                        // The store opens off the main thread at launch: no "no measurements" claim before it was read.
+                        ProgressView().frame(maxWidth: .infinity, minHeight: 190)
                     } else {
                         ContentUnavailableView(L10n.text("No recorded measurements yet"), systemImage: "chart.xyaxis.line")
                     }
@@ -568,6 +571,10 @@ private struct SettingsPanel: View {
                 VStack(alignment: .leading, spacing: 14) {
                     Toggle(L10n.text("Save history"), isOn: $model.historyEnabled).disabled(model.isDemo)
                     Picker(L10n.text("Detailed samples"), selection: $model.retentionDays) { ForEach([7,14,30], id: \.self) { Text(L10n.text("\($0) days")).tag($0) } }.frame(maxWidth: 350).disabled(model.isDemo)
+                    if let storage = model.historyStorage, !model.isDemo {
+                        Text(String(format: L10n.text("History size: %lld MB of %lld MB"), storage.megabytes, storage.limitMegabytes))
+                            .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                    }
                     Text(L10n.text("Minute samples use the selected period. Hourly aggregates are kept for 12 months.")).font(.caption).foregroundStyle(.secondary)
                     Text(L10n.text("Sleep reports use the selected detailed-history period.")).font(.caption).foregroundStyle(.secondary)
                     Divider()
