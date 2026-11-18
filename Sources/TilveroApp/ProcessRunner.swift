@@ -79,19 +79,43 @@ enum ProcessRunner {
         await run(launch: process(path, arguments), timeout: timeout, terminatesOnCancel: false)
     }
 
-    /// Absolute executable, `/` as the working directory, no stdin.
-    static func process(_ path: String, _ arguments: [String]) -> Launch {
+    /// Output kept per run; anything beyond is read and dropped, so a chatty command never blocks on a full pipe.
+    static let outputLimit = 1 << 20
+
+    private final class Collector: @unchecked Sendable {
+        private let lock = NSLock()
+        private var data = Data()
+        let limit: Int
+        init(limit: Int) { self.limit = limit }
+        func append(_ chunk: Data) {
+            lock.withLock {
+                let room = limit - data.count
+                if room > 0 { data.append(chunk.prefix(room)) }
+            }
+        }
+        var text: String { lock.withLock { String(decoding: data, as: UTF8.self) } }
+    }
+
+    /// Absolute executable, `/` as the working directory, no stdin. The output is read while the process runs (a
+    /// pipe holds only 64 KB) and the result is delivered once the process has exited and its output has ended.
+    static func process(_ path: String, _ arguments: [String], outputLimit: Int = ProcessRunner.outputLimit) -> Launch {
         { finished in
             let process = Process()
             process.executableURL = URL(fileURLWithPath: path); process.arguments = arguments
             process.currentDirectoryURL = URL(fileURLWithPath: "/", isDirectory: true)
             let pipe = Pipe()
             process.standardOutput = pipe; process.standardError = pipe; process.standardInput = FileHandle.nullDevice
-            process.terminationHandler = { done in
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                finished(done.terminationStatus, String(decoding: data, as: UTF8.self))
-            }
+            let collector = Collector(limit: outputLimit)
+            let done = DispatchGroup()
+            done.enter(); done.enter()
+            process.terminationHandler = { _ in done.leave() }
             try process.run()
+            let reader = pipe.fileHandleForReading
+            DispatchQueue.global(qos: .utility).async {
+                while let chunk = try? reader.read(upToCount: 64 * 1024), !chunk.isEmpty { collector.append(chunk) }
+                done.leave()
+            }
+            done.notify(queue: .global(qos: .utility)) { finished(process.terminationStatus, collector.text) }
             return { if process.isRunning { process.terminate() } }
         }
     }
