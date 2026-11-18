@@ -133,7 +133,7 @@ import SwiftUI
                 }
             }
             HStack {
-                StudioActionButton(L10n.text("Edit modes…"), id: "action.edit-modes") { model.selectedSection = .charging; model.openDetails?() }
+                StudioActionButton(L10n.text("Edit modes…"), id: "action.edit-modes") { model.navigation.open(.section(.charging)) }
                 Spacer()
                 StudioActionButton(L10n.text("Apply"), id: "action.apply") { Task { await model.applyMode(model.selectedMode) } }
                     .buttonStyle(.borderedProminent)

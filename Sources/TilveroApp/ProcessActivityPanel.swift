@@ -178,7 +178,7 @@ struct SustainedCPUActivity {
                         Label(L10n.text("High CPU usage"), systemImage: "app.badge").font(.subheadline)
                         Spacer()
                         if allowsNavigation {
-                            Button { model.selectedSection = .activity; model.openDetails?() } label: { Image(systemName: "chevron.right") }
+                            Button { model.navigation.open(.section(.activity)) } label: { Image(systemName: "chevron.right") }
                                 .buttonStyle(.borderless).accessibilityLabel(L10n.text("Application details"))
                         }
                     }

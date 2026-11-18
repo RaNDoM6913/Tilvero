@@ -58,7 +58,7 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
         #if TILVERO_LAB_STUDIO
         if let route = studioCaptureRoute { return .constant(route.sleepPage) }
         #endif
-        return compact ? $quickPage : $model.selectedSleepPage
+        return compact ? $quickPage : Bindable(model.navigation).sleepPage
     }
     private var presentedPage: SleepPage { pageSelection.wrappedValue }
     var body: some View {
@@ -269,7 +269,7 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
             HStack(spacing: 10) {
                 Button {
                     if let open { open() }
-                    else { model.selectedSleepPage = .timer; model.selectedSection = .sleep; model.openDetails?() }
+                    else { model.navigation.open(.sleep(.timer)) }
                 } label: {
                     HStack(spacing: 9) {
                         Image(systemName: "moon.zzz.fill").foregroundStyle(Color.accentColor)

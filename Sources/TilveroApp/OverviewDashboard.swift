@@ -46,7 +46,7 @@ import PowerPersistence
                 }.font(.system(size: 12))
                     .help(L10n.text("macOS manages this setting independently of Tilvero."))
                 Spacer(minLength: 8)
-                StudioActionButton(L10n.text("Details"), id: "battery-summary.details") { model.selectedSection = .battery }
+                StudioActionButton(L10n.text("Details"), id: "battery-summary.details") { model.navigation.navigate(to: .section(.battery)) }
             }
         }
         .task { await refreshLiveMetrics() }
@@ -123,7 +123,7 @@ import PowerPersistence
             HStack {
                 StudioText(L10n.text("Charge over 24 hours"), id: "overview.history.title").font(.system(size: 13, weight: .semibold))
                 Spacer()
-                Button { model.selectedSection = .history } label: {
+                Button { model.navigation.navigate(to: .section(.history)) } label: {
                     Label(L10n.text("Open history"), systemImage: "chevron.right")
                 }.buttonStyle(.borderless).font(.system(size: 12))
             }

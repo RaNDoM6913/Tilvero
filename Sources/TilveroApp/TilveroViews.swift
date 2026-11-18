@@ -61,21 +61,21 @@ struct BatteryInfoView: View {
     #endif
     private var presentedSection: InfoSection {
         #if TILVERO_LAB_STUDIO
-        studioCaptureRoute?.section ?? model.selectedSection
+        studioCaptureRoute?.section ?? model.navigation.section
         #else
-        model.selectedSection
+        model.navigation.section
         #endif
     }
     private var presentedSleepPage: SleepPage {
         #if TILVERO_LAB_STUDIO
-        studioCaptureRoute?.sleepPage ?? model.selectedSleepPage
+        studioCaptureRoute?.sleepPage ?? model.navigation.sleepPage
         #else
-        model.selectedSleepPage
+        model.navigation.sleepPage
         #endif
     }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var showingSetup: Bool {
-        presentedSection == .settings && model.canShowSetup && model.selectedSettingsPage == .setup
+        presentedSection == .settings && model.canShowSetup && model.navigation.settingsPage == .setup
     }
     @State private var search = ""
     @State private var showUnavailable = true
@@ -175,7 +175,7 @@ struct BatteryInfoView: View {
         let selected = presentedSection == item
         let needsAttention = item == .diagnostics && !model.isDemo
             && model.nativeCharge.presentation().requiresGlobalAttention
-        return Button { model.selectedSection = item } label: {
+        return Button { model.navigation.navigate(to: .section(item)) } label: {
             HStack(spacing: 9) {
                 Image(systemName: item.symbol).font(.system(size: 14)).frame(width: 18).accessibilityHidden(true)
                 StudioText(item.title, id: "sidebar.title." + item.rawValue).font(.system(size: 12)).lineLimit(2).fixedSize(horizontal: false, vertical: true)
@@ -211,7 +211,7 @@ struct BatteryInfoView: View {
                         Text(L10n.text("Pending") + " \(target)%").font(.system(size: 11)).foregroundStyle(.secondary)
                     }
                 }.frame(maxWidth: .infinity, alignment: .leading)
-                StudioActionButton(L10n.text("Details"), id: "native-attention.details") { model.selectedSection = .diagnostics }
+                StudioActionButton(L10n.text("Details"), id: "native-attention.details") { model.navigation.navigate(to: .section(.diagnostics)) }
             }.padding(10).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 9))
         }
     }
@@ -451,9 +451,9 @@ private struct SettingsPanel: View {
     }
     private var presentedSettingsPage: SettingsPage {
         #if TILVERO_LAB_STUDIO
-        let requested = studioCaptureRoute?.settingsPage ?? model.selectedSettingsPage
+        let requested = studioCaptureRoute?.settingsPage ?? model.navigation.settingsPage
         #else
-        let requested = model.selectedSettingsPage
+        let requested = model.navigation.settingsPage
         #endif
         return settingsPages.contains(requested) ? requested : .general
     }
@@ -461,7 +461,7 @@ private struct SettingsPanel: View {
         #if TILVERO_LAB_STUDIO
         if studioCaptureRoute != nil { return .constant(presentedSettingsPage) }
         #endif
-        return Binding(get: { presentedSettingsPage }, set: { model.selectedSettingsPage = $0 })
+        return Binding(get: { presentedSettingsPage }, set: { model.navigation.settingsPage = $0 })
     }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var confirmErase = false
@@ -562,8 +562,8 @@ private struct SettingsPanel: View {
                 }
             }
             KeyboardBacklightPanel(service: model.keyboardBacklight)
-            StudioActionButton(L10n.text("Sleep timer & Keep Awake…"), id: "action.sleep-timer-keep-awake") { model.selectedSleepPage = .awake; model.selectedSection = .sleep }
-            StudioActionButton(L10n.text("Customize quick panel…"), id: "action.customize-quick-panel") { model.selectedSettingsPage = .quickPanel }
+            StudioActionButton(L10n.text("Sleep timer & Keep Awake…"), id: "action.sleep-timer-keep-awake") { model.navigation.navigate(to: .sleep(.awake)) }
+            StudioActionButton(L10n.text("Customize quick panel…"), id: "action.customize-quick-panel") { model.navigation.settingsPage = .quickPanel }
         }.frame(maxWidth: 760, alignment: .leading)
     }
     private var historySettings: some View {

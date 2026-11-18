@@ -92,7 +92,7 @@ import SwiftUI
     private var continueButton: some View {
         Button(L10n.text("Continue monitoring")) {
             model.markSetupReviewed()
-            model.selectedSection = .overview
+            model.navigation.navigate(to: .section(.overview))
         }
         .buttonStyle(.borderedProminent)
         .accessibilityIdentifier("setup.continue")

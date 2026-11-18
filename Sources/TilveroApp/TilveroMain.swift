@@ -445,10 +445,9 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         #if TILVERO_LAB_STUDIO
         L10n.useStudioLanguage(model.language)
         #endif
-        model.openDetails = { [weak self] in self?.showDetails() }
+        model.navigation.presentDetails = { [weak self] in self?.showDetails() }
         sleepTimerWarning = SleepTimerWarningController(service: model.sleepTimer) { [weak self] in
-            guard let self else { return }
-            self.model.selectedSleepPage = .timer; self.model.selectedSection = .sleep; self.showDetails()
+            self?.model.navigation.open(.sleep(.timer))
         }
         model.onPresentationChange = { [weak self] in
             guard let self else { return }
@@ -519,7 +518,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
                 let alert = NSAlert(); alert.messageText = L10n.text("Recovery required")
                 alert.informativeText = model.terminationRecoveryMessage ?? L10n.text("Operation failed")
                 alert.runModal()
-                model.selectedSection = .diagnostics; showDetails()
+                model.navigation.open(.section(.diagnostics))
             }
             sender.reply(toApplicationShouldTerminate: restored)
         }
@@ -566,9 +565,9 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         model.objectWillChange.send() // Reformat the same absolute Until target after a zone change.
     }
     @objc private func reopenDetails() { showDetails() }
-    @objc private func openSettings() { model.selectedSection = .settings; showDetails() }
+    @objc private func openSettings() { model.navigation.open(.section(.settings)) }
     @objc private func checkForUpdates() {
-        model.selectedSection = .settings; model.selectedSettingsPage = .updates; showDetails()
+        model.navigation.open(.settings(.updates))
         if model.updateInstaller.isQualified { model.updateInstaller.checkForUpdates(channel: model.updates.channel) }
         Task { await model.updates.check() }
     }
@@ -711,7 +710,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
 
     private func showDetails() {
         // Setup presents and refreshes its own read-only facts.
-        let observeControls = model.selectedSection != .settings || model.selectedSettingsPage != .setup
+        let observeControls = model.navigation.section != .settings || model.navigation.settingsPage != .setup
         if observeControls { try? model.keepAwake.reconcile() }
         closePopover(reason: "details opened")
         if detailsWindow == nil {
@@ -839,7 +838,7 @@ extension TilveroAppDelegate: FirstRunHost {
         configureQuickPanel()
         if !popover.isShown && !activationGate.isWaiting { togglePopover() }
     }
-    func firstRunOpenDetails() { showDetails() }
+    func firstRunOpenDetails() { model.navigation.openDetails() }
     /// The ring shows whenever the quick menu is closed after the hand-off (the system dialog can take focus and close
     /// it at once). It goes away when the menu opens and stays open for a moment, or after five minutes.
     func firstRunPointAtIcon() {

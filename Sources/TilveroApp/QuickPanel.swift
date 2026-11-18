@@ -69,9 +69,7 @@ struct QuickPanel: View {
         VStack(alignment: .leading, spacing: studioPresentation.spacing(14)) {
             HStack {
                 StudioText(AppIdentity.displayName, id: "quick.brand").font(.headline).layoutPriority(1)
-                QuickUpdatePill(service: model.updates) {
-                    model.selectedSettingsPage = .updates; model.selectedSection = .settings; model.openDetails?()
-                }
+                QuickUpdatePill(service: model.updates) { model.navigation.open(.settings(.updates)) }
                 if model.isDemo { Text(L10n.text("Simulation")).font(.caption).foregroundStyle(.secondary) }
                 settingsMenu
             }
@@ -99,8 +97,7 @@ struct QuickPanel: View {
             }
             Divider()
             Button {
-                model.selectedSection = section == .awake ? .sleep : .history
-                model.openDetails?()
+                model.navigation.open(.section(section == .awake ? .sleep : .history))
             } label: {
                 HStack {
                     Label(L10n.text(section == .awake ? "Open Sleep & drain…" : "History & reports…"), systemImage: section == .awake ? "moon" : "chart.bar.xaxis")
@@ -129,7 +126,7 @@ struct QuickPanel: View {
             if model.sleepTimer.isActive { SleepTimerActiveRow(model: model, open: { section = .awake }); Divider() }
             // The Keep Awake block carries its own running session; the stop row only stands in while that block is hidden.
             if model.keepAwake.hasOwnedAssertion, model.overviewPreferences.hidden.contains(.keepAwake) { KeepAwakeActivePanel(service: model.keepAwake).id(model.language) }
-            OverviewMetricsPanel(model: model, allowsAwakeActions: true, openSleep: { model.selectedSleepPage = .awake; section = .awake })
+            OverviewMetricsPanel(model: model, allowsAwakeActions: true, openSleep: { model.navigation.sleepPage = .awake; section = .awake })
         }
     }
 
@@ -157,9 +154,9 @@ struct QuickPanel: View {
 
     private var settingsMenu: some View {
         Menu {
-            StudioActionButton(L10n.text("Settings"), id: "action.settings") { model.selectedSection = .settings; model.openDetails?() }
-            StudioActionButton(L10n.text("Customize quick panel…"), id: "action.customize-quick-panel") { model.selectedSettingsPage = .quickPanel; model.selectedSection = .settings; model.openDetails?() }
-            StudioActionButton(L10n.text("Keep Mac Awake…"), id: "action.keep-mac-awake") { model.selectedSleepPage = .awake; model.selectedSection = .sleep; model.openDetails?() }
+            StudioActionButton(L10n.text("Settings"), id: "action.settings") { model.navigation.open(.section(.settings)) }
+            StudioActionButton(L10n.text("Customize quick panel…"), id: "action.customize-quick-panel") { model.navigation.open(.settings(.quickPanel)) }
+            StudioActionButton(L10n.text("Keep Mac Awake…"), id: "action.keep-mac-awake") { model.navigation.open(.sleep(.awake)) }
             Picker(L10n.text("Menu bar"), selection: $model.displayStyle) {
                 ForEach(MenuBarDisplayStyle.allCases) { style in Text(style.title).tag(style) }
             }
@@ -263,8 +260,7 @@ struct ChargeLimitControl: View {
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 if isQuickPanel {
                     StudioActionButton(L10n.text("Control availability…"), id: "action.control-availability") {
-                        model.selectedSection = .diagnostics
-                        model.openDetails?()
+                        model.navigation.open(.section(.diagnostics))
                     }
                 }
             }

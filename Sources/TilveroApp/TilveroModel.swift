@@ -57,7 +57,7 @@ final class TilveroModel: ObservableObject {
         releaseInstallationExclusion: { [weak self] in self?.releaseUpdateInstallation() },
         diagnostics: { [weak self] in self?.openUpdateDiagnostics() })
 
-    func openUpdateDiagnostics() { selectedSection = .diagnostics; openDetails?() }
+    func openUpdateDiagnostics() { navigation.open(.section(.diagnostics)) }
 
     var updateReadiness: UpdateRecoverySnapshot {
         var result = UpdateRecoverySnapshot()
@@ -137,11 +137,25 @@ final class TilveroModel: ObservableObject {
     private let systemChargeLimitProvider: @Sendable (_ maximumAge: TimeInterval) async -> SystemChargeLimitObservation
     @Published private(set) var sleepReportError: String?
     @Published private(set) var isReadingSleepActivity = false
-    @Published var selectedSettingsPage: SettingsPage = .general
-    @Published var selectedSection: InfoSection = .overview { didSet {
-        preferences.set(selectedSection.rawValue, forKey: "lastSection")
-        if oldValue != selectedSection { processScanSurfacesChanged(); activityPageMayHaveAppeared() }
-    } }
+    /// The details window's page and the router every surface navigates with.
+    let navigation: AppNavigation
+    /// Conveniences over `navigation` (tests and the model's own checks); views and actions use `navigation` directly.
+    var selectedSection: InfoSection {
+        get { navigation.section }
+        set { navigation.navigate(to: .section(newValue)) }
+    }
+    var selectedSettingsPage: SettingsPage {
+        get { navigation.settingsPage }
+        set { navigation.settingsPage = newValue }
+    }
+    var selectedSleepPage: SleepPage {
+        get { navigation.sleepPage }
+        set { navigation.sleepPage = newValue }
+    }
+    var openDetails: (@MainActor () -> Void)? {
+        get { navigation.presentDetails }
+        set { navigation.presentDetails = newValue }
+    }
     @Published var overviewPreferences: OverviewPreferences { didSet {
         if let data = try? JSONEncoder().encode(overviewPreferences) { preferences.set(data, forKey: "overviewPreferences.v1") }
         processScanSurfacesChanged()
@@ -273,7 +287,6 @@ final class TilveroModel: ObservableObject {
     private var lidComfortSubscription: AnyCancellable?
     private var lidSleepSubscription: AnyCancellable?
     private var sleepTimerSubscription: AnyCancellable?
-    @Published var selectedSleepPage: SleepPage = .timer
     @Published var sleepTimerMinutes: String { didSet {
         if let value = SleepTimerInput.minutes(sleepTimerMinutes) { preferences.set(value, forKey: "sleepTimerMinutes") }
     } }
@@ -416,7 +429,6 @@ final class TilveroModel: ObservableObject {
         processScanSurfacesChanged()
         if isDetailVisible { activityPageMayHaveAppeared() }
     } }
-    var openDetails: (@MainActor () -> Void)?
     /// Settings > Setup: the administrator permissions (nil in demo, monitoring-only and test sessions).
     var privilegedPermissions: PrivilegedPermissionsController? { willSet { objectWillChange.send() } }
     var onPresentationChange: (@MainActor () -> Void)?
@@ -498,6 +510,7 @@ final class TilveroModel: ObservableObject {
         let processes = ProcessActivityProvider()   // one provider: it keeps process identities between scans
         self.processActivityProvider = processActivityProvider ?? { await processes.read() }
         self.preferences = preferences
+        navigation = AppNavigation(preferences: preferences)
         chargeOnce = ChargeOnceStore(preferences: preferences)
         chargeBy = ChargeByService(defaults: preferences, wake: isDemo || launchPolicy.monitoringOnly ? DisabledWakeScheduler() : NativeWakeScheduler())
         self.postWakeSettleSeconds = postWakeSettleSeconds
@@ -584,8 +597,10 @@ final class TilveroModel: ObservableObject {
             }
             catch { storeError = String(describing: error) }
         }
-        selectedSection = InfoSection(rawValue: preferences.string(forKey: "lastSection") ?? "") ?? .overview
         updateLoginStatus()
+        navigation.onSectionChange = { [weak self] _, _ in
+            self?.processScanSurfacesChanged(); self?.activityPageMayHaveAppeared()
+        }
         closedLid.bind(keepAwake)
         lidSleep.awakeIsActive = { [weak self] in self?.keepAwake.hasOwnedAssertion ?? false }
         lidSleep.bind(keepAwake)
@@ -1289,7 +1304,7 @@ final class TilveroModel: ObservableObject {
         guard await closedLid.prepareForTermination() else { return false }
         // A system-initiated logout or shutdown cannot wait: the recovery marker restores sleep at the next launch.
         if !(await lidSleep.prepareForTermination()) {
-            if !systemInitiated { selectedSleepPage = .awake; return false }
+            if !systemInitiated { navigation.sleepPage = .awake; return false }
         }
         await lidComfort.prepareForTermination()   // brightness and volume back, whether or not the override was on
         sleepAtCharge.stop(); keepAwakeUntilCharge.stop()   // release their awake holds before any termination or update install
@@ -1729,17 +1744,18 @@ final class TilveroModel: ObservableObject {
 
     private func showSetupRequirements(_ feature: SetupFeature) throws {
         guard canShowSetup else { throw SetupRuntimeError.actionUnavailable }
-        switch feature {
-        case .monitoring: selectedSection = .overview
-        case .nativeCharging: selectedSection = .charging
-        case .fans: selectedSection = .cooling
-        case .helperPowerModes, .keyboardBacklight: selectedSection = .diagnostics
-        case .keepAwake, .closedLid: selectedSleepPage = .awake; selectedSection = .sleep
-        case .sleepTimer: selectedSleepPage = .timer; selectedSection = .sleep
-        case .history: selectedSettingsPage = .history; selectedSection = .settings
-        case .launchAtLogin: selectedSettingsPage = .general; selectedSection = .settings
-        case .updateChecks, .updateInstallation: selectedSettingsPage = .updates; selectedSection = .settings
+        let destination: AppDestination = switch feature {
+        case .monitoring: .section(.overview)
+        case .nativeCharging: .section(.charging)
+        case .fans: .section(.cooling)
+        case .helperPowerModes, .keyboardBacklight: .section(.diagnostics)
+        case .keepAwake, .closedLid: .sleep(.awake)
+        case .sleepTimer: .sleep(.timer)
+        case .history: .settings(.history)
+        case .launchAtLogin: .settings(.general)
+        case .updateChecks, .updateInstallation: .settings(.updates)
         }
+        navigation.navigate(to: destination)
     }
 
     private func openSetupApprovalSettings(_ feature: SetupFeature) throws {
