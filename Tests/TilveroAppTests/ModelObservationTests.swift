@@ -45,6 +45,15 @@ private final class Flag: @unchecked Sendable { var fired = false }
         try model.keepAwake.stop()
     }
 
+    func testSubscribingToTheChangeSignalInsideABodyDoesNotObserveTheWholeModel() {
+        let model = TilveroModel(isDemo: true, preferences: makeTestDefaults("Observation").defaults)
+        defer { model.stop() }
+        var subscription: AnyCancellable?
+        XCTAssertFalse(fires({ subscription = model.changes.sink { } }, when: { model.draftText = "85" }),
+                       "A view that subscribes (Setup) must not re-render on every model change")
+        subscription?.cancel()
+    }
+
     func testTheChangeSignalCoversModelStateServicesNoticesAndNavigation() throws {
         let model = TilveroModel(isDemo: false, preferences: makeTestDefaults("Observation").defaults,
                                  snapshotProvider: { .unavailable(reason: "fixture") }, keepAwakeService: KeepAwakeService(driver: AwakeFixture()))

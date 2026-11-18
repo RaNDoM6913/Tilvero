@@ -175,16 +175,12 @@ final class TilveroModel {
     /// Fires just before any tracked model state, a bridged service, a notice or the navigation changes: what
     /// `objectWillChange` used to deliver. Only the popover host's safety-net fit and Setup's readiness refresh listen;
     /// views never do (they track exactly what they read).
-    var changes: AnyPublisher<Void, Never> {
-        if !tracksChanges { tracksChanges = true; trackChanges() }
-        return changeSignal.eraseToAnyPublisher()
-    }
+    var changes: AnyPublisher<Void, Never> { changeSignal.eraseToAnyPublisher() }
     /// Something outside the model changed what Setup or the quick panel derive from it (an installed permission): the
     /// change signal fires as if the model itself had changed.
     func notifyExternalChange() { externalChanges &+= 1 }
     private var externalChanges: UInt64 = 0
     @ObservationIgnored private let changeSignal = PassthroughSubject<Void, Never>()
-    @ObservationIgnored private var tracksChanges = false
     /// Every tracked stored property, plus the two preference-backed choices. `ModelObservationTests` checks it against
     /// the model's tracked storage, so a new property cannot silently escape the change signal.
     static let trackedKeyPaths: [PartialKeyPath<TilveroModel>] = [
@@ -202,6 +198,8 @@ final class TilveroModel {
         \.nativeChargeChanges, \.chargeOnceChanges, \.chargeByChanges, \.liveControlChanges,
         \.sleepAtChargeChoice, \.keepAwakeUntilChargeChoice
     ]
+    /// Started at the end of `init`, outside any view body: tracking that began inside a body would be merged into that
+    /// body's own dependencies.
     private func trackChanges() {
         withObservationTracking { [self] in
             for keyPath in Self.trackedKeyPaths { _ = self[keyPath: keyPath] }
@@ -781,6 +779,7 @@ final class TilveroModel {
         powerStateSubscription = NotificationCenter.default.publisher(for: .NSProcessInfoPowerStateDidChange)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in MainActor.assumeIsolated { self?.lowPowerModeDidChange() } }
+        trackChanges()
     }
     private func lowPowerModeDidChange() {
         let enabled = lowPowerModeReader()
