@@ -110,13 +110,11 @@ struct QuickPanel: View {
     }
 
     private var contextualNotice: String? {
-        guard let notice = model.notice else { return nil }
-        // The native charge status is the Charge page's own business (QuickNativeChargePanel prints it); it must neither
-        // repeat there nor leak onto the Sleep and other tabs.
-        if model.noticeIsNativeChargeStatus { return nil }
+        // The native charge page prints its own lines (QuickNativeChargePanel), and the native status copy belongs to it:
+        // it must neither repeat there nor leak onto the Sleep and other tabs. The simulation's confirmation stays out of
+        // the quick menu (its header already says Simulation).
         if section == .charge, model.usesNativeCharge { return nil }
-        if model.isDemo, notice == L10n.text("Simulation only — your Mac settings are unchanged.") { return nil }
-        return notice
+        return model.notices.current(excluding: model.isDemo ? [.chargeStatus, .simulation] : [.chargeStatus])?.text
     }
 
     private var overview: some View {

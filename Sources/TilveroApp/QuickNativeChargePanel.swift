@@ -170,7 +170,7 @@ import ChargeBackends
                 .foregroundStyle(state.requiresGlobalAttention ? .orange : .secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        if let message = model.notice, model.notice != model.nativeCharge.message.map(L10n.text) {
+        if let message = model.notices.current(excluding: [.chargeStatus])?.text, message != model.nativeCharge.message.map(L10n.text) {
             Text(message).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
         }
     }

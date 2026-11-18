@@ -103,7 +103,10 @@ final class TilveroModel: ObservableObject {
     @Published private(set) var snapshot: BatterySnapshot
     @Published private(set) var control: SimulationControlSnapshot?
     @Published var draftText = ""
-    @Published private(set) var notice: String?
+    /// Every feature's notices, one slot per source (`NoticeCenter`).
+    let notices = NoticeCenter()
+    /// The newest notice of any source (tests and simple checks); surfaces filter with `notices.current(excluding:)`.
+    var notice: String? { notices.current()?.text }
     @Published private(set) var isApplying = false
     @Published private(set) var storeError: String?
     @Published private(set) var history: [HistorySample] = [] { didSet { seriesCacheKey = nil } }
@@ -324,18 +327,12 @@ final class TilveroModel: ObservableObject {
     }
     private var awakeSubscription: AnyCancellable?
     private var awakeMessageSubscription: AnyCancellable?
-    private var lastAwakeFailureNotice: String?
-    /// The native-charge status line last copied into `notice`; it is dropped once the service reports something newer.
-    private var lastNativeMirroredNotice: String?
-    /// True while `notice` is only a copy of the native charge status line (for example the pending lower limit).
+    /// True while the newest notice is only a copy of the native charge status line (for example the pending lower limit).
     /// It belongs to the Charge page; other quick-menu tabs must not print it.
-    var noticeIsNativeChargeStatus: Bool { notice != nil && notice == lastNativeMirroredNotice }
+    var noticeIsNativeChargeStatus: Bool { notices.current()?.source == .chargeStatus }
     /// An action's notice describes the page it was raised on. Leaving that page drops it, so it never trails the user
     /// onto an unrelated tab. A Keep Awake failure is the exception: it stays visible on every tab until it is resolved.
-    func dismissActionNotice() {
-        guard let notice, notice != lastAwakeFailureNotice else { return }
-        self.notice = nil; lastNativeMirroredNotice = nil
-    }
+    func dismissActionNotice() { notices.clearPageNotices() }
     @Published var keepAwakeDraft: KeepAwakeDraft { didSet {
         if case .duration(let duration) = keepAwakeDraft {
             preferences.set(duration.rawValue, forKey: "keepAwakeMinutes")
@@ -589,7 +586,7 @@ final class TilveroModel: ObservableObject {
         if let data = preferences.data(forKey: isDemo ? "demoArbiter" : "arbiter"), let saved = try? JSONDecoder().decode(ProfileArbiter.self, from: data) { arbiter = saved }
         if isDemo {
             do { simulator = try SimulationController(savedState: preferences.data(forKey: "simulationState")) }
-            catch { notice = L10n.text("Operation failed"); simulator = try? SimulationController() }
+            catch { notices.post(L10n.text("Operation failed"), from: .control); simulator = try? SimulationController() }
         } else {
             do {
                 let url = try historyURL ?? ReleaseIdentity.current().historyURL()
@@ -653,19 +650,17 @@ final class TilveroModel: ObservableObject {
             guard let self else { return }
             // Safe cleanup removes the pinned session. Keep its failure visible on every tab.
             let endedFailure = self.keepAwake.hasOwnedAssertion ? nil : message.map(L10n.text)
-            if let endedFailure { self.notice = endedFailure }
-            else if self.notice == self.lastAwakeFailureNotice { self.notice = nil }
-            self.lastAwakeFailureNotice = endedFailure
+            if let endedFailure { self.notices.post(endedFailure, from: .keepAwake) }
+            else { self.notices.clear(.keepAwake) }
         }
         nativeSubscription = self.nativeCharge.objectWillChange.sink { [weak self] in
             self?.objectWillChange.send()
         }
         nativeMessageSubscription = self.nativeCharge.$message.dropFirst().sink { [weak self] _ in
             guard let self else { return }
-            // The pending lower-limit line was copied into `notice` when the user released the slider. When the battery later
-            // discharges and the service applies the limit on its own, that copy would otherwise outlive the state it described.
-            if self.notice == self.lastNativeMirroredNotice { self.notice = nil }
-            self.lastNativeMirroredNotice = nil
+            // The pending lower-limit line was copied into the notices when the user released the slider. When the battery
+            // later discharges and the service applies the limit on its own, that copy would otherwise outlive the state it described.
+            self.notices.clear(.chargeStatus)
         }
         liveSubscription = self.liveControl.objectWillChange.sink { [weak self] in
             self?.objectWillChange.send()
@@ -912,6 +907,7 @@ final class TilveroModel: ObservableObject {
         liveTimer?.invalidate(); liveTimer = nil
         live.clear()
         updates.stop()
+        notices.cancelExpiries()
         sleepTimer.stop()
         sleepAtCharge.stop(); keepAwakeUntilCharge.stop()
         processMonitorStopped = true; processRevision &+= 1; processSampler.reset(); processActivity = nil
@@ -946,7 +942,7 @@ final class TilveroModel: ObservableObject {
             if !isDemo && historyEnabled {
                 saveSleepChanges(sleepTracker.accept(.willSleep(stamp: sleepStamp(), latestEndpoint: lastRawSleepEndpoint)))
             }
-            if !isDemo { Task { if !(await liveControl.prepareForSleep()) { notice = L10n.text("Recovery required") } } }
+            if !isDemo { Task { if !(await liveControl.prepareForSleep()) { notices.post(L10n.text("Recovery required"), from: .recovery) } } }
             let sleptAt = Date()
             historyWork { [weak self] store in
                 do { try await store.markGap(reason: .sleep, at: sleptAt) } catch { self?.storeError = String(describing: error) }
@@ -1122,11 +1118,11 @@ final class TilveroModel: ObservableObject {
     }
     func setDraft(_ target: Int) {
         guard canEdit, acceptedTargets.contains(target) else { return }
-        draftText = String(target); draftDirty = true; notice = nil
+        draftText = String(target); draftDirty = true; notices.clearPageNotices()
     }
     func typedDraftChanged() { draftDirty = true }
     @discardableResult func validateTypedDraft() -> Bool {
-        guard let value = draftTarget else { notice = L10n.text("Unsupported percentage. Choose an available step."); return false }
+        guard let value = draftTarget else { notices.post(L10n.text("Unsupported percentage. Choose an available step."), from: .control); return false }
         draftText = String(value); return true
     }
     func setMenuBarIconScale(_ value: Double) {
@@ -1261,18 +1257,12 @@ final class TilveroModel: ObservableObject {
                 if !nativeCharge.isBusy { await nativeCharge.refresh() }
                 // The confirmation is the slider and its readout, so only the explanation of a waiting target is kept (it goes
                 // when the target is applied or cancelled). Other service messages are not copied onto the page.
-                discardDraft(); notice = nativeCharge.pendingTarget != nil ? nativeCharge.message.map(L10n.text) : nil; lastNativeMirroredNotice = notice
-            } catch { showTransientNotice(L10n.text(error.localizedDescription)) }
-        }
-    }
-    private var noticeExpiry: Task<Void, Never>?
-    /// A failure line that goes away on its own, so a one-off refusal never stays on the Charge page.
-    private func showTransientNotice(_ text: String, seconds: Double = 6) {
-        notice = text; noticeExpiry?.cancel()
-        noticeExpiry = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(seconds))
-            guard !Task.isCancelled, let self, self.notice == text else { return }
-            self.notice = nil
+                discardDraft(); notices.clearPageNotices()
+                if nativeCharge.pendingTarget != nil, let message = nativeCharge.message { notices.post(L10n.text(message), from: .chargeStatus) }
+            } catch {
+                // A failure line that goes away on its own, so a one-off refusal never stays on the Charge page.
+                notices.post(L10n.text(error.localizedDescription), from: .control, expiresAfter: .seconds(6))
+            }
         }
     }
     private func runSimulation(_ action: @escaping @Sendable (SimulationController) async throws -> Void) {
@@ -1280,8 +1270,8 @@ final class TilveroModel: ObservableObject {
         isApplying = true; arbiter.recordManualAction(at: Date()); persistArbiter()
         Task {
             defer { isApplying = false }
-            do { try await action(simulator); draftDirty = false; await refreshSimulation(); notice = L10n.text("Simulation only — your Mac settings are unchanged.") }
-            catch { notice = L10n.text("Operation failed") + ": " + String(describing: error) }
+            do { try await action(simulator); draftDirty = false; await refreshSimulation(); notices.post(L10n.text("Simulation only — your Mac settings are unchanged."), from: .simulation) }
+            catch { notices.post(L10n.text("Operation failed") + ": " + String(describing: error), from: .control) }
         }
     }
     private func runLive(_ action: @escaping @MainActor (LiveControlService) async throws -> Void) {
@@ -1289,9 +1279,14 @@ final class TilveroModel: ObservableObject {
         isApplying = true; arbiter.recordManualAction(at: Date()); persistArbiter()
         Task {
             defer { isApplying = false }
-            do { try await action(liveControl); draftDirty = false; discardDraft(); notice = liveControl.message }
-            catch { notice = L10n.text("Operation failed") + ": " + error.localizedDescription }
+            do { try await action(liveControl); draftDirty = false; discardDraft(); postControlResult(liveControl.message) }
+            catch { notices.post(L10n.text("Operation failed") + ": " + error.localizedDescription, from: .control) }
         }
+    }
+    /// A helper or schedule result: its message replaces the earlier notices, and no message clears them (as the single
+    /// notice line used to).
+    private func postControlResult(_ message: String?) {
+        if let message { notices.post(message, from: .control) } else { notices.clearPageNotices() }
     }
     func setFanPolicy(_ policy: FanPolicy) {
         if isDemo { runSimulation { try await $0.setFanPolicy(policy) } }
@@ -1323,7 +1318,7 @@ final class TilveroModel: ObservableObject {
                 let restored = try await nativeCharge.restore(batteryPercent: snapshot.chargePercent.value,
                     batteryFresh: snapshot.chargePercent.availability == .available && snapshot.chargePercent.freshness == .fresh)
                 return helperRestored && restored
-            } catch { notice = L10n.text(error.localizedDescription); return false }
+            } catch { notices.post(L10n.text(error.localizedDescription), from: .recovery); return false }
         }
         return helperRestored
     }
@@ -1342,7 +1337,7 @@ final class TilveroModel: ObservableObject {
     }
     func applyMode(_ mode: WorkMode) async {
         guard !controlsAreSuspended, !isApplying, !nativeCharge.isBusy, !nativeCharge.isQualifying, !liveControl.isBusy else { return }
-        notice = nil
+        notices.clearPageNotices()
         let plan = modeLibrary.plan(mode)
         var rows = modePreview(plan)
         guard rows.contains(where: { $0.status == .available }) else {
@@ -1395,7 +1390,7 @@ final class TilveroModel: ObservableObject {
         let profile = PowerProfile(name: name, chargeTarget: name == "At desk" ? 80 : nil, mode: name == "On battery profile" ? .low : .automatic)
         if name == "Before leaving" { perform(.chargeToFullOnce); return }
         if !isDemo {
-            guard let external = snapshot.isExternalPower.value, snapshot.isExternalPower.freshness != .stale else { notice = L10n.text("Power source unavailable"); return }
+            guard let external = snapshot.isExternalPower.value, snapshot.isExternalPower.freshness != .stale else { notices.post(L10n.text("Power source unavailable"), from: .control); return }
             runLive { service in
                 let result = await service.applyProfile(profile, source: external ? .adapter : .battery)
                 if !result.isComplete { throw ControlUnavailableError(reason: String(describing: result)) }
@@ -1425,14 +1420,14 @@ final class TilveroModel: ObservableObject {
             let replacements: [(String, CatalogValue)] = [("011", .integer(Int64(demoPercent))), ("013", .boolean(demoExternal && demoPercent < 100)), ("015", .boolean(demoExternal))]
             snapshot = snapshot.replacingCatalog(replacements.map { CatalogReading(definition: BatteryCatalog.definition($0.0), value: $0.1, source: "Simulation", provenance: .reported, freshness: .fresh) })
             if !draftDirty { discardDraft() }
-        } catch { notice = L10n.text("Operation failed") + ": " + String(describing: error) }
+        } catch { notices.post(L10n.text("Operation failed") + ": " + String(describing: error), from: .control) }
         onPresentationChange?()
     }
     func saveSchedule() {
         do {
             schedule = try ScheduleRule(fireDate: scheduleDate, profile: PowerProfile(name: scheduleProfileName, chargeTarget: scheduleProfileName == "At desk" ? 80 : nil, mode: scheduleProfileName == "On battery profile" ? .low : .automatic, oneShotFullCharge: scheduleProfileName == "Before leaving"), missedPolicy: .skip)
             preferences.set(try JSONEncoder().encode(schedule), forKey: isDemo ? "demoSchedule" : "schedule")
-        } catch { notice = String(describing: error) }
+        } catch { notices.post(String(describing: error), from: .control) }
     }
     func removeSchedule() { schedule = nil; preferences.removeObject(forKey: isDemo ? "demoSchedule" : "schedule") }
     private func evaluateSchedule() async {
@@ -1441,14 +1436,15 @@ final class TilveroModel: ObservableObject {
         guard let schedule, let profile = arbiter.evaluate(schedule, now: Date()) else { return }
         persistArbiter()
         if !isDemo {
-            guard let external = snapshot.isExternalPower.value, snapshot.isExternalPower.freshness != .stale else { notice = L10n.text("Power source unavailable"); return }
+            guard let external = snapshot.isExternalPower.value, snapshot.isExternalPower.freshness != .stale else { notices.post(L10n.text("Power source unavailable"), from: .control); return }
             let result = await liveControl.applyProfile(profile, source: external ? .adapter : .battery)
-            notice = result.isComplete ? liveControl.message : L10n.text("Operation failed")
+            postControlResult(result.isComplete ? liveControl.message : L10n.text("Operation failed"))
             return
         }
         guard let simulator else { return }
         let result = await simulator.applyProfile(profile)
-        notice = result.isComplete ? L10n.text("Simulation only — your Mac settings are unchanged.") : L10n.text("Operation failed")
+        if result.isComplete { notices.post(L10n.text("Simulation only — your Mac settings are unchanged."), from: .simulation) }
+        else { notices.post(L10n.text("Operation failed"), from: .control) }
         await refreshSimulation()
     }
     private func persistArbiter() { if let data = try? JSONEncoder().encode(arbiter) { preferences.set(data, forKey: isDemo ? "demoArbiter" : "arbiter") } }
@@ -1666,13 +1662,13 @@ final class TilveroModel: ObservableObject {
     }
     func prepareExport(diagnostics: Bool = false, csv: Bool = false) {
         if diagnostics {
-            do { presentExport(try DoctorReport(snapshot: snapshot).encodedJSON(), csv: false) } catch { notice = String(describing: error) }
+            do { presentExport(try DoctorReport(snapshot: snapshot).encodedJSON(), csv: false) } catch { notices.post(String(describing: error), from: .data) }
             return
         }
         // Decoding every stored payload happens on the store's queue, not here.
         historyWork { [weak self] store in
             do { self?.presentExport(try await csv ? store.exportCSV() : store.exportJSON(), csv: csv) }
-            catch { self?.notice = String(describing: error) }
+            catch { self?.notices.post(String(describing: error), from: .data) }
         }
     }
     private func presentExport(_ data: Data, csv: Bool) {
@@ -1684,8 +1680,8 @@ final class TilveroModel: ObservableObject {
         let panel = NSSavePanel(); panel.allowedContentTypes = [exportType]
         panel.nameFieldStringValue = "Tilvero-\(isDemo ? "SIMULATION-" : "")\(Date().formatted(.iso8601.year().month().day()))" + (exportType == .json ? ".json" : ".csv")
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        do { try data.write(to: url, options: .atomic); exportPreview = nil; notice = L10n.text("Export saved") }
-        catch { notice = String(describing: error) }
+        do { try data.write(to: url, options: .atomic); exportPreview = nil; notices.post(L10n.text("Export saved"), from: .data) }
+        catch { notices.post(String(describing: error), from: .data) }
     }
     func updateLoginStatus() {
         loginStatus = sideEffects.loginStatus()
@@ -1783,7 +1779,7 @@ final class TilveroModel: ObservableObject {
         do {
             try sideEffects.toggleLogin()
             updateLoginStatus()
-        } catch { notice = String(describing: error); updateLoginStatus() }
+        } catch { notices.post(String(describing: error), from: .data); updateLoginStatus() }
     }
     func openBatterySettings() { sideEffects.openBatterySettings() }
 }
