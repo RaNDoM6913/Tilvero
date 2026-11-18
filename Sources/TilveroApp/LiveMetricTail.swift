@@ -111,3 +111,12 @@ enum LiveChartMerge {
         return result
     }
 }
+
+extension View {
+    /// Live (about 1 Hz) chart data while this view is shown on `surface`: it subscribes on appear and unsubscribes on
+    /// disappear; the model counts it only while that surface is on screen.
+    func liveCharts(_ model: TilveroModel, surface: TilveroModel.LiveSurface) -> some View {
+        onAppear { model.retainLiveCharts(surface) }.onDisappear { model.releaseLiveCharts(surface) }
+    }
+}
+

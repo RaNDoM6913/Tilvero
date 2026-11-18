@@ -509,6 +509,7 @@ final class TilveroModel {
         guard isDetailVisible != oldValue else { return }
         processScanSurfacesChanged()
         if isDetailVisible { activityPageMayHaveAppeared() }
+        updateLiveCharts()
     } }
     /// Settings > Setup: the administrator permissions (nil in demo, monitoring-only and test sessions).
     var privilegedPermissions: PrivilegedPermissionsController?
@@ -781,9 +782,33 @@ final class TilveroModel {
         let end = max(snapshot.collectedAt, min(live.tail.latest ?? snapshot.collectedAt, Date().addingTimeInterval(5)))
         return end.addingTimeInterval(-3600)...end
     }
-    // MARK: Live charts (about 1 Hz while the quick menu is open on Overview; in memory only)
+    // MARK: Live charts (about 1 Hz while a live chart is on screen; in memory only)
     /// Observed only by the chart views (`LiveRefresh`), never by the model's own subscribers.
     let live = LiveMetricStore()
+    /// Surfaces that show live charts. The popover's Overview subscribes while the quick panel reports that page
+    /// (`quickPanelSection`), as it always did; the details window's charts subscribe with `.liveCharts(_:surface:)`.
+    enum LiveSurface: Hashable, Sendable { case popoverOverview, windowOverview }
+    /// Charts on screen per window surface (reference counted: each subscribing view retains once while it is shown).
+    @ObservationIgnored private var liveSubscribers: [LiveSurface: Int] = [:]
+    /// A view with live charts appeared on `surface`.
+    func retainLiveCharts(_ surface: LiveSurface) {
+        liveSubscribers[surface, default: 0] += 1
+        updateLiveCharts()
+    }
+    /// A view with live charts on `surface` disappeared.
+    func releaseLiveCharts(_ surface: LiveSurface) {
+        guard let count = liveSubscribers[surface] else { return }
+        liveSubscribers[surface] = count > 1 ? count - 1 : nil
+        updateLiveCharts()
+    }
+    /// Surfaces with a live chart that is actually visible: the popover shown on Overview, the details window on screen
+    /// (a hidden, covered or closed window keeps its views but reads nothing).
+    var visibleLiveSurfaces: Set<LiveSurface> {
+        var surfaces: Set<LiveSurface> = []
+        if isPopoverVisible && quickPanelSection == .overview { surfaces.insert(.popoverOverview) }
+        if isDetailVisible && (liveSubscribers[.windowOverview] ?? 0) > 0 { surfaces.insert(.windowOverview) }
+        return surfaces
+    }
     @ObservationIgnored private var liveTimer: Timer?
     @ObservationIgnored private var liveReading = false
     @ObservationIgnored private var smcReader: SMCSensorReader?
@@ -791,7 +816,8 @@ final class TilveroModel {
     @ObservationIgnored private var lastWakeAt: Date?
     /// Seconds between live points (the SMC sensors change about once a second).
     static let liveInterval: TimeInterval = 1
-    var wantsLiveCharts: Bool { !isDemo && isPopoverVisible && quickPanelSection == .overview && !sleeping }
+    /// The sampler runs while at least one live chart is visible and the Mac is awake (never in the simulation).
+    var wantsLiveCharts: Bool { !isDemo && !sleeping && !visibleLiveSurfaces.isEmpty }
     func updateLiveCharts() {
         if wantsLiveCharts {
             guard liveTimer == nil else { return }
