@@ -11,8 +11,8 @@ import AppKit
     /// Schedules the wake and reads it back from `pmset -g sched`. Returns the exact date string the entry was made
     /// with (keep it: cancelling needs the same string even after a time-zone or DST change); nil when it is not there.
     func schedule(_ date: Date) async -> String?
-    /// Removes the entry made with `stamp` (idempotent: an entry that is not there counts as removed). A nil stamp is
-    /// a plan saved before stamps were kept: the date is then formatted in the current time zone.
+    /// Removes the entry made with `stamp` (idempotent: an entry that is not there counts as removed). A nil or malformed
+    /// stamp (a plan saved before stamps were kept) falls back to formatting the date in the current time zone.
     func cancel(_ date: Date, stamp: String?) async -> Bool
     /// Administrator prompt that installs the permission (one rule, two narrow commands).
     func installPermission() async -> Bool
@@ -39,6 +39,18 @@ import AppKit
         formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.timeZone = timeZone
         formatter.dateFormat = "MM/dd/yyyy HH:mm:ss"
         return formatter.string(from: date)
+    }
+    /// Exactly the shape `pmsetDate` makes (MM/dd/yyyy HH:mm:ss, ASCII digits) and a real calendar date. A stored stamp
+    /// is checked with this before it can reach `sudo -n pmset schedule cancel wake`.
+    static func isValidStamp(_ stamp: String) -> Bool {
+        let shape = Array("00/00/0000 00:00:00".utf8), bytes = Array(stamp.utf8)
+        guard bytes.count == shape.count, zip(bytes, shape).allSatisfy({ byte, pattern in
+            pattern == UInt8(ascii: "0") ? (UInt8(ascii: "0")...UInt8(ascii: "9")).contains(byte) : byte == pattern
+        }) else { return false }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.timeZone = TimeZone(identifier: "UTC")
+        formatter.dateFormat = "MM/dd/yyyy HH:mm:ss"; formatter.isLenient = false
+        return formatter.date(from: stamp).map { formatter.string(from: $0) == stamp } ?? false
     }
     static func scheduleArguments(stamp: String) -> [String] {
         ["-n", "/usr/bin/pmset", "schedule", "wake", stamp, owner]
@@ -68,7 +80,7 @@ import AppKit
     }
     func cancel(_ date: Date, stamp: String?) async -> Bool {
         guard isPermitted else { return false }
-        let stamp = stamp ?? Self.pmsetDate(date, timeZone: timeZone())
+        let stamp = stamp.flatMap { Self.isValidStamp($0) ? $0 : nil } ?? Self.pmsetDate(date, timeZone: timeZone())
         _ = await run("/usr/bin/sudo", Self.cancelArguments(stamp: stamp))
         let listed = await run("/usr/bin/pmset", ["-g", "sched"])
         return listed.status == 0 && !Self.schedulePresent(listed.output, stamp: stamp)

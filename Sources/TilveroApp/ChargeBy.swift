@@ -119,8 +119,11 @@ struct ChargeByObservation: Equatable {
 
     init(defaults: UserDefaults, wake: any WakeScheduling, holder: any ActivityHolding = ProcessActivityHolder(), now: @escaping @MainActor () -> Date = { Date() }) {
         self.defaults = defaults; self.wake = wake; self.holder = holder; self.now = now
-        if let data = defaults.data(forKey: Self.key), let saved = try? JSONDecoder().decode(ChargeByPlanState.self, from: data),
+        if let data = defaults.data(forKey: Self.key), var saved = try? JSONDecoder().decode(ChargeByPlanState.self, from: data),
            NativeChargeAdmission.persistentTargets.contains(saved.target), NativeChargeAdmission.persistentTargets.contains(saved.previousLimit) {
+            // A stamp goes to `sudo -n pmset schedule cancel wake` verbatim: anything but the exact shape is dropped, and the
+            // cancel then falls back to formatting `wakeAt` (as for plans saved before stamps were kept).
+            if let stamp = saved.wakeStamp, !NativeWakeScheduler.isValidStamp(stamp) { saved.wakeStamp = nil }
             state = saved
         }
     }

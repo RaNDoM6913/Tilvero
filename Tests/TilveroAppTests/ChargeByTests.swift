@@ -65,7 +65,7 @@ import PowerCore
     @MainActor final class Wake: WakeScheduling {
         var permitted = true; var scheduled: [Date] = []; var cancelled: [Date] = []; var cancelledStamps: [String?] = []; var scheduleOK = true
         var isPermitted: Bool { permitted }
-        static func stamp(_ date: Date) -> String { "stamp-\(Int(date.timeIntervalSince1970))" }
+        static func stamp(_ date: Date) -> String { NativeWakeScheduler.pmsetDate(date, timeZone: TimeZone(identifier: "UTC")!) }
         func schedule(_ date: Date) async -> String? { guard scheduleOK else { return nil }; scheduled.append(date); return Self.stamp(date) }
         func cancel(_ date: Date, stamp: String?) async -> Bool { cancelled.append(date); cancelledStamps.append(stamp); return true }
         func installPermission() async -> Bool { permitted = true; return true }
@@ -264,6 +264,30 @@ import PowerCore
         let denied = NativeWakeScheduler(run: { path, arguments in await pmset.run(path, arguments) }, timeZone: { utc }, permitted: { false })
         let deniedStamp = await denied.schedule(date)
         XCTAssertNil(deniedStamp, "No permission, no command")
+    }
+
+    func testAStoredStampMustHaveTheExactPmsetShapeBeforeItIsUsed() async throws {
+        for valid in ["01/15/2027 08:00:00", "12/31/2026 23:59:59"] { XCTAssertTrue(NativeWakeScheduler.isValidStamp(valid), valid) }
+        for invalid in ["", "1/15/2027 08:00:00", "01/15/2027 08:00:00 ", "01/15/2027 08:00:00; reboot", "13/15/2027 08:00:00",
+                        "02/30/2027 08:00:00", "01/15/2027 24:00:00", "01-15-2027 08:00:00", "０1/15/2027 08:00:00", "01/15/2027T08:00:00"] {
+            XCTAssertFalse(NativeWakeScheduler.isValidStamp(invalid), invalid)
+        }
+        let defaults = makeTestDefaults("ChargeByStamp").defaults
+        func load(_ stamp: String) throws -> ChargeByPlanState? {
+            let json = #"{"deadline":1000,"target":100,"previousLimit":80,"phase":"armed","startAt":500,"wakeAt":440,"wakeStamp":"\#(stamp)"}"#
+            defaults.set(Data(json.utf8), forKey: "chargeByPlan.v1")
+            return ChargeByService(defaults: defaults, wake: Wake()).state
+        }
+        XCTAssertEqual(try load("01/15/2027 08:00:00")?.wakeStamp, "01/15/2027 08:00:00")
+        let tampered = try XCTUnwrap(try load("01/15/2027 08:00:00 -a"))
+        XCTAssertNil(tampered.wakeStamp, "A malformed stamp never reaches sudo")
+        XCTAssertNotNil(tampered.wakeAt, "The wake itself is kept; its cancel falls back to the formatted date")
+        let pmset = FakeWakeSchedule(), utc = TimeZone(identifier: "UTC")!
+        let scheduler = NativeWakeScheduler(run: { path, arguments in await pmset.run(path, arguments) }, timeZone: { utc }, permitted: { true })
+        let date = Date(timeIntervalSince1970: 1_800_000_000)
+        _ = await scheduler.cancel(date, stamp: "01/15/2027 08:00:00 -a")
+        let commands = await pmset.commands
+        XCTAssertEqual(commands.first, ["-n", "/usr/bin/pmset", "schedule", "cancel", "wake", "01/15/2027 08:00:00", "Tilvero"])
     }
 
     func testArmedPlanKeepsTheStampAndEveryCancelUsesIt() async throws {
