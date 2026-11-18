@@ -186,6 +186,34 @@ import PowerCore
         XCTAssertFalse(armed147)
         XCTAssertNil(service.state)
     }
+    func testTickerRunsTheTimerOnlyWhileAPlanExists() async throws {
+        let env = Env(), wake = Wake()
+        let (service, defaults, _) = makeService(env: env, wake: wake) { self.now }
+        let ticker = ChargeByTicker(service: service)
+        ticker.start()
+        XCTAssertFalse(ticker.isTimerRunning, "No plan, no periodic tick")
+        let armed = await service.arm(deadline: now.addingTimeInterval(8 * 3600), target: 100)
+        XCTAssertTrue(armed)
+        XCTAssertTrue(ticker.isTimerRunning, "Arming starts the tick")
+        await service.cancel()
+        XCTAssertNil(service.state)
+        XCTAssertFalse(ticker.isTimerRunning, "Cancelling stops it")
+        let rearmed = await service.arm(deadline: now.addingTimeInterval(8 * 3600), target: 100)
+        XCTAssertTrue(rearmed)
+        ticker.stop()
+        XCTAssertFalse(ticker.isTimerRunning)
+        // A plan saved by an earlier run: the timer starts with the ticker, and the launch tick acts on a due plan.
+        let restored = ChargeByService(defaults: defaults, wake: wake, holder: Holder(), now: { self.now.addingTimeInterval(9 * 3600) })
+        restored.environment = env
+        XCTAssertNotNil(restored.state)
+        let relaunched = ChargeByTicker(service: restored)
+        relaunched.start()
+        XCTAssertTrue(relaunched.isTimerRunning)
+        for _ in 0..<50 where restored.state != nil { await Task.yield() }
+        XCTAssertNil(restored.state, "The launch tick ran: past the deadline and the hold, the plan was dropped")
+        XCTAssertFalse(relaunched.isTimerRunning, "A finished plan stops the tick")
+        relaunched.stop()
+    }
     func testWakeCommandsAreExactlyScheduleAndCancelOfOneWake() {
         let utc = TimeZone(identifier: "UTC")!
         let date = Date(timeIntervalSince1970: 1_800_000_000)

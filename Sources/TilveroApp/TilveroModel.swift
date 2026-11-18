@@ -383,7 +383,7 @@ final class TilveroModel: ObservableObject {
     let nativeCharge: NativeChargeService
     let chargeOnce: ChargeOnceStore
     let chargeBy: ChargeByService
-    private var chargeByTimer: Timer?
+    private var chargeByTicker: ChargeByTicker?
     private var chargeByEnvironment: ModelChargeByEnvironment?
     let keyboardBacklight: KeyboardBacklightService
     private var nativeSubscription: AnyCancellable?
@@ -836,10 +836,9 @@ final class TilveroModel: ObservableObject {
         if !isDemo {
             let environment = ModelChargeByEnvironment(model: self)
             chargeByEnvironment = environment; chargeBy.environment = environment
-            // A plan resumes after a relaunch, and a wake (scheduled or not) is noticed within seconds.
-            Task { @MainActor in await chargeBy.tick() }
-            let timer = Timer(timeInterval: 20, repeats: true) { [weak self] _ in Task { @MainActor in await self?.chargeBy.tick() } }
-            RunLoop.main.add(timer, forMode: .common); chargeByTimer = timer
+            // A plan resumes after a relaunch (one tick now), the 20 s tick runs only while a plan exists, and a wake
+            // (scheduled or not) ticks through `setSleeping`.
+            let ticker = ChargeByTicker(service: chargeBy); chargeByTicker = ticker; ticker.start()
         }
         if !isDemo { Task { await lidSleep.recoverIfNeeded(); await lidComfort.recoverIfNeeded() } }
         if !isDemo { Task { await liveControl.start() }; observer.start { [weak self] in Task { await self?.refresh() } } }
@@ -860,7 +859,7 @@ final class TilveroModel: ObservableObject {
         }
     }
     func stop() {
-        chargeByTimer?.invalidate(); chargeByTimer = nil
+        chargeByTicker?.stop(); chargeByTicker = nil
         liveTimer?.invalidate(); liveTimer = nil
         live.clear()
         updates.stop()

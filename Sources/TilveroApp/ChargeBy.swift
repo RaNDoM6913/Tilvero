@@ -263,3 +263,36 @@ struct ChargeByObservation: Equatable {
         if let state, let data = try? JSONEncoder().encode(state) { defaults.set(data, forKey: Self.key) }
     }
 }
+
+/// The plan's periodic tick: once when started (a plan resumes after a relaunch), then every 20 s only while a plan
+/// exists, started and stopped as plans are armed, cancelled or finished. Sleep and wake tick through the service's
+/// own `systemWillSleep`/`systemDidWake`.
+@MainActor final class ChargeByTicker {
+    private let service: ChargeByService
+    private let interval: TimeInterval
+    private var timer: Timer?
+    private var subscription: AnyCancellable?
+    var isTimerRunning: Bool { timer != nil }
+
+    init(service: ChargeByService, interval: TimeInterval = 20) { self.service = service; self.interval = interval }
+
+    func start() {
+        guard subscription == nil else { return }
+        let service = service
+        Task { @MainActor in await service.tick() }
+        // `$state` delivers the current value at once, so a plan restored at launch starts the timer here.
+        subscription = service.$state.map { $0 != nil }.removeDuplicates().sink { [weak self] armed in self?.setTimer(running: armed) }
+    }
+    func stop() {
+        subscription = nil
+        setTimer(running: false)
+    }
+    private func setTimer(running: Bool) {
+        if running, timer == nil {
+            let timer = Timer(timeInterval: interval, repeats: true) { [weak service] _ in Task { @MainActor in await service?.tick() } }
+            RunLoop.main.add(timer, forMode: .common); self.timer = timer
+        } else if !running {
+            timer?.invalidate(); timer = nil
+        }
+    }
+}
