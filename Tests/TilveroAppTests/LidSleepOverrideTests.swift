@@ -7,7 +7,7 @@ import XCTest
 @testable import TilveroApp
 
 /// A fake system: no pmset, sudo, osascript or sudoers file is ever touched by these tests.
-private final class FakeLidSystem: LidSleepSystem, @unchecked Sendable {
+final class FakeLidSystem: LidSleepSystem, @unchecked Sendable {
     private let lock = NSLock()
     var sleepDisabled = false
     var ruleWorks = true
@@ -17,14 +17,17 @@ private final class FakeLidSystem: LidSleepSystem, @unchecked Sendable {
     var authorizedRestoreWorks = true
     var lidClosed = false
     var sleepAccepted = true
+    /// Called with the requested value before a write is applied (tests check what is on disk at that moment).
+    var onSet: ((Bool) -> Void)?
     private(set) var calls: [String] = []
-    private func note(_ call: String) { lock.withLock { calls.append(call) } }
+    func note(_ call: String) { lock.withLock { calls.append(call) } }
     var ruleFilePresent: Bool { ruleWorks }
 
     func readSleepDisabled() async -> Bool? { note("read"); return sleepDisabled }
     func passwordlessPathWorks() async -> Bool { note("probe"); return ruleWorks }
     func setSleepDisabledPasswordless(_ disabled: Bool) async -> Bool {
         note("set \(disabled)")
+        onSet?(disabled)
         guard ruleWorks else { return false }
         if writeSucceeds || writeApplies { sleepDisabled = disabled }
         return writeSucceeds
@@ -40,28 +43,59 @@ private final class FakeLidSystem: LidSleepSystem, @unchecked Sendable {
     func requestSleep() -> Bool { note("sleep"); return sleepAccepted }
 }
 
+/// A fake watchdog launcher: nothing is spawned; each session's handle records whether it was released.
+final class FakeWatchdogLauncher: LidWatchdogLaunching, @unchecked Sendable {
+    final class Handle: LidWatchdogHandle, @unchecked Sendable {
+        let token: String
+        private let lock = NSLock()
+        private var isReleased = false
+        init(token: String) { self.token = token }
+        var released: Bool { lock.withLock { isReleased } }
+        func release() { lock.withLock { isReleased = true } }
+    }
+    private let lock = NSLock()
+    var fails = false
+    var onLaunch: ((String) -> Void)?
+    private var launched: [Handle] = []
+    var handles: [Handle] { lock.withLock { launched } }
+    func launch(token: String, markerDirectory: URL) async -> (any LidWatchdogHandle)? {
+        onLaunch?(token)
+        guard !fails else { return nil }
+        let handle = Handle(token: token)
+        lock.withLock { launched.append(handle) }
+        return handle
+    }
+}
+
+/// Is the closed-lid intent marker on disk?
+@MainActor func lidMarked(_ service: LidSleepOverrideService) -> Bool { service.markers.read().isPresent }
+
 @MainActor final class LidSleepOverrideTests: XCTestCase {
-    private func make(_ system: FakeLidSystem, awake: Bool = true) -> (LidSleepOverrideService, UserDefaults, () -> Void, () -> Void) {
-        let suite = "LidSleep-\(UUID())", defaults = UserDefaults(suiteName: suite)!
+    private func make(_ system: FakeLidSystem, awake: Bool = true, launcher: FakeWatchdogLauncher = FakeWatchdogLauncher()) -> (LidSleepOverrideService, UserDefaults, () -> Void, () -> Void) {
+        let suite = "TilveroTests-LidSleep-\(UUID())", defaults = UserDefaults(suiteName: suite)!
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("TilveroTests-LidMarker-\(UUID().uuidString)", isDirectory: true)
         var awakeFlag = awake
         let service = LidSleepOverrideService(system: system, defaults: defaults, allowed: true,
+                                              markers: LidOverrideMarkerStore(directory: directory), watchdog: launcher,
                                               awakeIsActive: { awakeFlag }, lidSleepRetryDelay: .milliseconds(1))
-        return (service, defaults, { awakeFlag = false }, { defaults.removePersistentDomain(forName: suite) })
+        return (service, defaults, { awakeFlag = false }, {
+            defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: directory)
+        })
     }
 
     func testEnableWritesTheMarkerFirstThenTheOverrideAndRestoreClearsBoth() async throws {
         let system = FakeLidSystem()
-        let (service, defaults, _, cleanUp) = make(system)
+        let (service, _, _, cleanUp) = make(system)
         defer { cleanUp() }
         await service.setPreferred(true)
         XCTAssertTrue(service.isOn)
         XCTAssertTrue(system.sleepDisabled)
-        XCTAssertTrue(defaults.bool(forKey: LidSleepOverrideService.recoveryKey), "The intent is recorded while the override is set.")
+        XCTAssertTrue(lidMarked(service), "The intent is recorded while the override is set.")
         XCTAssertFalse(system.calls.contains("install"), "A working rule needs no administrator prompt.")
         await service.setPreferred(false)
         XCTAssertFalse(service.isOn)
         XCTAssertFalse(system.sleepDisabled)
-        XCTAssertFalse(defaults.bool(forKey: LidSleepOverrideService.recoveryKey))
+        XCTAssertFalse(lidMarked(service))
         XCTAssertFalse(system.calls.contains("authorized restore"))
     }
 
@@ -73,37 +107,37 @@ private final class FakeLidSystem: LidSleepSystem, @unchecked Sendable {
         XCTAssertEqual(granted.calls.filter { $0 == "install" }.count, 1)
 
         let denied = FakeLidSystem(); denied.ruleWorks = false; denied.installGranted = false
-        let (b, defaults, _, cleanB) = make(denied); defer { cleanB() }
+        let (b, _, _, cleanB) = make(denied); defer { cleanB() }
         await b.setPreferred(true)
         XCTAssertFalse(b.isOn)
         XCTAssertNotNil(b.failure)
         XCTAssertFalse(denied.calls.contains("set true"), "Nothing is written without the permission.")
-        XCTAssertFalse(defaults.bool(forKey: LidSleepOverrideService.recoveryKey))
+        XCTAssertFalse(lidMarked(b))
     }
 
     func testAnOverrideThatIsAlreadySetIsNeverAdopted() async throws {
         let system = FakeLidSystem(); system.sleepDisabled = true   // another tool or the user's own pmset
-        let (service, defaults, _, cleanUp) = make(system)
+        let (service, _, _, cleanUp) = make(system)
         defer { cleanUp() }
         await service.setPreferred(true)
         XCTAssertFalse(service.isOn)
         XCTAssertNotNil(service.failure)
         XCTAssertFalse(system.calls.contains { $0.hasPrefix("set") }, "Foreign state is never written.")
-        XCTAssertFalse(defaults.bool(forKey: LidSleepOverrideService.recoveryKey))
+        XCTAssertFalse(lidMarked(service))
         XCTAssertTrue(system.sleepDisabled)
     }
 
     func testTerminationNeverClearsTheMarkerWhileAnOperationIsInFlight() async throws {
         let system = FakeLidSystem(); system.ruleWorks = false; system.installGranted = true
-        let (service, defaults, _, cleanUp) = make(system)
+        let (service, _, _, cleanUp) = make(system)
         defer { cleanUp() }
         async let enabling: Void = service.setPreferred(true)
         try await Task.sleep(for: .milliseconds(1))
         let ready = await service.prepareForTermination()
         await enabling
         // Either the operation finished first and was restored, or termination refused; never "off + marker cleared + still set".
-        XCTAssertTrue(ready || defaults.bool(forKey: LidSleepOverrideService.recoveryKey) || !system.sleepDisabled)
-        XCTAssertFalse(system.sleepDisabled && !defaults.bool(forKey: LidSleepOverrideService.recoveryKey), "A set override always has its marker.")
+        XCTAssertTrue(ready || lidMarked(service) || !system.sleepDisabled)
+        XCTAssertFalse(system.sleepDisabled && !lidMarked(service), "A set override always has its marker.")
     }
 
     func testTheOptionNeverStartsAnythingAndOnlyRecordsTheChoiceWithoutASession() async throws {
@@ -115,7 +149,7 @@ private final class FakeLidSystem: LidSleepSystem, @unchecked Sendable {
         XCTAssertTrue(defaults.bool(forKey: LidSleepOverrideService.preferenceKey))
         XCTAssertFalse(service.isOn, "Without a Keep Awake session the override is not applied.")
         XCTAssertFalse(system.calls.contains("set true"), "Nothing is written to the system without a session.")
-        XCTAssertFalse(defaults.bool(forKey: LidSleepOverrideService.recoveryKey))
+        XCTAssertFalse(lidMarked(service))
         await service.setPreferred(false)
         XCTAssertFalse(service.isPreferred)
         XCTAssertFalse(defaults.bool(forKey: LidSleepOverrideService.preferenceKey))
@@ -123,35 +157,35 @@ private final class FakeLidSystem: LidSleepSystem, @unchecked Sendable {
 
     func testARefusedWriteClearsTheMarkerOnlyWhenOffIsConfirmed() async throws {
         let off = FakeLidSystem(); off.writeSucceeds = false; off.writeApplies = false
-        let (a, da, _, cleanA) = make(off); defer { cleanA() }
+        let (a, _, _, cleanA) = make(off); defer { cleanA() }
         await a.setPreferred(true)
         XCTAssertFalse(a.isOn)
-        XCTAssertFalse(da.bool(forKey: LidSleepOverrideService.recoveryKey))
+        XCTAssertFalse(lidMarked(a))
         XCTAssertFalse(a.needsRecovery)
 
         let ambiguous = FakeLidSystem(); ambiguous.writeSucceeds = false; ambiguous.writeApplies = true
-        let (b, db, _, cleanB) = make(ambiguous); defer { cleanB() }
+        let (b, _, _, cleanB) = make(ambiguous); defer { cleanB() }
         await b.setPreferred(true)
         XCTAssertFalse(b.isOn)
-        XCTAssertTrue(db.bool(forKey: LidSleepOverrideService.recoveryKey), "The override may be set: keep the marker.")
+        XCTAssertTrue(lidMarked(b), "The override may be set: keep the marker.")
         XCTAssertTrue(b.needsRecovery)
     }
 
     func testRestoreUsesAdministratorAuthorizationOnlyForAnExplicitAction() async throws {
         let system = FakeLidSystem()
-        let (service, defaults, _, cleanUp) = make(system)
+        let (service, _, _, cleanUp) = make(system)
         defer { cleanUp() }
         await service.setPreferred(true)
         system.ruleWorks = false          // the passwordless path vanished
         await service.restore(userInitiated: false, sleepIfLidClosed: false)
         XCTAssertTrue(service.needsRecovery, "No prompt for an automatic restore; the user is told instead.")
         XCTAssertFalse(system.calls.contains("authorized restore"))
-        XCTAssertTrue(defaults.bool(forKey: LidSleepOverrideService.recoveryKey))
+        XCTAssertTrue(lidMarked(service))
         await service.restoreSleep()
         XCTAssertTrue(system.calls.contains("authorized restore"))
         XCTAssertFalse(service.needsRecovery)
         XCTAssertFalse(system.sleepDisabled)
-        XCTAssertFalse(defaults.bool(forKey: LidSleepOverrideService.recoveryKey))
+        XCTAssertFalse(lidMarked(service))
     }
 
     func testRestoreWithAClosedLidRequestsTheSleepTheLidWouldHaveCausedWithBoundedRetries() async throws {
@@ -181,7 +215,7 @@ private final class FakeLidSystem: LidSleepSystem, @unchecked Sendable {
 
     func testTerminationAndSleepPreparationRestoreWithoutAPromptAndReportFailure() async throws {
         let system = FakeLidSystem()
-        let (service, defaults, _, cleanUp) = make(system)
+        let (service, _, _, cleanUp) = make(system)
         defer { cleanUp() }
         let idle = await service.prepareForTermination()
         XCTAssertTrue(idle, "Nothing to restore.")
@@ -190,7 +224,7 @@ private final class FakeLidSystem: LidSleepSystem, @unchecked Sendable {
         let restored = await service.prepareForTermination()
         XCTAssertTrue(restored)
         XCTAssertFalse(system.sleepDisabled)
-        XCTAssertFalse(defaults.bool(forKey: LidSleepOverrideService.recoveryKey))
+        XCTAssertFalse(lidMarked(service))
 
         await service.setPreferred(false)
         await service.setPreferred(true)
@@ -199,32 +233,34 @@ private final class FakeLidSystem: LidSleepSystem, @unchecked Sendable {
         let failed = await service.prepareForTermination()
         XCTAssertFalse(failed, "A set override blocks a clean exit or a sleep request.")
         XCTAssertFalse(system.calls.contains("authorized restore"))
-        XCTAssertTrue(defaults.bool(forKey: LidSleepOverrideService.recoveryKey))
+        XCTAssertTrue(lidMarked(service))
     }
 
-    func testLaunchRecoveryFollowsTheMarker() async throws {
+    /// Migration: the pre-0.7.2 UserDefaults flag is still read as a marker of unknown owner and removed once restored.
+    func testLaunchRecoveryFollowsTheLegacyMarker() async throws {
         let cleared = FakeLidSystem(); cleared.sleepDisabled = false
         let (a, da, _, cleanA) = make(cleared); defer { cleanA() }
-        da.set(true, forKey: LidSleepOverrideService.recoveryKey)
+        da.set(true, forKey: LidSleepOverrideService.legacyRecoveryKey)
         let again = LidSleepOverrideService(system: cleared, defaults: da, allowed: true)
         XCTAssertTrue(again.needsRecovery)
         await again.recoverIfNeeded()
         XCTAssertFalse(again.needsRecovery)
+        XCTAssertNil(da.object(forKey: LidSleepOverrideService.legacyRecoveryKey), "The legacy flag is gone once sleep is confirmed normal.")
         XCTAssertFalse(cleared.calls.contains("set false"), "Already off: nothing to write.")
         _ = a
 
         let stuck = FakeLidSystem(); stuck.sleepDisabled = true
         let (_, db, _, cleanB) = make(stuck); defer { cleanB() }
-        db.set(true, forKey: LidSleepOverrideService.recoveryKey)
+        db.set(true, forKey: LidSleepOverrideService.legacyRecoveryKey)
         let service = LidSleepOverrideService(system: stuck, defaults: db, allowed: true)
         await service.recoverIfNeeded()
         XCTAssertFalse(stuck.sleepDisabled)
-        XCTAssertFalse(db.bool(forKey: LidSleepOverrideService.recoveryKey))
+        XCTAssertFalse(db.bool(forKey: LidSleepOverrideService.legacyRecoveryKey))
 
         let noMarker = FakeLidSystem()
         let (plain, _, _, cleanC) = make(noMarker); defer { cleanC() }
         await plain.recoverIfNeeded()
-        XCTAssertTrue(noMarker.calls.isEmpty, "Without a marker launch touches nothing.")
+        XCTAssertEqual(noMarker.calls, ["read"], "Without a marker launch only reads the state (for the warning) and writes nothing.")
     }
 
     func testRemovingThePermissionIsRefusedWhileTheModeIsOn() async throws {
@@ -303,16 +339,20 @@ private final class FakeLidSystem: LidSleepSystem, @unchecked Sendable {
     private func makeTimer(_ system: FakeLidSystem, awake: Bool = false) -> (service: LidSleepOverrideService, phases: PassthroughSubject<SleepTimerPhase, Never>,
                                                                               setTimerActive: (Bool) -> Void, defaults: UserDefaults, cleanUp: () -> Void,
                                                                               charge: PassthroughSubject<Bool, Never>) {
-        let suite = "LidSleepTimer-\(UUID())", defaults = UserDefaults(suiteName: suite)!
+        let suite = "TilveroTests-LidSleepTimer-\(UUID())", defaults = UserDefaults(suiteName: suite)!
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("TilveroTests-LidMarker-\(UUID().uuidString)", isDirectory: true)
         var timerFlag = false
         let awakeFlag = awake
         let service = LidSleepOverrideService(system: system, defaults: defaults, allowed: true,
+                                              markers: LidOverrideMarkerStore(directory: directory), watchdog: FakeWatchdogLauncher(),
                                               awakeIsActive: { awakeFlag }, scheduledSleepIsActive: { timerFlag }, lidSleepRetryDelay: .milliseconds(1))
         let phases = PassthroughSubject<SleepTimerPhase, Never>()
         service.bindTimer(phases: phases.eraseToAnyPublisher())
         let charge = PassthroughSubject<Bool, Never>()
         service.bindSleepAtCharge(armed: charge.eraseToAnyPublisher())
-        return (service, phases, { timerFlag = $0 }, defaults, { defaults.removePersistentDomain(forName: suite) }, charge)
+        return (service, phases, { timerFlag = $0 }, defaults, {
+            defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: directory)
+        }, charge)
     }
     private func settle() async { for _ in 0..<20 { await Task.yield(); try? await Task.sleep(for: .milliseconds(5)) } }
 
@@ -329,7 +369,7 @@ private final class FakeLidSystem: LidSleepSystem, @unchecked Sendable {
         t.setTimerActive(true); t.phases.send(.armed); await settle()
         XCTAssertTrue(t.service.isOn)
         XCTAssertTrue(system.sleepDisabled)
-        XCTAssertTrue(t.defaults.bool(forKey: LidSleepOverrideService.recoveryKey), "The intent is recorded while the override is set.")
+        XCTAssertTrue(lidMarked(t.service), "The intent is recorded while the override is set.")
     }
 
     func testTheNaturalEndRestoresBeforeTheTimerRequestsSleepAndNeverSleepsItself() async throws {
@@ -342,7 +382,7 @@ private final class FakeLidSystem: LidSleepSystem, @unchecked Sendable {
         XCTAssertFalse(system.sleepDisabled, "A sleep request must not meet a set override.")
         XCTAssertFalse(t.service.isOn)
         XCTAssertFalse(system.calls.contains("sleep"), "The timer itself requests the sleep after its own preparation.")
-        XCTAssertFalse(t.defaults.bool(forKey: LidSleepOverrideService.recoveryKey))
+        XCTAssertFalse(lidMarked(t.service))
     }
 
     func testCancellingWithTheLidClosedSleepsLikeEndingKeepAwake() async throws {

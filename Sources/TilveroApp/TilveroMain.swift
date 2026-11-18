@@ -25,6 +25,9 @@ enum SleepTimerQuitReason {
 @MainActor
 struct TilveroMain {
     static func main() {
+        // The closed-lid watchdog is this executable too: it branches off before anything else (no NSApplication,
+        // no model, no store) and never returns.
+        if let watchdog = LidWatchdog.invocation(arguments: CommandLine.arguments) { LidWatchdog.runAndExit(watchdog) }
         if CommandLine.arguments.contains("--doctor") {
             do {
                 let report = try DoctorReport(snapshot: MacBatteryProvider().readSnapshot()).encodedJSON()
@@ -88,15 +91,18 @@ struct TilveroMain {
 
     fileprivate static func prepare(application: NSApplication) -> TilveroAppDelegate? {
         if let bundleID = Bundle.main.bundleIdentifier {
+            // A lid watchdog runs this executable but is not a running copy of the app.
             let existing = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
-                .filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier && !$0.isTerminated }
+                .filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier && !$0.isTerminated
+                    && !LidWatchdog.isWatchdogProcess(pid: $0.processIdentifier) }
             guard AppInstancePolicy.mayStart(application: application, existing: existing) else { return nil }
         }
         let identity: ReleaseIdentity
         var launchPolicy = AppLaunchPolicy.resolve(metadata: Bundle.main.infoDictionary ?? [:], arguments: CommandLine.arguments,
             runningBundleIdentifiers: Set(AppLaunchPolicy.knownBundleIdentifiers.flatMap {
                 NSRunningApplication.runningApplications(withBundleIdentifier: $0)
-            }.filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier && !$0.isTerminated }
+            }.filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier && !$0.isTerminated
+                && !LidWatchdog.isWatchdogProcess(pid: $0.processIdentifier) }
                 .compactMap(\.bundleIdentifier)))
         var controllerLease: ControllerSessionLease?
         #if TILVERO_LAB_STUDIO

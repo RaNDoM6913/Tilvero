@@ -15521,6 +15521,38 @@
         }
       }
     },
+    "Mac can’t sleep with the lid closed: sleep is disabled in macOS": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac can’t sleep with the lid closed: sleep is disabled in macOS"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac не уснёт с закрытой крышкой: сон отключён в macOS"
+          }
+        }
+      }
+    },
+    "The lid mode could not start safely.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The lid mode could not start safely."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Режим закрытой крышки не удалось безопасно включить."
+          }
+        }
+      }
+    },
     "Remove permission…": {
       "localizations": {
         "en": {
@@ -17549,6 +17581,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Сначала завершите «Не засыпать» с закрытой крышкой"
+          }
+        }
+      }
+    },
+    "setup.permissions.blocked.lidRecovery": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "First restore normal sleep"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сначала восстановите обычный сон"
           }
         }
       }

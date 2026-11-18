@@ -486,7 +486,13 @@ final class TilveroModel: ObservableObject {
         sleepAtCharge = SleepAtChargeService(driver: sleepTimerTransport ?? NativeSleepTimerTransport(), allowed: !isDemo && !monitoring)
         keepAwakeUntilCharge = SleepAtChargeService(driver: sleepTimerTransport ?? NativeSleepTimerTransport(), allowed: !isDemo && !monitoring, endAction: .release)
         closedLid = closedLidService ?? ClosedLidService(allowed: !isDemo && !monitoring)
-        lidSleep = LidSleepOverrideService(system: lidSleepSystem ?? NativeLidSleepSystem(), defaults: preferences, allowed: !isDemo && !monitoring)
+        // The real system gets the real watchdog; demo, monitoring-only (also the first-run preview) and an injected
+        // (fake) system get an inert one, and a native system outside an app bundle (a test runner) gets none at all.
+        let lidRoute = Self.lidSleepRoute(isDemo: isDemo, monitoringOnly: monitoring, injectedSystem: lidSleepSystem != nil,
+                                          appBundle: Bundle.main.bundleURL.pathExtension == "app", historyURL: historyURL)
+        lidSleep = LidSleepOverrideService(system: lidSleepSystem ?? NativeLidSleepSystem(), defaults: preferences, allowed: !isDemo && !monitoring,
+                                           markers: LidOverrideMarkerStore(directory: lidRoute.markerDirectory), watchdog: lidRoute.watchdog,
+                                           observesSystemSleep: lidRoute.observesSystemSleep)
         // A test that injects its own lid system gets a disabled comfort service. Even a native one never writes unless
         // a real lid override is armed (display and audio are only touched at lid close).
         lidComfort = lidComfortService ?? LidComfortService(defaults: preferences, allowed: !isDemo && !monitoring && lidSleepSystem == nil)
@@ -794,6 +800,31 @@ final class TilveroModel: ObservableObject {
         return "\(L10n.text("Effective")) \(effective)"
     }
     var fanless: Bool { snapshot.catalog.first { $0.id == "001" }?.value?.stringValue == "Mac17,3" && !isDemo }
+
+    /// Where the closed-lid marker lives, which watchdog guards an override, and whether the system state is read for
+    /// the "sleep is disabled" warning. The marker sits next to the history store of the running identity; demo runs,
+    /// fake systems and test runners use a private temporary directory, so they never see or touch a real marker.
+    struct LidSleepRoute {
+        let markerDirectory: URL
+        let watchdog: any LidWatchdogLaunching
+        let observesSystemSleep: Bool
+        var watchdogIsNative: Bool { watchdog is NativeLidWatchdogLauncher }
+        var watchdogIsInert: Bool { watchdog is InertLidWatchdogLauncher }
+    }
+    static func lidSleepRoute(isDemo: Bool, monitoringOnly: Bool, injectedSystem: Bool, appBundle: Bool, historyURL: URL?,
+                              identityHistoryURL: () -> URL? = { try? ReleaseIdentity.current().historyURL() }) -> LidSleepRoute {
+        let temporary = FileManager.default.temporaryDirectory.appendingPathComponent("TilveroLidMarker-\(UUID().uuidString)", isDirectory: true)
+        let watchdog: any LidWatchdogLaunching
+        if isDemo || monitoringOnly || injectedSystem { watchdog = InertLidWatchdogLauncher() }
+        else if appBundle { watchdog = NativeLidWatchdogLauncher() }
+        else { watchdog = UnavailableLidWatchdogLauncher() }
+        let directory: URL
+        if isDemo { directory = temporary }
+        else if let historyURL { directory = historyURL.deletingLastPathComponent() }
+        else if injectedSystem || !appBundle { directory = temporary }
+        else { directory = identityHistoryURL()?.deletingLastPathComponent() ?? temporary }
+        return LidSleepRoute(markerDirectory: directory, watchdog: watchdog, observesSystemSleep: injectedSystem || appBundle)
+    }
     func start() {
         updates.start()
         processMonitorStopped = false

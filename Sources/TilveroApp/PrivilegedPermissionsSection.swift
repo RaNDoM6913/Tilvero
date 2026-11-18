@@ -37,6 +37,8 @@ import SwiftUI
     var removalBlocker: String? {
         guard let model else { return nil }
         if model.lidSleep.isOn { return "setup.permissions.blocked.lid" }
+        // A possibly set override (failed restore) still needs the passwordless path, and so does its watchdog.
+        if model.lidSleep.needsRecovery { return "setup.permissions.blocked.lidRecovery" }
         if model.chargeBy.wakeConfirmed { return "setup.permissions.blocked.wake" }
         return nil
     }

@@ -397,6 +397,13 @@ extension LidMode {
         await restoreAll()
     }
 
+    /// The lid watchdog (a separate process with no model, after the app ended without restoring): the journal the app
+    /// left in its preferences is replayed under the same rules, with the native transports. The caller bounds the wait.
+    static func recoverForWatchdog() async {
+        let service = LidComfortService(defaults: .standard, allowed: true)
+        await service.recoverIfNeeded()
+    }
+
     @discardableResult func prepareForTermination() async -> Bool {
         guard isAvailable else { return true }
         await disarmAndRestore()
