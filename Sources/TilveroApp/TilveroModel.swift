@@ -130,7 +130,8 @@ final class TilveroModel: ObservableObject {
     private var powerStateSubscription: AnyCancellable?
     @Published private(set) var systemChargeLimit: SystemChargeLimitObservation?
     @Published private(set) var isReadingSystemChargeLimit = false
-    private let systemChargeLimitProvider: @Sendable () async -> SystemChargeLimitObservation
+    /// Reads the macOS limit, reusing a native read's answer at most `maximumAge` seconds old (0: always a fresh run).
+    private let systemChargeLimitProvider: @Sendable (_ maximumAge: TimeInterval) async -> SystemChargeLimitObservation
     @Published private(set) var sleepReportError: String?
     @Published private(set) var isReadingSleepActivity = false
     @Published var selectedSettingsPage: SettingsPage = .general
@@ -440,7 +441,7 @@ final class TilveroModel: ObservableObject {
          postWakeSettleSeconds: Double = 5,
          snapshotProvider: (@Sendable () async -> BatterySnapshot)? = nil,
          sleepActivityProvider: (@Sendable () async -> SleepAssertionSnapshot)? = nil,
-         systemChargeLimitProvider: (@Sendable () async -> SystemChargeLimitObservation)? = nil,
+         systemChargeLimitProvider: (@Sendable (_ maximumAge: TimeInterval) async -> SystemChargeLimitObservation)? = nil,
          liveControl: LiveControlService? = nil,
          nativeCharge: NativeChargeService? = nil,
          keepAwakeTransport: (any KeepAwakeTransport)? = nil,
@@ -473,8 +474,8 @@ final class TilveroModel: ObservableObject {
                          URL(fileURLWithPath: "/Library/Application Support/TilveroClosedLidLab")]
             return paths.map(UpdateEvidenceProbe.inspect)
         }
-        self.systemChargeLimitProvider = systemChargeLimitProvider ?? {
-            await Task.detached(priority: .utility) { SystemChargeLimitObservation.read() }.value
+        self.systemChargeLimitProvider = systemChargeLimitProvider ?? { maximumAge in
+            await Task.detached(priority: .utility) { SystemChargeLimitObservation.read(maximumAge: maximumAge) }.value
         }
         self.isDemo = isDemo
         self.launchPolicy = launchPolicy
@@ -1459,12 +1460,13 @@ final class TilveroModel: ObservableObject {
         if persist && !isDemo { saveSleepChanges(sleepTracker.accept(.interrupted(reason: reason, stamp: sleepStamp()))) }
         sleepTracker = SleepSessionTracker(postWakeSettleSeconds: postWakeSettleSeconds); lastRawSleepEndpoint = nil; queuedWakeRefresh = false; observedWake = false
     }
-    func refreshSystemChargeLimit() async {
+    /// `reusingRecent: false` for the explicit Refresh: a fresh `pmset` run, never the answer of a recent native read.
+    func refreshSystemChargeLimit(reusingRecent: Bool = true) async {
         guard !isDemo, !sleeping, !isReadingSystemChargeLimit else { return }
         isReadingSystemChargeLimit = true
         defer { isReadingSystemChargeLimit = false }
         let epoch = lifecycleEpoch
-        let value = await systemChargeLimitProvider()
+        let value = await systemChargeLimitProvider(reusingRecent ? BatteryLimitReadings.reuseWindow : 0)
         guard epoch == lifecycleEpoch, !sleeping else { return }
         systemChargeLimit = value
     }

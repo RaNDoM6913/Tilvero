@@ -74,6 +74,26 @@ final class SystemChargeLimitTests: XCTestCase {
         XCTAssertNil(failing.limits, "A failed read is unavailable, never a plausible value")
     }
 
+    func testTheNativeReadbackAlwaysRunsTheCommandAndAFailureForgetsTheSharedAnswer() throws {
+        let clock = ManualClock(), readings = BatteryLimitReadings(now: { clock.now })
+        readings.record("No battery level limits set")
+        var runs = 0
+        let fresh = PowerUIChargeClient.policyReadback(readings: readings) {
+            runs += 1
+            return "Battery level limits:\n({Terminated=0;chargeSocLimitReason=manualChargeLimit;chargeSocLimitSoc=90;})"
+        }
+        XCTAssertEqual(runs, 1, "A recorded answer is never used by the native read")
+        XCTAssertEqual(fresh?.manualLimit, 90)
+        XCTAssertEqual(try XCTUnwrap(readings.recent(maximumAge: 5)).output.contains("chargeSocLimitSoc=90"), true, "Its answer is shared")
+        XCTAssertNil(PowerUIChargeClient.policyReadback(readings: readings) { throw PolicyError.readbackMismatch })
+        XCTAssertNil(readings.recent(maximumAge: 5), "A failed run forgets the previous answer")
+        readings.record("No battery level limits set")
+        _ = SystemChargeLimitObservation.read(readings: readings, maximumAge: 0, query: { throw PolicyError.readbackMismatch })
+        XCTAssertNil(readings.recent(maximumAge: 5), "So does a failed observation")
+        readings.record("No battery level limits set"); readings.invalidate()
+        XCTAssertNil(readings.recent(maximumAge: 5))
+    }
+
     func testBoundedProcessKeepsItsExactAllowList() {
         for (path, arguments) in [("/usr/bin/pmset", ["-b", "lowpowermode", "1"]), ("/usr/bin/pmset", ["-g", "battlimit", "x"]),
                                   ("/usr/bin/pmset", ["schedule", "wake"]), ("/bin/echo", ["-g", "battlimit"])] {

@@ -150,18 +150,23 @@ public actor PowerUIChargeClient: NativeChargeTransport {
               let optimized = raw["optimizedCharging"] as? Bool, let targets = raw["targets"] as? [Int],
               (80...100).contains(target), targets == targets.sorted(), Set(targets).count == targets.count,
               !targets.isEmpty, targets.allSatisfy({ (80...100).contains($0) }) else { throw PolicyError.readbackMismatch }
-        // Always a fresh run (this read is also every readback around a native write); the answer is shared with the
-        // read-only system observation of the same poll cycle.
-        let output = try? BatteryLimitReadings.query()
-        if let output { BatteryLimitReadings.shared.record(output) }
-        let limits = output.flatMap { try? SystemChargeLimitParser.parse($0) }
+        let limits = Self.policyReadback()
         return .init(configuration: .init(enabled: enabled, target: target, optimizedCharging: optimized), supportedTargets: targets,
                      registeredManualLimit: limits?.manualLimit,
                      policyReadbackAvailable: limits != nil && limits?.manualLimitIsConflicting == false,
                      registrationExpected: Self.runsOnExternalPower())
     }
+    /// The registry readback of every native read: always a fresh `pmset -g battlimit` run, never the shared answer (this
+    /// read is also every readback around a native write). The answer is recorded for the read-only observation of the
+    /// same poll cycle; a failed run forgets the previous one.
+    static func policyReadback(readings: BatteryLimitReadings = .shared, query: () throws -> String = BatteryLimitReadings.query) -> SystemChargeLimits? {
+        guard let output = try? query() else { readings.invalidate(); return nil }
+        readings.record(output)
+        return try? SystemChargeLimitParser.parse(output)
+    }
     public func setLimit(_ target: Int) async throws {
         guard (80...100).contains(target) else { throw PolicyError.unsupportedTarget }
+        BatteryLimitReadings.shared.invalidate()   // the registry is about to change
         try autoreleasepool {
             var error: NSError?
             let success = TVNativeChargeSetLimit(UInt8(target), &error)
@@ -170,6 +175,7 @@ public actor PowerUIChargeClient: NativeChargeTransport {
         }
     }
     public func setEnabled(_ enabled: Bool) async throws {
+        BatteryLimitReadings.shared.invalidate()   // the registry is about to change
         try autoreleasepool {
             var error: NSError?
             let success = TVNativeChargeSetEnabled(enabled, &error)

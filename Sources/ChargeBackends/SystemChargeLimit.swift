@@ -67,7 +67,7 @@ public struct SystemChargeLimitObservation: Codable, Sendable, Equatable {
             return .init(collectedAt: recent.collectedAt, limits: try? SystemChargeLimitParser.parse(recent.output))
         }
         let collectedAt = Date()
-        guard let output = try? query() else { return .init(collectedAt: collectedAt, limits: nil) }
+        guard let output = try? query() else { readings.invalidate(); return .init(collectedAt: collectedAt, limits: nil) }
         readings.record(output, collectedAt: collectedAt)
         return .init(collectedAt: collectedAt, limits: try? SystemChargeLimitParser.parse(output))
     }
@@ -75,7 +75,8 @@ public struct SystemChargeLimitObservation: Codable, Sendable, Equatable {
 
 /// The latest `pmset -g battlimit` answer, so one poll cycle launches the command once: the native charge read runs it
 /// and records the answer, and the read-only system observation that follows reuses it. Only that observation reuses
-/// it; the native read, and with it every readback before and after a native write, always runs the command itself.
+/// it (and not on an explicit refresh); the native read, and with it every readback before and after a native write,
+/// always runs the command itself. A failed query and every native write forget the answer.
 public final class BatteryLimitReadings: @unchecked Sendable {
     public static let shared = BatteryLimitReadings()
     /// Long enough to span one poll cycle, short enough that a change made elsewhere shows up on the next one.
@@ -92,6 +93,8 @@ public final class BatteryLimitReadings: @unchecked Sendable {
         let instant = now()
         lock.withLock { latest = (output, collectedAt, instant) }
     }
+    /// Forgets the answer: a failed query, or a native write about to change what the command would print.
+    public func invalidate() { lock.withLock { latest = nil } }
     public func recent(maximumAge: TimeInterval) -> (output: String, collectedAt: Date)? {
         let instant = now()
         return lock.withLock {
