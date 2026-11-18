@@ -436,6 +436,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         popover.contentViewController = panel
         popover.contentSize = panel.preferredContentSize
         popover.delegate = self
+        panel.didClose()   // created closed: nothing measures on model changes until the popover shows
 
     }
 
@@ -645,7 +646,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         Task { await model.quickPanelWillOpen() }
         try? model.keepAwake.reconcile()
         guard NSApplication.shared.isActive || presentingWithoutActivation, let button = statusItem?.button else { return }
-        (popover.contentViewController as? QuickPanelHostingController)?.updateMaximumHeight(panelMaximumHeight)
+        (popover.contentViewController as? QuickPanelHostingController)?.willShow(maximumHeight: panelMaximumHeight)
         model.isPopoverVisible = true
         QuickPanelMotion.configure(popover, reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
@@ -798,6 +799,7 @@ extension TilveroAppDelegate: NSPopoverDelegate {
         studio.setRegistryVisible("popover", false)
         #endif
         popoverGeneration &+= 1
+        (popover.contentViewController as? QuickPanelHostingController)?.didClose()
         refreshFirstRunBeacon()
         stopPopoverEventMonitors()
         statusItem?.button?.state = .off

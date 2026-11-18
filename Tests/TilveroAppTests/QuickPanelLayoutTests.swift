@@ -177,6 +177,28 @@ final class QuickPanelLayoutTests: XCTestCase {
         XCTAssertFalse(openedDetails, "A segment switch must keep the owner in the quick panel.")
     }
 
+    func testClosedPopoverNeverMeasuresOnModelChangesAndShowingMeasuresOnce() async throws {
+        let fixture = try Fixture(isDemo: true)
+        defer { fixture.cleanUp() }
+        let host = QuickPanelHostingController(model: fixture.model, maximumHeight: 900)
+        host.didClose()
+        try await Task.sleep(for: .milliseconds(700))   // past any fit queued by the first measurement
+        let closed = host.measurementCount
+        for _ in 0..<5 {
+            fixture.model.objectWillChange.send()
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        await fixture.model.refresh()
+        try await Task.sleep(for: .milliseconds(700))
+        XCTAssertEqual(host.measurementCount, closed, "A closed popover is never measured on model changes")
+        host.willShow(maximumHeight: 800)
+        XCTAssertEqual(host.measurementCount, closed + 1, "Showing measures once, for the new height")
+        XCTAssertTrue(host.isPresented)
+        fixture.model.objectWillChange.send()
+        try await Task.sleep(for: .milliseconds(700))
+        XCTAssertGreaterThan(host.measurementCount, closed + 1, "While shown, the safety-net fit runs again")
+    }
+
     /// The page area changes height on a spring (about a third of a second); wait until the reported size is stable.
     private func settle(_ host: QuickPanelHostingController) async throws {
         var previous: CGFloat = -1, stable = 0

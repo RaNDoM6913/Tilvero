@@ -35,6 +35,11 @@ final class QuickPanelHostingController: NSHostingController<QuickPanelHostedRoo
     private var lastReportedSize: NSSize?
     private var fitScheduled = false
     private var lastGeometryReport: CFAbsoluteTime = 0
+    /// The popover is on screen. While it is closed a model change measures nothing (the model publishes several times
+    /// per refresh, popover or not); `willShow` measures once on the way in. A host outside a popover counts as shown.
+    private(set) var isPresented = true
+    /// Whole-panel measurements so far (tests).
+    private(set) var measurementCount = 0
 
     init(model: TilveroModel, maximumHeight: CGFloat, section: QuickPanelSection = .overview) {
         super.init(rootView: QuickPanelHostedRoot(model: model, maximumHeight: maximumHeight, section: section))
@@ -45,7 +50,7 @@ final class QuickPanelHostingController: NSHostingController<QuickPanelHostedRoo
         // Safety net only: SwiftUI reports geometry changes itself. Coalesce the published bursts into one
         // measurement per turn, and skip it while geometry reports are already arriving (an animated resize).
         modelSubscription = model.objectWillChange.sink { [weak self] in
-            guard let self, !self.fitScheduled else { return }
+            guard let self, self.isPresented, !self.fitScheduled else { return }
             self.fitScheduled = true
             Task { @MainActor [weak self] in self?.runScheduledFit() }
         }
@@ -67,9 +72,19 @@ final class QuickPanelHostingController: NSHostingController<QuickPanelHostedRoo
         resizeToFit()
     }
 
+    /// The popover is about to show: the safety-net fit resumes, and the panel is measured once for the current height.
+    func willShow(maximumHeight: CGFloat) {
+        isPresented = true
+        updateMaximumHeight(maximumHeight)
+    }
+
+    /// The popover closed: model changes stop measuring the panel until the next `willShow`.
+    func didClose() { isPresented = false }
+
     /// While geometry reports are arriving (an animated resize) the measurement waits for them to stop, then still
     /// runs once, so a published change SwiftUI never reports cannot leave the panel at a stale height.
     private func runScheduledFit() {
+        guard isPresented else { fitScheduled = false; return }
         let quiet = CFAbsoluteTimeGetCurrent() - lastGeometryReport
         if quiet > 0.5 { fitScheduled = false; resizeToFit(); return }
         Task { @MainActor [weak self] in
@@ -79,6 +94,7 @@ final class QuickPanelHostingController: NSHostingController<QuickPanelHostedRoo
     }
 
     func resizeToFit() {
+        measurementCount += 1
         contentSizeChanged(sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: rootView.maximumHeight)))
     }
 
