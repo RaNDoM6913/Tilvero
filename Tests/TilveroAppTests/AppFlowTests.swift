@@ -70,6 +70,25 @@ final class AppFlowTests: XCTestCase {
         XCTAssertNotNil(development.notice, "Debug and laboratory builds still run it")
     }
 
+    func testPowerModeLabelFollowsLowPowerModeChanges() async throws {
+        final class Flag: @unchecked Sendable {
+            private let lock = NSLock(); private var value = false
+            var isOn: Bool { get { lock.withLock { value } } set { lock.withLock { value = newValue } } }
+        }
+        let flag = Flag()
+        let model = TilveroModel(isDemo: true, preferences: makeTestDefaults("LowPower").defaults, lowPowerMode: { flag.isOn })
+        defer { model.stop() }
+        XCTAssertFalse(model.isLowPowerModeEnabled)
+        flag.isOn = true
+        NotificationCenter.default.post(name: .NSProcessInfoPowerStateDidChange, object: nil)
+        for _ in 0..<50 where !model.isLowPowerModeEnabled { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertTrue(model.isLowPowerModeEnabled, "The published value follows the system notification")
+        flag.isOn = false
+        NotificationCenter.default.post(name: .NSProcessInfoPowerStateDidChange, object: nil)
+        for _ in 0..<50 where model.isLowPowerModeEnabled { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertFalse(model.isLowPowerModeEnabled)
+    }
+
     func testLiveRefreshPersistsReadingsAcrossStoreReopenWithoutSimulatorOrControl() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let url = directory.appendingPathComponent("History.sqlite")

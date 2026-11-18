@@ -123,6 +123,10 @@ final class TilveroModel: ObservableObject {
     private var lastProcessRefreshUptime: Double?
     private var lastProcessScanVisible = false
     @Published private(set) var sleepActivity: SleepAssertionSnapshot?
+    /// macOS Low Power Mode, kept current from `NSProcessInfoPowerStateDidChange` (read-only; Tilvero never sets it here).
+    @Published private(set) var isLowPowerModeEnabled = false
+    private let lowPowerModeReader: @Sendable () -> Bool
+    private var powerStateSubscription: AnyCancellable?
     @Published private(set) var systemChargeLimit: SystemChargeLimitObservation?
     @Published private(set) var isReadingSystemChargeLimit = false
     private let systemChargeLimitProvider: @Sendable () async -> SystemChargeLimitObservation
@@ -448,7 +452,8 @@ final class TilveroModel: ObservableObject {
          updateLeaseDirectory: URL? = nil,
          sideEffects: TilveroModelSideEffects? = nil,
          setupBundle: Bundle = .main,
-         developmentFeatures: Bool = QuickPanelSection.showsDevelopmentSections) {
+         developmentFeatures: Bool = QuickPanelSection.showsDevelopmentSections,
+         lowPowerMode: (@Sendable () -> Bool)? = nil) {
         updates = UpdateCheckService(identity: updateIdentity ?? .current(), defaults: preferences)
         self.updateLeaseDirectory = updateLeaseDirectory
         self.updateEvidence = updateEvidence ?? {
@@ -468,6 +473,7 @@ final class TilveroModel: ObservableObject {
         self.isDemo = isDemo
         self.launchPolicy = launchPolicy
         self.developmentFeatures = developmentFeatures
+        self.lowPowerModeReader = lowPowerMode ?? { ProcessInfo.processInfo.isLowPowerModeEnabled }
         let processes = ProcessActivityProvider()   // one provider: it keeps process identities between scans
         self.processActivityProvider = processActivityProvider ?? { await processes.read() }
         self.preferences = preferences
@@ -637,6 +643,14 @@ final class TilveroModel: ObservableObject {
         }
         if isDemo { draftText = "80" }
         else if let target = self.nativeCharge.currentReportedTarget { draftText = String(target) }
+        isLowPowerModeEnabled = lowPowerModeReader()
+        powerStateSubscription = NotificationCenter.default.publisher(for: .NSProcessInfoPowerStateDidChange)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in MainActor.assumeIsolated { self?.lowPowerModeDidChange() } }
+    }
+    private func lowPowerModeDidChange() {
+        let enabled = lowPowerModeReader()
+        if isLowPowerModeEnabled != enabled { isLowPowerModeEnabled = enabled }
     }
 
     var visibleOverviewMetrics: [OverviewMetric] {

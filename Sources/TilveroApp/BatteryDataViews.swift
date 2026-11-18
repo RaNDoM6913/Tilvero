@@ -572,7 +572,7 @@ struct ReadingInfoPresentation {
                         StudioActionButton(L10n.text("Return to system control"), id: "action.return-to-system-control") { model.releaseControl() }.disabled(!model.canReleaseCharge)
                     }.disabled(model.isApplying)
                 }
-                Label(L10n.text("Power mode") + ": " + L10n.text(ProcessInfo.processInfo.isLowPowerModeEnabled ? "Low Power" : "Automatic"), systemImage: "bolt.circle")
+                Label(L10n.text("Power mode") + ": " + L10n.text(model.isLowPowerModeEnabled ? "Low Power" : "Automatic"), systemImage: "bolt.circle")
                 if model.developmentFeatures { ProfilePanel(model: model) }   // in development, like the Modes tab
             }.padding(.top, 12).padding(.bottom, 4)
         } label: {
