@@ -112,7 +112,7 @@ import ChargeBackends
             }
             guard !Task.isCancelled, !dragging, let target = chosen else { return }
             model.setDraft(target)
-            if model.canApply { model.applyDemoTarget() }
+            if model.canApply { model.applyDraftTarget() }
             // Release the local choice once the model shows the same level (or has refused it).
             for _ in 0..<60 {
                 if !model.isApplying && !model.nativeCharge.isBusy { break }

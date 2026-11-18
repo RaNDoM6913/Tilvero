@@ -219,7 +219,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
             Text(model.effectiveLimitText).font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Text(model.chargingStateText).font(.caption).foregroundStyle(.secondary)
             if model.canShowChargeControls {
-                if model.canChargeToFullOnce || model.isOneShotDemo { inactiveButton(model.isOneShotDemo ? "Cancel one-time charge" : "Charge to 100% once") }
+                if model.isDemo { inactiveButton(model.isFullChargeOnceRequested ? "Cancel one-time charge" : "Charge to 100% once") }
                 inactiveButton("Return to system control")
             }
         }

@@ -142,8 +142,8 @@ struct QuickPanel: View {
         VStack(alignment: .leading, spacing: 12) {
             ChargeLimitControl(model: model, isQuickPanel: true)
             if model.canShowChargeControls {
-                if model.canChargeToFullOnce || model.isOneShotDemo {
-                    StudioActionButton(L10n.text(model.isOneShotDemo ? "Cancel one-time charge" : "Charge to 100% once"), id: "charge.once") { model.toggleOneShotDemo() }
+                if model.isDemo {   // the simulation's one-shot; the live one is in QuickNativeChargePanel
+                    StudioActionButton(L10n.text(model.isFullChargeOnceRequested ? "Cancel one-time charge" : "Charge to 100% once"), id: "charge.once") { model.toggleSimulatedFullChargeOnce() }
                         .disabled(model.isApplying)
                 }
                 StudioActionButton(L10n.text("Return to system control"), id: "action.return-to-system-control") { model.releaseControl() }
@@ -239,7 +239,7 @@ struct ChargeLimitControl: View {
                         StudioActionButton("\(target)%", id: "charge.preset.\(target)") { model.setDraft(target) }.disabled(!model.canEdit || !model.acceptedTargets.contains(target))
                     }
                     Spacer()
-                    StudioActionButton(L10n.text(model.isApplying ? "Applying…" : "Apply"), id: "charge.apply") { model.applyDemoTarget() }
+                    StudioActionButton(L10n.text(model.isApplying ? "Applying…" : "Apply"), id: "charge.apply") { model.applyDraftTarget() }
                         .buttonStyle(.borderedProminent).disabled(!model.canApply)
                         .accessibilityIdentifier("charge.apply")
                 }
@@ -247,7 +247,7 @@ struct ChargeLimitControl: View {
                 if !model.usesNativeCharge { StudioText(model.effectiveLimitText, id: "charge.effective").font(.subheadline).foregroundStyle(.secondary) }
                 if model.usesNativeCharge { NativeChargeStatusPanel(model: model, compact: isQuickPanel) }
                 if model.pendingTarget != nil {
-                    StudioActionButton(L10n.text("Cancel pending target"), id: "action.cancel-pending-target") { model.cancelPendingDemo() }
+                    StudioActionButton(L10n.text("Cancel pending target"), id: "action.cancel-pending-target") { model.cancelPendingTarget() }
                         .help(L10n.text("Reconnecting early may charge to the effective limit while a lower target is pending."))
                     if !isQuickPanel {
                         Text(L10n.text("Reconnecting early may charge to the effective limit while a lower target is pending."))

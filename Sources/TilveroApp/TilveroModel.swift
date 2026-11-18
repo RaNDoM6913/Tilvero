@@ -778,10 +778,10 @@ final class TilveroModel: ObservableObject {
         }
     }
     var draftTarget: Int? { ReadingPresentation.percentInput(draftText, acceptedTargets: acceptedTargets) }
-    var isOneShotDemo: Bool { chargeState?.requested == .fullOnce }
-    var canEdit: Bool { !controlsAreSuspended && (isDemo ? control != nil : usesNativeCharge || liveControl.canCharge) && !isApplying && !nativeCharge.isBusy && !nativeCharge.isQualifying && !liveControl.isBusy && !isOneShotDemo }
+    /// A full-charge-once request owns the policy (the simulation's one-shot, or a profile on the helper path).
+    var isFullChargeOnceRequested: Bool { chargeState?.requested == .fullOnce }
+    var canEdit: Bool { !controlsAreSuspended && (isDemo ? control != nil : usesNativeCharge || liveControl.canCharge) && !isApplying && !nativeCharge.isBusy && !nativeCharge.isQualifying && !liveControl.isBusy && !isFullChargeOnceRequested }
     var canPerformChargeActions: Bool { isDemo || (usesNativeCharge ? nativeCharge.canApply : liveControl.canCharge) }
-    var canChargeToFullOnce: Bool { isDemo || (usesNativeCharge ? nativeCharge.canChargeToFullOnce : liveControl.canCharge) }
     var canReleaseCharge: Bool { isDemo || nativeCharge.hasOwnedSettings || nativeCharge.pendingTarget != nil || nativeCharge.recoveryRequired || liveControl.hasOwnedSettings }
     var terminationRecoveryMessage: String? { keepAwake.message.map(L10n.text) ?? lidSleep.failure ?? nativeCharge.message.map(L10n.text) ?? liveControl.message.map(L10n.text) }
     var canApply: Bool {
@@ -1072,8 +1072,12 @@ final class TilveroModel: ObservableObject {
         else { draftText = isDemo ? acceptedTargets.first.map(String.init) ?? "" : "" }
         draftDirty = false
     }
-    func applyDemoTarget() { guard canApply, validateTypedDraft(), let target = draftTarget else { return }; perform(.setCeiling(percent: target)) }
-    func toggleOneShotDemo() { perform(isOneShotDemo ? .cancelOneShot : .chargeToFullOnce) }
+    func applyDraftTarget() { guard canApply, validateTypedDraft(), let target = draftTarget else { return }; perform(.setCeiling(percent: target)) }
+    /// Simulation only. The live one-time charge is `startChargeOnce`/`cancelChargeOnce` (`ChargeOnceStore`, quick menu).
+    func toggleSimulatedFullChargeOnce() {
+        guard isDemo else { return }
+        perform(isFullChargeOnceRequested ? .cancelOneShot : .chargeToFullOnce)
+    }
 
     // MARK: One-time charge to 100 % on the native path (the slider's own apply; the previous limit is put back afterwards)
     /// The limit macOS reports right now (100 when the limit is off), nil until read.
@@ -1127,7 +1131,7 @@ final class TilveroModel: ObservableObject {
         }
     }
     func releaseControl() { perform(.returnToSystemControl) }
-    func cancelPendingDemo() {
+    func cancelPendingTarget() {
         if isDemo { runSimulation { simulator in try await simulator.cancelPendingCharge() } }
         else if usesNativeCharge { runNative { try $0.cancelPending() } }
         else { runLive { try await $0.cancelPending() } }

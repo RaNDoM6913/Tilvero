@@ -23,12 +23,33 @@ final class AppFlowTests: XCTestCase {
         model.demoPercent = 98
         await model.refresh()
         model.setDraft(80)
-        model.applyDemoTarget()
+        model.applyDraftTarget()
         // Await the app's bounded asynchronous action, not a physical backend.
         for _ in 0..<100 where model.isApplying { await Task.yield() }
         XCTAssertEqual(model.control?.charge.pendingTarget, 80)
         XCTAssertEqual(model.control?.charge.appliedTarget, 100)
         XCTAssertEqual(model.snapshot.chargePercent.value, 98)
+    }
+
+    func testSimulatedFullChargeOnceWorksInSimulationAndNeverTouchesALiveModel() async throws {
+        let demo = TilveroModel(isDemo: true, preferences: makeTestDefaults("FullOnceDemo").defaults)
+        defer { demo.stop() }
+        await demo.refresh()
+        XCTAssertFalse(demo.isFullChargeOnceRequested)
+        demo.toggleSimulatedFullChargeOnce()
+        for _ in 0..<100 where demo.isApplying { await Task.yield() }
+        XCTAssertTrue(demo.isFullChargeOnceRequested, "The simulation keeps its one-shot")
+        demo.toggleSimulatedFullChargeOnce()
+        for _ in 0..<100 where demo.isApplying { await Task.yield() }
+        XCTAssertFalse(demo.isFullChargeOnceRequested)
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let live = TilveroModel(isDemo: false, preferences: makeTestDefaults("FullOnceLive").defaults,
+                                historyURL: directory.appendingPathComponent("History.sqlite"),
+                                snapshotProvider: { .unavailable(reason: "fixture") })
+        defer { live.stop() }
+        live.toggleSimulatedFullChargeOnce()
+        XCTAssertFalse(live.isApplying, "A live model never starts the fixture one-shot")
     }
 
     func testLiveRefreshPersistsReadingsAcrossStoreReopenWithoutSimulatorOrControl() async throws {

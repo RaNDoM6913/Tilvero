@@ -48,7 +48,7 @@ import PowerCore
             nativeCharge: f.service)
         defer { model.stop() }
         await model.refresh()
-        model.setDraft(85); model.applyDemoTarget()
+        model.setDraft(85); model.applyDraftTarget()
         for _ in 0..<200 where model.isApplying { try await Task.sleep(for: .milliseconds(10)) }
         XCTAssertEqual(f.service.pendingTarget, 85)
         XCTAssertNotNil(model.notice, "The pending explanation is visible while the target is waiting")
@@ -72,7 +72,7 @@ import PowerCore
             nativeCharge: f.service)
         defer { model.stop() }
         await model.refresh()
-        model.setDraft(85); model.applyDemoTarget()
+        model.setDraft(85); model.applyDraftTarget()
         for _ in 0..<200 where model.isApplying { try await Task.sleep(for: .milliseconds(10)) }
         XCTAssertNotNil(model.notice)
         model.dismissActionNotice()

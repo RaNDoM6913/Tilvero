@@ -5761,22 +5761,6 @@
         }
       }
     },
-    "One-time full charging awaits a separate completion and cancellation check.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "One-time full charging awaits a separate completion and cancellation check."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Разовый заряд до 100% требует отдельной проверки завершения и отмены."
-          }
-        }
-      }
-    },
     "macOS did not respond before the deadline. The call may still complete; further writes are blocked.": {
       "localizations": {
         "en": {

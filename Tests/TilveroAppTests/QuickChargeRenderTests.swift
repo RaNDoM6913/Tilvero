@@ -112,7 +112,7 @@ private actor RenderChargeTransport: NativeChargeTransport {
         XCTAssertTrue(heights.isEmpty, "Changing the chosen level must not resize the open menu: \(heights)")
         // And the apply itself (pending read, write, readback) must not move the page either.
         model.setDraft(85)
-        model.applyDemoTarget()
+        model.applyDraftTarget()
         for _ in 0..<40 { try await Task.sleep(for: .milliseconds(25)); host.view.layoutSubtreeIfNeeded() }
         XCTAssertEqual(model.nativeCharge.observed?.configuration.target, 85, "The limit was applied")
         XCTAssertTrue(heights.isEmpty, "Applying must not resize the open menu: \(heights)")

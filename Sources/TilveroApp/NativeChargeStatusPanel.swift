@@ -94,9 +94,6 @@ import ChargeBackends
                             Text(L10n.text(message))
                         }
                         Text(L10n.text("Changes here use the same native limit as macOS Battery settings."))
-                        if model.nativeCharge.admitted && !model.nativeCharge.canChargeToFullOnce {
-                            Text(L10n.text("One-time full charging awaits a separate completion and cancellation check."))
-                        }
                     }
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

@@ -565,7 +565,10 @@ struct ReadingInfoPresentation {
                 ChargeLimitControl(model: model).padding(.top, 10)
                 if model.canShowChargeControls {
                     HStack {
-                        StudioActionButton(L10n.text(model.isOneShotDemo ? "Cancel one-time charge" : "Charge to 100% once"), id: "charge.once") { model.toggleOneShotDemo() }.disabled(!model.canChargeToFullOnce)
+                        // The live one-time charge lives in the quick menu; this one is the simulation's.
+                        if model.isDemo {
+                            StudioActionButton(L10n.text(model.isFullChargeOnceRequested ? "Cancel one-time charge" : "Charge to 100% once"), id: "charge.once") { model.toggleSimulatedFullChargeOnce() }
+                        }
                         StudioActionButton(L10n.text("Return to system control"), id: "action.return-to-system-control") { model.releaseControl() }.disabled(!model.canReleaseCharge)
                     }.disabled(model.isApplying)
                 }

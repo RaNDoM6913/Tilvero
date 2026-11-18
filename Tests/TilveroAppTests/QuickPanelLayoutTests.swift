@@ -28,7 +28,7 @@ final class QuickPanelLayoutTests: XCTestCase {
         let fixture = try Fixture(isDemo: true); defer { fixture.cleanUp() }
         fixture.model.demoPercent = 98
         await fixture.model.refresh()
-        fixture.model.setDraft(80); fixture.model.applyDemoTarget()
+        fixture.model.setDraft(80); fixture.model.applyDraftTarget()
         for _ in 0..<100 where fixture.model.isApplying { await Task.yield() }
         let host = NSHostingController(rootView: QuickPanel(model: fixture.model, maximumHeight: 1000, section: .charge))
         let size = host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 1200))
@@ -44,7 +44,7 @@ final class QuickPanelLayoutTests: XCTestCase {
         fixture.model.demoPercent = 98
         await fixture.model.refresh()
         fixture.model.setDraft(80)
-        fixture.model.applyDemoTarget()
+        fixture.model.applyDraftTarget()
         for _ in 0..<100 where fixture.model.isApplying { await Task.yield() }
         XCTAssertEqual(fixture.model.pendingTarget, 80)
         let host = NSHostingController(rootView: QuickPanel(model: fixture.model, maximumHeight: 240, section: .charge))
@@ -78,7 +78,7 @@ final class QuickPanelLayoutTests: XCTestCase {
             window.setContentSize(size)
         }
         fixture.model.setDraft(80)
-        fixture.model.applyDemoTarget()
+        fixture.model.applyDraftTarget()
         for _ in 0..<100 where fixture.model.isApplying { await Task.yield() }
         try await settle(host)
         XCTAssertGreaterThan(host.preferredContentSize.height, initialHeight,

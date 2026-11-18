@@ -64,7 +64,7 @@ import PowerCore
         let model = TilveroModel(isDemo: true, preferences: preferences)
         model.demoPercent = 98
         await model.refresh()
-        model.setDraft(90); model.applyDemoTarget()
+        model.setDraft(90); model.applyDraftTarget()
         for _ in 0..<100 where model.isApplying { await Task.yield() }
         XCTAssertNotNil(model.notice)
         var draft = model.modeLibrary.plan(.economy); draft.chargeTarget = 80
