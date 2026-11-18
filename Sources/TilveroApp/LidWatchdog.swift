@@ -19,6 +19,9 @@ import PowerCore
 protocol LidWatchdogHandle: AnyObject, Sendable {
     /// Only after a confirmed `SleepDisabled 0`: sends the release byte and closes the pipe (idempotent).
     func release()
+    /// `handler` runs once if the watchdog ends by itself while it still guards (never after `release()`); at once if
+    /// it already has.
+    func onUnexpectedExit(_ handler: @escaping @Sendable () -> Void)
 }
 
 protocol LidWatchdogLaunching: Sendable {
@@ -30,7 +33,10 @@ protocol LidWatchdogLaunching: Sendable {
 /// Demo, monitoring-only and first-run preview launches, and models built around a fake lid system: nothing is
 /// spawned (none of them can write the real setting).
 struct InertLidWatchdogLauncher: LidWatchdogLaunching {
-    final class Handle: LidWatchdogHandle { func release() {} }
+    final class Handle: LidWatchdogHandle {
+        func release() {}
+        func onUnexpectedExit(_ handler: @escaping @Sendable () -> Void) {}
+    }
     func launch(token: String, markerDirectory: URL) async -> (any LidWatchdogHandle)? { Handle() }
 }
 
@@ -39,15 +45,41 @@ struct UnavailableLidWatchdogLauncher: LidWatchdogLaunching {
     func launch(token: String, markerDirectory: URL) async -> (any LidWatchdogHandle)? { nil }
 }
 
-/// Spawns the app's own executable. Only from a real `.app` bundle: a test runner or a bare SwiftPM executable is
-/// never re-launched as a watchdog (the override is then refused).
+/// Spawns the watchdog: the app's own executable, only from a real `.app` bundle (a test runner or a bare SwiftPM
+/// executable is never re-launched as a watchdog, and the override is then refused). Tests inject a stub command.
 struct NativeLidWatchdogLauncher: LidWatchdogLaunching {
-    /// How long the child has to report that it is watching (normally well under a second).
-    static let readyTimeout: TimeInterval = 3
+    struct Command: Sendable {
+        let executable: URL
+        let arguments: @Sendable (_ token: String, _ markerDirectory: URL) -> [String]
+    }
+    /// The child has this long to report that it is watching; a second, fresh spawn gets more time (a slow first launch
+    /// after an update), then the override is refused.
+    static let defaultReadyTimeouts: [TimeInterval] = [3, 7]
+
+    let command: Command?
+    let readyTimeouts: [TimeInterval]
+
+    init(readyTimeouts: [TimeInterval] = Self.defaultReadyTimeouts) {
+        self.init(command: Self.appCommand(), readyTimeouts: readyTimeouts)
+    }
+    init(command: Command?, readyTimeouts: [TimeInterval] = Self.defaultReadyTimeouts) {
+        self.command = command; self.readyTimeouts = readyTimeouts
+    }
+
+    static func appCommand(bundle: Bundle = .main) -> Command? {
+        guard bundle.bundleURL.pathExtension == "app", let executable = bundle.executableURL else { return nil }
+        return Command(executable: executable, arguments: { LidWatchdog.arguments(token: $0, markerDirectory: $1) })
+    }
 
     func launch(token: String, markerDirectory: URL) async -> (any LidWatchdogHandle)? {
-        guard Bundle.main.bundleURL.pathExtension == "app", let executable = Bundle.main.executableURL,
-              FileManager.default.isExecutableFile(atPath: executable.path) else { return nil }
+        guard let command, FileManager.default.isExecutableFile(atPath: command.executable.path) else { return nil }
+        for timeout in readyTimeouts {
+            if let handle = await spawn(command, token: token, markerDirectory: markerDirectory, readyTimeout: timeout) { return handle }
+        }
+        return nil
+    }
+
+    private func spawn(_ command: Command, token: String, markerDirectory: URL, readyTimeout: TimeInterval) async -> NativeLidWatchdogHandle? {
         var lifeline: [Int32] = [-1, -1], ready: [Int32] = [-1, -1]
         guard pipe(&lifeline) == 0 else { return nil }
         guard pipe(&ready) == 0 else { close(lifeline[0]); close(lifeline[1]); return nil }
@@ -58,25 +90,29 @@ struct NativeLidWatchdogLauncher: LidWatchdogLaunching {
         guard [readEnd, writeEnd, readyRead, readyWrite].allSatisfy({ fcntl($0, F_SETFD, FD_CLOEXEC) == 0 }),
               fcntl(writeEnd, F_SETNOSIGPIPE, 1) == 0 else { closeAll(); return nil }
         let process = Process()
-        process.executableURL = executable
-        process.arguments = LidWatchdog.arguments(token: token, markerDirectory: markerDirectory)
+        process.executableURL = command.executable
+        process.arguments = command.arguments(token, markerDirectory)
         process.currentDirectoryURL = URL(fileURLWithPath: "/", isDirectory: true)
         // dup2 onto the child's stdin/stdout clears close-on-exec there; the parent's copies are closed after the spawn.
         process.standardInput = FileHandle(fileDescriptor: readEnd, closeOnDealloc: false)
         process.standardOutput = FileHandle(fileDescriptor: readyWrite, closeOnDealloc: false)
         process.standardError = FileHandle.nullDevice
         let handle = NativeLidWatchdogHandle(writeEnd: writeEnd, process: process)
-        process.terminationHandler = { [weak handle] _ in if let handle { NativeLidWatchdogHandle.forget(handle) } }
+        process.terminationHandler = { [weak handle] _ in
+            guard let handle else { return }
+            handle.childExited()
+            NativeLidWatchdogHandle.forget(handle)
+        }
         do { try process.run() } catch { closeAll(); return nil }
         close(readEnd); close(readyWrite)
         NativeLidWatchdogHandle.remember(handle)
         // The child confirms that it took the watchdog branch and is waiting on the pipe. Anything else (it crashed,
-        // or it started as something other than a watchdog) is stopped and the override is refused.
-        let confirmed = await LidWatchdog.waitForReady(fd: readyRead, timeout: Self.readyTimeout)
+        // or it started as something other than a watchdog) is stopped.
+        let confirmed = await LidWatchdog.waitForReady(fd: readyRead, timeout: readyTimeout)
         close(readyRead)
         guard confirmed else {
-            kill(process.processIdentifier, SIGKILL)
             handle.discard()
+            kill(process.processIdentifier, SIGKILL)
             return nil
         }
         return handle
@@ -84,7 +120,7 @@ struct NativeLidWatchdogLauncher: LidWatchdogLaunching {
 }
 
 /// Kept alive (with its `Process`) until the child exits, so a dropped reference never closes the pipe by accident:
-/// only `release()` or the end of the app does.
+/// only `release()`, `discard()` or the end of the app does.
 final class NativeLidWatchdogHandle: LidWatchdogHandle, @unchecked Sendable {
     private static let registryLock = NSLock()
     nonisolated(unsafe) private static var registry: [ObjectIdentifier: NativeLidWatchdogHandle] = [:]
@@ -93,11 +129,20 @@ final class NativeLidWatchdogHandle: LidWatchdogHandle, @unchecked Sendable {
 
     private let lock = NSLock()
     private var writeEnd: Int32
+    /// Released or discarded: an exit from here on is expected.
+    private var finished = false
+    private var exited = false
+    private var exitHandler: (@Sendable () -> Void)?
     private let process: Process
     init(writeEnd: Int32, process: Process) { self.writeEnd = writeEnd; self.process = process }
 
+    /// The app's end of the pipe (-1 once closed); for tests.
+    var writeDescriptor: Int32 { lock.withLock { writeEnd } }
+    var processIdentifier: Int32 { process.processIdentifier }
+
     func release() {
         lock.withLock {
+            finished = true
             guard writeEnd >= 0 else { return }
             var byte = LidWatchdog.releaseByte
             _ = Darwin.write(writeEnd, &byte, 1)   // EPIPE if the watchdog is already gone: harmless (no SIGPIPE)
@@ -105,12 +150,26 @@ final class NativeLidWatchdogHandle: LidWatchdogHandle, @unchecked Sendable {
         }
     }
 
-    /// A watchdog that never confirmed: its pipe is closed without a release (it was killed already).
+    /// A watchdog that never confirmed: its pipe is closed without a release.
     func discard() {
         lock.withLock {
+            finished = true
             guard writeEnd >= 0 else { return }
             close(writeEnd); writeEnd = -1
         }
+    }
+
+    func onUnexpectedExit(_ handler: @escaping @Sendable () -> Void) {
+        let now = lock.withLock { () -> Bool in exitHandler = handler; return exited && !finished }
+        if now { handler() }
+    }
+
+    func childExited() {
+        let handler = lock.withLock { () -> (@Sendable () -> Void)? in
+            exited = true
+            return finished ? nil : exitHandler
+        }
+        handler?()
     }
 }
 
@@ -129,14 +188,21 @@ protocol LidWatchdogSystem: Sendable {
     func restoreComfort() async
 }
 
+/// The native system behind the watchdog. Every piece is injectable so tests can run the real adapter with recording
+/// stand-ins (command lines, comfort, lid, sleep) and never touch the machine.
 struct NativeLidWatchdogSystem: LidWatchdogSystem {
-    func readSleepDisabled() async -> Bool? { await LidSleepCommands.readSleepDisabled() }
-    func clearSleepDisabled() async -> Bool { await LidSleepCommands.clearSleepDisabled() }
-    func lidClosedWouldSleep() -> Bool { LidSleepCommands.lidClosedWouldSleep() }
-    func requestSleep() -> Bool { LidSleepCommands.requestSleep() }
+    var commands = LidSleepCommands.live
     /// The app's own journal and restore rules (`LidComfortService`), with the native transports; the app's
     /// preferences domain is the same because the watchdog is the same bundle.
-    func restoreComfort() async { await LidComfortService.recoverForWatchdog() }
+    var comfort: @Sendable () async -> Void = { await LidComfortService.recoverForWatchdog() }
+    var lidClosed: @Sendable () -> Bool = { LidSleepCommands.lidClosedWouldSleep() }
+    var sleep: @Sendable () -> Bool = { LidSleepCommands.requestSleep() }
+
+    func readSleepDisabled() async -> Bool? { await commands.readSleepDisabled() }
+    func clearSleepDisabled() async -> Bool { await commands.clearSleepDisabled() }
+    func lidClosedWouldSleep() -> Bool { lidClosed() }
+    func requestSleep() -> Bool { sleep() }
+    func restoreComfort() async { await comfort() }
 }
 
 enum LidWatchdog {
@@ -179,6 +245,21 @@ enum LidWatchdog {
 
     static func arguments(token: String, markerDirectory: URL) -> [String] {
         [argument, token, markerDirectory.path]
+    }
+
+    enum EarlyRoute: Equatable, Sendable {
+        /// An ordinary launch.
+        case application
+        case watchdog(Invocation)
+        /// The flag is there but the arguments are not exactly a watchdog's: neither a watchdog nor an app (exit 64),
+        /// so a malformed launch can never run as a second, uncounted app instance.
+        case malformed
+    }
+
+    /// The first decision in `main`.
+    static func earlyRoute(arguments: [String]) -> EarlyRoute {
+        if let invocation = invocation(arguments: arguments) { return .watchdog(invocation) }
+        return arguments.dropFirst().contains(argument) ? .malformed : .application
     }
 
     /// Exactly `[executable, "--lid-watchdog", <UUID>, <absolute directory>]`; anything else is not a watchdog launch.
@@ -337,10 +418,11 @@ enum LidWatchdog {
 
     // MARK: Process identification
 
-    /// A watchdog runs the app's own executable: a new app instance must not mistake it for a running copy.
+    /// A watchdog runs the app's own executable: a new app instance must not mistake it for a running copy. The same
+    /// strict parser as `main`, so only a process that really runs as a watchdog is skipped.
     static func isWatchdogProcess(pid: pid_t) -> Bool {
         guard let arguments = processArguments(pid: pid) else { return false }
-        return arguments.count >= 2 && arguments[1] == argument
+        return invocation(arguments: arguments) != nil
     }
 
     static func processArguments(pid: pid_t) -> [String]? {

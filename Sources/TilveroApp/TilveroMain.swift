@@ -26,8 +26,12 @@ enum SleepTimerQuitReason {
 struct TilveroMain {
     static func main() {
         // The closed-lid watchdog is this executable too: it branches off before anything else (no NSApplication,
-        // no model, no store) and never returns.
-        if let watchdog = LidWatchdog.invocation(arguments: CommandLine.arguments) { LidWatchdog.runAndExit(watchdog) }
+        // no model, no store) and never returns. A malformed watchdog launch is neither.
+        switch LidWatchdog.earlyRoute(arguments: CommandLine.arguments) {
+        case .watchdog(let invocation): LidWatchdog.runAndExit(invocation)
+        case .malformed: exit(64)
+        case .application: break
+        }
         if CommandLine.arguments.contains("--doctor") {
             do {
                 let report = try DoctorReport(snapshot: MacBatteryProvider().readSnapshot()).encodedJSON()

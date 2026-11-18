@@ -282,10 +282,7 @@ enum LidMode: Equatable { case keepAwake, scheduledSleep }
             failure = L10n.text("The lid mode could not start safely.")
             return false
         }
-        // A new session, a new token: an older watchdog would only find a foreign marker now.
-        let superseded = session?.handle
-        session = (token, handle)
-        superseded?.release()
+        installSession(token: token, handle: handle)
         needsRecovery = false; systemSleepDisabled = false
         guard await system.setSleepDisabledPasswordless(true), await system.readSleepDisabled() == true else {
             // A refused write may still have applied: only a confirmed "off" removes the marker and lets the watchdog go.
@@ -295,6 +292,44 @@ enum LidMode: Equatable { case keepAwake, scheduledSleep }
             return false
         }
         return true
+    }
+
+    /// A new session (or a replacement watchdog), a new token: a previous watchdog is released, and would only find a
+    /// foreign marker anyway. The new one reports if it ends by itself while it still guards.
+    private func installSession(token: String, handle: any LidWatchdogHandle) {
+        let superseded = session?.handle
+        session = (token, handle)
+        handle.onUnexpectedExit { [weak self] in
+            Task { @MainActor [weak self] in await self?.watchdogEnded(token: token) }
+        }
+        superseded?.release()
+    }
+
+    /// The watchdog of this run ended while it still guarded the override (killed, crashed). A new one takes over under
+    /// a new token, with the marker rewritten under the lock; if that is not possible, the override ends (normal sleep
+    /// is restored) and the user is told, so sleep is never left disabled without a lifeline.
+    func watchdogEnded(token: String) async {
+        guard session?.token == token else { return }
+        for _ in 0..<200 where busy { try? await Task.sleep(for: .milliseconds(50)) }
+        guard session?.token == token else { return }
+        busy = true; defer { busy = false }
+        let locked = await markerLock.acquire(timeout: enableLockTimeout)
+        var holding = locked
+        defer { if holding { markerLock.release() } }
+        guard session?.token == token else { return }
+        if locked {
+            let fresh = UUID().uuidString
+            if let handle = await watchdog.launch(token: fresh, markerDirectory: markers.directory) {
+                do {
+                    try markers.write(LidOverrideMarker(token: fresh, pid: getpid(), createdAt: Date(), boot: LidOverrideMarkerStore.bootSessionUUID()))
+                    installSession(token: fresh, handle: handle)
+                    return
+                } catch { handle.release() }
+            }
+        }
+        if holding { markerLock.release(); holding = false }
+        await restoreInline(userInitiated: false, sleepIfLidClosed: true)
+        if !needsRecovery { failure = L10n.text("The lid mode was stopped for safety.") }
     }
 
     /// Only after a confirmed `SleepDisabled 0`: the marker (any owner: no other live run uses this data directory) and
@@ -381,15 +416,13 @@ enum LidMode: Equatable { case keepAwake, scheduledSleep }
     /// Launch: a marker left by a crashed or killed run means the override may still be set (its watchdog may be
     /// acting right now, hence the lock). Without a marker, the system state is read once for the warning.
     func recoverIfNeeded() async {
-        guard markerPresent else { await checkSystemSleep(); return }
+        guard markerPresent else { await markerGone(); return }
         let locked = await markerLock.acquire(timeout: recoveryLockTimeout)
         var holding = locked
         defer { if holding { markerLock.release() } }
         guard markerPresent else {
-            // The watchdog of the ended run finished first.
-            needsRecovery = false
             if holding { markerLock.release(); holding = false }
-            await checkSystemSleep()
+            await markerGone()
             return
         }
         if (await system.readSleepDisabled()) == false {
@@ -399,6 +432,17 @@ enum LidMode: Equatable { case keepAwake, scheduledSleep }
         busy = true; defer { busy = false }
         await restoreInline(userInitiated: false)
         if needsRecovery { failure = L10n.text("Normal sleep could not be restored. Use Restore sleep.") }
+    }
+
+    /// The marker read at init is gone (the watchdog of the ended run restored and removed it first): nothing of ours
+    /// can be set any more, so the recovery state is dropped and derived again from the real reading (the warning shows
+    /// if sleep is still disabled, for example by another tool).
+    private func markerGone() async {
+        if session == nil, !isOn, needsRecovery {
+            needsRecovery = false
+            failure = nil
+        }
+        await checkSystemSleep()
     }
 
     /// One `pmset -g` read, at launch and when a Sleep page appears (no polling): `SleepDisabled 1` while this app holds
@@ -435,24 +479,29 @@ enum LidMode: Equatable { case keepAwake, scheduledSleep }
     }
 }
 
-/// The native pieces the app and the lid watchdog share. There is deliberately no way to disable sleep here: only
-/// `NativeLidSleepSystem`, inside a running session of the app, writes `disablesleep 1`.
-enum LidSleepCommands {
+/// The native pieces the app and the lid watchdog share: reading and clearing the setting, the lid, the sleep request.
+/// There is deliberately no way to disable sleep here: only `NativeLidSleepSystem`, inside a running session of the
+/// app, writes `disablesleep 1`. The command runner is injectable, so tests can check the exact command lines.
+struct LidSleepCommands: Sendable {
+    typealias Runner = @Sendable (_ path: String, _ arguments: [String]) async -> (status: Int32, output: String)
     static let pmset = "/usr/bin/pmset"
     static let sudo = "/usr/bin/sudo"
     static let clearArguments = ["-n", pmset, "disablesleep", "0"]
+    static let live = LidSleepCommands(run: { await ProcessRunner.run($0, $1) })
+
+    let run: Runner
 
     static func sleepDisabled(inPmsetOutput output: String) -> Bool {
         output.range(of: #"SleepDisabled\s+1"#, options: .regularExpression) != nil
     }
-    static func readSleepDisabled() async -> Bool? {
-        let result = await ProcessRunner.run(pmset, ["-g"])
+    func readSleepDisabled() async -> Bool? {
+        let result = await run(Self.pmset, ["-g"])
         guard result.status == 0 else { return nil }
-        return sleepDisabled(inPmsetOutput: result.output)
+        return Self.sleepDisabled(inPmsetOutput: result.output)
     }
     /// `sudo -n /usr/bin/pmset disablesleep 0` through the one-command sudoers rule.
-    static func clearSleepDisabled() async -> Bool {
-        await ProcessRunner.run(sudo, clearArguments).status == 0
+    func clearSleepDisabled() async -> Bool {
+        await run(Self.sudo, Self.clearArguments).status == 0
     }
     static func lidClosedWouldSleep() -> Bool {
         let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPMrootDomain"))
@@ -484,17 +533,20 @@ struct NativeLidSleepSystem: LidSleepSystem {
     }
     static func sleepDisabled(inPmsetOutput output: String) -> Bool { LidSleepCommands.sleepDisabled(inPmsetOutput: output) }
 
+    /// `pmset`/`sudo` command lines go through this (tests inject a recording runner).
+    var commands = LidSleepCommands.live
+
     /// The own `tilvero-lid` file or the merged `tilvero` file written with this feature (see `PrivilegedRuleInstaller`).
     var ruleFilePresent: Bool { PrivilegedRulePresence.isPresent(.lidClosed) }
 
-    func readSleepDisabled() async -> Bool? { await LidSleepCommands.readSleepDisabled() }
+    func readSleepDisabled() async -> Bool? { await commands.readSleepDisabled() }
     func passwordlessPathWorks() async -> Bool {
         guard let current = await readSleepDisabled() else { return false }
         return await setSleepDisabledPasswordless(current)
     }
     func setSleepDisabledPasswordless(_ disabled: Bool) async -> Bool {
-        guard disabled else { return await LidSleepCommands.clearSleepDisabled() }
-        return await ProcessRunner.run(LidSleepCommands.sudo, ["-n", LidSleepCommands.pmset, "disablesleep", "1"]).status == 0
+        guard disabled else { return await commands.clearSleepDisabled() }
+        return await commands.run(LidSleepCommands.sudo, ["-n", LidSleepCommands.pmset, "disablesleep", "1"]).status == 0
     }
     /// The shared installer: the lid line goes into the merged rule file (one validated root script, one dialog).
     func installRule() async -> Bool { await PrivilegedRuleInstaller.runNative(.install([.lidClosed])) }

@@ -40,6 +40,50 @@ private final class FakeWatchdogSystem: LidWatchdogSystem, @unchecked Sendable {
 
 private let allowedWatchdogCalls: Set<String> = ["read", "clear", "sleep", "comfort"]
 
+/// A stand-in watchdog child for the native launcher: `$1` output file, `$2` spawn counter, `$3` mode. It confirms with
+/// the ready byte (mode `second`: only from the second spawn on; `silent`: never; `quit`: then exits at once), then
+/// copies whatever arrives on stdin into `$1` and marks the end of the pipe with `$1.eof`.
+private let stubScript = #"""
+out="$1"; count="$2"; mode="$3"
+echo x >> "$count"
+n=$(wc -l < "$count" | tr -d ' ')
+case "$mode" in
+  ok) printf K ;;
+  second) if [ "$n" -ge 2 ]; then printf K; fi ;;
+  quit) printf K; exit 0 ;;
+  silent) ;;
+esac
+exec 1>/dev/null
+cat > "$out"
+echo done > "$out.eof"
+"""#
+
+private final class Counter: @unchecked Sendable {
+    private let lock = NSLock(); private var count = 0
+    func increment() { lock.withLock { count += 1 } }
+    var value: Int { lock.withLock { count } }
+}
+
+/// A recording `pmset`/`sudo` runner that answers like the real commands would.
+private final class CommandRecorder: @unchecked Sendable {
+    static let disableCommand = ["/usr/bin/sudo", "-n", "/usr/bin/pmset", "disablesleep", "1"]
+    private let lock = NSLock()
+    private var log: [[String]] = []
+    private var disabled: Bool
+    init(sleepDisabled: Bool) { disabled = sleepDisabled }
+    var calls: [[String]] { lock.withLock { log } }
+    var commands: LidSleepCommands { LidSleepCommands(run: { path, arguments in self.answer(path, arguments) }) }
+    private func answer(_ path: String, _ arguments: [String]) -> (status: Int32, output: String) {
+        lock.withLock {
+            let line = [path] + arguments
+            log.append(line)
+            if line == Self.disableCommand { disabled = true }
+            if line == ["/usr/bin/sudo"] + LidSleepCommands.clearArguments { disabled = false }
+            return (0, " SleepDisabled\t\t\(disabled ? 1 : 0)\n")
+        }
+    }
+}
+
 @MainActor final class LidWatchdogTests: XCTestCase {
     private var directory: URL!
     private var store: LidOverrideMarkerStore!
@@ -280,19 +324,31 @@ private let allowedWatchdogCalls: Set<String> = ["read", "clear", "sleep", "comf
         XCTAssertTrue(system.calls.isEmpty)
     }
 
-    /// The watchdog's code path has no way to disable sleep: neither its system protocol nor its source mentions it.
-    func testTheWatchdogCannotDisableSleep() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let watchdog = try String(contentsOf: root.appendingPathComponent("Sources/TilveroApp/LidWatchdog.swift"), encoding: .utf8)
-        for forbidden in ["\"disablesleep\", \"1\"", "disablesleep 1\"", "setSleepDisabledPasswordless", "NativeLidSleepSystem"] {
-            XCTAssertFalse(watchdog.contains(forbidden), forbidden)
-        }
-        let service = try String(contentsOf: root.appendingPathComponent("Sources/TilveroApp/LidSleepOverrideService.swift"), encoding: .utf8)
-        let shared = try XCTUnwrap(service.range(of: "enum LidSleepCommands"))
-        let native = try XCTUnwrap(service.range(of: "struct NativeLidSleepSystem"))
-        let commands = service[shared.lowerBound..<native.lowerBound]
-        XCTAssertFalse(commands.contains("\"1\""), "The shared commands (used by the watchdog) only clear.")
-        XCTAssertEqual(LidSleepCommands.clearArguments, ["-n", "/usr/bin/pmset", "disablesleep", "0"])
+    /// The real watchdog adapter, run through the whole act step with a recording command runner: the only command
+    /// lines it issues are a read and `disablesleep 0` (its protocol has no way to ask for more).
+    func testTheNativeWatchdogSystemOnlyReadsAndClears() async throws {
+        let own = marker(); try store.write(own)
+        let recorder = CommandRecorder(sleepDisabled: true)
+        let comfort = Counter(), sleeps = Counter()
+        let system = NativeLidWatchdogSystem(commands: recorder.commands, comfort: { comfort.increment() },
+                                             lidClosed: { false }, sleep: { sleeps.increment(); return true })
+        let outcome = await LidWatchdog.act(signal: .endOfFile, token: own.token, store: store, system: system, timing: fast)
+        XCTAssertEqual(outcome, .restored)
+        XCTAssertEqual(recorder.calls, [["/usr/bin/pmset", "-g"], ["/usr/bin/sudo", "-n", "/usr/bin/pmset", "disablesleep", "0"], ["/usr/bin/pmset", "-g"]])
+        XCTAssertEqual(comfort.value, 1)
+        XCTAssertEqual(sleeps.value, 0, "An open lid needs no sleep request.")
+        XCTAssertFalse(recorder.calls.contains(CommandRecorder.disableCommand))
+    }
+
+    /// The one command line that disables sleep belongs to the app's own system, inside a session.
+    func testOnlyTheAppSystemWritesDisablesleepOne() async {
+        let recorder = CommandRecorder(sleepDisabled: false)
+        let system = NativeLidSleepSystem(commands: recorder.commands)
+        let disabled = await system.setSleepDisabledPasswordless(true)
+        let reading = await system.readSleepDisabled()
+        let cleared = await system.setSleepDisabledPasswordless(false)
+        XCTAssertTrue(disabled); XCTAssertEqual(reading, true); XCTAssertTrue(cleared)
+        XCTAssertEqual(recorder.calls, [CommandRecorder.disableCommand, ["/usr/bin/pmset", "-g"], ["/usr/bin/sudo"] + LidSleepCommands.clearArguments])
     }
 
     // MARK: Launch
@@ -310,16 +366,32 @@ private let allowedWatchdogCalls: Set<String> = ["read", "clear", "sleep", "comf
         }
     }
 
-    /// `--lid-watchdog` branches off first in `main`, before `--doctor` and before NSApplication, and never returns.
-    func testTheWatchdogBranchRunsBeforeNSApplication() throws {
+    func testTheEarlyRouteSeparatesWatchdogsAppsAndMalformedLaunches() {
+        let token = UUID().uuidString
+        XCTAssertEqual(LidWatchdog.earlyRoute(arguments: ["/A/Tilvero", "--lid-watchdog", token, "/tmp/m"]),
+                       .watchdog(LidWatchdog.Invocation(token: token, markerDirectory: URL(fileURLWithPath: "/tmp/m", isDirectory: true))))
+        XCTAssertEqual(LidWatchdog.earlyRoute(arguments: ["/A/Tilvero"]), .application)
+        XCTAssertEqual(LidWatchdog.earlyRoute(arguments: ["/A/Tilvero", "--demo"]), .application)
+        for malformed in [["/A/Tilvero", "--lid-watchdog"], ["/A/Tilvero", "--lid-watchdog", "nope", "/tmp"],
+                          ["/A/Tilvero", "--lid-watchdog", token, "/tmp", "--extra"], ["/A/Tilvero", "--demo", "--lid-watchdog", token, "/tmp"]] {
+            XCTAssertEqual(LidWatchdog.earlyRoute(arguments: malformed), .malformed,
+                           "Never run as an app that the single-instance check would skip: \(malformed)")
+        }
         let never: (LidWatchdog.Invocation) -> Never = LidWatchdog.runAndExit
         _ = never
+    }
+
+    /// Kept as a source check on purpose: proving the ordering by behaviour would mean running the app binary, which the
+    /// default tests must not do. The routing decision itself is tested by behaviour above.
+    func testMainRoutesTheWatchdogBeforeAnythingElse() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let main = try String(contentsOf: root.appendingPathComponent("Sources/TilveroApp/TilveroMain.swift"), encoding: .utf8)
-        let branch = try XCTUnwrap(main.range(of: "LidWatchdog.invocation(arguments: CommandLine.arguments)"))
+        let branch = try XCTUnwrap(main.range(of: "LidWatchdog.earlyRoute(arguments: CommandLine.arguments)"))
+        let malformed = try XCTUnwrap(main.range(of: "case .malformed: exit(64)"))
         let doctor = try XCTUnwrap(main.range(of: "\"--doctor\""))
         let application = try XCTUnwrap(main.range(of: "NSApplication.shared"))
         XCTAssertLessThan(branch.lowerBound, doctor.lowerBound)
+        XCTAssertLessThan(malformed.lowerBound, doctor.lowerBound)
         XCTAssertLessThan(branch.lowerBound, application.lowerBound)
     }
 
@@ -338,8 +410,88 @@ private let allowedWatchdogCalls: Set<String> = ["read", "clear", "sleep", "comf
 
     func testTheNativeLauncherNeverSpawnsOutsideAnAppBundle() async throws {
         try XCTSkipIf(Bundle.main.bundleURL.pathExtension == "app", "Only meaningful when the tests run outside an app bundle.")
+        XCTAssertNil(NativeLidWatchdogLauncher.appCommand())
         let handle = await NativeLidWatchdogLauncher().launch(token: UUID().uuidString, markerDirectory: directory)
         XCTAssertNil(handle)
+    }
+
+    // MARK: The native launcher with a stub child (a real process; no Tilvero, no power setting)
+
+    private func stubLauncher(_ mode: String, timeouts: [TimeInterval] = [3, 7]) throws -> (NativeLidWatchdogLauncher, out: URL, count: URL) {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let out = directory.appendingPathComponent("stub-\(UUID().uuidString).out")
+        let count = directory.appendingPathComponent("stub-\(UUID().uuidString).count")
+        let command = NativeLidWatchdogLauncher.Command(executable: URL(fileURLWithPath: "/bin/sh"),
+                                                        arguments: { _, _ in ["-c", stubScript, "stub", out.path, count.path, mode] })
+        return (NativeLidWatchdogLauncher(command: command, readyTimeouts: timeouts), out, count)
+    }
+
+    private func waitForFile(_ url: URL, timeout: TimeInterval = 5) async -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if FileManager.default.fileExists(atPath: url.path) { return true }
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        return FileManager.default.fileExists(atPath: url.path)
+    }
+
+    private func spawns(_ count: URL) -> Int {
+        ((try? String(contentsOf: count, encoding: .utf8)) ?? "").split(separator: "\n").count
+    }
+
+    func testARealChildSeesTheReleaseByteAndThePipeIsProtected() async throws {
+        let (launcher, out, _) = try stubLauncher("ok")
+        let launched = await launcher.launch(token: UUID().uuidString, markerDirectory: directory)
+        let handle = try XCTUnwrap(launched as? NativeLidWatchdogHandle)
+        let fd = handle.writeDescriptor
+        XCTAssertGreaterThanOrEqual(fd, 0)
+        XCTAssertNotEqual(fcntl(fd, F_GETFD) & FD_CLOEXEC, 0, "No later child inherits the app's end of the pipe.")
+        XCTAssertNotEqual(fcntl(fd, F_GETNOSIGPIPE), 0, "Writing to a gone watchdog never raises SIGPIPE.")
+        let exits = Counter()
+        handle.onUnexpectedExit { exits.increment() }
+        handle.release()
+        XCTAssertEqual(handle.writeDescriptor, -1)
+        let ended = await waitForFile(out.appendingPathExtension("eof"))
+        XCTAssertTrue(ended)
+        XCTAssertEqual(try String(contentsOf: out, encoding: .utf8), "R", "The child read the release byte, then the end of the pipe.")
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertEqual(exits.value, 0, "A released watchdog exiting is expected, not reported.")
+    }
+
+    func testClosingTheAppEndIsTheEndOfFileTheChildSees() async throws {
+        let (launcher, out, _) = try stubLauncher("ok")
+        let launched = await launcher.launch(token: UUID().uuidString, markerDirectory: directory)
+        let handle = try XCTUnwrap(launched as? NativeLidWatchdogHandle)
+        handle.discard()                                   // what the kernel does when the app dies
+        let ended = await waitForFile(out.appendingPathExtension("eof"))
+        XCTAssertTrue(ended)
+        XCTAssertEqual(try String(contentsOf: out, encoding: .utf8), "", "No release byte: the watchdog would act.")
+    }
+
+    func testAChildThatEndsByItselfIsReportedAndAReleaseAfterwardsIsHarmless() async throws {
+        let (launcher, _, _) = try stubLauncher("quit")
+        let launched = await launcher.launch(token: UUID().uuidString, markerDirectory: directory)
+        let handle = try XCTUnwrap(launched as? NativeLidWatchdogHandle)
+        let reported = expectation(description: "unexpected exit")
+        handle.onUnexpectedExit { reported.fulfill() }
+        await fulfillment(of: [reported], timeout: 5)
+        handle.release()                                   // EPIPE, no SIGPIPE: this test process survives
+        XCTAssertEqual(handle.writeDescriptor, -1)
+    }
+
+    func testTheHandshakeIsRetriedOnceWithAFreshSpawn() async throws {
+        let (launcher, _, count) = try stubLauncher("second", timeouts: [0.5, 5])
+        let handle = await launcher.launch(token: UUID().uuidString, markerDirectory: directory)
+        XCTAssertNotNil(handle)
+        XCTAssertEqual(spawns(count), 2, "The silent first child was replaced by a fresh one.")
+        handle?.release()
+    }
+
+    func testAChildThatNeverConfirmsIsStoppedAndTheOverrideRefused() async throws {
+        let (launcher, _, count) = try stubLauncher("silent", timeouts: [0.2, 0.3])
+        let handle = await launcher.launch(token: UUID().uuidString, markerDirectory: directory)
+        XCTAssertNil(handle)
+        XCTAssertEqual(spawns(count), 2, "One retry, then a refusal.")
     }
 
     func testTheModelPicksTheWatchdogAndTheMarkerPlace() async {
@@ -461,6 +613,72 @@ private let allowedWatchdogCalls: Set<String> = ["read", "clear", "sleep", "comf
         XCTAssertFalse(second.released)
         guard case .marker(let marker) = store.read() else { return XCTFail("The running session has a marker.") }
         XCTAssertEqual(marker.token, second.token)
+    }
+
+    /// The old run's watchdog restored and removed its marker after this run read it at init: nothing stays stuck.
+    func testAMarkerRemovedBeforeLaunchRecoveryLeavesNoRecoveryState() async throws {
+        try store.write(marker())
+        let system = FakeLidSystem()
+        let service = makeService(system, launcher: FakeWatchdogLauncher())
+        XCTAssertTrue(service.needsRecovery)
+        try store.delete()                                     // the watchdog of the ended run finished first
+        await service.recoverIfNeeded()
+        XCTAssertFalse(service.needsRecovery)
+        XCTAssertNil(service.failure)
+        XCTAssertFalse(service.systemSleepDisabled)
+        await service.setPreferred(true)
+        XCTAssertTrue(service.isOn, "Enabling works again.")
+    }
+
+    func testAMarkerRemovedBeforeLaunchRecoveryStillWarnsWhenSleepIsDisabled() async throws {
+        try store.write(marker())
+        let system = FakeLidSystem(); system.sleepDisabled = true      // e.g. another tool
+        let service = makeService(system, launcher: FakeWatchdogLauncher(), awake: false)
+        try store.delete()
+        await service.recoverIfNeeded()
+        XCTAssertFalse(service.needsRecovery)
+        XCTAssertTrue(service.systemSleepDisabled, "Derived again from the real reading.")
+        XCTAssertFalse(system.calls.contains { $0.hasPrefix("set") })
+    }
+
+    private func waitUntil(_ condition: @MainActor () -> Bool, timeout: Duration = .seconds(5)) async {
+        let deadline = ContinuousClock.now.advanced(by: timeout)
+        while !condition(), ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(10)) }
+    }
+
+    func testAWatchdogThatDiesIsReplacedUnderANewToken() async throws {
+        let system = FakeLidSystem(), launcher = FakeWatchdogLauncher()
+        let service = makeService(system, launcher: launcher)
+        await service.setPreferred(true)
+        let first = try XCTUnwrap(launcher.handles.first)
+        first.simulateExit()                                   // killed (killall -9 Tilvero, a crash)
+        await waitUntil { launcher.handles.count == 2 && !service.busy }
+        XCTAssertEqual(launcher.handles.count, 2)
+        let second = launcher.handles[1]
+        XCTAssertNotEqual(second.token, first.token)
+        XCTAssertTrue(first.released, "The dead watchdog is superseded.")
+        XCTAssertFalse(second.released)
+        guard case .marker(let onDisk) = store.read() else { return XCTFail("The session keeps its marker.") }
+        XCTAssertEqual(onDisk.token, second.token, "Rewritten for the new watchdog.")
+        XCTAssertTrue(service.isOn)
+        XCTAssertEqual(system.calls.filter { $0 == "set true" }.count, 1, "The override itself is not touched.")
+        first.simulateExit()                                   // a stale report changes nothing
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertEqual(launcher.handles.count, 2)
+    }
+
+    func testWithoutAReplacementWatchdogTheOverrideEnds() async throws {
+        let system = FakeLidSystem(), launcher = FakeWatchdogLauncher()
+        let service = makeService(system, launcher: launcher)
+        await service.setPreferred(true)
+        launcher.fails = true
+        launcher.handles[0].simulateExit()
+        await waitUntil { !service.isOn && !service.busy }
+        XCTAssertFalse(service.isOn)
+        XCTAssertFalse(system.sleepDisabled, "Never left disabled without a lifeline.")
+        XCTAssertEqual(service.failure, L10n.text("The lid mode was stopped for safety."))
+        XCTAssertEqual(store.read(), .absent)
+        XCTAssertTrue(service.isPreferred, "The option stays; the next session tries again.")
     }
 
     func testLaunchRecoveryRemovesAMarkerOfAnEndedRunOnceSleepIsNormal() async throws {

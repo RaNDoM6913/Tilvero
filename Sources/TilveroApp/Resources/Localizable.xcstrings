@@ -15553,6 +15553,22 @@
         }
       }
     },
+    "The lid mode was stopped for safety.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The lid mode was stopped for safety."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Режим закрытой крышки остановлен ради безопасности."
+          }
+        }
+      }
+    },
     "Remove permission…": {
       "localizations": {
         "en": {

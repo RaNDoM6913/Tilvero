@@ -49,9 +49,13 @@ final class FakeWatchdogLauncher: LidWatchdogLaunching, @unchecked Sendable {
         let token: String
         private let lock = NSLock()
         private var isReleased = false
+        private var exitHandler: (@Sendable () -> Void)?
         init(token: String) { self.token = token }
         var released: Bool { lock.withLock { isReleased } }
         func release() { lock.withLock { isReleased = true } }
+        func onUnexpectedExit(_ handler: @escaping @Sendable () -> Void) { lock.withLock { exitHandler = handler } }
+        /// The child died by itself (killed, crashed) while it still guarded.
+        func simulateExit() { (lock.withLock { isReleased ? nil : exitHandler })?() }
     }
     private let lock = NSLock()
     var fails = false
@@ -241,7 +245,7 @@ final class FakeWatchdogLauncher: LidWatchdogLaunching, @unchecked Sendable {
         let cleared = FakeLidSystem(); cleared.sleepDisabled = false
         let (a, da, _, cleanA) = make(cleared); defer { cleanA() }
         da.set(true, forKey: LidSleepOverrideService.legacyRecoveryKey)
-        let again = LidSleepOverrideService(system: cleared, defaults: da, allowed: true)
+        let again = LidSleepOverrideService(system: cleared, defaults: da, allowed: true, markers: a.markers)
         XCTAssertTrue(again.needsRecovery)
         await again.recoverIfNeeded()
         XCTAssertFalse(again.needsRecovery)
@@ -250,9 +254,9 @@ final class FakeWatchdogLauncher: LidWatchdogLaunching, @unchecked Sendable {
         _ = a
 
         let stuck = FakeLidSystem(); stuck.sleepDisabled = true
-        let (_, db, _, cleanB) = make(stuck); defer { cleanB() }
+        let (b, db, _, cleanB) = make(stuck); defer { cleanB() }
         db.set(true, forKey: LidSleepOverrideService.legacyRecoveryKey)
-        let service = LidSleepOverrideService(system: stuck, defaults: db, allowed: true)
+        let service = LidSleepOverrideService(system: stuck, defaults: db, allowed: true, markers: b.markers)
         await service.recoverIfNeeded()
         XCTAssertFalse(stuck.sleepDisabled)
         XCTAssertFalse(db.bool(forKey: LidSleepOverrideService.legacyRecoveryKey))
