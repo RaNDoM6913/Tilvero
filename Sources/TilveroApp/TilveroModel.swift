@@ -515,6 +515,28 @@ final class TilveroModel {
     var privilegedPermissions: PrivilegedPermissionsController?
     @ObservationIgnored var onPresentationChange: (@MainActor () -> Void)?
     @ObservationIgnored private var pollingTask: Task<Void, Never>?
+    /// Follow-up work the model starts on its own: the post-wake and queued refreshes, the power-source refresh, the
+    /// wake re-read after the settle window, the Activity scan, the sleep-assertion read and raw inspection. `stop()`
+    /// cancels all of it (each keeps its own epoch guard). Control writes (apply, restore, sleep preparation, lid
+    /// recovery) are never in here: they always run to their end.
+    @ObservationIgnored private var ownedTasks: [UInt64: Task<Void, Never>] = [:]
+    @ObservationIgnored private var ownedTaskSerial: UInt64 = 0
+    /// The store's background backfill and weekly VACUUM (detached; `stop()` cancels them before closing the store).
+    @ObservationIgnored private var backfillTask: Task<Void, Never>?
+    @ObservationIgnored private var vacuumTask: Task<Void, Never>?
+    /// Model-owned tasks still running (tests).
+    var ownedTaskCount: Int { ownedTasks.count }
+    @discardableResult
+    private func ownTask(_ operation: @escaping @MainActor () async -> Void) -> Task<Void, Never> {
+        ownedTaskSerial &+= 1
+        let id = ownedTaskSerial
+        let task = Task { @MainActor [weak self] in
+            if !Task.isCancelled { await operation() }
+            self?.ownedTasks[id] = nil
+        }
+        ownedTasks[id] = task
+        return task
+    }
     /// Tracked: derived properties views read (`updateReadiness`, Setup) depend on it.
     private var isReading = false
     @ObservationIgnored private var lifecycleEpoch: UInt64 = 0
@@ -997,7 +1019,10 @@ final class TilveroModel {
             let ticker = ChargeByTicker(service: chargeBy); chargeByTicker = ticker; ticker.start()
         }
         if !isDemo { Task { await lidSleep.recoverIfNeeded(); await lidComfort.recoverIfNeeded() } }
-        if !isDemo { Task { await liveControl.start() }; observer.start { [weak self] in Task { await self?.refresh() } } }
+        if !isDemo {
+            Task { await liveControl.start() }
+            observer.start { [weak self] in self?.ownTask { [weak self] in await self?.refresh() } }
+        }
         pollingTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
@@ -1027,6 +1052,9 @@ final class TilveroModel {
         try? keepAwake.stop()
         bufferSleepRecords(resetSleepObservation(reason: .applicationStopped, persist: true, deferWrite: true))
         pollingTask?.cancel(); pollingTask = nil; observer.stop()
+        ownedTasks.values.forEach { $0.cancel() }; ownedTasks = [:]
+        backfillTask?.cancel(); backfillTask = nil
+        vacuumTask?.cancel(); vacuumTask = nil
         // The process may exit right after this returns: write the queued and final sleep reports and close, waiting a
         // bounded time (long store work stops at its next batch).
         historyStopped = true
@@ -1067,13 +1095,13 @@ final class TilveroModel {
             lidComfort.systemDidWake()
             if !isDemo && historyEnabled { saveSleepChanges(sleepTracker.accept(.didWake(stamp: sleepStamp(), epoch: lifecycleEpoch))) }
             queuedWakeRefresh = true
-            Task { await refresh() }
+            ownTask { [weak self] in await self?.refresh() }
             if !isDemo && historyEnabled {
                 // The first wake read may be deferred as a possibly pre-sleep value; read once more after the settle window.
                 let epoch = lifecycleEpoch
                 let delay = postWakeSettleSeconds + 3
-                Task { [weak self] in
-                    try? await Task.sleep(for: .seconds(delay))
+                ownTask { [weak self] in
+                    do { try await Task.sleep(for: .seconds(delay)) } catch { return }   // cancelled by `stop()`
                     guard let self, epoch == self.lifecycleEpoch, !self.sleeping,
                           self.sleepTracker.pending?.phase == .awaitingReading else { return }
                     self.queuedWakeRefresh = true   // coalesce with a read already in flight instead of being dropped
@@ -1115,7 +1143,7 @@ final class TilveroModel {
     /// minutes old while nothing listed processes).
     private func activityPageMayHaveAppeared() {
         guard isDetailVisible, selectedSection == .activity, !isDemo else { return }
-        Task { await refreshProcessActivity() }
+        ownTask { [weak self] in await self?.refreshProcessActivity() }
     }
     /// A read-only display sample. The normal refresh owns history and control observations.
     func readOverviewMetrics() async -> [CatalogReading]? {
@@ -1136,7 +1164,7 @@ final class TilveroModel {
             isReading = false
             if queuedWakeRefresh && !sleeping {
                 queuedWakeRefresh = false
-                Task { await refresh() }
+                ownTask { [weak self] in await self?.refresh() }
             }
         }
         if isDemo { await refreshSimulation() }
@@ -1174,7 +1202,7 @@ final class TilveroModel {
             }
             guard readEpoch == lifecycleEpoch, !sleeping else { return }
             if selectedSection == .sleep && previousPower != raw.isExternalPower.value {
-                Task { await refreshSleepActivity() }
+                ownTask { [weak self] in await self?.refreshSleepActivity() }
             }
             if historyEnabled {
                 let changed = lastPersisted.map { $0.isCharging.value != snapshot.isCharging.value || $0.isExternalPower.value != snapshot.isExternalPower.value || $0.batteryIdentityToken != snapshot.batteryIdentityToken || $0.chargePercent.availability != snapshot.chargePercent.availability } ?? true
@@ -1584,7 +1612,7 @@ final class TilveroModel {
 
     /// A store migrated from schema 2 fills its scalar columns in the background; the summary appears once it is done.
     private func finishBackfill(_ store: BatteryHistoryStore) {
-        Task.detached(priority: .utility) { [weak self] in
+        backfillTask = Task.detached(priority: .utility) { [weak self] in
             do { try await store.completeBackfill() }
             catch { await MainActor.run { self?.storeError = String(describing: error) }; return }
             await MainActor.run {
@@ -1665,7 +1693,11 @@ final class TilveroModel {
     private func vacuumHistoryIfDue(_ store: BatteryHistoryStore, onExternalPower: Bool?) {
         let idle = !isPopoverVisible && !isDetailVisible
         guard idle, onExternalPower == true else { return }
-        Task.detached(priority: .background) { _ = try? await store.vacuumIfDue(onExternalPower: onExternalPower, idle: idle) }
+        guard vacuumTask == nil else { return }
+        vacuumTask = Task.detached(priority: .background) { [weak self] in
+            _ = try? await store.vacuumIfDue(onExternalPower: onExternalPower, idle: idle)
+            await MainActor.run { self?.vacuumTask = nil }
+        }
     }
 
     private func configureRetention() {
@@ -1767,9 +1799,12 @@ final class TilveroModel {
     }
     func inspectRawProperties() {
         guard !isDemo else { return }
-        Task {
-            inspectedRaw = await sideEffects.rawCatalog()
-            snapshot = snapshot.replacingCatalog(inspectedRaw)
+        ownTask { [weak self] in
+            guard let self else { return }
+            let raw = await self.sideEffects.rawCatalog()
+            guard !Task.isCancelled else { return }
+            self.inspectedRaw = raw
+            self.snapshot = self.snapshot.replacingCatalog(raw)
         }
     }
     func prepareExport(diagnostics: Bool = false, csv: Bool = false) {
