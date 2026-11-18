@@ -206,8 +206,10 @@ final class TilveroModel {
         \.nativeChargeChanges, \.chargeOnceChanges, \.chargeByChanges, \.liveControlChanges,
         \.sleepAtChargeChoice, \.keepAwakeUntilChargeChoice
     ]
-    /// Started at the end of `init`, outside any view body: tracking that began inside a body would be merged into that
-    /// body's own dependencies.
+    /// Armed at the end of `init` and re-armed on a fresh main-actor turn, never inside the change that fired it: a
+    /// change can happen while a view body is evaluated, and tracking started there would be merged into that body's
+    /// own dependencies (every model property). The re-arm is queued before the signal goes out, so it runs before any
+    /// work a listener schedules in response; a change in between is therefore still seen by that work.
     private func trackChanges() {
         withObservationTracking { [self] in
             for keyPath in Self.trackedKeyPaths { _ = self[keyPath: keyPath] }
@@ -216,8 +218,8 @@ final class TilveroModel {
         } onChange: { [weak self] in
             MainActor.assumeIsolated {
                 guard let self else { return }
+                Task { @MainActor [weak self] in self?.trackChanges() }
                 self.changeSignal.send()
-                self.trackChanges()   // registered again at once, so the next change is never missed
             }
         }
     }
@@ -536,8 +538,12 @@ final class TilveroModel {
     @ObservationIgnored private var vacuumTask: Task<Void, Never>?
     /// Model-owned tasks still running (tests).
     var ownedTaskCount: Int { ownedTasks.count }
+    /// Between `stop()` and the next `start()`: no refresh and no new follow-up task begins, so work still in flight
+    /// at `stop()` (a refresh awaiting its reading) cannot schedule more.
+    @ObservationIgnored private var isStopped = false
     @discardableResult
-    private func ownTask(_ operation: @escaping @MainActor () async -> Void) -> Task<Void, Never> {
+    private func ownTask(_ operation: @escaping @MainActor () async -> Void) -> Task<Void, Never>? {
+        guard !isStopped else { return nil }
         ownedTaskSerial &+= 1
         let id = ownedTaskSerial
         let task = Task { @MainActor [weak self] in
@@ -850,7 +856,7 @@ final class TilveroModel {
     /// Seconds between live points (the SMC sensors change about once a second).
     static let liveInterval: TimeInterval = 1
     /// The sampler runs while at least one live chart is visible and the Mac is awake (never in the simulation).
-    var wantsLiveCharts: Bool { !isDemo && !sleeping && !visibleLiveSurfaces.isEmpty }
+    var wantsLiveCharts: Bool { !isDemo && !isStopped && !sleeping && !visibleLiveSurfaces.isEmpty }
     func updateLiveCharts() {
         if wantsLiveCharts {
             guard liveTimer == nil else { return }
@@ -1020,6 +1026,7 @@ final class TilveroModel {
     }
     func start() {
         updates.start()
+        isStopped = false
         processMonitorStopped = false
         guard pollingTask == nil else { return }
         if !isDemo {
@@ -1051,6 +1058,8 @@ final class TilveroModel {
         }
     }
     func stop() {
+        isStopped = true
+        queuedWakeRefresh = false
         chargeByTicker?.stop(); chargeByTicker = nil
         liveTimer?.invalidate(); liveTimer = nil
         live.clear()
@@ -1167,6 +1176,7 @@ final class TilveroModel {
     }
 
     func refresh() async {
+        guard !isStopped else { return }
         try? keepAwake.reconcile()
         guard !isReading, !sleeping else { return }
         isReading = true
@@ -1626,7 +1636,11 @@ final class TilveroModel {
     private func finishBackfill(_ store: BatteryHistoryStore) {
         backfillTask = Task.detached(priority: .utility) { [weak self] in
             do { try await store.completeBackfill() }
-            catch { await MainActor.run { self?.storeError = String(describing: error) }; return }
+            catch {
+                // A backfill cancelled or cut short by `stop()` is not a store error.
+                await MainActor.run { if let self, !self.historyStopped { self.storeError = String(describing: error) } }
+                return
+            }
             await MainActor.run {
                 _ = self?.historyWork { [weak self] store in
                     guard let self, self.historySummary == nil else { return }

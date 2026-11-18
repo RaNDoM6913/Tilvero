@@ -12,6 +12,18 @@ private final class ReadCounter: @unchecked Sendable {
     var value: Int { lock.withLock { n } }
 }
 
+/// Holds the snapshot reading open until the test lets it finish.
+private actor ReadingGate {
+    private var waiting: CheckedContinuation<Void, Never>?
+    private var open = false
+    var isWaiting: Bool { waiting != nil }
+    func wait() async {
+        guard !open else { return }
+        await withCheckedContinuation { waiting = $0 }
+    }
+    func release() { open = true; waiting?.resume(); waiting = nil }
+}
+
 /// `stop()` cancels the follow-up work the model starts on its own; a stopped model never runs a queued refresh or the
 /// post-wake re-read afterwards.
 @MainActor final class TaskHygieneTests: XCTestCase {
@@ -53,5 +65,28 @@ private final class ReadCounter: @unchecked Sendable {
         for _ in 0..<100 where model.ownedTaskCount > 0 { try await Task.sleep(for: .milliseconds(10)) }
         XCTAssertEqual(model.ownedTaskCount, 0)
         XCTAssertEqual(processes.value, 1)
+    }
+
+    /// A refresh still awaiting its reading when the model stops must not schedule the queued wake refresh afterwards.
+    func testARefreshInFlightAtStopSchedulesNothingAfterwards() async throws {
+        let reads = ReadCounter(), gate = ReadingGate()
+        let prefs = makeTestDefaults("TaskHygiene").defaults
+        prefs.set(false, forKey: "historyEnabled")
+        let model = TilveroModel(isDemo: false, preferences: prefs,
+                                 snapshotProvider: {
+                                     reads.next(); await gate.wait()
+                                     return BatterySnapshot(chargePercent: .init(value: 70, source: "fixture"), isExternalPower: .init(value: true, source: "fixture"))
+                                 })
+        let inFlight = Task { await model.refresh() }
+        for _ in 0..<100 { if await gate.isWaiting { break }; try await Task.sleep(for: .milliseconds(5)) }
+        model.setSleeping(true); model.setSleeping(false)   // a wake while the reading is open queues another refresh
+        model.stop()
+        await gate.release()
+        await inFlight.value
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(reads.value, 1, "Only the reading that was already in flight")
+        XCTAssertEqual(model.ownedTaskCount, 0)
+        await model.refresh()
+        XCTAssertEqual(reads.value, 1, "A stopped model does not refresh")
     }
 }

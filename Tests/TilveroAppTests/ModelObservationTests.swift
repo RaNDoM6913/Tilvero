@@ -45,16 +45,21 @@ private final class Flag: @unchecked Sendable { var fired = false }
         try model.keepAwake.stop()
     }
 
-    func testSubscribingToTheChangeSignalInsideABodyDoesNotObserveTheWholeModel() {
+    /// A change made while a view body is evaluated (simulated by a tracking scope) must not hand that body the change
+    /// signal's own dependencies on every model property: the signal re-arms on a later turn.
+    func testAChangeInsideATrackedScopeDoesNotMergeTheWholeModelIntoIt() async throws {
         let model = TilveroModel(isDemo: true, preferences: makeTestDefaults("Observation").defaults)
         defer { model.stop() }
-        var subscription: AnyCancellable?
-        XCTAssertFalse(fires({ subscription = model.changes.sink { } }, when: { model.draftText = "85" }),
-                       "A view that subscribes (Setup) must not re-render on every model change")
-        subscription?.cancel()
+        let flag = Flag()
+        withObservationTracking({ model.draftText = "81" }) { flag.fired = true }
+        try await Task.sleep(for: .milliseconds(20))
+        model.demoPercent = 40   // never read by that scope
+        XCTAssertFalse(flag.fired)
     }
 
-    func testTheChangeSignalCoversModelStateServicesNoticesAndNavigation() throws {
+    private func settle() async throws { try await Task.sleep(for: .milliseconds(20)) }
+
+    func testTheChangeSignalCoversModelStateServicesNoticesAndNavigation() async throws {
         let model = TilveroModel(isDemo: false, preferences: makeTestDefaults("Observation").defaults,
                                  snapshotProvider: { .unavailable(reason: "fixture") }, keepAwakeService: KeepAwakeService(driver: AwakeFixture()))
         defer { model.stop() }
@@ -62,20 +67,34 @@ private final class Flag: @unchecked Sendable { var fired = false }
         let subscription = model.changes.sink { count += 1 }
         defer { subscription.cancel() }
         model.draftText = "85"
-        XCTAssertEqual(count, 1, "Model state")
+        XCTAssertEqual(count, 1, "Model state, signalled before the change like objectWillChange")
+        model.draftText = "86"
+        XCTAssertEqual(count, 1, "Changes in the same turn are one burst")
+        try await settle()
         try model.keepAwake.start(seconds: 600)
-        XCTAssertGreaterThan(count, 1, "A bridged service")
-        var before = count
+        XCTAssertEqual(count, 2, "A bridged service")
+        try await settle()
         model.notices.post("Export saved", from: .data)
-        XCTAssertGreaterThan(count, before, "A notice")
-        before = count
+        XCTAssertEqual(count, 3, "A notice")
+        try await settle()
         model.navigation.navigate(to: .section(.history))
-        XCTAssertGreaterThan(count, before, "The navigation")
-        before = count
+        XCTAssertEqual(count, 4, "The navigation")
+        try await settle()
         model.notifyExternalChange()
-        XCTAssertEqual(count, before + 1, "An external change")
-        model.draftText = "85"
-        XCTAssertEqual(count, before + 1, "Assigning an equal value is not a change")
+        XCTAssertEqual(count, 5, "An external change")
+        try await settle()
+        model.draftText = "86"
+        try await settle()
+        XCTAssertEqual(count, 5, "Assigning an equal value is not a change")
         try model.keepAwake.stop()
+    }
+
+    /// Every view that shows localized text or a formatted time reads `L10n`; a language or clock change re-renders it.
+    func testLanguageAndClockChangesReachEveryLocalizedView() {
+        let model = TilveroModel(isDemo: true, preferences: makeTestDefaults("Observation").defaults)
+        defer { model.stop() }
+        XCTAssertTrue(fires({ _ = L10n.text("Overview") }, when: { model.language = "ru" }))
+        XCTAssertTrue(fires({ _ = L10n.locale }, when: { model.clockDidChange() }))
+        XCTAssertFalse(fires({ _ = L10n.text("Overview") }, when: { model.draftText = "82" }))
     }
 }
