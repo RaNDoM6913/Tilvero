@@ -331,13 +331,13 @@ struct OsascriptAdministratorExecutor: AdministratorScriptExecuting {
         guard !Task.isCancelled else { return .cancelled }
         // The dialog attaches to the requesting process; an inactive menu bar app would open it behind other windows.
         await MainActor.run { NSApplication.shared.activate() }
-        let result = await CancellableProcessRun.run(launch: CancellableProcessRun.process("/usr/bin/osascript", Self.arguments(script: script, prompt: prompt)))
+        let result = await ProcessRunner.run(launch: ProcessRunner.process("/usr/bin/osascript", Self.arguments(script: script, prompt: prompt)))
         return Self.outcome(status: result.status, output: result.output, cancelled: Task.isCancelled)
     }
     /// osascript reports "User canceled. (-128)" when the dialog is dismissed, and "… (N)" with the script's exit status.
     static func outcome(status: Int32, output: String, cancelled: Bool) -> AdministratorScriptOutcome {
         if status == 0 && !cancelled { return .succeeded }
-        if output.contains("(-128)") || cancelled || status == CancellableProcessRun.cancelledBeforeStart { return .cancelled }
+        if output.contains("(-128)") || cancelled || status == ProcessRunner.cancelledBeforeStart { return .cancelled }
         return .failed(scriptStatus(output))
     }
     static func scriptStatus(_ output: String) -> Int32? {
@@ -359,7 +359,7 @@ protocol PrivilegedRuleProbing: Sendable {
 /// the explicit "Check" button: never on a timer by itself.
 struct SudoListProbe: PrivilegedRuleProbing {
     func passwordless() async -> Set<PrivilegedFeature>? {
-        let result = await CancellableProcessRun.run(launch: CancellableProcessRun.process("/usr/bin/sudo", ["-n", "-l"]), timeout: 5)
+        let result = await ProcessRunner.run(launch: ProcessRunner.process("/usr/bin/sudo", ["-n", "-l"]), timeout: 5)
         if result.status < 0 { return nil }
         return result.status == 0 ? SudoListing.features(in: result.output) : []
     }
@@ -394,86 +394,6 @@ struct PermissionWaitClock: Sendable {
     var now: @Sendable () -> Date
     var sleep: @Sendable (Duration) async throws -> Void
     static let live = PermissionWaitClock(now: { Date() }, sleep: { try await Task.sleep(for: $0) })
-}
-
-/// Runs a cancellable process whose continuation resumes exactly once: on exit, on a launch failure, on the timeout, or
-/// immediately when the task was cancelled before the launch (then nothing is launched). Cancelling a running
-/// process terminates it and the result arrives through its normal exit.
-enum CancellableProcessRun {
-    static let cancelledBeforeStart: Int32 = -3
-    static let timedOut: Int32 = -2
-    static let launchFailed: Int32 = -1
-
-    /// Starts the work; calls `finished` once when it ends; returns how to terminate it.
-    typealias Launch = @Sendable (_ finished: @escaping @Sendable (Int32, String) -> Void) throws -> @Sendable () -> Void
-
-    private final class State: @unchecked Sendable {
-        private let lock = NSLock()
-        private var continuation: CheckedContinuation<(status: Int32, output: String), Never>?
-        private var terminate: (@Sendable () -> Void)?
-        private var cancelled = false
-        private var finished = false
-
-        func install(_ c: CheckedContinuation<(status: Int32, output: String), Never>) -> Bool {
-            lock.withLock { continuation = c; return !cancelled }
-        }
-        /// Records how to stop the running work; stops it at once if a cancel already arrived.
-        func started(_ stop: @escaping @Sendable () -> Void) {
-            let stopNow = lock.withLock { () -> Bool in terminate = stop; return cancelled && !finished }
-            if stopNow { stop() }
-        }
-        func cancel() {
-            let stop = lock.withLock { () -> (@Sendable () -> Void)? in cancelled = true; return finished ? nil : terminate }
-            stop?()
-        }
-        func finish(_ status: Int32, _ output: String) {
-            let c = lock.withLock { () -> CheckedContinuation<(status: Int32, output: String), Never>? in
-                guard !finished else { return nil }
-                finished = true; defer { continuation = nil }; return continuation
-            }
-            c?.resume(returning: (status, output))
-        }
-    }
-
-    static func run(launch: Launch, timeout: TimeInterval = 600) async -> (status: Int32, output: String) {
-        let state = State()
-        return await withTaskCancellationHandler {
-            await withCheckedContinuation { continuation in
-                guard state.install(continuation), !Task.isCancelled else {
-                    state.finish(cancelledBeforeStart, ""); return
-                }
-                do {
-                    let stop = try launch { status, output in state.finish(status, output) }
-                    state.started(stop)
-                    DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout) {
-                        stop()
-                        state.finish(timedOut, "")
-                    }
-                } catch {
-                    state.finish(launchFailed, "")
-                }
-            }
-        } onCancel: {
-            state.cancel()   // only terminates; the exit (or the pre-launch guard) resumes the continuation
-        }
-    }
-
-    /// Absolute executable, `/` as the working directory, no stdin.
-    static func process(_ path: String, _ arguments: [String]) -> Launch {
-        { finished in
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: path); process.arguments = arguments
-            process.currentDirectoryURL = URL(fileURLWithPath: "/", isDirectory: true)
-            let pipe = Pipe()
-            process.standardOutput = pipe; process.standardError = pipe; process.standardInput = FileHandle.nullDevice
-            process.terminationHandler = { done in
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                finished(done.terminationStatus, String(decoding: data, as: UTF8.self))
-            }
-            try process.run()
-            return { if process.isRunning { process.terminate() } }
-        }
-    }
 }
 
 /// One password for every chosen feature, on either route; the exact inverse for removal. The scripts keep every

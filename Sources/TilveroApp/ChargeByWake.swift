@@ -50,43 +50,19 @@ import AppKit
 
     func schedule(_ date: Date) async -> Bool {
         guard isPermitted else { return false }
-        let result = await Self.run("/usr/bin/sudo", Self.scheduleArguments(date))
+        let result = await ProcessRunner.run("/usr/bin/sudo", Self.scheduleArguments(date))
         guard result.status == 0 else { return false }
-        let listed = await Self.run("/usr/bin/pmset", ["-g", "sched"])
+        let listed = await ProcessRunner.run("/usr/bin/pmset", ["-g", "sched"])
         return listed.status == 0 && Self.schedulePresent(listed.output, date: date)
     }
     func cancel(_ date: Date) async -> Bool {
         guard isPermitted else { return false }
-        _ = await Self.run("/usr/bin/sudo", Self.cancelArguments(date))
-        let listed = await Self.run("/usr/bin/pmset", ["-g", "sched"])
+        _ = await ProcessRunner.run("/usr/bin/sudo", Self.cancelArguments(date))
+        let listed = await ProcessRunner.run("/usr/bin/pmset", ["-g", "sched"])
         return listed.status == 0 && !Self.schedulePresent(listed.output, date: date)
     }
     /// The shared installer: the wake line goes into the merged rule file (one validated root script, one dialog).
     func installPermission() async -> Bool { await PrivilegedRuleInstaller.runNative(.install([.chargeByTime])) && isPermitted }
-
-    private final class Once: @unchecked Sendable {
-        private let lock = NSLock(); private var done = false
-        func take() -> Bool { lock.withLock { if done { return false }; done = true; return true } }
-    }
-    private static func run(_ path: String, _ arguments: [String], timeout: TimeInterval = 15) async -> (status: Int32, output: String) {
-        await withCheckedContinuation { continuation in
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: path); process.arguments = arguments
-            let pipe = Pipe()
-            process.standardOutput = pipe; process.standardError = pipe; process.standardInput = FileHandle.nullDevice
-            let once = Once()
-            process.terminationHandler = { finished in
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                if once.take() { continuation.resume(returning: (finished.terminationStatus, String(decoding: data, as: UTF8.self))) }
-            }
-            do { try process.run() } catch { if once.take() { continuation.resume(returning: (-1, "")) }; return }
-            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout) {
-                guard process.isRunning else { return }
-                process.terminate()
-                if once.take() { continuation.resume(returning: (-2, "")) }
-            }
-        }
-    }
 }
 
 /// Demo and monitoring-only launches never touch the system's wake schedule.

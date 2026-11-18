@@ -1400,12 +1400,12 @@ final class FirstRunCopyTests: XCTestCase {
         coordinator.teardown()
     }
 }
-/// A fake process for `CancellableProcessRun`: never launches anything real.
+/// A fake process for `ProcessRunner`: never launches anything real.
 private final class FakeProcess: @unchecked Sendable {
     private let lock = NSLock()
     private(set) var launches = 0, terminations = 0
     private var finished: (@Sendable (Int32, String) -> Void)?
-    var launch: CancellableProcessRun.Launch {
+    var launch: ProcessRunner.Launch {
         { [self] done in
             lock.withLock { launches += 1; finished = done }
             return { [self] in
@@ -1417,10 +1417,10 @@ private final class FakeProcess: @unchecked Sendable {
     func exit(_ status: Int32, _ output: String) { lock.withLock { finished }?(status, output) }
 }
 
-final class CancellableProcessRunTests: XCTestCase {
+final class ProcessRunnerTests: XCTestCase {
     func testCancellingMidRunTerminatesAndFinishesAsCancelled() async throws {
         let fake = FakeProcess()
-        let task = Task { await CancellableProcessRun.run(launch: fake.launch) }
+        let task = Task { await ProcessRunner.run(launch: fake.launch) }
         for _ in 0..<100 where fake.launches == 0 { try await Task.sleep(for: .milliseconds(5)) }
         XCTAssertEqual(fake.launches, 1)
         task.cancel()
@@ -1435,17 +1435,17 @@ final class CancellableProcessRunTests: XCTestCase {
         let fake = FakeProcess()
         let task = Task {
             withUnsafeCurrentTask { $0?.cancel() }
-            return await CancellableProcessRun.run(launch: fake.launch)
+            return await ProcessRunner.run(launch: fake.launch)
         }
         let result = await task.value
         XCTAssertEqual(fake.launches, 0)
-        XCTAssertEqual(result.status, CancellableProcessRun.cancelledBeforeStart)
+        XCTAssertEqual(result.status, ProcessRunner.cancelledBeforeStart)
         XCTAssertEqual(OsascriptAdministratorExecutor.outcome(status: result.status, output: "", cancelled: false), .cancelled)
     }
 
     func testANormalExitResumesOnceWithItsResult() async throws {
         let fake = FakeProcess()
-        let task = Task { await CancellableProcessRun.run(launch: fake.launch) }
+        let task = Task { await ProcessRunner.run(launch: fake.launch) }
         for _ in 0..<100 where fake.launches == 0 { try await Task.sleep(for: .milliseconds(5)) }
         fake.exit(1, "execution error: User canceled. (-128)")
         let result = await task.value
@@ -1455,8 +1455,8 @@ final class CancellableProcessRunTests: XCTestCase {
     }
 
     func testALaunchFailureFinishes() async {
-        let result = await CancellableProcessRun.run(launch: { _ in throw CocoaError(.fileNoSuchFile) })
-        XCTAssertEqual(result.status, CancellableProcessRun.launchFailed)
+        let result = await ProcessRunner.run(launch: { _ in throw CocoaError(.fileNoSuchFile) })
+        XCTAssertEqual(result.status, ProcessRunner.launchFailed)
     }
 }
 

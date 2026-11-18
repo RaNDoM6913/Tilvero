@@ -349,7 +349,7 @@ struct NativeLidSleepSystem: LidSleepSystem {
     var ruleFilePresent: Bool { PrivilegedRulePresence.isPresent(.lidClosed) }
 
     func readSleepDisabled() async -> Bool? {
-        let result = await Self.run("/usr/bin/pmset", ["-g"])
+        let result = await ProcessRunner.run("/usr/bin/pmset", ["-g"])
         guard result.status == 0 else { return nil }
         return Self.sleepDisabled(inPmsetOutput: result.output)
     }
@@ -358,7 +358,7 @@ struct NativeLidSleepSystem: LidSleepSystem {
         return await setSleepDisabledPasswordless(current)
     }
     func setSleepDisabledPasswordless(_ disabled: Bool) async -> Bool {
-        await Self.run("/usr/bin/sudo", ["-n", "/usr/bin/pmset", "disablesleep", disabled ? "1" : "0"]).status == 0
+        await ProcessRunner.run("/usr/bin/sudo", ["-n", "/usr/bin/pmset", "disablesleep", disabled ? "1" : "0"]).status == 0
     }
     /// The shared installer: the lid line goes into the merged rule file (one validated root script, one dialog).
     func installRule() async -> Bool { await PrivilegedRuleInstaller.runNative(.install([.lidClosed])) }
@@ -382,36 +382,5 @@ struct NativeLidSleepSystem: LidSleepSystem {
         guard connection != 0 else { return false }
         defer { IOServiceClose(connection) }
         return IOPMSleepSystem(connection) == kIOReturnSuccess
-    }
-
-    private final class Once: @unchecked Sendable {
-        private let lock = NSLock()
-        private var done = false
-        func take() -> Bool { lock.withLock { if done { return false }; done = true; return true } }
-    }
-
-    /// Independent processes, no shared queue: a long administrator prompt never delays a `pmset -g` or a restore.
-    private static func run(_ path: String, _ arguments: [String], timeout: TimeInterval = 15) async -> (status: Int32, output: String) {
-        await withCheckedContinuation { continuation in
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: path)
-            process.arguments = arguments
-            let pipe = Pipe()
-            process.standardOutput = pipe; process.standardError = pipe; process.standardInput = FileHandle.nullDevice
-            let once = Once()
-            process.terminationHandler = { finished in
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                if once.take() { continuation.resume(returning: (finished.terminationStatus, String(decoding: data, as: UTF8.self))) }
-            }
-            do { try process.run() } catch {
-                if once.take() { continuation.resume(returning: (-1, "")) }
-                return
-            }
-            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout) {
-                guard process.isRunning else { return }
-                process.terminate()
-                if once.take() { continuation.resume(returning: (-2, "")) }
-            }
-        }
     }
 }
