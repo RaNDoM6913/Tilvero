@@ -1,7 +1,7 @@
-![Tilvero — Battery, power and activity. Swift 6, macOS 26+, Apple silicon. Source preview.](.github/assets/cover.png)
+![Tilvero — Battery, power and activity. Swift 6, macOS 26+, Apple silicon.](.github/assets/cover.png)
 
 <p align="center">
-  <a href="https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.7.1"><img src="https://img.shields.io/badge/source-preview-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="Source preview" height="28"></a>
+  <a href="https://github.com/RaNDoM6913/Tilvero/releases/latest"><img src="https://img.shields.io/github/v/release/RaNDoM6913/Tilvero?style=for-the-badge&amp;label=release&amp;labelColor=172A22&amp;color=2F6E4B" alt="Latest release" height="28"></a>
   <a href="docs/GITHUB_TRAFFIC.md"><img src="https://img.shields.io/badge/zip%20%E2%80%A2%20clones%20%E2%80%A2%20unique-18%20%E2%80%A2%201677%20%E2%80%A2%20409-2F6E4B?style=for-the-badge&amp;labelColor=172A22" alt="Source ZIP downloads 18, Git clones 1677, unique cloners 409" height="28"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-2F6E4B?style=for-the-badge&amp;labelColor=172A22&amp;color=2F6E4B" alt="License: GPL-3.0-only" height="28"></a>
 </p>
@@ -30,7 +30,7 @@ establish hardware support or qualify a release binary.</sub>
 - **First run:** a brand-new install opens one setup window (launch at login, history, the closed-lid option and charge by time).
   Existing installs never see it.
 
-**Latest: [0.7.1 Source Preview](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.7.1) for developers.**
+**Latest: [0.7.1](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.7.1) for developers.**
 [Get the source](https://github.com/RaNDoM6913/Tilvero/releases/download/v0.7.1/Tilvero-0.7.1-source.zip)
 · [Release notes and checksums](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.7.1)
 · [Build and run](#build-and-run) · [Roadmap](ROADMAP.md)
