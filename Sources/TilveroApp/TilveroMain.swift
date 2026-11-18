@@ -560,10 +560,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     @objc private func willSleep() { model.setSleeping(true) }
     @objc private func sessionResigned() { model.sleepTimer.sessionResigned() }
     @objc private func powerChanged() { Task { await model.refresh() } }
-    @objc private func clockChanged() {
-        try? model.keepAwake.reconcile()
-        model.keepAwake.objectWillChange.send() // Reformat the same absolute Until target after a zone change.
-    }
+    @objc private func clockChanged() { model.clockDidChange() }   // reformat absolute times after a zone or clock change
     @objc private func reopenDetails() { showDetails() }
     @objc private func openSettings() { model.navigation.open(.section(.settings)) }
     @objc private func checkForUpdates() {

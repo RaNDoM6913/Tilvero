@@ -179,6 +179,14 @@ final class TilveroModel {
     /// Something outside the model changed what Setup or the quick panel derive from it (an installed permission): the
     /// change signal fires as if the model itself had changed.
     func notifyExternalChange() { externalChanges &+= 1 }
+    /// The time zone or the system clock changed: every absolute time on screen (Keep Awake and sleep timer end, the
+    /// charge-by deadline, sleep reports, "Last collection") is formatted again. Views showing localized text depend on
+    /// `PresentationRevision`; leaf views that hold Keep Awake directly hear its change.
+    func clockDidChange() {
+        try? keepAwake.reconcile()
+        PresentationRevision.shared.bump()
+        keepAwake.objectWillChange.send()
+    }
     private var externalChanges: UInt64 = 0
     @ObservationIgnored private let changeSignal = PassthroughSubject<Void, Never>()
     /// Every tracked stored property, plus the two preference-backed choices. `ModelObservationTests` checks it against
@@ -227,7 +235,11 @@ final class TilveroModel {
     private(set) var modeLibrary: ModeLibrary
     private(set) var modeReport: ModeApplicationReport?
     var selectedMode: WorkMode = .economy
-    var language: String { didSet { preferences.set(language, forKey: "language"); onPresentationChange?() } }
+    var language: String { didSet {
+        preferences.set(language, forKey: "language")
+        PresentationRevision.shared.bump()   // every view showing localized text re-renders in the new language
+        onPresentationChange?()
+    } }
     /// System (default), Celsius or Fahrenheit. Views read `fahrenheit`; it follows this setting.
     var temperatureUnit: TemperatureUnitSetting { didSet { preferences.set(temperatureUnit.rawValue, forKey: "temperatureUnit") } }
     var fahrenheit: Bool { temperatureUnit.usesFahrenheit() }
