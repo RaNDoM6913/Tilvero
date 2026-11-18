@@ -1468,6 +1468,7 @@ final class TilveroModel {
             do {
                 let restored = try await nativeCharge.restore(batteryPercent: snapshot.chargePercent.value,
                     batteryFresh: snapshot.chargePercent.availability == .available && snapshot.chargePercent.freshness == .fresh)
+                if helperRestored && restored { notices.clear(.recovery) }
                 return helperRestored && restored
             } catch { notices.post(L10n.text(error.localizedDescription), from: .recovery); return false }
         }

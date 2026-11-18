@@ -7,7 +7,8 @@ import Observation
 /// Who raised a notice. Every source owns one slot, so a later notice from one feature never erases another feature's
 /// message, and a feature that resolves its own problem clears only its own line.
 enum NoticeSource: CaseIterable, Sendable {
-    /// A control could not be made safe before sleep or quit ("Recovery required"). Shown before anything else.
+    /// A control could not be made safe before sleep or quit ("Recovery required"). A later control result (a successful
+    /// restore, another apply) replaces it, as the single notice line did.
     case recovery
     /// A Keep Awake session ended with a failure. Stays on every page until Keep Awake reports something newer.
     case keepAwake
@@ -21,16 +22,15 @@ enum NoticeSource: CaseIterable, Sendable {
     /// Export, diagnostics report and login-item results.
     case data
 
-    /// Sources that describe the same control result: a newer one replaces the others (a new apply outdates the
-    /// previous failure or pending line).
+    /// Sources that describe the state of the controls: a newer one replaces the others (a new apply outdates the
+    /// previous failure, the pending line or a recovery warning).
     var group: Set<NoticeSource> {
         switch self {
-        case .control, .chargeStatus, .simulation: [.control, .chargeStatus, .simulation]
+        case .recovery, .control, .chargeStatus, .simulation: [.recovery, .control, .chargeStatus, .simulation]
         default: [self]
         }
     }
     var lifetime: Notice.Lifetime { self == .keepAwake ? .untilResolved : .page }
-    var isCritical: Bool { self == .recovery }
 }
 
 struct Notice: Equatable, Sendable {
@@ -48,8 +48,8 @@ struct Notice: Equatable, Sendable {
     var lifetime: Lifetime { source.lifetime }
 }
 
-/// The notices of every feature, one slot per source. Surfaces show `current(excluding:)`: a critical notice first,
-/// otherwise the newest; when it is cleared, an older notice that is still valid shows again instead of being lost.
+/// The notices of every feature, one slot per source. Surfaces show the newest (`current(excluding:)`); when it is
+/// cleared, an older notice that is still valid shows again instead of being lost.
 @MainActor @Observable final class NoticeCenter {
     private(set) var notices: [NoticeSource: Notice] = [:]
     @ObservationIgnored private var sequence: UInt64 = 0
@@ -85,10 +85,11 @@ struct Notice: Equatable, Sendable {
         clear(Set(notices.values.filter { $0.lifetime == .page }.map(\.source)))
     }
 
-    /// The notice to show: a critical one first, otherwise the newest of the sources not excluded.
+    /// The notice to show: the newest one, or nothing when the newest comes from an excluded source (a surface that
+    /// leaves out, say, the Charge page's own status line shows nothing then, never an older line it was hiding).
     func current(excluding excluded: Set<NoticeSource> = []) -> Notice? {
-        notices.values.filter { !excluded.contains($0.source) }
-            .max { ($0.source.isCritical ? 1 : 0, $0.sequence) < ($1.source.isCritical ? 1 : 0, $1.sequence) }
+        guard let newest = notices.values.max(by: { $0.sequence < $1.sequence }), !excluded.contains(newest.source) else { return nil }
+        return newest
     }
 
     /// Stops pending expiries (the model is stopping).

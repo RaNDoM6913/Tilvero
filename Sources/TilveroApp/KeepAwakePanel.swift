@@ -69,7 +69,7 @@ import SwiftUI
                     .disabled(!model.canStartKeepAwakeDraft || model.sleepTimerBlocksControls).accessibilityIdentifier("keep-awake-start").studioElement("keep-awake-start", label: "keep-awake-start")
             }
             if let message = error ?? model.keepAwake.message, !model.keepAwake.hasOwnedAssertion,
-               model.notices.current(excluding: [.chargeStatus])?.text != L10n.text(message) {
+               model.notice != L10n.text(message) {
                 Text(L10n.text(message)).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
             }
             if !model.keepAwake.isAvailable {

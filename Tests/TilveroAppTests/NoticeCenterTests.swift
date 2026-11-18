@@ -17,13 +17,26 @@ import XCTest
         XCTAssertEqual(center.current()?.text, "Keep Awake failed", "Clearing one source never touches another")
     }
 
-    func testRecoveryIsShownBeforeNewerNotices() {
+    func testANewerControlResultReplacesAStaleRecoveryLine() {
         let center = NoticeCenter()
         center.post("Recovery required", from: .recovery)
-        center.post("Simulation only", from: .simulation)
-        center.post("Operation failed", from: .control)
-        XCTAssertEqual(center.current()?.text, "Recovery required", "A later profile or charge result cannot hide it")
-        XCTAssertEqual(center.current(excluding: [.recovery])?.text, "Operation failed")
+        center.post("Export saved", from: .data)
+        XCTAssertEqual(center.current()?.text, "Export saved", "The newest notice shows")
+        center.clear(.data)
+        XCTAssertEqual(center.current()?.text, "Recovery required", "An unrelated notice never erased it")
+        center.post("Owned settings restored.", from: .control)
+        XCTAssertNil(center.notices[.recovery], "A later control result replaces the recovery line, as the single line did")
+        XCTAssertEqual(center.current()?.text, "Owned settings restored.")
+    }
+
+    func testAnExcludedNewestNoticeHidesTheLineInsteadOfShowingAnOlderOne() {
+        let center = NoticeCenter()
+        center.post("Export saved", from: .data)
+        center.post("Waiting for natural discharge", from: .chargeStatus)
+        XCTAssertNil(center.current(excluding: [.chargeStatus]), "A surface that leaves out the newest line shows nothing")
+        XCTAssertEqual(center.current()?.text, "Waiting for natural discharge")
+        center.clear(.chargeStatus)
+        XCTAssertEqual(center.current(excluding: [.chargeStatus])?.text, "Export saved")
     }
 
     func testAControlResultReplacesTheEarlierControlLinesOnly() {
@@ -34,6 +47,8 @@ import XCTest
         XCTAssertNil(center.notices[.chargeStatus], "A newer apply outdates the pending line")
         center.post("Simulation only", from: .simulation)
         XCTAssertNil(center.notices[.control], "…and the previous failure")
+        center.post("Recovery required", from: .recovery)
+        XCTAssertNil(center.notices[.simulation], "Recovery belongs to the same control state")
         XCTAssertEqual(center.notices[.keepAwake]?.text, "Keep Awake failed")
     }
 
@@ -63,14 +78,16 @@ import XCTest
         XCTAssertEqual(center.current()?.text, "Refused", "A stopped model leaves its last notice untouched")
     }
 
-    func testARecoveryNoticeSurvivesALaterTypedDraftError() {
+    func testARecoveryNoticeGoesWithTheNextControlResultAndKeepAwakeSurvivesIt() {
         let model = TilveroModel(isDemo: true, preferences: makeTestDefaults("Notices").defaults)
         defer { model.stop() }
+        model.notices.post("Keep Awake failed", from: .keepAwake)
         model.notices.post(L10n.text("Recovery required"), from: .recovery)
         model.draftText = "invalid"
         XCTAssertFalse(model.validateTypedDraft())
-        XCTAssertEqual(model.notice, L10n.text("Recovery required"), "The single notice line used to lose it to the later message")
+        XCTAssertEqual(model.notice, L10n.text("Unsupported percentage. Choose an available step."))
+        XCTAssertNil(model.notices.notices[.recovery], "The newer charge result replaced the stale recovery line")
         model.dismissActionNotice()
-        XCTAssertNil(model.notice)
+        XCTAssertEqual(model.notice, "Keep Awake failed", "Only the Keep Awake failure waits for its source")
     }
 }
