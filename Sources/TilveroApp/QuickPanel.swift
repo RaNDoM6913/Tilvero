@@ -170,6 +170,7 @@ private struct QuickOverviewSessionRows: View {
     var model: TilveroModel
     let openSleep: @MainActor () -> Void
     var body: some View {
+        let _ = RenderProbe.hit("QuickOverviewSessionRows")
         if model.sleepTimer.isActive { SleepTimerActiveRow(model: model, open: openSleep); Divider() }
         // The Keep Awake block carries its own running session; the stop row only stands in while that block is hidden.
         if model.keepAwake.hasOwnedAssertion, model.overviewPreferences.hidden.contains(.keepAwake) { KeepAwakeActivePanel(service: model.keepAwake).id(model.language) }

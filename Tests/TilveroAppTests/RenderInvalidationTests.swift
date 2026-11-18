@@ -40,27 +40,12 @@ private actor InvalidationProcesses {
 
 /// Counts what SwiftUI re-renders after one change, with the real quick panel (Overview and Charge pages) and the details
 /// window (Charging page) on screen at once. `RenderProbe` counts body evaluations of a few key views; `fits` counts
-/// whole-panel measurements by the popover host (its safety net); `signals` counts model-wide change notifications.
+/// whole-panel measurements by the popover host (its safety net); `signals` counts the model's change signal.
 ///
-/// Baseline before the state split (2026-11-18: one `ObservableObject` model that forwards eight services' changes and
-/// that 27 views observe). "all" = every probed view: QuickPanel.overview, QuickPanel.charge, OverviewHero,
-/// OverviewMetricsPanel, ProcessActivityPanel.compact, QuickNativeChargePanel, BatteryInfoView, PowerDataPanel.
-///
-///     keyboard    signals 0  fits 0  KeyboardBacklightQuickRow 1 (the backlight service was never forwarded)
-///     keep-awake  signals 1  fits 1  all 1
-///     process     signals 2  fits 1  all 1
-///     history     signals 4  fits 1  all 3
-///
-/// After the split (`@Observable` model with per-service change counters, typed notices, navigation of its own, the
-/// quick Overview session rows and the details sidebar, banners and "Last collection" line as views of their own):
-///
-///     keyboard    signals 0  fits 0  KeyboardBacklightQuickRow 1
-///     keep-awake  signals 1  fits 1  none of the probed views
-///     process     signals 2  fits 1  ProcessActivityPanel.compact 1
-///     history     signals 3  fits 1  OverviewHero 1, OverviewMetricsPanel 1 (they show the recorded data)
-///
-/// `signals` and `fits` are unchanged on purpose: the popover host's safety-net measurement still runs once per change
-/// burst while the popover is shown. The guards below keep the improved numbers.
+/// Each test checks both sides: the view that shows the change re-renders (at least once), the probed views that do not
+/// show it never do. Before the state split (commit 135c82e, one `ObservableObject` model with forwarded service
+/// changes) a keep-awake tick, a process sample and a history record re-rendered every probed view; run this file at
+/// that commit to compare. The safety-net fit still runs once per change burst while the popover is shown, on purpose.
 @MainActor final class RenderInvalidationTests: XCTestCase {
     private struct Rig {
         let model: TilveroModel
@@ -93,7 +78,8 @@ private actor InvalidationProcesses {
                                  snapshotProvider: { box.value }, nativeCharge: native, keepAwakeService: awake,
                                  processActivityProvider: { await processes.read() }, keyboardBacklight: keyboard,
                                  sleepTimerService: timer, lidSleepSystem: CountdownLid())
-        model.overviewPreferences.hidden = [.systemPower, .adapter, .batteryHealth, .powerTiles, .powerCombined]
+        // The Keep Awake block is hidden, so the Overview's session rows show the running Keep Awake instead.
+        model.overviewPreferences.hidden = [.keepAwake, .systemPower, .adapter, .batteryHealth, .powerTiles, .powerCombined]
         model.selectedSection = .charging
         await model.refresh()
         await model.waitForHistoryWork()
@@ -122,7 +108,7 @@ private actor InvalidationProcesses {
 
     private static let probes = ["QuickPanel.overview", "QuickPanel.charge", "OverviewHero", "OverviewMetricsPanel",
                                  "ProcessActivityPanel.compact", "QuickNativeChargePanel", "BatteryInfoView", "PowerDataPanel",
-                                 "KeyboardBacklightQuickRow"]
+                                 "KeyboardBacklightQuickRow", "QuickOverviewSessionRows"]
 
     /// Every probed view outside `allowed` rendered zero times.
     private func assertOnly(_ allowed: Set<String>, _ result: Measurement, file: StaticString = #filePath, line: UInt = #line) {
@@ -186,7 +172,8 @@ private actor InvalidationProcesses {
         try rig.awake.start(seconds: 3600)
         let result = try await measure(rig, "keep-awake") { try rig.awake.reconcile() }
         XCTAssertTrue(rig.awake.hasOwnedAssertion)
-        assertOnly([], result)
+        XCTAssertGreaterThanOrEqual(result.count("QuickOverviewSessionRows"), 1, "The rows that show Keep Awake re-render")
+        assertOnly(["QuickOverviewSessionRows"], result)
         XCTAssertLessThanOrEqual(result.fits, 1)
     }
 
@@ -210,6 +197,7 @@ private actor InvalidationProcesses {
             await rig.model.waitForHistoryWork()
         }
         XCTAssertGreaterThan(rig.model.history.count, before, "The reading was recorded")
+        XCTAssertGreaterThanOrEqual(result.count("OverviewMetricsPanel"), 1, "The Overview's last-hour chart shows the record")
         assertOnly(["OverviewHero", "OverviewMetricsPanel"], result)
         XCTAssertLessThanOrEqual(result.count("OverviewHero") + result.count("OverviewMetricsPanel"), 6)
         XCTAssertLessThanOrEqual(result.fits, 1)
