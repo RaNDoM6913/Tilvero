@@ -8,7 +8,7 @@ import ChargeBackends
 /// slider over the verified targets (100 means "no limit"). Letting go of the slider applies the level; there is
 /// no Apply button. Explanations live in the info popover; other lines appear only when there is something to say.
 @MainActor struct QuickNativeChargePanel: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     @State private var dragging = false
     @State private var settle: Task<Void, Never>?
     /// What the slider shows from the user's first movement until the apply is done, so a busy model never snaps it back.

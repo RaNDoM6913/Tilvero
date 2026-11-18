@@ -15,7 +15,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
 }
 
 @MainActor struct QuickPanelBuilder: View {
-    @ObservedObject var model: TilveroModel
+    @Bindable var model: TilveroModel
     @State private var drag = OverviewDragState()
     @State private var dropTarget: OverviewMetric?
     var body: some View {
@@ -91,7 +91,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
 /// mode or Awake controls (some of those perform work in task/onChange handlers).
 /// Only local preview-tab selection can mutate state here.
 @MainActor struct PassiveQuickPanelPreview: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     @State var section: QuickPanelSection = .overview
     @State private var sleepPage: SleepPage = .timer
     var body: some View {

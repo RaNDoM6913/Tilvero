@@ -47,7 +47,7 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
 }
 
 @MainActor struct SleepControlsPanel: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     var compact = false
     @State private var quickPage: SleepPage = .timer
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -105,7 +105,7 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
 }
 
 @MainActor struct SleepTimerPanel: View {
-    @ObservedObject var model: TilveroModel
+    @Bindable var model: TilveroModel
     var compact = false
     @State private var error: String?
     @State private var confirmsSwitch = false
@@ -261,7 +261,7 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
 }
 
 @MainActor struct SleepTimerActiveRow: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     var open: (@MainActor () -> Void)? = nil
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { tick in

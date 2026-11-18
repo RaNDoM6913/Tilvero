@@ -152,7 +152,7 @@ struct SustainedCPUActivity {
 }
 
 @MainActor struct ProcessActivityPanel: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     var compact = false
     var allowsNavigation = true
     @State private var search = ""

@@ -7,7 +7,7 @@ import PowerCore
 
 @MainActor struct OverviewMetricsPanel: View {
     @Environment(\.studioPresentation) private var studioPresentation
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     var allowsAwakeActions = false
     /// Opens the Sleep page from the Keep Awake block; `nil` in the passive preview.
     var openSleep: (@MainActor () -> Void)?

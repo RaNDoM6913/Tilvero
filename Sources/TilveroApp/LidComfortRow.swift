@@ -7,7 +7,7 @@ import PowerCore
 /// "Screen and sound" under the With lid closed switch (owner-chosen variant 5). Collapsed: title, info, the two levels
 /// and a chevron. Tapping grows the quick menu in place and shows two full-width capsule sliders; tapping again folds it.
 @MainActor struct LidComfortRow: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     @ObservedObject private var service: LidComfortService
     let mode: LidComfortMode
     @State private var expanded: Bool

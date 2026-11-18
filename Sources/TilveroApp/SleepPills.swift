@@ -262,7 +262,7 @@ struct SleepPillItem: Identifiable, Equatable {
         let identity: PopoverCloseIdentity
         let value: SleepWheelValue
     }
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     @State private var showsWheel = false
     @State private var wheelPresentationID = UUID()
     @State private var committedWheelValue: WheelCommit?
@@ -481,7 +481,7 @@ struct SleepPillItem: Identifiable, Equatable {
 }
 
 @MainActor struct KeepAwakePillsPanel: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     @State private var wheelMode: SleepWheelMode?
     @State private var committedWheelValue: SleepWheelValue?
     @State private var error: String?
@@ -678,7 +678,7 @@ struct SleepPillItem: Identifiable, Equatable {
     /// `.sleep`: stay awake until the level, then sleep (under the sleep timer). `.keepAwake`: stay awake until the
     /// level, then only stop holding (under Keep Awake).
     enum Mode { case sleep, keepAwake }
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     var mode: Mode = .sleep
     @State private var error: String?
     private var service: SleepAtChargeService { mode == .sleep ? model.sleepAtCharge : model.keepAwakeUntilCharge }

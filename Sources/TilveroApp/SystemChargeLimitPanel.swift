@@ -6,7 +6,7 @@ import ChargeBackends
 
 /// A read-only view of system policy. Changing it is an explicit action in Apple's UI.
 @MainActor struct SystemChargeLimitPanel: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
             if let observation = model.systemChargeLimit, observation.isFresh(), let limits = observation.limits {

@@ -80,7 +80,7 @@ import SwiftUI
             // Nothing could start meanwhile (see `PrivilegedRuleInstaller.removalInProgress`), but say so if it did.
             if case .succeeded = outcome, operation.isRemoval, let blocker = self.removalBlocker { self.message = blocker }
             else { self.message = Self.message(outcome, operation: operation, route: route) }
-            self.model?.objectWillChange.send()
+            self.model?.notifyExternalChange()
             await self.refresh()
         }
     }

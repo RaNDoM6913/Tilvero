@@ -10,7 +10,7 @@ import PowerCore
 /// the unit), so the plot keeps the full card width. There is no caption: an absent
 /// adapter shows "—" in the legend and draws no line.
 @MainActor struct PowerCombinedBlock: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
 
     /// Pure text and drawing decisions, so wording and which lines exist are testable without a view tree.
     struct Content: Equatable {

@@ -43,7 +43,7 @@ enum QuickPanelMetrics {
 @MainActor
 struct QuickPanel: View {
     @Environment(\.studioPresentation) private var studioPresentation
-    @ObservedObject var model: TilveroModel
+    @Bindable var model: TilveroModel
     var maximumHeight: CGFloat = 700
     var onSizeChange: ((CGSize) -> Void)?
     @State var section: QuickPanelSection = .overview
@@ -121,9 +121,7 @@ struct QuickPanel: View {
         VStack(alignment: .leading, spacing: 12) {
             OverviewHero(model: model, openCharge: { section = .charge })
             Divider()
-            if model.sleepTimer.isActive { SleepTimerActiveRow(model: model, open: { section = .awake }); Divider() }
-            // The Keep Awake block carries its own running session; the stop row only stands in while that block is hidden.
-            if model.keepAwake.hasOwnedAssertion, model.overviewPreferences.hidden.contains(.keepAwake) { KeepAwakeActivePanel(service: model.keepAwake).id(model.language) }
+            QuickOverviewSessionRows(model: model, openSleep: { section = .awake })
             OverviewMetricsPanel(model: model, allowsAwakeActions: true, openSleep: { model.navigation.sleepPage = .awake; section = .awake })
         }
     }
@@ -166,6 +164,18 @@ struct QuickPanel: View {
     }
 }
 
+/// The running sleep timer and Keep Awake rows of the quick Overview. Its own view, so a timer or Keep Awake change
+/// re-renders these rows, not the whole panel (they read the services; the panel root does not).
+private struct QuickOverviewSessionRows: View {
+    var model: TilveroModel
+    let openSleep: @MainActor () -> Void
+    var body: some View {
+        if model.sleepTimer.isActive { SleepTimerActiveRow(model: model, open: openSleep); Divider() }
+        // The Keep Awake block carries its own running session; the stop row only stands in while that block is hidden.
+        if model.keepAwake.hasOwnedAssertion, model.overviewPreferences.hidden.contains(.keepAwake) { KeepAwakeActivePanel(service: model.keepAwake).id(model.language) }
+    }
+}
+
 /// Fills the header between the name and the gear: a wide capsule while a newer published release is known from the
 /// last successful check, otherwise plain space. It only informs; the Updates page shows the release and its notes.
 struct QuickUpdatePill: View {
@@ -196,7 +206,7 @@ struct QuickUpdatePill: View {
 
 @MainActor
 struct ChargeLimitControl: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     var isQuickPanel = false
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {

@@ -358,7 +358,7 @@ struct ReadingInfoPresentation {
 
 /// Summary readings share the value, privacy and quality rules of their detail rows.
 @MainActor struct CatalogSummaryMetric: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     let id: String
     let title: String
     var reveal = false
@@ -398,7 +398,7 @@ struct ReadingInfoPresentation {
 }
 
 @MainActor struct BatteryDataPanel: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     var showUnavailable = true
     var reveal = false
     var options: AnyView? = nil
@@ -478,7 +478,7 @@ struct ReadingInfoPresentation {
 }
 
 @MainActor struct BatteryStateHeading: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     var body: some View {
         HStack(alignment: .center, spacing: 18) {
             Image(nsImage: NativeBatteryStatusImage.make(
@@ -497,7 +497,7 @@ struct ReadingInfoPresentation {
 }
 
 @MainActor struct PowerDataPanel: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     var showUnavailable = true
     var reveal = false
     var options: AnyView? = nil

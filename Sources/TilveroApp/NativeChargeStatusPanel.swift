@@ -5,7 +5,7 @@ import SwiftUI
 import ChargeBackends
 
 @MainActor struct NativeChargeStatusPanel: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     var compact = false
     @State private var showsDetails = false
     var body: some View {

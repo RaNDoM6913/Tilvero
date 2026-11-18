@@ -5,7 +5,7 @@ import SwiftUI
 import ClosedLidControl
 
 @MainActor struct ClosedLidExplanationView: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     @ObservedObject private var service: ClosedLidService
     // The small native switch can settle from 24 to 20 pt on first mount.
     // Keep the row stable while allowing larger text to increase its height.
@@ -69,7 +69,7 @@ import ClosedLidControl
 
 /// Ordinary builds: the closed-lid switch backed by `LidSleepOverrideService` (`pmset disablesleep`).
 @MainActor struct LidSleepOverrideRow: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     @ObservedObject private var service: LidSleepOverrideService
     /// Keep Awake and the sleep timer each have their own switch; they share the permission and the override.
     let mode: LidMode

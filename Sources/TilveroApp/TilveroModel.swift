@@ -3,6 +3,7 @@
 
 import Foundation
 import Combine
+import Observation
 import AppKit
 import ServiceManagement
 import UniformTypeIdentifiers
@@ -44,14 +45,24 @@ import ChargeBackends
     }
 }
 
-@MainActor
-final class TilveroModel: ObservableObject {
+/// The application's state and actions. Observation (`@Observable`): a view re-renders only when a property it read
+/// changes, so a process sample, a history record or a navigation change no longer re-renders every observing view.
+///
+/// The services stay `ObservableObject`s (their Combine publishers wire them to each other and to tests). Each bridged
+/// service has a change counter here: reading the service through the model (`model.keepAwake`, or a derived property
+/// such as `canEdit`) registers the reading view for that service's changes only. A leaf view that holds the service
+/// with `@ObservedObject` observes it directly.
+///
+/// Stored state that views never read directly is `@ObservationIgnored` (caches, tasks, epochs), so updating it during a
+/// body evaluation never schedules another one.
+@MainActor @Observable
+final class TilveroModel {
     let updates: UpdateCheckService
-    @Published private(set) var updatePreparationActive = false
-    private var updateExclusion: ControllerSessionLease?
+    private(set) var updatePreparationActive = false
+    @ObservationIgnored private var updateExclusion: ControllerSessionLease?
     private let updateLeaseDirectory: URL?
     private let updateEvidence: () -> [UpdateEvidenceProbe.Result]
-    lazy var updateInstaller = SparkleUpdateInstaller(
+    @ObservationIgnored lazy var updateInstaller = SparkleUpdateInstaller(
         readOnlyReadiness: { [weak self] in self?.updateReadiness.blockers ?? ["Update recovery status is unavailable."] },
         prepareAfterExplicitConsent: { [weak self] in await self?.prepareForUpdateInstallation() ?? false },
         releaseInstallationExclusion: { [weak self] in self?.releaseUpdateInstallation() },
@@ -100,46 +111,46 @@ final class TilveroModel: ObservableObject {
     }
 
     func releaseUpdateInstallation() { updatePreparationActive = false; updateExclusion = nil }
-    @Published private(set) var snapshot: BatterySnapshot
-    @Published private(set) var control: SimulationControlSnapshot?
-    @Published var draftText = ""
+    private(set) var snapshot: BatterySnapshot
+    private(set) var control: SimulationControlSnapshot?
+    var draftText = ""
     /// Every feature's notices, one slot per source (`NoticeCenter`).
     let notices = NoticeCenter()
     /// The newest notice of any source (tests and simple checks); surfaces filter with `notices.current(excluding:)`.
     var notice: String? { notices.current()?.text }
-    @Published private(set) var isApplying = false
-    @Published private(set) var storeError: String?
-    @Published private(set) var history: [HistorySample] = [] { didSet { seriesCacheKey = nil } }
-    @Published private(set) var historySummary: HistorySummary?
+    private(set) var isApplying = false
+    private(set) var storeError: String?
+    private(set) var history: [HistorySample] = [] { didSet { seriesCacheKey = nil } }
+    private(set) var historySummary: HistorySummary?
     /// What History.sqlite and its WAL occupy against the store's ceiling; nil until the store has been read.
-    @Published private(set) var historyStorage: HistoryStorageUsage?
+    private(set) var historyStorage: HistoryStorageUsage?
     /// True from launch until the store is open and the first week, summary and sleep reports are loaded.
-    @Published private(set) var historyLoading = false
-    private var lastFullHistoryReload: Date?
-    @Published private(set) var sleepSessions: [SleepSessionRecord] = []
-    @Published private(set) var processActivity: ProcessActivitySnapshot?
-    @Published private(set) var highCPUApplications: [ProcessActivityRow] = []
+    private(set) var historyLoading = false
+    @ObservationIgnored private var lastFullHistoryReload: Date?
+    private(set) var sleepSessions: [SleepSessionRecord] = []
+    private(set) var processActivity: ProcessActivitySnapshot?
+    private(set) var highCPUApplications: [ProcessActivityRow] = []
     private let processActivityProvider: @Sendable () async -> ProcessResourceCollection
-    private var processSampler = ProcessActivitySampler(timebaseNumerator: ProcessActivityProvider.timebase.numerator, timebaseDenominator: ProcessActivityProvider.timebase.denominator,
+    @ObservationIgnored private var processSampler = ProcessActivitySampler(timebaseNumerator: ProcessActivityProvider.timebase.numerator, timebaseDenominator: ProcessActivityProvider.timebase.denominator,
                                                         maximumInterval: ProcessScanCadence.longestInterval)
-    private var processHighlights = SustainedCPUActivity()
-    private var isReadingProcesses = false
-    private var processMonitorStopped = false
-    private var processRevision: UInt64 = 0
-    private var lastProcessRefreshUptime: Double?
+    @ObservationIgnored private var processHighlights = SustainedCPUActivity()
+    @ObservationIgnored private var isReadingProcesses = false
+    @ObservationIgnored private var processMonitorStopped = false
+    @ObservationIgnored private var processRevision: UInt64 = 0
+    @ObservationIgnored private var lastProcessRefreshUptime: Double?
     /// The last scan was made at the poll cadence, and nothing has switched scans to the slow cadence since.
-    private var lastScanFollowedPoll = false
-    @Published private(set) var sleepActivity: SleepAssertionSnapshot?
+    @ObservationIgnored private var lastScanFollowedPoll = false
+    private(set) var sleepActivity: SleepAssertionSnapshot?
     /// macOS Low Power Mode, kept current from `NSProcessInfoPowerStateDidChange` (read-only; Tilvero never sets it here).
-    @Published private(set) var isLowPowerModeEnabled = false
+    private(set) var isLowPowerModeEnabled = false
     private let lowPowerModeReader: @Sendable () -> Bool
-    private var powerStateSubscription: AnyCancellable?
-    @Published private(set) var systemChargeLimit: SystemChargeLimitObservation?
-    @Published private(set) var isReadingSystemChargeLimit = false
+    @ObservationIgnored private var powerStateSubscription: AnyCancellable?
+    private(set) var systemChargeLimit: SystemChargeLimitObservation?
+    private(set) var isReadingSystemChargeLimit = false
     /// Reads the macOS limit, reusing a native read's answer at most `maximumAge` seconds old (0: always a fresh run).
     private let systemChargeLimitProvider: @Sendable (_ maximumAge: TimeInterval) async -> SystemChargeLimitObservation
-    @Published private(set) var sleepReportError: String?
-    @Published private(set) var isReadingSleepActivity = false
+    private(set) var sleepReportError: String?
+    private(set) var isReadingSleepActivity = false
     /// The details window's page and the router every surface navigates with.
     let navigation: AppNavigation
     /// Conveniences over `navigation` (tests and the model's own checks); views and actions use `navigation` directly.
@@ -159,7 +170,52 @@ final class TilveroModel: ObservableObject {
         get { navigation.presentDetails }
         set { navigation.presentDetails = newValue }
     }
-    @Published var overviewPreferences: OverviewPreferences { didSet {
+
+    // MARK: Model-wide change signal
+    /// Fires just before any tracked model state, a bridged service, a notice or the navigation changes: what
+    /// `objectWillChange` used to deliver. Only the popover host's safety-net fit and Setup's readiness refresh listen;
+    /// views never do (they track exactly what they read).
+    var changes: AnyPublisher<Void, Never> {
+        if !tracksChanges { tracksChanges = true; trackChanges() }
+        return changeSignal.eraseToAnyPublisher()
+    }
+    /// Something outside the model changed what Setup or the quick panel derive from it (an installed permission): the
+    /// change signal fires as if the model itself had changed.
+    func notifyExternalChange() { externalChanges &+= 1 }
+    private var externalChanges: UInt64 = 0
+    @ObservationIgnored private let changeSignal = PassthroughSubject<Void, Never>()
+    @ObservationIgnored private var tracksChanges = false
+    /// Every tracked stored property, plus the two preference-backed choices. `ModelObservationTests` checks it against
+    /// the model's tracked storage, so a new property cannot silently escape the change signal.
+    static let trackedKeyPaths: [PartialKeyPath<TilveroModel>] = [
+        \.updatePreparationActive, \.snapshot, \.control, \.draftText, \.isApplying, \.storeError, \.history,
+        \.historySummary, \.historyStorage, \.historyLoading, \.sleepSessions, \.processActivity,
+        \.highCPUApplications, \.sleepActivity, \.isLowPowerModeEnabled, \.systemChargeLimit,
+        \.isReadingSystemChargeLimit, \.sleepReportError, \.isReadingSleepActivity, \.overviewPreferences,
+        \.modeLibrary, \.modeReport, \.selectedMode, \.language, \.temperatureUnit, \.weeklyCapacity, \.historyEnabled,
+        \.retentionDays, \.displayStyle, \.awakeIndicatorColor, \.menuBarBatteryAppearance, \.menuBarTextSize,
+        \.menuBarIconScale, \.loginStatus, \.hasReviewedSetup, \.demoPercent, \.demoExternal, \.demoOverride,
+        \.scheduleDate, \.scheduleProfileName, \.schedule, \.exportPreview, \.sleepTimerMinutes,
+        \.sleepTimerUsesCustom, \.keepAwakeDraft, \.keepAwakeUsesCustomDuration, \.keepAwakeCustomMinutes,
+        \.privilegedPermissions, \.isReading, \.sleeping, \.externalChanges, \.keepAwakeChanges, \.sleepTimerChanges,
+        \.sleepAtChargeChanges, \.keepAwakeUntilChargeChanges, \.lidSleepChanges, \.lidComfortChanges,
+        \.nativeChargeChanges, \.chargeOnceChanges, \.chargeByChanges, \.liveControlChanges,
+        \.sleepAtChargeChoice, \.keepAwakeUntilChargeChoice
+    ]
+    private func trackChanges() {
+        withObservationTracking { [self] in
+            for keyPath in Self.trackedKeyPaths { _ = self[keyPath: keyPath] }
+            _ = notices.notices
+            _ = navigation.section; _ = navigation.settingsPage; _ = navigation.sleepPage
+        } onChange: { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.changeSignal.send()
+                self.trackChanges()   // registered again at once, so the next change is never missed
+            }
+        }
+    }
+    var overviewPreferences: OverviewPreferences { didSet {
         if let data = try? JSONEncoder().encode(overviewPreferences) { preferences.set(data, forKey: "overviewPreferences.v1") }
         processScanSurfacesChanged()
     } }
@@ -170,15 +226,15 @@ final class TilveroModel: ObservableObject {
         overviewPreferences = .firstRunDefault
         return true
     }
-    @Published private(set) var modeLibrary: ModeLibrary
-    @Published private(set) var modeReport: ModeApplicationReport?
-    @Published var selectedMode: WorkMode = .economy
-    @Published var language: String { didSet { preferences.set(language, forKey: "language"); onPresentationChange?() } }
+    private(set) var modeLibrary: ModeLibrary
+    private(set) var modeReport: ModeApplicationReport?
+    var selectedMode: WorkMode = .economy
+    var language: String { didSet { preferences.set(language, forKey: "language"); onPresentationChange?() } }
     /// System (default), Celsius or Fahrenheit. Views read `fahrenheit`; it follows this setting.
-    @Published var temperatureUnit: TemperatureUnitSetting { didSet { preferences.set(temperatureUnit.rawValue, forKey: "temperatureUnit") } }
+    var temperatureUnit: TemperatureUnitSetting { didSet { preferences.set(temperatureUnit.rawValue, forKey: "temperatureUnit") } }
     var fahrenheit: Bool { temperatureUnit.usesFahrenheit() }
-    @Published private(set) var weeklyCapacity: WeeklyCapacity?
-    @Published var historyEnabled: Bool { didSet {
+    private(set) var weeklyCapacity: WeeklyCapacity?
+    var historyEnabled: Bool { didSet {
         if !historyEnabled { weeklyCapacity = nil }
         preferences.set(historyEnabled, forKey: "historyEnabled")
         let boundary = Date()   // when the switch happened, not when the queue gets to it
@@ -188,27 +244,27 @@ final class TilveroModel: ObservableObject {
         lastPersisted = nil
         resetSleepObservation(reason: .historyDisabled, persist: !historyEnabled)
     } }
-    @Published var retentionDays: Int { didSet { preferences.set(retentionDays, forKey: "retentionDays"); configureRetention() } }
-    @Published var displayStyle: MenuBarDisplayStyle {
+    var retentionDays: Int { didSet { preferences.set(retentionDays, forKey: "retentionDays"); configureRetention() } }
+    var displayStyle: MenuBarDisplayStyle {
         didSet { preferences.set(displayStyle.rawValue, forKey: "menuBarDisplayStyle"); onPresentationChange?() }
     }
-    @Published var awakeIndicatorColor: AwakeIndicatorColor {
+    var awakeIndicatorColor: AwakeIndicatorColor {
         didSet { preferences.set(awakeIndicatorColor.rawValue, forKey: "awakeIndicatorColor"); onPresentationChange?() }
     }
-    @Published var menuBarBatteryAppearance: MenuBarBatteryAppearance {
+    var menuBarBatteryAppearance: MenuBarBatteryAppearance {
         didSet { preferences.set(menuBarBatteryAppearance.rawValue, forKey: "menuBarBatteryAppearance"); onPresentationChange?() }
     }
-    @Published var menuBarTextSize: MenuBarTextSize {
+    var menuBarTextSize: MenuBarTextSize {
         didSet { preferences.set(menuBarTextSize.rawValue, forKey: "menuBarTextSize"); onPresentationChange?() }
     }
-    @Published private(set) var menuBarIconScale: Double
-    @Published var loginStatus = "Not enabled"
-    @Published private(set) var hasReviewedSetup: Bool
+    private(set) var menuBarIconScale: Double
+    var loginStatus = "Not enabled"
+    private(set) var hasReviewedSetup: Bool
     let canShowSetup: Bool
     private let setupBundle: Bundle
     private let setupLogin: SetupLoginPort?
     private let setupUsesNativeHost: Bool
-    lazy var setupCoordinator = SetupActionCoordinator(ports: .init(
+    @ObservationIgnored lazy var setupCoordinator = SetupActionCoordinator(ports: .init(
         readInputs: { [weak self] in
             guard let self else { return SetupReadinessInputs(launchPolicy: .monitoringOnly) }
             // The backlight is otherwise read only when the quick menu opens, so Setup right after a quiet launch said "unknown".
@@ -231,31 +287,45 @@ final class TilveroModel: ObservableObject {
         preferences.set(true, forKey: SetupRuntime.reviewedKey)
         hasReviewedSetup = true
     }
-    @Published var demoPercent = 76.0
-    @Published var demoExternal = true
-    @Published var demoOverride = false
-    @Published var scheduleDate = Date().addingTimeInterval(3600)
-    @Published var scheduleProfileName = "At desk"
-    @Published private(set) var schedule: ScheduleRule?
-    @Published var exportPreview: String?
-    private var exportData: Data?
-    private var exportType: UTType = .json
-    let keepAwake: KeepAwakeService
-    let sleepTimer: SleepTimerService
-    let sleepAtCharge: SleepAtChargeService
+    var demoPercent = 76.0
+    var demoExternal = true
+    var demoOverride = false
+    var scheduleDate = Date().addingTimeInterval(3600)
+    var scheduleProfileName = "At desk"
+    private(set) var schedule: ScheduleRule?
+    var exportPreview: String?
+    @ObservationIgnored private var exportData: Data?
+    @ObservationIgnored private var exportType: UTType = .json
+    var keepAwake: KeepAwakeService { _ = keepAwakeChanges; return keepAwakeStorage }
+    @ObservationIgnored private let keepAwakeStorage: KeepAwakeService
+    private var keepAwakeChanges: UInt64 = 0
+    var sleepTimer: SleepTimerService { _ = sleepTimerChanges; return sleepTimerStorage }
+    @ObservationIgnored private let sleepTimerStorage: SleepTimerService
+    private var sleepTimerChanges: UInt64 = 0
+    var sleepAtCharge: SleepAtChargeService { _ = sleepAtChargeChanges; return sleepAtChargeStorage }
+    @ObservationIgnored private let sleepAtChargeStorage: SleepAtChargeService
+    private var sleepAtChargeChanges: UInt64 = 0
     /// "Keep awake until the charge drops to N %": the same mechanism, but at the level the hold is only released.
-    let keepAwakeUntilCharge: SleepAtChargeService
-    private var keepAwakeUntilChargeSubscription: AnyCancellable?
+    var keepAwakeUntilCharge: SleepAtChargeService { _ = keepAwakeUntilChargeChanges; return keepAwakeUntilChargeStorage }
+    @ObservationIgnored private let keepAwakeUntilChargeStorage: SleepAtChargeService
+    private var keepAwakeUntilChargeChanges: UInt64 = 0
+    @ObservationIgnored private var keepAwakeUntilChargeSubscription: AnyCancellable?
     /// Last chosen "sleep at charge" level (the switch re-arms it); arming itself is never persisted.
     var sleepAtChargeChoice: Int {
-        get { let saved = preferences.integer(forKey: "sleepAtChargeTarget"); return SleepAtChargeService.targets.contains(saved) ? saved : 20 }
-        set { preferences.set(newValue, forKey: "sleepAtChargeTarget"); objectWillChange.send() }
+        get {
+            access(keyPath: \.sleepAtChargeChoice)
+            let saved = preferences.integer(forKey: "sleepAtChargeTarget"); return SleepAtChargeService.targets.contains(saved) ? saved : 20
+        }
+        set { withMutation(keyPath: \.sleepAtChargeChoice) { preferences.set(newValue, forKey: "sleepAtChargeTarget") } }
     }
     var keepAwakeUntilChargeChoice: Int {
-        get { let saved = preferences.integer(forKey: "keepAwakeUntilChargeTarget"); return SleepAtChargeService.targets.contains(saved) ? saved : 20 }
-        set { preferences.set(newValue, forKey: "keepAwakeUntilChargeTarget"); objectWillChange.send() }
+        get {
+            access(keyPath: \.keepAwakeUntilChargeChoice)
+            let saved = preferences.integer(forKey: "keepAwakeUntilChargeTarget"); return SleepAtChargeService.targets.contains(saved) ? saved : 20
+        }
+        set { withMutation(keyPath: \.keepAwakeUntilChargeChoice) { preferences.set(newValue, forKey: "keepAwakeUntilChargeTarget") } }
     }
-    private var sleepAtChargeSubscription: AnyCancellable?
+    @ObservationIgnored private var sleepAtChargeSubscription: AnyCancellable?
 
     /// The four modes that keep the Mac awake until some condition: only one may run at a time.
     enum AwakeMode: String, CaseIterable {
@@ -284,16 +354,20 @@ final class TilveroModel: ObservableObject {
     var chargeModeActive: Bool { sleepAtCharge.isArmed || keepAwakeUntilCharge.isArmed }
     let closedLid: ClosedLidService
     /// Ordinary builds: closed-lid Keep Awake through the `pmset disablesleep` override (trial/lab builds keep `closedLid`).
-    let lidSleep: LidSleepOverrideService
+    var lidSleep: LidSleepOverrideService { _ = lidSleepChanges; return lidSleepStorage }
+    @ObservationIgnored private let lidSleepStorage: LidSleepOverrideService
+    private var lidSleepChanges: UInt64 = 0
     /// Brightness and volume while the lid is closed under the lid override (restored before the override is released).
-    let lidComfort: LidComfortService
-    private var lidComfortSubscription: AnyCancellable?
-    private var lidSleepSubscription: AnyCancellable?
-    private var sleepTimerSubscription: AnyCancellable?
-    @Published var sleepTimerMinutes: String { didSet {
+    var lidComfort: LidComfortService { _ = lidComfortChanges; return lidComfortStorage }
+    @ObservationIgnored private let lidComfortStorage: LidComfortService
+    private var lidComfortChanges: UInt64 = 0
+    @ObservationIgnored private var lidComfortSubscription: AnyCancellable?
+    @ObservationIgnored private var lidSleepSubscription: AnyCancellable?
+    @ObservationIgnored private var sleepTimerSubscription: AnyCancellable?
+    var sleepTimerMinutes: String { didSet {
         if let value = SleepTimerInput.minutes(sleepTimerMinutes) { preferences.set(value, forKey: "sleepTimerMinutes") }
     } }
-    @Published var sleepTimerUsesCustom = false
+    var sleepTimerUsesCustom = false
     var sleepTimerBlocksControls: Bool { sleepTimer.isActive && !sleepTimer.isEditable }
     private var controlsAreSuspended: Bool { sleepTimerBlocksControls || updatePreparationActive }
     var canStartSleepTimer: Bool {
@@ -325,21 +399,21 @@ final class TilveroModel: ObservableObject {
         try sleepTimer.selectDuration(minutes: minutes)
         sleepTimerMinutes = String(minutes)
     }
-    private var awakeSubscription: AnyCancellable?
-    private var awakeMessageSubscription: AnyCancellable?
+    @ObservationIgnored private var awakeSubscription: AnyCancellable?
+    @ObservationIgnored private var awakeMessageSubscription: AnyCancellable?
     /// True while the newest notice is only a copy of the native charge status line (for example the pending lower limit).
     /// It belongs to the Charge page; other quick-menu tabs must not print it.
     var noticeIsNativeChargeStatus: Bool { notices.current()?.source == .chargeStatus }
     /// An action's notice describes the page it was raised on. Leaving that page drops it, so it never trails the user
     /// onto an unrelated tab. A Keep Awake failure is the exception: it stays visible on every tab until it is resolved.
     func dismissActionNotice() { notices.clearPageNotices() }
-    @Published var keepAwakeDraft: KeepAwakeDraft { didSet {
+    var keepAwakeDraft: KeepAwakeDraft { didSet {
         if case .duration(let duration) = keepAwakeDraft {
             preferences.set(duration.rawValue, forKey: "keepAwakeMinutes")
         }
     } }
-    @Published var keepAwakeUsesCustomDuration = false
-    @Published var keepAwakeCustomMinutes: String { didSet {
+    var keepAwakeUsesCustomDuration = false
+    var keepAwakeCustomMinutes: String { didSet {
         if keepAwakeUsesCustomDuration, let minutes = Int(keepAwakeCustomMinutes),
            let duration = KeepAwakeDuration(rawValue: minutes) { keepAwakeDraft = .duration(duration) }
     } }
@@ -403,61 +477,73 @@ final class TilveroModel: ObservableObject {
         // Acquisition is synchronous and verified. A failed start retains the old timer.
         if sleepTimer.isActive { sleepTimer.cancel() }
     }
-    let nativeCharge: NativeChargeService
-    let chargeOnce: ChargeOnceStore
-    let chargeBy: ChargeByService
-    private var chargeByTicker: ChargeByTicker?
-    private var chargeByEnvironment: ModelChargeByEnvironment?
+    var nativeCharge: NativeChargeService { _ = nativeChargeChanges; return nativeChargeStorage }
+    @ObservationIgnored private let nativeChargeStorage: NativeChargeService
+    private var nativeChargeChanges: UInt64 = 0
+    var chargeOnce: ChargeOnceStore { _ = chargeOnceChanges; return chargeOnceStorage }
+    @ObservationIgnored private let chargeOnceStorage: ChargeOnceStore
+    private var chargeOnceChanges: UInt64 = 0
+    var chargeBy: ChargeByService { _ = chargeByChanges; return chargeByStorage }
+    @ObservationIgnored private let chargeByStorage: ChargeByService
+    private var chargeByChanges: UInt64 = 0
+    @ObservationIgnored private var chargeByTicker: ChargeByTicker?
+    @ObservationIgnored private var chargeByEnvironment: ModelChargeByEnvironment?
     let keyboardBacklight: KeyboardBacklightService
-    private var nativeSubscription: AnyCancellable?
-    private var nativeMessageSubscription: AnyCancellable?
-    let liveControl: LiveControlService
-    private var liveSubscription: AnyCancellable?
+    @ObservationIgnored private var nativeSubscription: AnyCancellable?
+    @ObservationIgnored private var nativeMessageSubscription: AnyCancellable?
+    var liveControl: LiveControlService { _ = liveControlChanges; return liveControlStorage }
+    @ObservationIgnored private let liveControlStorage: LiveControlService
+    private var liveControlChanges: UInt64 = 0
+    @ObservationIgnored private var liveSubscription: AnyCancellable?
+    @ObservationIgnored private var chargeOnceSubscription: AnyCancellable?
+    @ObservationIgnored private var chargeBySubscription: AnyCancellable?
     let isDemo: Bool
     let launchPolicy: AppLaunchPolicy
     /// Features still in development (the Modes tab, "Profiles & schedules"): debug and laboratory builds only, the same
     /// flag as `QuickPanelSection.showsDevelopmentSections`. Off in a release, where a saved schedule never fires either.
     let developmentFeatures: Bool
-    var isPopoverVisible = false { didSet { if oldValue != isPopoverVisible { updateLiveCharts() } } }
+    @ObservationIgnored var isPopoverVisible = false { didSet { if oldValue != isPopoverVisible { updateLiveCharts() } } }
     /// The quick panel's page (reported by the panel itself): live charts run only on Overview.
-    var quickPanelSection: QuickPanelSection = .overview { didSet { if oldValue != quickPanelSection { updateLiveCharts() } } }
-    var isDetailVisible = false { didSet {
+    @ObservationIgnored var quickPanelSection: QuickPanelSection = .overview { didSet { if oldValue != quickPanelSection { updateLiveCharts() } } }
+    @ObservationIgnored var isDetailVisible = false { didSet {
         guard isDetailVisible != oldValue else { return }
         processScanSurfacesChanged()
         if isDetailVisible { activityPageMayHaveAppeared() }
     } }
     /// Settings > Setup: the administrator permissions (nil in demo, monitoring-only and test sessions).
-    var privilegedPermissions: PrivilegedPermissionsController? { willSet { objectWillChange.send() } }
-    var onPresentationChange: (@MainActor () -> Void)?
-    private var pollingTask: Task<Void, Never>?
+    var privilegedPermissions: PrivilegedPermissionsController?
+    @ObservationIgnored var onPresentationChange: (@MainActor () -> Void)?
+    @ObservationIgnored private var pollingTask: Task<Void, Never>?
+    /// Tracked: derived properties views read (`updateReadiness`, Setup) depend on it.
     private var isReading = false
-    private var lifecycleEpoch: UInt64 = 0
-    private var queuedWakeRefresh = false
-    private var observedWake = false
+    @ObservationIgnored private var lifecycleEpoch: UInt64 = 0
+    @ObservationIgnored private var queuedWakeRefresh = false
+    @ObservationIgnored private var observedWake = false
     private let sleepRunID = UUID()
     private let postWakeSettleSeconds: Double
-    private var sleepTracker: SleepSessionTracker
-    private var lastRawSleepEndpoint: SleepBatteryEndpoint?
+    @ObservationIgnored private var sleepTracker: SleepSessionTracker
+    @ObservationIgnored private var lastRawSleepEndpoint: SleepBatteryEndpoint?
     private let sleepActivityProvider: @Sendable () async -> SleepAssertionSnapshot
+    /// Tracked: `canStartSleepTimer`, `sleepPillActionsAllowed` and the live charts depend on it.
     private var sleeping = false
-    private var draftDirty = false
-    private var lastPersisted: BatterySnapshot?
-    private var inspectedRaw: [CatalogReading] = []
-    private var simulator: SimulationController?
-    private var store: BatteryHistoryStore?
+    @ObservationIgnored private var draftDirty = false
+    @ObservationIgnored private var lastPersisted: BatterySnapshot?
+    @ObservationIgnored private var inspectedRaw: [CatalogReading] = []
+    @ObservationIgnored private var simulator: SimulationController?
+    @ObservationIgnored private var store: BatteryHistoryStore?
     /// History work runs off the main actor (the store serialises it on its own queue). This chain keeps the model's
     /// multi-step operations (open → first loads, record → reload, erase → reload) in the order they were requested.
-    private var historyChain: Task<Void, Never>?
-    private var historyStopped = false
+    @ObservationIgnored private var historyChain: Task<Void, Never>?
+    @ObservationIgnored private var historyStopped = false
     /// Bumped by an erase: loads that began before it cannot publish pre-erase rows.
-    private var historyEpoch: UInt64 = 0
+    @ObservationIgnored private var historyEpoch: UInt64 = 0
     /// Sleep reports handed to the store and not yet written; `stop()` writes whatever the queue has not reached.
-    private var unsavedSleepRecords: [SleepSessionRecord] = []
+    @ObservationIgnored private var unsavedSleepRecords: [SleepSessionRecord] = []
     private let observer = PowerSourceObserver()
-    private var arbiter = ProfileArbiter()
+    @ObservationIgnored private var arbiter = ProfileArbiter()
     private let preferences: UserDefaults
     private let sideEffects: TilveroModelSideEffects
-    private var snapshotProvider: @Sendable () async -> BatterySnapshot
+    @ObservationIgnored private var snapshotProvider: @Sendable () async -> BatterySnapshot
 
     init(isDemo: Bool, launchPolicy: AppLaunchPolicy = .current(), preferences: UserDefaults = .standard,
          historyURL: URL? = nil,
@@ -508,8 +594,8 @@ final class TilveroModel: ObservableObject {
         self.processActivityProvider = processActivityProvider ?? { await processes.read() }
         self.preferences = preferences
         navigation = AppNavigation(preferences: preferences)
-        chargeOnce = ChargeOnceStore(preferences: preferences)
-        chargeBy = ChargeByService(defaults: preferences, wake: isDemo || launchPolicy.monitoringOnly ? DisabledWakeScheduler() : NativeWakeScheduler())
+        chargeOnceStorage = ChargeOnceStore(preferences: preferences)
+        chargeByStorage = ChargeByService(defaults: preferences, wake: isDemo || launchPolicy.monitoringOnly ? DisabledWakeScheduler() : NativeWakeScheduler())
         self.postWakeSettleSeconds = postWakeSettleSeconds
         self.sleepTracker = SleepSessionTracker(postWakeSettleSeconds: postWakeSettleSeconds)
         self.sideEffects = sideEffects ?? .native
@@ -525,23 +611,23 @@ final class TilveroModel: ObservableObject {
         let hardwarePolicy = launchPolicy.ordinaryHardwarePolicy
         self.keyboardBacklight = keyboardBacklight ?? KeyboardBacklightService(
             storage: UserDefaultsKeyboardBacklightStorage(defaults: preferences), allowed: !isDemo && !hardwarePolicy.monitoringOnly)
-        keepAwake = keepAwakeService ?? KeepAwakeService(driver: keepAwakeTransport ?? NativeKeepAwakeTransport(), allowed: !isDemo && !monitoring)
+        keepAwakeStorage = keepAwakeService ?? KeepAwakeService(driver: keepAwakeTransport ?? NativeKeepAwakeTransport(), allowed: !isDemo && !monitoring)
         let sleepTransport = sleepTimerTransport ?? NativeSleepTimerTransport()
-        sleepTimer = sleepTimerService ?? SleepTimerService(driver: sleepTransport, allowed: !isDemo && !monitoring)
+        sleepTimerStorage = sleepTimerService ?? SleepTimerService(driver: sleepTransport, allowed: !isDemo && !monitoring)
         // Its own idle hold, independent of the timer's (a real run gets a separate transport instance).
-        sleepAtCharge = SleepAtChargeService(driver: sleepTimerTransport ?? NativeSleepTimerTransport(), allowed: !isDemo && !monitoring)
-        keepAwakeUntilCharge = SleepAtChargeService(driver: sleepTimerTransport ?? NativeSleepTimerTransport(), allowed: !isDemo && !monitoring, endAction: .release)
+        sleepAtChargeStorage = SleepAtChargeService(driver: sleepTimerTransport ?? NativeSleepTimerTransport(), allowed: !isDemo && !monitoring)
+        keepAwakeUntilChargeStorage = SleepAtChargeService(driver: sleepTimerTransport ?? NativeSleepTimerTransport(), allowed: !isDemo && !monitoring, endAction: .release)
         closedLid = closedLidService ?? ClosedLidService(allowed: !isDemo && !monitoring)
         // The real system gets the real watchdog; demo, monitoring-only (also the first-run preview) and an injected
         // (fake) system get an inert one, and a native system outside an app bundle (a test runner) gets none at all.
         let lidRoute = Self.lidSleepRoute(isDemo: isDemo, monitoringOnly: monitoring, injectedSystem: lidSleepSystem != nil,
                                           appBundle: Bundle.main.bundleURL.pathExtension == "app", historyURL: historyURL)
-        lidSleep = LidSleepOverrideService(system: lidSleepSystem ?? NativeLidSleepSystem(), defaults: preferences, allowed: !isDemo && !monitoring,
+        lidSleepStorage = LidSleepOverrideService(system: lidSleepSystem ?? NativeLidSleepSystem(), defaults: preferences, allowed: !isDemo && !monitoring,
                                            markers: LidOverrideMarkerStore(directory: lidRoute.markerDirectory), watchdog: lidRoute.watchdog,
                                            observesSystemSleep: lidRoute.observesSystemSleep)
         // A test that injects its own lid system gets a disabled comfort service. Even a native one never writes unless
         // a real lid override is armed (display and audio are only touched at lid close).
-        lidComfort = lidComfortService ?? LidComfortService(defaults: preferences, allowed: !isDemo && !monitoring && lidSleepSystem == nil)
+        lidComfortStorage = lidComfortService ?? LidComfortService(defaults: preferences, allowed: !isDemo && !monitoring && lidSleepSystem == nil)
         self.setupBundle = setupBundle
         let setupIdentity = try? ReleaseIdentity.current(bundle: setupBundle)
         canShowSetup = !isDemo && setupIdentity?.isLaboratory == false && !closedLid.isFixture && !closedLid.isLiveTrial
@@ -557,15 +643,15 @@ final class TilveroModel: ObservableObject {
         self.sleepActivityProvider = sleepActivityProvider ?? {
             await SleepActivityProvider().readSnapshot()
         }
-        self.liveControl = liveControl ?? LiveControlService(preferences: preferences,
+        self.liveControlStorage = liveControl ?? LiveControlService(preferences: preferences,
             launchPolicy: isDemo ? .resolve(metadata: [:], arguments: ["--demo"]) : hardwarePolicy)
-        if let nativeCharge { self.nativeCharge = nativeCharge }
+        if let nativeCharge { self.nativeChargeStorage = nativeCharge }
         else if isDemo {
-            self.nativeCharge = NativeChargeService(client: PowerUIChargeClient(),
+            self.nativeChargeStorage = NativeChargeService(client: PowerUIChargeClient(),
                 journalURL: FileManager.default.temporaryDirectory.appendingPathComponent("TilveroDemo-\(UUID().uuidString)/native-session.json"), monitoringOnly: true)
         } else {
             let storage = historyURL ?? (try? ReleaseIdentity.current().historyURL()) ?? FileManager.default.temporaryDirectory.appendingPathComponent("TilveroUnavailable/History.sqlite")
-            self.nativeCharge = NativeChargeService(historyURL: storage, launchPolicy: hardwarePolicy)
+            self.nativeChargeStorage = NativeChargeService(historyURL: storage, launchPolicy: hardwarePolicy)
         }
         let identitySalt = preferences.string(forKey: "identitySalt") ?? UUID().uuidString
         preferences.set(identitySalt, forKey: "identitySalt")
@@ -609,10 +695,10 @@ final class TilveroModel: ObservableObject {
         }
         lidSleep.bindTimer(phases: sleepTimer.$phase.eraseToAnyPublisher())
         lidSleep.bindSleepAtCharge(armed: sleepAtCharge.$target.map { $0 != nil }.removeDuplicates().eraseToAnyPublisher())
-        lidSleepSubscription = lidSleep.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
+        lidSleepSubscription = lidSleepStorage.objectWillChange.sink { [weak self] in self?.lidSleepChanges &+= 1 }
         lidComfort.bind(lidSleep)
         self.liveSampler = liveSampler
-        lidComfortSubscription = lidComfort.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
+        lidComfortSubscription = lidComfortStorage.objectWillChange.sink { [weak self] in self?.lidComfortChanges &+= 1 }
         sleepTimer.prepare = { [weak self] in
             guard let self else { return false }
             guard await self.closedLid.prepareForTermination() else { return false }
@@ -628,7 +714,7 @@ final class TilveroModel: ObservableObject {
             guard !self.sleeping, self.sleepTimer.phase == .preparing else { return false }
             return await self.liveControl.prepareForRequestedSleep()
         }
-        sleepTimerSubscription = sleepTimer.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
+        sleepTimerSubscription = sleepTimerStorage.objectWillChange.sink { [weak self] in self?.sleepTimerChanges &+= 1 }
         sleepAtCharge.prepare = { [weak self] in
             guard let self else { return false }
             guard await self.closedLid.prepareForTermination() else { return false }
@@ -643,9 +729,9 @@ final class TilveroModel: ObservableObject {
         }
         sleepAtCharge.blockedBy = { [weak self] in self?.awakeModeBlocker(for: .sleepAtCharge) }
         keepAwakeUntilCharge.blockedBy = { [weak self] in self?.awakeModeBlocker(for: .keepAwakeUntilCharge) }
-        sleepAtChargeSubscription = sleepAtCharge.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
-        keepAwakeUntilChargeSubscription = keepAwakeUntilCharge.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
-        awakeSubscription = keepAwake.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
+        sleepAtChargeSubscription = sleepAtChargeStorage.objectWillChange.sink { [weak self] in self?.sleepAtChargeChanges &+= 1 }
+        keepAwakeUntilChargeSubscription = keepAwakeUntilChargeStorage.objectWillChange.sink { [weak self] in self?.keepAwakeUntilChargeChanges &+= 1 }
+        awakeSubscription = keepAwakeStorage.objectWillChange.sink { [weak self] in self?.keepAwakeChanges &+= 1 }
         awakeMessageSubscription = keepAwake.$message.sink { [weak self] message in
             guard let self else { return }
             // Safe cleanup removes the pinned session. Keep its failure visible on every tab.
@@ -653,17 +739,17 @@ final class TilveroModel: ObservableObject {
             if let endedFailure { self.notices.post(endedFailure, from: .keepAwake) }
             else { self.notices.clear(.keepAwake) }
         }
-        nativeSubscription = self.nativeCharge.objectWillChange.sink { [weak self] in
-            self?.objectWillChange.send()
-        }
+        nativeSubscription = nativeChargeStorage.objectWillChange.sink { [weak self] in self?.nativeChargeChanges &+= 1 }
+        chargeOnceSubscription = chargeOnceStorage.objectWillChange.sink { [weak self] in self?.chargeOnceChanges &+= 1 }
+        chargeBySubscription = chargeByStorage.objectWillChange.sink { [weak self] in self?.chargeByChanges &+= 1 }
         nativeMessageSubscription = self.nativeCharge.$message.dropFirst().sink { [weak self] _ in
             guard let self else { return }
             // The pending lower-limit line was copied into the notices when the user released the slider. When the battery
             // later discharges and the service applies the limit on its own, that copy would otherwise outlive the state it described.
             self.notices.clear(.chargeStatus)
         }
-        liveSubscription = self.liveControl.objectWillChange.sink { [weak self] in
-            self?.objectWillChange.send()
+        liveSubscription = liveControlStorage.objectWillChange.sink { [weak self] in
+            self?.liveControlChanges &+= 1
             self?.onPresentationChange?()
         }
         if isDemo { draftText = "80" }
@@ -698,11 +784,11 @@ final class TilveroModel: ObservableObject {
     // MARK: Live charts (about 1 Hz while the quick menu is open on Overview; in memory only)
     /// Observed only by the chart views (`LiveRefresh`), never by the model's own subscribers.
     let live = LiveMetricStore()
-    private var liveTimer: Timer?
-    private var liveReading = false
-    private var smcReader: SMCSensorReader?
-    private var liveSampler: (@Sendable () -> LivePowerSample?)?
-    private var lastWakeAt: Date?
+    @ObservationIgnored private var liveTimer: Timer?
+    @ObservationIgnored private var liveReading = false
+    @ObservationIgnored private var smcReader: SMCSensorReader?
+    @ObservationIgnored private var liveSampler: (@Sendable () -> LivePowerSample?)?
+    @ObservationIgnored private var lastWakeAt: Date?
     /// Seconds between live points (the SMC sensors change about once a second).
     static let liveInterval: TimeInterval = 1
     var wantsLiveCharts: Bool { !isDemo && isPopoverVisible && quickPanelSection == .overview && !sleeping }
@@ -744,15 +830,15 @@ final class TilveroModel: ObservableObject {
     /// replacement with the same count and newest id but different older samples, and no test can isolate it.
     private struct RecordedKey: Equatable { let collectedAt: Date; let count: Int; let lastSampleID: UUID? }
     private struct SeriesCacheKey: Equatable { let recorded: RecordedKey; let liveRevision: Int }
-    private var recordedKey: RecordedKey?
-    private var recordedCache: [String: [HistoryChartPoint]] = [:]
-    private var seriesCacheKey: SeriesCacheKey?
-    private var seriesCache: [String: MetricChartSeries] = [:]
+    @ObservationIgnored private var recordedKey: RecordedKey?
+    @ObservationIgnored private var recordedCache: [String: [HistoryChartPoint]] = [:]
+    @ObservationIgnored private var seriesCacheKey: SeriesCacheKey?
+    @ObservationIgnored private var seriesCache: [String: MetricChartSeries] = [:]
     /// How many times a series was actually built (not read from the cache); tests assert it.
-    private(set) var metricSeriesComputations = 0
+    @ObservationIgnored private(set) var metricSeriesComputations = 0
     /// How many times the recorded points of a metric were extracted from the history (a full sort); live ticks must not
     /// repeat that.
-    private(set) var recordedPointComputations = 0
+    @ObservationIgnored private(set) var recordedPointComputations = 0
     private func recordedPoints(id: String, key: RecordedKey) -> [HistoryChartPoint] {
         if key != recordedKey { recordedCache.removeAll(keepingCapacity: true); recordedKey = key }
         if let cached = recordedCache[id] { return cached }
@@ -1140,7 +1226,7 @@ final class TilveroModel: ObservableObject {
         if !isDemo, !sleeping { lastNativeChargeRead = Date(); await nativeCharge.refresh() }
         await keyboard
     }
-    private var lastNativeChargeRead: Date?
+    @ObservationIgnored private var lastNativeChargeRead: Date?
     /// For views that merely appear: skips the read when the panel opening (or an explicit refresh) just did it,
     /// so the status rows do not flash a "reading" state and resize the open menu.
     func refreshNativeChargeIfStale(maximumAge: TimeInterval = 30) async {

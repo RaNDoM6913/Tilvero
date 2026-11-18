@@ -35,7 +35,7 @@ final class QuickPanelHostingController: NSHostingController<QuickPanelHostedRoo
     private var lastReportedSize: NSSize?
     private var fitScheduled = false
     private var lastGeometryReport: CFAbsoluteTime = 0
-    /// The popover is on screen. While it is closed a model change measures nothing (the model publishes several times
+    /// The popover is on screen. While it is closed a model change measures nothing (the model changes several times
     /// per refresh, popover or not); `willShow` measures once on the way in. A host outside a popover counts as shown.
     private(set) var isPresented = true
     /// Whole-panel measurements so far (tests).
@@ -45,11 +45,11 @@ final class QuickPanelHostingController: NSHostingController<QuickPanelHostedRoo
         super.init(rootView: QuickPanelHostedRoot(model: model, maximumHeight: maximumHeight, section: section))
         sizingOptions = []   // sizes are reported explicitly (geometry); AppKit must not resize the popover itself
         rootView.onSizeChange = { [weak self] size in self?.contentSizeChanged(size) }
-        // Published changes arrive before the new value. Measure on the next
+        // Model changes are signalled before the new value. Measure on the next
         // main-actor turn, after SwiftUI can consume the updated model.
-        // Safety net only: SwiftUI reports geometry changes itself. Coalesce the published bursts into one
+        // Safety net only: SwiftUI reports geometry changes itself. Coalesce the change bursts into one
         // measurement per turn, and skip it while geometry reports are already arriving (an animated resize).
-        modelSubscription = model.objectWillChange.sink { [weak self] in
+        modelSubscription = model.changes.sink { [weak self] in
             guard let self, self.isPresented, !self.fitScheduled else { return }
             self.fitScheduled = true
             Task { @MainActor [weak self] in self?.runScheduledFit() }

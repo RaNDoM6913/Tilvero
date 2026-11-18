@@ -73,7 +73,7 @@ private final class Counter: @unchecked Sendable {
         model.isPopoverVisible = true; model.quickPanelSection = .overview
         await model.liveTick(); _ = model.metricSeries(id: "043")
         var modelChanges = 0
-        let subscription = model.objectWillChange.sink { modelChanges += 1 }
+        let subscription = model.changes.sink { modelChanges += 1 }
         defer { subscription.cancel() }
         let recordedBefore = model.recordedPointComputations
         var storeChanges = 0

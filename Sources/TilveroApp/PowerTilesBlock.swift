@@ -8,7 +8,7 @@ import PowerCore
 /// input ("054"). Each tile is a title, the value and a compact chart (no caption);
 /// no data gives a dashed frame, never a zero.
 @MainActor struct PowerTilesBlock: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
 
     /// Pure text decisions of one tile, so fitting and wording are testable without a view tree.
     struct TileContent: Equatable {
@@ -41,7 +41,7 @@ import PowerCore
 }
 
 @MainActor private struct PowerTile: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     let id: String
     let color: Color
     private var reading: CatalogReading? { model.snapshot.catalog.first { $0.id == id } }

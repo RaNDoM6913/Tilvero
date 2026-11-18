@@ -17,7 +17,7 @@ import SwiftUI
 }
 
 @MainActor struct KeepAwakePanel: View {
-    @ObservedObject var model: TilveroModel
+    @Bindable var model: TilveroModel
     var compact = false
     @State private var error: String?
     @State private var confirmsTimerSwitch = false

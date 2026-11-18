@@ -51,7 +51,16 @@ private actor InvalidationProcesses {
 ///     process     signals 2  fits 1  all 1
 ///     history     signals 4  fits 1  all 3
 ///
-/// The guards below keep the improved numbers.
+/// After the split (`@Observable` model with per-service change counters, typed notices, navigation of its own, the
+/// quick Overview session rows and the details sidebar, banners and "Last collection" line as views of their own):
+///
+///     keyboard    signals 0  fits 0  KeyboardBacklightQuickRow 1
+///     keep-awake  signals 1  fits 1  none of the probed views
+///     process     signals 2  fits 1  ProcessActivityPanel.compact 1
+///     history     signals 3  fits 1  OverviewHero 1, OverviewMetricsPanel 1 (they show the recorded data)
+///
+/// `signals` and `fits` are unchanged on purpose: the popover host's safety-net measurement still runs once per change
+/// burst while the popover is shown. The guards below keep the improved numbers.
 @MainActor final class RenderInvalidationTests: XCTestCase {
     private struct Rig {
         let model: TilveroModel
@@ -111,6 +120,17 @@ private actor InvalidationProcesses {
         return Rig(model: model, awake: awake, quick: quick, views: [quick.view, charge, details], windows: windows, box: box)
     }
 
+    private static let probes = ["QuickPanel.overview", "QuickPanel.charge", "OverviewHero", "OverviewMetricsPanel",
+                                 "ProcessActivityPanel.compact", "QuickNativeChargePanel", "BatteryInfoView", "PowerDataPanel",
+                                 "KeyboardBacklightQuickRow"]
+
+    /// Every probed view outside `allowed` rendered zero times.
+    private func assertOnly(_ allowed: Set<String>, _ result: Measurement, file: StaticString = #filePath, line: UInt = #line) {
+        for name in Self.probes where !allowed.contains(name) {
+            XCTAssertEqual(result.count(name), 0, "\(result.label) re-rendered \(name)", file: file, line: line)
+        }
+    }
+
     private struct Measurement: CustomStringConvertible {
         let label: String
         let counts: [String: Int]
@@ -133,7 +153,7 @@ private actor InvalidationProcesses {
 
     /// Model-wide change notifications (what every observing view and the popover host's safety net used to receive).
     private func countSignals(_ model: TilveroModel, _ count: @escaping @MainActor () -> Void) -> AnyCancellable {
-        model.objectWillChange.sink { MainActor.assumeIsolated { count() } }
+        model.changes.sink { MainActor.assumeIsolated { count() } }
     }
 
     private func measure(_ rig: Rig, _ label: String, _ action: () async throws -> Void) async throws -> Measurement {
@@ -156,7 +176,9 @@ private actor InvalidationProcesses {
         let rig = try await makeRig()
         let result = try await measure(rig, "keyboard") { await rig.model.keyboardBacklight.setBrightness(0.6) }
         XCTAssertEqual(rig.model.keyboardBacklight.brightness ?? 0, 0.6, accuracy: 0.001)
-        _ = result
+        XCTAssertGreaterThanOrEqual(result.count("KeyboardBacklightQuickRow"), 1, "The probe sees the row that shows the change")
+        assertOnly(["KeyboardBacklightQuickRow"], result)
+        XCTAssertEqual(result.fits, 0)
     }
 
     func testKeepAwakeTick() async throws {
@@ -164,14 +186,17 @@ private actor InvalidationProcesses {
         try rig.awake.start(seconds: 3600)
         let result = try await measure(rig, "keep-awake") { try rig.awake.reconcile() }
         XCTAssertTrue(rig.awake.hasOwnedAssertion)
-        _ = result
+        assertOnly([], result)
+        XCTAssertLessThanOrEqual(result.fits, 1)
     }
 
     func testProcessActivitySample() async throws {
         let rig = try await makeRig()
         let result = try await measure(rig, "process") { await rig.model.refreshProcessActivity(force: true) }
         XCTAssertNotNil(rig.model.processActivity)
-        _ = result
+        XCTAssertGreaterThanOrEqual(result.count("ProcessActivityPanel.compact"), 1, "The applications block shows the sample")
+        assertOnly(["ProcessActivityPanel.compact"], result)
+        XCTAssertLessThanOrEqual(result.fits, 1)
     }
 
     func testHistoryRecord() async throws {
@@ -185,7 +210,9 @@ private actor InvalidationProcesses {
             await rig.model.waitForHistoryWork()
         }
         XCTAssertGreaterThan(rig.model.history.count, before, "The reading was recorded")
-        _ = result
+        assertOnly(["OverviewHero", "OverviewMetricsPanel"], result)
+        XCTAssertLessThanOrEqual(result.count("OverviewHero") + result.count("OverviewMetricsPanel"), 6)
+        XCTAssertLessThanOrEqual(result.fits, 1)
     }
 }
 

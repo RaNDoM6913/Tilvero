@@ -58,7 +58,7 @@ enum SleepControlToken: Equatable, Identifiable {
 }
 
 @MainActor struct SleepActiveControls: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     let token: SleepControlToken
     let onClose: () -> Void
     var onSetTime: ((SleepWheelValue) -> Void)? = nil

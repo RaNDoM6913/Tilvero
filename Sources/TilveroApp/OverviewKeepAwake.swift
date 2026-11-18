@@ -10,7 +10,7 @@ import PowerCore
 /// exactly like the Keep Awake page of the Sleep tab.
 @MainActor struct OverviewKeepAwake: View {
     static let presets = [15, 30, 60, 240]
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     /// Opens the Sleep page. `nil` in the passive builder preview.
     var openSleep: (@MainActor () -> Void)?
     @State private var error: String?

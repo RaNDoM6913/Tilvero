@@ -55,7 +55,7 @@ enum InfoSection: String, CaseIterable, Identifiable {
 @MainActor
 struct BatteryInfoView: View {
     @Environment(\.studioPresentation) private var studioPresentation
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     #if TILVERO_LAB_STUDIO
     @Environment(\.studioCaptureRoute) private var studioCaptureRoute
     #endif
@@ -85,7 +85,7 @@ struct BatteryInfoView: View {
     var body: some View {
         let _ = RenderProbe.hit("BatteryInfoView")
         HStack(spacing: 0) {
-            sidebar.frame(width: 182)
+            DetailsSidebar(model: model, presentedSection: presentedSection).frame(width: 182)
             ZStack(alignment: .topLeading) {
             ScrollView {
                 VStack(alignment: .leading, spacing: studioPresentation.spacing(presentedSection == .sleep ? 18 : 22)) {
@@ -102,26 +102,12 @@ struct BatteryInfoView: View {
                         Label(L10n.text("Simulation only — your Mac settings are unchanged."), systemImage: "testtube.2")
                             .font(.system(size: 11)).foregroundStyle(.secondary)
                     }
-                    if presentedSection == .overview && model.keepAwake.hasOwnedAssertion { KeepAwakeActivePanel(service: model.keepAwake) }
-                    if presentedSection == .overview && model.sleepTimer.isActive { SleepTimerActiveRow(model: model) }
-                    if !model.isDemo { nativeChargingAttention }
-                    if model.liveControl.hasOwnedSettings || model.liveControl.recoveryRequired || (!model.usesNativeCharge && model.pendingTarget != nil) {
-                        ProductSurface(title: "Privileged controls", studioID: "global.privilegedControls") {
-                            if !model.usesNativeCharge { Text(model.effectiveLimitText) }
-                            if model.liveControl.recoveryRequired {
-                                Label(L10n.text("App-owned settings require restoration"), systemImage: "exclamationmark.triangle")
-                                    .foregroundStyle(.orange)
-                            }
-                            if let message = model.liveControl.message { Text(L10n.text(message)).font(.system(size: 12)) }
-                            StudioActionButton(L10n.text("Restore original settings"), id: "recovery-banner.restore-original-settings") { model.restoreAll() }
-                        }
-                    }
+                    DetailsPageBanners(model: model, presentedSection: presentedSection)
                     sectionContent
                     if let error = model.storeError { Label(L10n.text("Data store error") + ": " + error, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange) }
                     if let notice = model.notices.current(excluding: [.chargeStatus]) { Text(notice.text).font(.caption).foregroundStyle(.secondary) }
                     if presentedSection != .overview && (presentedSection != .sleep || presentedSleepPage == .reports) {
-                        Text("\(L10n.text("Last collection")): \(model.snapshot.collectedAt.formatted(.dateTime.locale(L10n.locale)))")
-                            .font(.caption).foregroundStyle(.secondary)
+                        LastCollectionLine(model: model)
                     }
                 }.padding(.horizontal, 24).padding(.top, 25).padding(.bottom, 24).frame(maxWidth: .infinity, alignment: .topLeading)
             }.background(studioPresentation.canvas)
@@ -147,90 +133,6 @@ struct BatteryInfoView: View {
                 }.padding(24).frame(width: 620, height: 470)
                     .studioSubpresentation("export")
             }
-    }
-    private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 7) {
-                StudioText(AppIdentity.displayName, id: "sidebar.brand").font(.system(size: 24, weight: .semibold))
-                TilveroEnergyMark().stroke(studioPresentation.accent, style: StrokeStyle(lineWidth: 2.6, lineCap: .round))
-                    .frame(width: 36, height: 20).accessibilityHidden(true)
-            }.padding(.horizontal, 14).padding(.top, 22).padding(.bottom, 6)
-            ForEach(InfoSection.allCases) { item in
-                if item == .history {
-                    Text(L10n.text("Analytics")).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
-                        .padding(.horizontal, 14).padding(.top, 20).padding(.bottom, 7)
-                }
-                if item == .diagnostics { Color.clear.frame(height: 15) }
-                sidebarItem(item)
-            }
-            Spacer(minLength: 16)
-            if model.isDemo {
-                Label(L10n.text("Simulation"), systemImage: "testtube.2")
-                    .font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary).padding(14)
-            }
-        }.frame(maxHeight: .infinity).background(studioPresentation.sidebar)
-        .studioElement("sidebar", kind: "container", label: "Navigation sidebar")
-    }
-    private func sidebarItem(_ item: InfoSection) -> some View {
-        let selected = presentedSection == item
-        let needsAttention = item == .diagnostics && !model.isDemo
-            && model.nativeCharge.presentation().requiresGlobalAttention
-        return Button { model.navigation.navigate(to: .section(item)) } label: {
-            HStack(spacing: 9) {
-                Image(systemName: item.symbol).font(.system(size: 14)).frame(width: 18).accessibilityHidden(true)
-                StudioText(item.title, id: "sidebar.title." + item.rawValue).font(.system(size: 12)).lineLimit(2).fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 0)
-                if needsAttention {
-                    Image(systemName: "circle.fill").font(.system(size: 6)).foregroundStyle(.orange)
-                        .accessibilityHidden(true)
-                }
-            }.padding(.leading, 10).padding(.trailing, 8).padding(.vertical, 9)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.black.opacity(selected ? 0.065 : 0), in: RoundedRectangle(cornerRadius: 7))
-                .contentShape(RoundedRectangle(cornerRadius: 7))
-        }.buttonStyle(.plain).accessibilityLabel(item.title)
-            .accessibilityValue(needsAttention ? L10n.text("Charging session needs review") : "")
-            .accessibilityAddTraits(selected ? [.isSelected] : [])
-            .accessibilityRemoveTraits(selected ? [] : [.isSelected])
-            .padding(.horizontal, 7).padding(.vertical, 1)
-            .studioElement("sidebar.destination." + item.rawValue, label: item.title)
-    }
-    @ViewBuilder private var nativeChargingAttention: some View {
-        let state = model.nativeCharge.presentation()
-        if state.showsAttentionBanner && presentedSection != .diagnostics {
-            HStack(alignment: .center, spacing: 10) {
-                Image(systemName: "info.circle").foregroundStyle(nativeAttentionColor(state.attention)).accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(L10n.text(nativeAttentionTitle(state.attention))).font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(nativeAttentionColor(state.attention))
-                    if let preference = state.currentPreference {
-                        Text(L10n.text("Native macOS setting") + ": " + (preference.enabled ? "\(preference.target)%" : L10n.text("System managed")))
-                            .font(.system(size: 11)).foregroundStyle(.secondary)
-                    }
-                    if let target = state.pendingTarget {
-                        Text(L10n.text("Pending") + " \(target)%").font(.system(size: 11)).foregroundStyle(.secondary)
-                    }
-                }.frame(maxWidth: .infinity, alignment: .leading)
-                StudioActionButton(L10n.text("Details"), id: "native-attention.details") { model.navigation.navigate(to: .section(.diagnostics)) }
-            }.padding(10).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 9))
-        }
-    }
-    private func nativeAttentionColor(_ attention: NativeChargePresentation.Attention) -> Color {
-        switch attention {
-        case .sessionReview, .mutationUnresolved, .journalIntegrity: .orange
-        default: .secondary
-        }
-    }
-    private func nativeAttentionTitle(_ attention: NativeChargePresentation.Attention) -> String {
-        switch attention {
-        case .sessionReview, .mutationUnresolved: "Charging session needs review"
-        case .journalIntegrity: "Native journal needs review"
-        case .operationPending: "Waiting for native operation"
-        case .restorationPending: "Restoration pending"
-        case .lowerTargetPending: "Pending charging target"
-        case .policyUnconfirmed: "Waiting for policy confirmation"
-        case .none: "Native charging"
-        }
     }
     private var measurementSearch: some View {
         HStack(spacing: 7) {
@@ -351,9 +253,133 @@ struct BatteryInfoView: View {
     }
 }
 
+/// The details window's sidebar. Its own view: the attention dot reads the native charge service, so a charge refresh
+/// re-renders the sidebar, not the page shell and the page in it.
+@MainActor private struct DetailsSidebar: View {
+    @Environment(\.studioPresentation) private var studioPresentation
+    var model: TilveroModel
+    let presentedSection: InfoSection
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 7) {
+                StudioText(AppIdentity.displayName, id: "sidebar.brand").font(.system(size: 24, weight: .semibold))
+                TilveroEnergyMark().stroke(studioPresentation.accent, style: StrokeStyle(lineWidth: 2.6, lineCap: .round))
+                    .frame(width: 36, height: 20).accessibilityHidden(true)
+            }.padding(.horizontal, 14).padding(.top, 22).padding(.bottom, 6)
+            ForEach(InfoSection.allCases) { item in
+                if item == .history {
+                    Text(L10n.text("Analytics")).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
+                        .padding(.horizontal, 14).padding(.top, 20).padding(.bottom, 7)
+                }
+                if item == .diagnostics { Color.clear.frame(height: 15) }
+                sidebarItem(item)
+            }
+            Spacer(minLength: 16)
+            if model.isDemo {
+                Label(L10n.text("Simulation"), systemImage: "testtube.2")
+                    .font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary).padding(14)
+            }
+        }.frame(maxHeight: .infinity).background(studioPresentation.sidebar)
+        .studioElement("sidebar", kind: "container", label: "Navigation sidebar")
+    }
+    private func sidebarItem(_ item: InfoSection) -> some View {
+        let selected = presentedSection == item
+        let needsAttention = item == .diagnostics && !model.isDemo
+            && model.nativeCharge.presentation().requiresGlobalAttention
+        return Button { model.navigation.navigate(to: .section(item)) } label: {
+            HStack(spacing: 9) {
+                Image(systemName: item.symbol).font(.system(size: 14)).frame(width: 18).accessibilityHidden(true)
+                StudioText(item.title, id: "sidebar.title." + item.rawValue).font(.system(size: 12)).lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                if needsAttention {
+                    Image(systemName: "circle.fill").font(.system(size: 6)).foregroundStyle(.orange)
+                        .accessibilityHidden(true)
+                }
+            }.padding(.leading, 10).padding(.trailing, 8).padding(.vertical, 9)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.black.opacity(selected ? 0.065 : 0), in: RoundedRectangle(cornerRadius: 7))
+                .contentShape(RoundedRectangle(cornerRadius: 7))
+        }.buttonStyle(.plain).accessibilityLabel(item.title)
+            .accessibilityValue(needsAttention ? L10n.text("Charging session needs review") : "")
+            .accessibilityAddTraits(selected ? [.isSelected] : [])
+            .accessibilityRemoveTraits(selected ? [] : [.isSelected])
+            .padding(.horizontal, 7).padding(.vertical, 1)
+            .studioElement("sidebar.destination." + item.rawValue, label: item.title)
+    }
+}
+
+/// The running sessions and control banners at the top of a details page. Its own view, so a Keep Awake, sleep timer,
+/// native charge or helper change re-renders these banners, not the page shell and the page below them.
+@MainActor private struct DetailsPageBanners: View {
+    var model: TilveroModel
+    let presentedSection: InfoSection
+    var body: some View {
+        if presentedSection == .overview && model.keepAwake.hasOwnedAssertion { KeepAwakeActivePanel(service: model.keepAwake) }
+        if presentedSection == .overview && model.sleepTimer.isActive { SleepTimerActiveRow(model: model) }
+        if !model.isDemo { nativeChargingAttention }
+        if model.liveControl.hasOwnedSettings || model.liveControl.recoveryRequired || (!model.usesNativeCharge && model.pendingTarget != nil) {
+            ProductSurface(title: "Privileged controls", studioID: "global.privilegedControls") {
+                if !model.usesNativeCharge { Text(model.effectiveLimitText) }
+                if model.liveControl.recoveryRequired {
+                    Label(L10n.text("App-owned settings require restoration"), systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                }
+                if let message = model.liveControl.message { Text(L10n.text(message)).font(.system(size: 12)) }
+                StudioActionButton(L10n.text("Restore original settings"), id: "recovery-banner.restore-original-settings") { model.restoreAll() }
+            }
+        }
+    }
+    @ViewBuilder private var nativeChargingAttention: some View {
+        let state = model.nativeCharge.presentation()
+        if state.showsAttentionBanner && presentedSection != .diagnostics {
+            HStack(alignment: .center, spacing: 10) {
+                Image(systemName: "info.circle").foregroundStyle(nativeAttentionColor(state.attention)).accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(L10n.text(nativeAttentionTitle(state.attention))).font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(nativeAttentionColor(state.attention))
+                    if let preference = state.currentPreference {
+                        Text(L10n.text("Native macOS setting") + ": " + (preference.enabled ? "\(preference.target)%" : L10n.text("System managed")))
+                            .font(.system(size: 11)).foregroundStyle(.secondary)
+                    }
+                    if let target = state.pendingTarget {
+                        Text(L10n.text("Pending") + " \(target)%").font(.system(size: 11)).foregroundStyle(.secondary)
+                    }
+                }.frame(maxWidth: .infinity, alignment: .leading)
+                StudioActionButton(L10n.text("Details"), id: "native-attention.details") { model.navigation.navigate(to: .section(.diagnostics)) }
+            }.padding(10).background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 9))
+        }
+    }
+    private func nativeAttentionColor(_ attention: NativeChargePresentation.Attention) -> Color {
+        switch attention {
+        case .sessionReview, .mutationUnresolved, .journalIntegrity: .orange
+        default: .secondary
+        }
+    }
+    private func nativeAttentionTitle(_ attention: NativeChargePresentation.Attention) -> String {
+        switch attention {
+        case .sessionReview, .mutationUnresolved: "Charging session needs review"
+        case .journalIntegrity: "Native journal needs review"
+        case .operationPending: "Waiting for native operation"
+        case .restorationPending: "Restoration pending"
+        case .lowerTargetPending: "Pending charging target"
+        case .policyUnconfirmed: "Waiting for policy confirmation"
+        case .none: "Native charging"
+        }
+    }
+}
+
+/// "Last collection" under a details page; its own view, so a new snapshot does not re-render the page shell.
+@MainActor private struct LastCollectionLine: View {
+    var model: TilveroModel
+    var body: some View {
+        Text("\(L10n.text("Last collection")): \(model.snapshot.collectedAt.formatted(.dateTime.locale(L10n.locale)))")
+            .font(.caption).foregroundStyle(.secondary)
+    }
+}
+
 @MainActor
 private struct HistoryPanel: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var days = 1
     @State private var metric = "Charge"
@@ -442,7 +468,7 @@ private struct HistoryPanel: View {
 
 @MainActor
 private struct SettingsPanel: View {
-    @ObservedObject var model: TilveroModel
+    @Bindable var model: TilveroModel
     #if TILVERO_LAB_STUDIO
     @Environment(\.studioCaptureRoute) private var studioCaptureRoute
     #endif
@@ -593,7 +619,7 @@ private struct SettingsPanel: View {
 
 @MainActor
 struct ProfilePanel: View {
-    @ObservedObject var model: TilveroModel
+    @Bindable var model: TilveroModel
     var body: some View {
         GroupBox(L10n.text("Profiles & schedules")) {
             VStack(alignment: .leading, spacing: 14) {
@@ -618,7 +644,7 @@ struct ProfilePanel: View {
 
 @MainActor
 private struct SimulationPanel: View {
-    @ObservedObject var model: TilveroModel
+    @Bindable var model: TilveroModel
     var body: some View {
         GroupBox(L10n.text("Simulation controls")) {
             VStack(alignment: .leading, spacing: 12) {
@@ -633,7 +659,7 @@ private struct SimulationPanel: View {
 
 @MainActor
 private struct FanControlPanel: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     @State private var rpm = 2400.0
     private var minimum: Double { Double(model.fanDescriptors.map(\.minimumRPM).max() ?? 1200) }
     private var maximum: Double { max(minimum + 1, Double(model.fanDescriptors.map(\.maximumRPM).min() ?? 6000)) }

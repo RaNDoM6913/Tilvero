@@ -562,7 +562,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     @objc private func powerChanged() { Task { await model.refresh() } }
     @objc private func clockChanged() {
         try? model.keepAwake.reconcile()
-        model.objectWillChange.send() // Reformat the same absolute Until target after a zone change.
+        model.keepAwake.objectWillChange.send() // Reformat the same absolute Until target after a zone change.
     }
     @objc private func reopenDetails() { showDetails() }
     @objc private func openSettings() { model.navigation.open(.section(.settings)) }

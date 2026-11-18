@@ -11,7 +11,7 @@ import PowerPersistence
 /// Technical metadata stays behind explicit info buttons, not in summary rails.
 @MainActor struct OverviewDashboard: View {
     @Environment(\.studioPresentation) private var studioPresentation
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     @State private var liveMetrics = OverviewLiveMetrics()
     private var level: Int? { EnergyVisualSnapshot(model.snapshot).level }
     private var chargeReading: CatalogReading? { reading("011") }

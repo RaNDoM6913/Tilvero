@@ -40,7 +40,7 @@ extension Font {
 }
 
 @MainActor struct PowerMetricCard: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     let title: String
     let symbol: String
     let id: String
@@ -157,7 +157,7 @@ extension MetricChartSeries {
 }
 
 @MainActor struct MetricSparkline: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     let id: String
     var color: Color
     private var points: [HistoryChartPoint] { PowerMetricHistory.points(model.history, id: id, since: model.snapshot.collectedAt.addingTimeInterval(-3600)) }
@@ -178,7 +178,7 @@ extension MetricChartSeries {
 }
 
 @MainActor struct AdapterMetricCard: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     var style: MetricChartStyle = .sparkline
     private var inputReading: CatalogReading? { model.snapshot.catalog.first { $0.id == "054" } }
     private var ratingReading: CatalogReading? { model.snapshot.catalog.first { $0.id == "050" } }
@@ -207,7 +207,7 @@ extension MetricChartSeries {
 }
 
 @MainActor struct BatteryHealthMetricCard: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     private func value(_ id: String) -> String {
         model.snapshot.catalog.first { $0.id == id }.map { CatalogDataPresentation.value($0, reveal: false, fahrenheit: false) } ?? "—"
     }
@@ -239,7 +239,7 @@ extension MetricChartSeries {
 }
 
 @MainActor struct PowerObservationsPanel: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     private let fields = ["043", "054", "038", "039", "026"]
     private var availableSummaries: [(CatalogReading, PowerMetricHistory.Summary)] {
         fields.compactMap { id in
