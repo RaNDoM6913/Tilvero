@@ -60,6 +60,30 @@ import AppKit
         XCTAssertNil(model.processActivity)
         model.stop()
     }
+    func testClosedSurfacesScanAtTheSlowCadenceAndListingSurfacesAreRecognised() async throws {
+        let prefs = makeTestDefaults("ProcessCadence").defaults
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fixture = ProcessModelFixture()
+        let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"), processActivityProvider: { await fixture.read() })
+        defer { model.stop() }
+        XCTAssertFalse(model.processListIsVisible)
+        await model.refreshProcessActivity()
+        await model.refreshProcessActivity()
+        let scans = await fixture.time
+        XCTAssertEqual(scans, 1, "With nothing listing processes the next poll does not scan again")
+        model.isPopoverVisible = true; model.quickPanelSection = .overview
+        XCTAssertFalse(model.processListIsVisible, "The applications block is hidden by default")
+        model.overviewPreferences.hidden.remove(.applications)
+        XCTAssertTrue(model.processListIsVisible)
+        model.isPopoverVisible = false
+        model.selectedSection = .activity
+        XCTAssertFalse(model.processListIsVisible, "The Activity page counts only while the window is shown")
+        model.isDetailVisible = true
+        XCTAssertTrue(model.processListIsVisible)
+        model.selectedSection = .settings; model.selectedSettingsPage = .quickPanel
+        XCTAssertTrue(model.processListIsVisible, "The quick panel preview lists applications too")
+    }
 }
 private actor HighLoadProcessFixture {
     var time = -10

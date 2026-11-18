@@ -95,13 +95,36 @@ enum ProcessActivitySearch {
     }
 }
 
+/// How often the process table is scanned. While a surface that lists processes is on screen (the quick panel's
+/// applications block, the Activity page, the quick panel preview in Settings) every poll scans; otherwise at most every
+/// two minutes, which still feeds the high-CPU highlights at a fraction of the cost.
+enum ProcessScanCadence {
+    static let visibleInterval: TimeInterval = 2
+    static let hiddenInterval: TimeInterval = 120
+    /// Longest interval the sampler and the highlights count: the hidden cadence, one closed-panel poll (30 s) and slack.
+    static let longestInterval: TimeInterval = 180
+    /// Between two scans made while visible (every poll) a longer pause is a collection gap, not an interval.
+    static let visibleGap: TimeInterval = 45
+
+    static func isDue(sinceLastScan: TimeInterval?, visible: Bool, force: Bool = false) -> Bool {
+        if force { return true }
+        guard let sinceLastScan, sinceLastScan >= 0 else { return true }
+        return sinceLastScan >= (visible ? visibleInterval : hiddenInterval)
+    }
+    /// The longest interval the highlights accept for this scan.
+    static func maximumInterval(previousVisible: Bool, visible: Bool) -> TimeInterval {
+        previousVisible && visible ? visibleGap : longestInterval
+    }
+}
+
 struct SustainedCPUActivity {
     private struct Run { var seconds: Double; var intervals: Int; var endedAt: Double }
     private var runs: [String: Run] = [:]
     mutating func reset() { runs.removeAll() }
-    mutating func accept(_ snapshot: ProcessActivitySnapshot, monotonic: Double) -> [ProcessActivityRow] {
+    /// `maximumInterval`: a longer interval is a gap and clears every run (see `ProcessScanCadence`).
+    mutating func accept(_ snapshot: ProcessActivitySnapshot, monotonic: Double, maximumInterval: Double = ProcessScanCadence.visibleGap) -> [ProcessActivityRow] {
         guard !snapshot.isWarmingUp, snapshot.collectionError == nil,
-              let interval = snapshot.intervalSeconds, interval.isFinite, (0.05...45).contains(interval), monotonic.isFinite else {
+              let interval = snapshot.intervalSeconds, interval.isFinite, interval >= 0.05, interval <= maximumInterval, monotonic.isFinite else {
             reset(); return []
         }
         var next: [String: Run] = [:]

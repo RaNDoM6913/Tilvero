@@ -114,12 +114,14 @@ final class TilveroModel: ObservableObject {
     @Published private(set) var processActivity: ProcessActivitySnapshot?
     @Published private(set) var highCPUApplications: [ProcessActivityRow] = []
     private let processActivityProvider: @Sendable () async -> ProcessResourceCollection
-    private var processSampler = ProcessActivitySampler(timebaseNumerator: ProcessActivityProvider.timebase.numerator, timebaseDenominator: ProcessActivityProvider.timebase.denominator)
+    private var processSampler = ProcessActivitySampler(timebaseNumerator: ProcessActivityProvider.timebase.numerator, timebaseDenominator: ProcessActivityProvider.timebase.denominator,
+                                                        maximumInterval: ProcessScanCadence.longestInterval)
     private var processHighlights = SustainedCPUActivity()
     private var isReadingProcesses = false
     private var processMonitorStopped = false
     private var processRevision: UInt64 = 0
     private var lastProcessRefreshUptime: Double?
+    private var lastProcessScanVisible = false
     @Published private(set) var sleepActivity: SleepAssertionSnapshot?
     @Published private(set) var systemChargeLimit: SystemChargeLimitObservation?
     @Published private(set) var isReadingSystemChargeLimit = false
@@ -129,6 +131,7 @@ final class TilveroModel: ObservableObject {
     @Published var selectedSettingsPage: SettingsPage = .general
     @Published var selectedSection: InfoSection = .overview { didSet {
         preferences.set(selectedSection.rawValue, forKey: "lastSection")
+        if oldValue != selectedSection { activityPageMayHaveAppeared() }
     } }
     @Published var overviewPreferences: OverviewPreferences { didSet {
         if let data = try? JSONEncoder().encode(overviewPreferences) { preferences.set(data, forKey: "overviewPreferences.v1") }
@@ -392,7 +395,7 @@ final class TilveroModel: ObservableObject {
     var isPopoverVisible = false { didSet { if oldValue != isPopoverVisible { updateLiveCharts() } } }
     /// The quick panel's page (reported by the panel itself): live charts run only on Overview.
     var quickPanelSection: QuickPanelSection = .overview { didSet { if oldValue != quickPanelSection { updateLiveCharts() } } }
-    var isDetailVisible = false
+    var isDetailVisible = false { didSet { if isDetailVisible && !oldValue { activityPageMayHaveAppeared() } } }
     var openDetails: (@MainActor () -> Void)?
     /// Settings > Setup: the administrator permissions (nil in demo, monitoring-only and test sessions).
     var privilegedPermissions: PrivilegedPermissionsController? { willSet { objectWillChange.send() } }
@@ -460,7 +463,8 @@ final class TilveroModel: ObservableObject {
         }
         self.isDemo = isDemo
         self.launchPolicy = launchPolicy
-        self.processActivityProvider = processActivityProvider ?? { await ProcessActivityProvider().read() }
+        let processes = ProcessActivityProvider()   // one provider: it keeps process identities between scans
+        self.processActivityProvider = processActivityProvider ?? { await processes.read() }
         self.preferences = preferences
         chargeOnce = ChargeOnceStore(preferences: preferences)
         chargeBy = ChargeByService(defaults: preferences, wake: isDemo || launchPolicy.monitoringOnly ? DisabledWakeScheduler() : NativeWakeScheduler())
@@ -909,9 +913,17 @@ final class TilveroModel: ObservableObject {
             }
         }
     }
+    /// A surface that lists processes is on screen: the quick panel's applications block, the Activity page, or the
+    /// quick panel preview in Settings. Otherwise the scan runs only every two minutes (`ProcessScanCadence`).
+    var processListIsVisible: Bool {
+        (isPopoverVisible && quickPanelSection == .overview && visibleOverviewMetrics.contains(.applications))
+            || (isDetailVisible && (selectedSection == .activity || (selectedSection == .settings && selectedSettingsPage == .quickPanel)))
+    }
     func refreshProcessActivity(force: Bool = false) async {
         guard !isDemo, !sleeping, !processMonitorStopped, !isReadingProcesses else { return }
-        if !force, let lastProcessRefreshUptime, ProcessInfo.processInfo.systemUptime - lastProcessRefreshUptime < 2 { return }
+        let visible = processListIsVisible
+        let sinceLastScan = lastProcessRefreshUptime.map { ProcessInfo.processInfo.systemUptime - $0 }
+        guard ProcessScanCadence.isDue(sinceLastScan: sinceLastScan, visible: visible, force: force) else { return }
         isReadingProcesses = true
         let revision = processRevision
         defer { isReadingProcesses = false }
@@ -919,8 +931,16 @@ final class TilveroModel: ObservableObject {
         guard revision == processRevision, !sleeping, !processMonitorStopped else { return }
         let activity = processSampler.accept(observed)
         processActivity = activity
-        highCPUApplications = processHighlights.accept(activity, monotonic: observed.monotonic)
+        highCPUApplications = processHighlights.accept(activity, monotonic: observed.monotonic,
+            maximumInterval: ProcessScanCadence.maximumInterval(previousVisible: lastProcessScanVisible, visible: visible))
+        lastProcessScanVisible = visible
         lastProcessRefreshUptime = ProcessInfo.processInfo.systemUptime
+    }
+    /// The Activity page just came on screen: scan now instead of waiting for the next poll (the last scan may be two
+    /// minutes old while nothing listed processes).
+    private func activityPageMayHaveAppeared() {
+        guard isDetailVisible, selectedSection == .activity, !isDemo else { return }
+        Task { await refreshProcessActivity() }
     }
     /// A read-only display sample. The normal refresh owns history and control observations.
     func readOverviewMetrics() async -> [CatalogReading]? {

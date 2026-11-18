@@ -5,6 +5,30 @@ import XCTest
 @testable import PowerTelemetry
 
 final class ProcessActivityTests: XCTestCase {
+    func testIdentityCacheReadsEachProcessOnceAndFollowsPIDReuseExitsAndAppChanges() {
+        var cache = ProcessIdentityCache()
+        let app = ProcessApplicationIdentity(key: "/A.app", name: "A", bundlePath: "/A.app")
+        let first = ProcessIdentityCache.Key(pid: 10, start: 1)
+        cache.beginScan(applications: [])
+        XCTAssertEqual(cache.identity(first) { .init(path: "/A.app/Contents/MacOS/A", name: "A") }.name, "A")
+        XCTAssertNil(cache.application(forPath: "/A.app/Contents/MacOS/A"), "No running app yet")
+        cache.endScan()
+        cache.beginScan(applications: [app])
+        XCTAssertEqual(cache.identity(first) { XCTFail("A known process is not read again"); return .init(path: nil, name: "?") }.name, "A")
+        XCTAssertEqual(cache.application(forPath: "/A.app/Contents/MacOS/A"), app, "A changed app list redoes the match")
+        XCTAssertEqual(cache.identity(.init(pid: 10, start: 2)) { .init(path: "/bin/zsh", name: "zsh") }.name, "zsh", "A reused pid is a new process")
+        cache.endScan()
+        XCTAssertEqual(cache.reads, 2)
+        cache.beginScan(applications: [app])
+        cache.endScan()   // neither process listed: both exited
+        cache.beginScan(applications: [app])
+        _ = cache.identity(first) { .init(path: "/A.app/Contents/MacOS/A", name: "A") }
+        XCTAssertEqual(cache.reads, 3, "An exited process is forgotten")
+        _ = cache.identity(.init(pid: 11, start: 1)) { .init(path: nil, name: "Process 11") }
+        _ = cache.identity(.init(pid: 11, start: 1)) { .init(path: "/usr/bin/top", name: "top") }
+        XCTAssertEqual(cache.reads, 5, "A path that could not be read is read again")
+    }
+
     func testFirstSampleIsBaselineAndMachTicksConvertBeforeCPUPercentage() throws {
         var sampler = ProcessActivitySampler(timebaseNumerator: 125, timebaseDenominator: 3)
         let first = sampler.accept(raw(1, [counter(cpu: 24_000_000, energy: 1_000_000_000)]))

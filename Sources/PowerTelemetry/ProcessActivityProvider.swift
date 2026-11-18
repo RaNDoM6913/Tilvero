@@ -81,14 +81,17 @@ public struct ProcessActivitySampler {
     private var previous: ProcessResourceCollection?
     private let timebaseNumerator: Double
     private let timebaseDenominator: Double
-    public init(timebaseNumerator: UInt32 = 1, timebaseDenominator: UInt32 = 1) {
+    /// Longest interval between two collections that still yields rates; a longer one starts a new baseline.
+    private let maximumInterval: Double
+    public init(timebaseNumerator: UInt32 = 1, timebaseDenominator: UInt32 = 1, maximumInterval: Double = 120) {
         self.timebaseNumerator = Double(timebaseNumerator); self.timebaseDenominator = Double(timebaseDenominator)
+        self.maximumInterval = maximumInterval
     }
     public mutating func reset() { previous = nil }
     public mutating func accept(_ current: ProcessResourceCollection) -> ProcessActivitySnapshot {
         let before = previous; previous = current
         let elapsed = before.map { current.monotonic - $0.monotonic }
-        let valid = elapsed.map { $0.isFinite && $0 >= 0.05 && $0 <= 120 } == true && timebaseDenominator > 0 && timebaseNumerator > 0 && current.collectionError == nil && before?.collectionError == nil
+        let valid = elapsed.map { $0.isFinite && $0 >= 0.05 && $0 <= maximumInterval } == true && timebaseDenominator > 0 && timebaseNumerator > 0 && current.collectionError == nil && before?.collectionError == nil
         var groups: [String: ProcessActivityRow] = [:]
         if valid, let before, let elapsed {
             var old: [String: ProcessResourceCounter] = [:]
@@ -142,8 +145,55 @@ public struct ProcessActivitySampler {
     }
 }
 
+/// Process identities between scans: a process keeps its path, name and app for its lifetime (pid plus start time),
+/// so a scan reads `proc_pidpath`/`proc_name` and matches app bundles only for processes it has not seen before. Path
+/// matches are redone whenever the set of running apps changes. In memory only.
+struct ProcessIdentityCache {
+    struct Key: Hashable { let pid: Int32; let start: UInt64 }
+    struct Identity: Equatable { let path: String?; let name: String }
+    private var identities: [Key: Identity] = [:]
+    private var applications: [ProcessApplicationIdentity] = []
+    private var matches: [String: ProcessApplicationIdentity?] = [:]
+    private var seen: Set<Key> = []
+    /// Identity reads so far (tests).
+    private(set) var reads = 0
+
+    mutating func beginScan(applications: [ProcessApplicationIdentity]) {
+        if applications != self.applications { self.applications = applications; matches.removeAll() }
+        seen.removeAll(keepingCapacity: true)
+    }
+    mutating func identity(_ key: Key, read: () -> Identity) -> Identity {
+        seen.insert(key)
+        if let known = identities[key] { return known }
+        reads += 1
+        let identity = read()
+        if identity.path != nil { identities[key] = identity }   // a path that could not be read is tried again next scan
+        return identity
+    }
+    mutating func application(forPath path: String?) -> ProcessApplicationIdentity? {
+        guard let path else { return nil }
+        if let known = matches[path] { return known }
+        let match = applications.first { path.hasPrefix($0.bundlePath + "/Contents/") }
+        matches[path] = match
+        return match
+    }
+    /// Forgets processes the scan did not list (they exited), and the matches only they used.
+    mutating func endScan() {
+        identities = identities.filter { seen.contains($0.key) }
+        let paths = Set(identities.values.compactMap(\.path))
+        matches = matches.filter { paths.contains($0.key) }
+    }
+}
+
 /// Public read-only resource accounting. Process/app identity stays in memory.
 public struct ProcessActivityProvider: Sendable {
+    private final class Cache: @unchecked Sendable {
+        private let lock = NSLock()
+        private var state = ProcessIdentityCache()
+        func withState<T>(_ body: (inout ProcessIdentityCache) -> T) -> T { lock.withLock { body(&state) } }
+    }
+    private let cache = Cache()
+    /// Keep one provider for repeated reads: it remembers process identities between scans.
     public init() {}
     public static var timebase: (numerator: UInt32, denominator: UInt32) {
         var info = mach_timebase_info_data_t(); mach_timebase_info(&info)
@@ -157,9 +207,12 @@ public struct ProcessActivityProvider: Sendable {
                 return ProcessApplicationIdentity(key: path, name: name, bundlePath: path)
             }.sorted { $0.bundlePath.count < $1.bundlePath.count }
         }
-        return await Task.detached(priority: .utility) { Self.collect(applications: applications) }.value
+        let cache = cache
+        return await Task.detached(priority: .utility) { cache.withState { Self.collect(applications: applications, identities: &$0) } }.value
     }
-    private static func collect(applications: [ProcessApplicationIdentity]) -> ProcessResourceCollection {
+    private static func collect(applications: [ProcessApplicationIdentity], identities: inout ProcessIdentityCache) -> ProcessResourceCollection {
+        identities.beginScan(applications: applications)
+        defer { identities.endScan() }
         let requested = max(0, Int(proc_listallpids(nil, 0)))
         var pids = [Int32](repeating: 0, count: min(4096, max(128, requested + 128)))
         let count = pids.withUnsafeMutableBytes { proc_listallpids($0.baseAddress, Int32($0.count)) }
@@ -184,14 +237,16 @@ public struct ProcessActivityProvider: Sendable {
                 }
                 let (cpu, overflow) = raw.ri_user_time.addingReportingOverflow(raw.ri_system_time)
                 guard !overflow, raw.ri_proc_start_abstime > 0 else { unavailable += 1; continue }
-                var pathBytes = [CChar](repeating: 0, count: 4096 /* libproc: 4 * MAXPATHLEN */)
-                let pathCount = pathBytes.withUnsafeMutableBytes { proc_pidpath(pid, $0.baseAddress, UInt32($0.count)) }
-                let path = pathCount > 0 ? String(decoding: pathBytes.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self) : nil
-                let app = path.flatMap { path in applications.first { path.hasPrefix($0.bundlePath + "/Contents/") } }
-                var nameBytes = [CChar](repeating: 0, count: 256)
-                let nameCount = nameBytes.withUnsafeMutableBytes { proc_name(pid, $0.baseAddress, UInt32($0.count)) }
-                let rawName = nameCount > 0 ? String(decoding: nameBytes.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self) : "Process \(pid)"
-                let name = String(rawName.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) }.prefix(120))
+                let identity = identities.identity(.init(pid: pid, start: raw.ri_proc_start_abstime)) {
+                    var pathBytes = [CChar](repeating: 0, count: 4096 /* libproc: 4 * MAXPATHLEN */)
+                    let pathCount = pathBytes.withUnsafeMutableBytes { proc_pidpath(pid, $0.baseAddress, UInt32($0.count)) }
+                    let path = pathCount > 0 ? String(decoding: pathBytes.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self) : nil
+                    var nameBytes = [CChar](repeating: 0, count: 256)
+                    let nameCount = nameBytes.withUnsafeMutableBytes { proc_name(pid, $0.baseAddress, UInt32($0.count)) }
+                    let rawName = nameCount > 0 ? String(decoding: nameBytes.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self) : "Process \(pid)"
+                    return .init(path: path, name: String(rawName.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) }.prefix(120)))
+                }
+                let app = identities.application(forPath: identity.path), name = identity.name
                 counters.append(.init(pid: pid, start: raw.ri_proc_start_abstime, flavor: flavor, name: name, application: app,
                     cpuTicks: cpu, cpuEnergyNanojoules: flavor == 6 ? raw.ri_energy_nj : nil, performanceEnergyNanojoules: flavor == 6 ? raw.ri_penergy_nj : nil,
                     idleWakeups: raw.ri_pkg_idle_wkups, interruptWakeups: raw.ri_interrupt_wkups, readBytes: raw.ri_diskio_bytesread, writtenBytes: raw.ri_diskio_byteswritten))
