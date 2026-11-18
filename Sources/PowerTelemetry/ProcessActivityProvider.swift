@@ -145,11 +145,22 @@ public struct ProcessActivitySampler {
     }
 }
 
-/// Process identities between scans: a process keeps its path, name and app for its lifetime (pid plus start time),
-/// so a scan reads `proc_pidpath`/`proc_name` and matches app bundles only for processes it has not seen before. Path
-/// matches are redone whenever the set of running apps changes. In memory only.
+/// Process identities between scans: a process keeps its path, name and app while it runs the same executable (pid,
+/// start time and the executable's UUID; `exec` keeps the pid and start time but changes the UUID, as when xpcproxy or a
+/// shell becomes the real program). A scan reads `proc_pidpath`/`proc_name` and matches app bundles only for processes
+/// it has not seen before; a process without an executable UUID is read every scan. Path matches are redone whenever
+/// the set of running apps changes. In memory only.
 struct ProcessIdentityCache {
-    struct Key: Hashable { let pid: Int32; let start: UInt64 }
+    struct Key: Hashable {
+        let pid: Int32; let start: UInt64
+        /// `ri_uuid`; nil when the kernel reported none (such a process is never cached).
+        let image: UUID?
+        init(pid: Int32, start: UInt64, image: UUID?) { self.pid = pid; self.start = start; self.image = image }
+        init(pid: Int32, start: UInt64, rawImage: uuid_t) {
+            let image = UUID(uuid: rawImage)
+            self.init(pid: pid, start: start, image: image == UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)) ? nil : image)
+        }
+    }
     struct Identity: Equatable { let path: String?; let name: String }
     private var identities: [Key: Identity] = [:]
     private var applications: [ProcessApplicationIdentity] = []
@@ -167,7 +178,8 @@ struct ProcessIdentityCache {
         if let known = identities[key] { return known }
         reads += 1
         let identity = read()
-        if identity.path != nil { identities[key] = identity }   // a path that could not be read is tried again next scan
+        // A path that could not be read, or a process without an executable UUID, is read again next scan.
+        if identity.path != nil, key.image != nil { identities[key] = identity }
         return identity
     }
     mutating func application(forPath path: String?) -> ProcessApplicationIdentity? {
@@ -237,7 +249,7 @@ public struct ProcessActivityProvider: Sendable {
                 }
                 let (cpu, overflow) = raw.ri_user_time.addingReportingOverflow(raw.ri_system_time)
                 guard !overflow, raw.ri_proc_start_abstime > 0 else { unavailable += 1; continue }
-                let identity = identities.identity(.init(pid: pid, start: raw.ri_proc_start_abstime)) {
+                let identity = identities.identity(.init(pid: pid, start: raw.ri_proc_start_abstime, rawImage: raw.ri_uuid)) {
                     var pathBytes = [CChar](repeating: 0, count: 4096 /* libproc: 4 * MAXPATHLEN */)
                     let pathCount = pathBytes.withUnsafeMutableBytes { proc_pidpath(pid, $0.baseAddress, UInt32($0.count)) }
                     let path = pathCount > 0 ? String(decoding: pathBytes.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self) : nil
