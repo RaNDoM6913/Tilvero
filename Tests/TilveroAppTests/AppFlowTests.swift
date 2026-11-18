@@ -52,6 +52,24 @@ final class AppFlowTests: XCTestCase {
         XCTAssertFalse(live.isApplying, "A live model never starts the fixture one-shot")
     }
 
+    func testSavedScheduleFiresOnlyWhereDevelopmentFeaturesAreOn() async throws {
+        func model(development: Bool) throws -> TilveroModel {
+            let preferences = makeTestDefaults("Schedule").defaults
+            let rule = try ScheduleRule(fireDate: Date().addingTimeInterval(-1), profile: PowerProfile(name: "At desk", chargeTarget: 80), missedPolicy: .skip)
+            preferences.set(try JSONEncoder().encode(rule), forKey: "demoSchedule")
+            return TilveroModel(isDemo: true, preferences: preferences, developmentFeatures: development)
+        }
+        let release = try model(development: false)
+        defer { release.stop() }
+        XCTAssertNotNil(release.schedule, "The saved schedule is still read")
+        await release.refresh()
+        XCTAssertNil(release.notice, "A release never runs a saved schedule (its panel is hidden)")
+        let development = try model(development: true)
+        defer { development.stop() }
+        await development.refresh()
+        XCTAssertNotNil(development.notice, "Debug and laboratory builds still run it")
+    }
+
     func testLiveRefreshPersistsReadingsAcrossStoreReopenWithoutSimulatorOrControl() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let url = directory.appendingPathComponent("History.sqlite")

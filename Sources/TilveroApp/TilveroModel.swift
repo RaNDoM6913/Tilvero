@@ -392,6 +392,9 @@ final class TilveroModel: ObservableObject {
     private var liveSubscription: AnyCancellable?
     let isDemo: Bool
     let launchPolicy: AppLaunchPolicy
+    /// Features still in development (the Modes tab, "Profiles & schedules"): debug and laboratory builds only, the same
+    /// flag as `QuickPanelSection.showsDevelopmentSections`. Off in a release, where a saved schedule never fires either.
+    let developmentFeatures: Bool
     var isPopoverVisible = false { didSet { if oldValue != isPopoverVisible { updateLiveCharts() } } }
     /// The quick panel's page (reported by the panel itself): live charts run only on Overview.
     var quickPanelSection: QuickPanelSection = .overview { didSet { if oldValue != quickPanelSection { updateLiveCharts() } } }
@@ -444,7 +447,8 @@ final class TilveroModel: ObservableObject {
          updateEvidence: (() -> [UpdateEvidenceProbe.Result])? = nil,
          updateLeaseDirectory: URL? = nil,
          sideEffects: TilveroModelSideEffects? = nil,
-         setupBundle: Bundle = .main) {
+         setupBundle: Bundle = .main,
+         developmentFeatures: Bool = QuickPanelSection.showsDevelopmentSections) {
         updates = UpdateCheckService(identity: updateIdentity ?? .current(), defaults: preferences)
         self.updateLeaseDirectory = updateLeaseDirectory
         self.updateEvidence = updateEvidence ?? {
@@ -463,6 +467,7 @@ final class TilveroModel: ObservableObject {
         }
         self.isDemo = isDemo
         self.launchPolicy = launchPolicy
+        self.developmentFeatures = developmentFeatures
         let processes = ProcessActivityProvider()   // one provider: it keeps process identities between scans
         self.processActivityProvider = processActivityProvider ?? { await processes.read() }
         self.preferences = preferences
@@ -1343,7 +1348,8 @@ final class TilveroModel: ObservableObject {
     }
     func removeSchedule() { schedule = nil; preferences.removeObject(forKey: isDemo ? "demoSchedule" : "schedule") }
     private func evaluateSchedule() async {
-        guard !controlsAreSuspended else { return }
+        // A schedule saved where the panel is shown (or by an earlier release that showed it) never fires in a release.
+        guard developmentFeatures, !controlsAreSuspended else { return }
         guard let schedule, let profile = arbiter.evaluate(schedule, now: Date()) else { return }
         persistArbiter()
         if !isDemo {

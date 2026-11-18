@@ -573,7 +573,7 @@ struct ReadingInfoPresentation {
                     }.disabled(model.isApplying)
                 }
                 Label(L10n.text("Power mode") + ": " + L10n.text(ProcessInfo.processInfo.isLowPowerModeEnabled ? "Low Power" : "Automatic"), systemImage: "bolt.circle")
-                ProfilePanel(model: model)
+                if model.developmentFeatures { ProfilePanel(model: model) }   // in development, like the Modes tab
             }.padding(.top, 12).padding(.bottom, 4)
         } label: {
             StudioText(L10n.text("Charging controls & modes"), id: "power.controls.title").font(.callout.weight(.medium)).foregroundStyle(.primary)
