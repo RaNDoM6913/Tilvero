@@ -1,17 +1,17 @@
 # Tilvero GitHub traffic
 
-Snapshot collected on 18 November 2026 UTC from the GitHub API.
+Snapshot collected on 19 November 2026 UTC from the GitHub API.
 
 | Metric | Value | Scope |
 | --- | ---: | --- |
-| Git clones | 1782 | Sum of the daily counts below, 27 October (repository creation) through 17 November 2026 UTC; GitHub itself only returns the latest 14 days, so older days are kept in a local file |
+| Git clones | 1818 | Sum of the daily counts below, 27 October (repository creation) through 18 November 2026 UTC; GitHub itself only returns the latest 14 days, so older days are kept in a local file |
 | Unique cloners | 412 | The highest `uniques` value GitHub returned for any 14-day window (4 November through 17 November); unique cloners cannot be summed across days, so this is a lower bound for the whole period |
 | Source ZIP downloads | 33 | All twelve published custom source ZIPs |
 | Source ZIP downloads excluding verification | 23 | The thirty-three reported downloads minus ten project verification downloads (the published `v0.2.0`, `v0.3.0-beta.1`, `v0.4.0-beta.1`, `v0.4.0`, `v0.5.0-beta.1`, `v0.6.0`, `v0.6.1`, `v0.6.2`, `v0.7.0` and `v0.7.1` archives were re-downloaded to check them) |
-| Downloads of uploaded release assets | 122 | Thirty-three source ZIP downloads, sixty-eight manifest downloads and twenty-one checksum downloads |
+| Downloads of uploaded release assets | 134 | Thirty-three source ZIP downloads, eighty manifest downloads and twenty-one checksum downloads |
 
 The repository was created on 27 October. GitHub returned zero clones for
-25–26 October and the following counts for 27 October through 17 November
+25–26 October and the following counts for 27 October through 18 November
 (the last day is partial).
 
 | Date (UTC) | Clones | Unique cloners that day |
@@ -38,6 +38,7 @@ The repository was created on 27 October. GitHub returned zero clones for
 | 15 November | 83 | 26 |
 | 16 November | 20 | 7 |
 | 17 November | 105 | 42 |
+| 18 November | 36 | 18 |
 
 Use the API's window-level `uniques` for the whole period. Adding daily
 unique counts can count the same client on more than one day. Clone traffic can
@@ -45,18 +46,18 @@ include automation, and GitHub reports these counts without identifying people.
 
 | Release | Source ZIP | Manifest | Checksums |
 | --- | ---: | ---: | ---: |
-| `v0.1.0-beta.1` | 3 | 6 | 2 |
-| `v0.1.0-beta.2` | 3 | 6 | 2 |
-| `v0.2.0` | 2 | 5 | 2 |
-| `v0.3.0-beta.1` | 3 | 5 | 1 |
-| `v0.4.0-beta.1` | 2 | 5 | 1 |
-| `v0.4.0` | 2 | 5 | 1 |
-| `v0.5.0-beta.1` | 3 | 6 | 2 |
-| `v0.6.0` | 3 | 6 | 2 |
-| `v0.6.1` | 2 | 6 | 2 |
-| `v0.6.2` | 3 | 6 | 2 |
-| `v0.7.0` | 3 | 6 | 2 |
-| `v0.7.1` | 4 | 6 | 2 |
+| `v0.1.0-beta.1` | 3 | 7 | 2 |
+| `v0.1.0-beta.2` | 3 | 7 | 2 |
+| `v0.2.0` | 2 | 6 | 2 |
+| `v0.3.0-beta.1` | 3 | 6 | 1 |
+| `v0.4.0-beta.1` | 2 | 6 | 1 |
+| `v0.4.0` | 2 | 6 | 1 |
+| `v0.5.0-beta.1` | 3 | 7 | 2 |
+| `v0.6.0` | 3 | 7 | 2 |
+| `v0.6.1` | 2 | 7 | 2 |
+| `v0.6.2` | 3 | 7 | 2 |
+| `v0.7.0` | 3 | 7 | 2 |
+| `v0.7.1` | 4 | 7 | 2 |
 
 The `v0.2.0`, `v0.3.0-beta.1`, `v0.4.0-beta.1`, `v0.4.0`, `v0.5.0-beta.1`, `v0.6.0`, `v0.6.1`, `v0.6.2`, `v0.7.0` and `v0.7.1` source ZIP counts each include the download used to check the published
 archive; GitHub may update these counters with a delay. The releases contain source and metadata. GitHub lists no uploaded app
