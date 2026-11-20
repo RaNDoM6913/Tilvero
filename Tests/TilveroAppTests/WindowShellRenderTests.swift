@@ -5,6 +5,7 @@ import XCTest
 import AppKit
 import SwiftUI
 import PowerCore
+import PowerTelemetry
 import PowerPersistence
 @testable import TilveroApp
 
@@ -84,7 +85,7 @@ import PowerPersistence
     func testControllerConfiguresTheWindow() async throws {
         let fixture = try await WindowFixture.make()
         defer { fixture.cleanup() }
-        let window = MainWindowController.makeWindow(model: fixture.model)
+        let window = MainWindowController.makeWindow(model: fixture.model, remembersFrame: false)
         defer { window.close() }
         XCTAssertNotNil(window.toolbar)
         XCTAssertEqual(window.toolbarStyle, .unified)
@@ -103,7 +104,7 @@ import PowerPersistence
         model.navigation.navigate(to: .section(.overview))
         RenderProbe.isEnabled = true; RenderProbe.reset()
         defer { RenderProbe.isEnabled = false }
-        let window = MainWindowController.makeWindow(model: model)
+        let window = MainWindowController.makeWindow(model: model, remembersFrame: false)
         defer { window.close() }
         window.orderFront(nil)
         await spin(0.5)
@@ -119,6 +120,37 @@ import PowerPersistence
         XCTAssertNil(model.nativeCharge.observed)
     }
 
+    /// The Overview Hour chart subscribes to live charts only while it is shown in a visible window: another page
+    /// releases it and a hidden window reads nothing. (Day/Week drop the `.liveCharts` view entirely; DEMO never
+    /// samples by `wantsLiveCharts`.)
+    func testLiveChartSubscriptionFollowsRangeAndVisibility() async throws {
+        let fixture = try await WindowFixture.make()
+        defer { fixture.cleanup() }
+        let model = fixture.model
+        model.navigation.navigate(to: .section(.overview))
+        let window = MainWindowController.makeWindow(model: model, remembersFrame: false)
+        defer { window.close() }
+        window.orderFront(nil)
+        model.isDetailVisible = true
+        await spin(0.6)
+        XCTAssertTrue(model.visibleLiveSurfaces.contains(.windowOverview), "Hour range on screen subscribes")
+        let before = model.recordedPointComputations
+        model.live.append(LivePowerSample(collectedAt: Date(), systemWatts: 11, adapterWatts: 18, temperatureCelsius: 32, batteryWatts: 7),
+                          boundary: "test", adapterConnected: true, joinsRecorded: true)
+        await spin(0.2)
+        XCTAssertEqual(model.recordedPointComputations, before, "a live tick never re-extracts recorded points")
+        model.isDetailVisible = false
+        XCTAssertFalse(model.visibleLiveSurfaces.contains(.windowOverview), "a hidden window reads nothing")
+        model.isDetailVisible = true
+        model.navigation.navigate(to: .section(.battery))
+        await spin(0.6)
+        XCTAssertFalse(model.visibleLiveSurfaces.contains(.windowOverview), "another page releases the subscription")
+        model.navigation.navigate(to: .section(.overview))
+        await spin(0.6)
+        XCTAssertTrue(model.visibleLiveSurfaces.contains(.windowOverview))
+        model.isDetailVisible = false
+    }
+
     /// RU/EN × light/dark of the shell with Overview; writes PNGs of the real composited window when
     /// `TILVERO_RENDER_OUT` is set (display must be awake; windows flash on screen).
     func testOverviewGallery() async throws {
@@ -131,7 +163,7 @@ import PowerPersistence
         for language in ["ru", "en"] {
             setLanguage(language, model: model)
             for dark in [false, true] {
-                let window = MainWindowController.makeWindow(model: model)
+                let window = MainWindowController.makeWindow(model: model, remembersFrame: false)
                 window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)   // gallery only; production leaves it nil
                 window.setFrame(NSRect(x: 60, y: 60, width: 1000, height: 720), display: true)
                 window.makeKeyAndOrderFront(nil)

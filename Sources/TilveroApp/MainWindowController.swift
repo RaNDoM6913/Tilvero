@@ -14,7 +14,8 @@ import PowerCore
     static let minimumSize = NSSize(width: 880, height: 560)
     static let frameName = "TilveroMainWindow.v2"
 
-    static func makeWindow(model: TilveroModel) -> NSWindow {
+    /// - remembersFrame: false in tests, so no window frame is written to the test runner's defaults.
+    static func makeWindow(model: TilveroModel, remembersFrame: Bool = true) -> NSWindow {
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: defaultSize),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                               backing: .buffered, defer: false)
@@ -25,7 +26,7 @@ import PowerCore
         window.setContentSize(defaultSize)
         window.contentMinSize = minimumSize
         window.center()
-        window.setFrameAutosaveName(frameName)
+        if remembersFrame { window.setFrameAutosaveName(frameName) }
         return window
     }
 

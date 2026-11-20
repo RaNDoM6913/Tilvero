@@ -60,7 +60,8 @@ enum HistorySeries {
         var order: [Key] = []
         var extremes: [Key: (low: HistoryChartPoint, high: HistoryChartPoint)] = [:]
         for point in points {
-            let key = Key(bucket: Int(point.date.timeIntervalSince(window.lowerBound) / width), series: point.series)
+            let index = min(max(0, Int(point.date.timeIntervalSince(window.lowerBound) / width)), maximumBuckets / 2 - 1)
+            let key = Key(bucket: index, series: point.series)
             if let current = extremes[key] {
                 extremes[key] = (point.value < current.low.value ? point : current.low,
                                  point.value > current.high.value ? point : current.high)

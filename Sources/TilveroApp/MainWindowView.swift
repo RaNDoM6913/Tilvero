@@ -36,7 +36,8 @@ import SwiftUI
             ForEach(WindowSidebarGroup.allCases) { group in
                 Section {
                     ForEach(WindowSection.sections(in: group)) { entry in
-                        WindowSidebarRow(entry: entry, selected: entry.section == selected, mark: mark(entry.section)) {
+                        let mark = mark(entry.section)
+                        WindowSidebarRow(entry: entry, selected: entry.section == selected, mark: mark?.color, markLabel: mark?.label) {
                             model.navigation.navigate(to: .section(entry.section))
                         }
                     }
@@ -56,14 +57,16 @@ import SwiftUI
     }
 
     /// Orange dot on Diagnostics (charge attention, recovery required); dot on Settings when an update is available.
-    private func mark(_ section: InfoSection) -> Color? {
+    /// The dot is never colour alone: VoiceOver reads its label as the row's value.
+    private func mark(_ section: InfoSection) -> (color: Color, label: String)? {
         switch section {
         case .diagnostics:
             guard !model.isDemo else { return nil }
-            let attention = model.nativeCharge.presentation().requiresGlobalAttention || model.liveControl.recoveryRequired
-            return attention ? .orange : nil
+            if model.liveControl.recoveryRequired { return (.orange, L10n.text("App-owned settings require restoration")) }
+            let presentation = model.nativeCharge.presentation()
+            return presentation.requiresGlobalAttention ? (.orange, L10n.text(presentation.attention.titleKey)) : nil
         case .settings:
-            return model.updates.newerRelease != nil ? WindowTheme.accent : nil
+            return model.updates.newerRelease.map { (WindowTheme.accent, String(format: L10n.text("New version %@"), String($0.tag.dropFirst()))) }
         default: return nil
         }
     }
@@ -74,6 +77,7 @@ import SwiftUI
     let entry: WindowSection
     let selected: Bool
     var mark: Color?
+    var markLabel: String?
     let action: @MainActor () -> Void
 
     var body: some View {
@@ -100,8 +104,17 @@ import SwiftUI
         }
         .buttonStyle(.plain)
         .listRowInsets(EdgeInsets(top: 1, leading: 8, bottom: 1, trailing: 8))
+        .keyboardShortcut(shortcut, modifiers: .command)
         .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityValue(markLabel ?? "")
         .accessibilityIdentifier("sidebar." + entry.section.rawValue)
+    }
+}
+
+extension WindowSidebarRow {
+    /// ⌘1…⌘9 follow the sidebar order (Go menu equivalents).
+    var shortcut: KeyEquivalent {
+        KeyEquivalent(Character(String(WindowSection.shortcutIndex(entry.section) ?? 0)))
     }
 }
 

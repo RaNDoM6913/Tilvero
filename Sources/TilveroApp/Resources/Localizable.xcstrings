@@ -6134,13 +6134,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Quick panel"
+            "value": "Quick menu"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Быстрое окно"
+            "value": "Быстрое меню"
           }
         }
       }
@@ -14182,13 +14182,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Setup"
+            "value": "Features"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Настройка"
+            "value": "Функции"
           }
         }
       }
@@ -19053,6 +19053,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Процессов"
+          }
+        }
+      }
+    },
+    "Return control to macOS": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Return control to macOS"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вернуть управление системе"
+          }
+        }
+      }
+    },
+    "Tilvero holds charging settings": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero holds charging settings"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero управляет настройками зарядки"
           }
         }
       }

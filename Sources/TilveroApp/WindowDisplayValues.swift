@@ -53,7 +53,7 @@ struct ReadingDisplay: Equatable, Sendable {
         switch value {
         case .integer(let integer) where reading.unit != "°C":
             if reading.unit == "cycles" { unit = "" }
-            number = (magnitude ? abs(integer) : integer).formatted(.number.locale(locale))
+            number = magnitude ? integer.magnitude.formatted(.number.locale(locale)) : integer.formatted(.number.locale(locale))
         default:
             guard var double = value.doubleValue, double.isFinite else {
                 // Text values (states, names) are shown as their own words.
@@ -62,7 +62,9 @@ struct ReadingDisplay: Equatable, Sendable {
             }
             if reading.unit == "°C", fahrenheit { double = double * 9 / 5 + 32; unit = "°F" }
             if magnitude { double = abs(double) }
-            if double == 0 { double = 0 }   // never «-0»
+            // Never «-0,0»: a value that rounds to zero at the shown precision is zero.
+            let scale = pow(10, Double(fractionDigits.upperBound))
+            if (double * scale).rounded() == 0 { double = 0 }
             number = double.formatted(.number.locale(locale).precision(.fractionLength(fractionDigits)))
         }
         return ReadingDisplay(number: number, unit: unit, approximate: approximate, state: state, masked: false)
@@ -100,19 +102,21 @@ struct LeadDisplay: Equatable, Sendable {
 
 /// Inputs of the Overview lead, read from the snapshot by the page.
 struct OverviewLeadInputs: Equatable, Sendable {
-    enum Power: Equatable, Sendable { case charging, onBattery, connectedNotCharging, unknown }
+    enum Power: Equatable, Sendable { case charging, onBattery, connectedNotCharging, connectedStateUnknown, unknown }
     var level: Int?
     var stale = false
     var lastRead: Date?
     var power: Power = .unknown
     /// Confirmed macOS limit (only when it is the active, fresh setting).
     var limit: Int?
-    /// Time to the active target (070) or to full (069), seconds.
+    /// Time to the active target (070), seconds.
     var secondsToTarget: Double?
+    /// Time to full (069), seconds: shown only when no lower limit is named (it is not the time to that limit).
+    var secondsToFull: Double?
     /// Adapter capability (050), already formatted with its unit.
     var adapter: String?
-    /// Discharge forecast to 20 %, lower bound in seconds (0 = already at or below 20 %).
-    var forecastSeconds: Double?
+    /// Discharge forecast to 20 %: the band of `DischargeForecast` in seconds (0 = already at or below 20 %).
+    var forecastSeconds: ClosedRange<Double>?
 }
 
 enum OverviewLead {
@@ -133,19 +137,27 @@ enum OverviewLead {
         switch input.power {
         case .charging:
             status = t("Charging"); tone = .accent
-            if let limit = input.limit, limit > level, limit < 100 { fragments.append((ru ? "до \(limit) %" : "to \(limit)%")) }
-            if let seconds = input.secondsToTarget, let text = WindowDuration.estimate(seconds: seconds, language: language) {
+            let namesLimit = input.limit.map { $0 > level && $0 < 100 } ?? false
+            if namesLimit, let limit = input.limit { fragments.append((ru ? "до \(limit) %" : "to \(limit)%")) }
+            let seconds = namesLimit ? input.secondsToTarget : input.secondsToTarget ?? input.secondsToFull
+            if let seconds, let text = WindowDuration.estimate(seconds: seconds, language: language) {
                 fragments.append("≈ " + text)
             }
             if let adapter = input.adapter { fragments.append((ru ? "адаптер " : "adapter ") + adapter) }
         case .onBattery:
             status = t("On battery (lead)"); tone = .battery
-            if let seconds = input.forecastSeconds, seconds > 0, let text = WindowDuration.estimate(seconds: seconds, language: language) {
-                fragments.append((ru ? "до 20 % ≈ " : "to 20% ≈ ") + text)
+            if let band = input.forecastSeconds, band.lowerBound > 0,
+               let low = WindowDuration.estimate(seconds: band.lowerBound, language: language),
+               let high = WindowDuration.estimate(seconds: band.upperBound, language: language) {
+                // The forecast is a band (an extrapolation, not a promise): both ends, as in the quick menu.
+                fragments.append((ru ? "до 20 % ≈ " : "to 20% ≈ ") + (low == high ? low : low + "–" + high))
             }
         case .connectedNotCharging:
             status = t("Connected, not charging"); tone = .neutral
             if let limit = input.limit, limit < 100 { fragments.append(ru ? "лимит \(limit) %" : "limit \(limit)%") }
+            if let adapter = input.adapter { fragments.append((ru ? "адаптер " : "adapter ") + adapter) }
+        case .connectedStateUnknown:
+            status = t("Connected, charging state unavailable"); tone = .neutral
             if let adapter = input.adapter { fragments.append((ru ? "адаптер " : "adapter ") + adapter) }
         case .unknown:
             status = t("Power source unavailable"); tone = .secondary
@@ -172,12 +184,14 @@ extension NativeChargePresentation.Attention {
 /// The one notice a page shows under its lead, chosen by priority (IA §1): recovery / app-owned settings › charge
 /// attention › store error › other notices (Keep Awake failure, action results).
 struct NoticeDisplay: Equatable, Sendable {
-    enum Action: Equatable, Sendable { case restore, diagnostics }
+    enum Action: Equatable, Sendable { case restore, returnControl, diagnostics }
     let symbol: String
     let textKey: String
     /// Extra words shown after the localised key (a store error's own text, a notice's own text).
     var detail: String?
     var action: Action?
+    /// Warnings are orange; plain information (an action result, an export) is secondary.
+    var isWarning = true
 
     struct Inputs: Equatable, Sendable {
         var recoveryRequired = false
@@ -188,8 +202,12 @@ struct NoticeDisplay: Equatable, Sendable {
     }
 
     static func choose(_ input: Inputs) -> NoticeDisplay? {
-        if input.recoveryRequired || input.ownsSettings {
+        if input.recoveryRequired {
             return NoticeDisplay(symbol: "exclamationmark.triangle", textKey: "App-owned settings require restoration", action: .restore)
+        }
+        if input.ownsSettings {
+            // Normal ownership is not a fault: say who holds the settings and offer to give them back (IA §3.3).
+            return NoticeDisplay(symbol: "lock.shield", textKey: "Tilvero holds charging settings", action: .returnControl, isWarning: false)
         }
         if let key = input.attentionKey {
             return NoticeDisplay(symbol: "exclamationmark.triangle", textKey: key, action: .diagnostics)
@@ -198,7 +216,7 @@ struct NoticeDisplay: Equatable, Sendable {
             return NoticeDisplay(symbol: "externaldrive.badge.exclamationmark", textKey: "Data store error", detail: error)
         }
         if let notice = input.notice {
-            return NoticeDisplay(symbol: "info.circle", textKey: "", detail: notice)
+            return NoticeDisplay(symbol: "info.circle", textKey: "", detail: notice, isWarning: false)
         }
         return nil
     }

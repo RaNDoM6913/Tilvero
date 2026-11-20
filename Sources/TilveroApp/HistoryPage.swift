@@ -209,7 +209,7 @@ enum HistoryPageText {
         ScrollView {
             VStack(alignment: .leading, spacing: WindowTheme.tileGap) {
                 HistoryLeadView(model: model, measurement: measurement, series: series)
-                HistoryNoticeView(model: model)
+                WindowNoticeView(model: model)
                 HistoryChartTile(model: model, series: series, measurement: measurement)
                 if !model.isDemo {
                     HistoryTotals(model: model)
@@ -308,31 +308,6 @@ private struct SeriesKey: Hashable {
             } else if let reading = reading(measurement == .charge ? "011" : measurement == .temperature ? "039" : "038") {
                 ReadingInfoButton(reading: reading, fahrenheit: model.fahrenheit)
             }
-        }
-    }
-}
-
-// MARK: Notice
-
-@MainActor private struct HistoryNoticeView: View {
-    var model: TilveroModel
-    var body: some View {
-        let attention = model.isDemo ? nil : model.nativeCharge.presentation()
-        let input = NoticeDisplay.Inputs(
-            recoveryRequired: model.liveControl.recoveryRequired,
-            ownsSettings: model.liveControl.hasOwnedSettings,
-            attentionKey: attention.flatMap { $0.showsAttentionBanner ? $0.attention.titleKey : nil },
-            storeError: model.storeError,
-            notice: model.notices.current(excluding: model.isDemo ? [.chargeStatus, .simulation] : [.chargeStatus])?.text)
-        if let notice = NoticeDisplay.choose(input) {
-            NoticeTile(symbol: notice.symbol, text: notice.text, button: button(notice.action))
-        }
-    }
-    private func button(_ action: NoticeDisplay.Action?) -> (title: String, action: @MainActor () -> Void)? {
-        switch action {
-        case .restore: (L10n.text("Restore original settings"), { model.restoreAll() })
-        case .diagnostics: (L10n.text("Details"), { model.navigation.navigate(to: .section(.diagnostics)) })
-        case nil: nil
         }
     }
 }

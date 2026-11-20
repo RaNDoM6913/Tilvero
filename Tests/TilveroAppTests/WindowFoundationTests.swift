@@ -23,8 +23,7 @@ import PowerCore
         let demo = FeatureFlags.resolve(development: false, isDemo: true, canShowSetup: false, newWindowOverride: nil)
         XCTAssertTrue(demo.simulationControls && demo.fanControls)
         XCTAssertFalse(demo.setupPage || demo.modes || demo.newWindow)
-        let monitoring = FeatureFlags.resolve(development: false, isDemo: false, canShowSetup: true, newWindowOverride: nil)
-        XCTAssertFalse(monitoring.fanControls, "A flag never grants control; a release shows no fan controls")
+        XCTAssertFalse(release.fanControls, "a release shows no fan controls")
         XCTAssertTrue(FeatureFlags.resolve(development: false, isDemo: false, canShowSetup: true, newWindowOverride: true).newWindow)
         XCTAssertFalse(FeatureFlags.resolve(development: true, isDemo: false, canShowSetup: true, newWindowOverride: false).newWindow)
     }
@@ -97,6 +96,8 @@ import PowerCore
         // A valid zero stays zero.
         XCTAssertEqual(ReadingDisplay.make(reading("054", .decimal(0)), fahrenheit: false, locale: ru, language: "ru").text, "0,0 Вт")
         XCTAssertEqual(ReadingDisplay.make(reading("038", .decimal(-0.01)), fahrenheit: false, magnitude: true, locale: en, language: "en").text, "0.0 W")
+        XCTAssertEqual(ReadingDisplay.make(reading("054", .decimal(-0.04)), fahrenheit: false, locale: ru, language: "ru").text, "0,0 Вт", "never «-0,0»")
+        XCTAssertEqual(ReadingDisplay.make(reading("054", .decimal(-0.06)), fahrenheit: false, locale: ru, language: "ru").text, "-0,1 Вт")
         // Locale separators and units.
         XCTAssertEqual(ReadingDisplay.make(reading("054", .decimal(18.6)), fahrenheit: false, locale: ru, language: "ru").text, "18,6 Вт")
         XCTAssertEqual(ReadingDisplay.make(reading("054", .decimal(18.6)), fahrenheit: false, locale: en, language: "en").text, "18.6 W")
@@ -150,9 +151,20 @@ import PowerCore
         input.limit = 70
         XCTAssertEqual(OverviewLead.make(input, language: "ru", locale: ruLocale).detail, "")
         // On battery with a forecast.
-        lead = OverviewLead.make(OverviewLeadInputs(level: 64, power: .onBattery, forecastSeconds: 18_600), language: "ru", locale: ruLocale)
+        // The forecast is a band: both ends are shown.
+        lead = OverviewLead.make(OverviewLeadInputs(level: 64, power: .onBattery, forecastSeconds: 18_600...37_200), language: "ru", locale: ruLocale)
         XCTAssertEqual(lead.tone, .battery)
-        XCTAssertEqual(lead.detail, "до 20 % ≈ 5 ч 10 мин")
+        XCTAssertEqual(lead.detail, "до 20 % ≈ 5 ч 10 мин–10 ч 20 мин")
+        lead = OverviewLead.make(OverviewLeadInputs(level: 20, power: .onBattery, forecastSeconds: 0...0), language: "ru", locale: ruLocale)
+        XCTAssertEqual(lead.detail, "", "already at 20 %: no forecast fragment")
+        // Time to full (069) never sits next to a lower limit; without a limit it is the time shown.
+        lead = OverviewLead.make(OverviewLeadInputs(level: 60, power: .charging, limit: 80, secondsToFull: 7200), language: "ru", locale: ruLocale)
+        XCTAssertEqual(lead.detail, "до 80 %")
+        lead = OverviewLead.make(OverviewLeadInputs(level: 60, power: .charging, secondsToFull: 7200), language: "ru", locale: ruLocale)
+        XCTAssertEqual(lead.detail, "≈ 2 ч")
+        // A connected adapter with an unknown charging state is not an unknown power source.
+        lead = OverviewLead.make(OverviewLeadInputs(level: 60, power: .connectedStateUnknown), language: "en", locale: Locale(identifier: "en_US"))
+        XCTAssertEqual(lead.status, L10n.text("Connected, charging state unavailable"))
         // No level: «—» and a grey status.
         lead = OverviewLead.make(OverviewLeadInputs(level: nil, power: .charging), language: "ru", locale: ruLocale)
         XCTAssertEqual(lead.value, "—")
@@ -168,14 +180,18 @@ import PowerCore
     // MARK: Notice priority
 
     func testNoticePriority() {
-        var input = NoticeDisplay.Inputs(recoveryRequired: true, attentionKey: "Restoration pending", storeError: "x", notice: "y")
+        var input = NoticeDisplay.Inputs(recoveryRequired: true, ownsSettings: true, attentionKey: "Restoration pending", storeError: "x", notice: "y")
         XCTAssertEqual(NoticeDisplay.choose(input)?.action, .restore)
         input.recoveryRequired = false
+        XCTAssertEqual(NoticeDisplay.choose(input)?.action, .returnControl, "normal ownership is not a fault")
+        XCTAssertEqual(NoticeDisplay.choose(input)?.isWarning, false)
+        input.ownsSettings = false
         XCTAssertEqual(NoticeDisplay.choose(input)?.action, .diagnostics)
         input.attentionKey = nil
         XCTAssertEqual(NoticeDisplay.choose(input)?.textKey, "Data store error")
         input.storeError = nil
         XCTAssertEqual(NoticeDisplay.choose(input)?.detail, "y")
+        XCTAssertEqual(NoticeDisplay.choose(input)?.isWarning, false, "an action result is information")
         input.notice = nil
         XCTAssertNil(NoticeDisplay.choose(input))
     }
