@@ -123,6 +123,8 @@ import SwiftUI
                 HistoryPage(model: model)
             case .diagnostics:
                 DiagnosticsPage(model: model)
+            case .activity:
+                AppsPage(model: model)
             default:
                 LegacyPage(model: model, section: section)
             }
