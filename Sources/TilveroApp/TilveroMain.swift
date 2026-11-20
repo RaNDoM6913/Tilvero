@@ -705,11 +705,27 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         escapeMonitor = nil
     }
 
+    private var isLabStudio: Bool {
+        #if TILVERO_LAB_STUDIO
+        true
+        #else
+        false
+        #endif
+    }
+
     private func showDetails() {
         // Setup presents and refreshes its own read-only facts.
         let observeControls = model.navigation.section != .settings || model.navigation.settingsPage != .setup
         if observeControls { try? model.keepAwake.reconcile() }
         closePopover(reason: "details opened")
+        if detailsWindow == nil, !isLabStudio, model.features.newWindow {
+            let window = MainWindowController.makeWindow(model: model)
+            window.delegate = self
+            detailsWindow = window
+            NotificationCenter.default.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: window, queue: .main) { [weak self] _ in
+                Task { @MainActor [weak self] in self?.syncDetailsVisibility() }
+            }
+        }
         if detailsWindow == nil {
             #if TILVERO_LAB_STUDIO
             let controller = NSHostingController(rootView: LabStudioWorkspace(session: sandbox, studio: studio))

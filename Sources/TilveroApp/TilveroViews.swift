@@ -56,6 +56,8 @@ enum InfoSection: String, CaseIterable, Identifiable {
 struct BatteryInfoView: View {
     @Environment(\.studioPresentation) private var studioPresentation
     var model: TilveroModel
+    /// Hosted as a page of the new window (temporary, until each page is rebuilt): no own sidebar or title row.
+    var embedded = false
     #if TILVERO_LAB_STUDIO
     @Environment(\.studioCaptureRoute) private var studioCaptureRoute
     #endif
@@ -85,11 +87,11 @@ struct BatteryInfoView: View {
     var body: some View {
         let _ = RenderProbe.hit("BatteryInfoView")
         HStack(spacing: 0) {
-            DetailsSidebar(model: model, presentedSection: presentedSection).frame(width: 182)
+            if !embedded { DetailsSidebar(model: model, presentedSection: presentedSection).frame(width: 182) }
             ZStack(alignment: .topLeading) {
             ScrollView {
                 VStack(alignment: .leading, spacing: studioPresentation.spacing(presentedSection == .sleep ? 18 : 22)) {
-                    HStack(alignment: .firstTextBaseline) {
+                    if !embedded { HStack(alignment: .firstTextBaseline) {
                         StudioText(presentedSection.title, id: "page.title").font(.system(size: 24, weight: .semibold))
                         Spacer(minLength: 8)
                         if !showingSetup && (presentedSection != .sleep || presentedSleepPage == .reports) {
@@ -97,7 +99,7 @@ struct BatteryInfoView: View {
                             .accessibilityLabel(L10n.text("Refresh"))
                             .studioElement("page.refresh", label: "Refresh readings")
                         }
-                    }
+                    } }
                     if model.isDemo {
                         Label(L10n.text("Simulation only — your Mac settings are unchanged."), systemImage: "testtube.2")
                             .font(.system(size: 11)).foregroundStyle(.secondary)
@@ -109,11 +111,11 @@ struct BatteryInfoView: View {
                     if presentedSection != .overview && (presentedSection != .sleep || presentedSleepPage == .reports) {
                         LastCollectionLine(model: model)
                     }
-                }.padding(.horizontal, 24).padding(.top, 25).padding(.bottom, 24).frame(maxWidth: .infinity, alignment: .topLeading)
+                }.padding(.horizontal, 24).padding(.top, embedded ? 4 : 25).padding(.bottom, 24).frame(maxWidth: .infinity, alignment: .topLeading)
             }.background(studioPresentation.canvas)
                 .id(presentedSection).transition(.opacity)
             }.animation(ProductMotion.animation(reduceMotion: reduceMotion), value: presentedSection)
-        }.frame(minWidth: 760, minHeight: 540)
+        }.frame(minWidth: embedded ? nil : 760, minHeight: embedded ? nil : 540)
             .background(studioPresentation.canvas).foregroundStyle(studioPresentation.foreground)
             .font(.system(size: 13))
             .tint(studioPresentation.accent)
@@ -355,17 +357,7 @@ struct BatteryInfoView: View {
         default: .secondary
         }
     }
-    private func nativeAttentionTitle(_ attention: NativeChargePresentation.Attention) -> String {
-        switch attention {
-        case .sessionReview, .mutationUnresolved: "Charging session needs review"
-        case .journalIntegrity: "Native journal needs review"
-        case .operationPending: "Waiting for native operation"
-        case .restorationPending: "Restoration pending"
-        case .lowerTargetPending: "Pending charging target"
-        case .policyUnconfirmed: "Waiting for policy confirmation"
-        case .none: "Native charging"
-        }
-    }
+    private func nativeAttentionTitle(_ attention: NativeChargePresentation.Attention) -> String { attention.titleKey }
 }
 
 /// "Last collection" under a details page; its own view, so a new snapshot does not re-render the page shell.
@@ -643,7 +635,7 @@ struct ProfilePanel: View {
 }
 
 @MainActor
-private struct SimulationPanel: View {
+struct SimulationPanel: View {
     @Bindable var model: TilveroModel
     var body: some View {
         GroupBox(L10n.text("Simulation controls")) {
