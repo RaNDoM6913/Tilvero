@@ -252,22 +252,50 @@ struct WindowChartSeries: Identifiable {
     let color: Color
 }
 
-/// Swift Charts line chart of the window: trailing Y axis, no area fill, gaps stay gaps (a new `series` id breaks the
-/// line), X labels drawn under the plot (start, middle, end of the window).
+/// A stretch without recorded points between two drawn segments of one line (drawn dashed).
+struct WindowChartGap: Identifiable {
+    let id: String
+    let start: HistoryChartPoint
+    let end: HistoryChartPoint
+
+    /// Connectors between consecutive segments of each line. Nothing is invented: the dash joins two recorded points
+    /// and only marks that the time between them has no measurements.
+    static func connectors(_ series: [WindowChartSeries]) -> [WindowChartGap] {
+        var result: [WindowChartGap] = []
+        for line in series {
+            for (index, pair) in zip(line.points, line.points.dropFirst()).enumerated() where pair.1.series != pair.0.series {
+                result.append(WindowChartGap(id: line.id + "|gap\(index)", start: pair.0, end: pair.1))
+            }
+        }
+        return result
+    }
+}
+
+/// Swift Charts line chart of the window: trailing Y axis, coordinate grid (horizontal at the value marks, vertical at
+/// quarters of the window), no area fill. Gaps stay gaps: a new `series` id breaks the solid line and the empty time
+/// is drawn as a grey dashed connector. X labels under the plot (start, middle, end of the window).
 struct WindowLineChart: View {
     let series: [WindowChartSeries]
     let window: ClosedRange<Date>
     let yDomain: ClosedRange<Double>
     var yValues: [Double]?
     var xLabels: [String]
-    var gapShading: [ClosedRange<Date>] = []
+    static let gridStyle = Color.secondary.opacity(0.22)
+    static let gapStroke = StrokeStyle(lineWidth: 1.2, lineCap: .round, dash: [3, 4])
+
+    private var verticalGrid: [Date] {
+        let span = window.upperBound.timeIntervalSince(window.lowerBound)
+        return (0...4).map { window.lowerBound.addingTimeInterval(span * Double($0) / 4) }
+    }
+
     var body: some View {
         VStack(spacing: 4) {
             Chart {
-                ForEach(Array(gapShading.enumerated()), id: \.offset) { _, gap in
-                    RectangleMark(xStart: .value("Start", gap.lowerBound), xEnd: .value("End", gap.upperBound),
-                                  yStart: .value("Low", yDomain.lowerBound), yEnd: .value("High", yDomain.upperBound))
-                        .foregroundStyle(.secondary.opacity(0.07))
+                ForEach(WindowChartGap.connectors(series)) { gap in
+                    LineMark(x: .value("Time", gap.start.date), y: .value("Value", gap.start.value), series: .value("Series", gap.id))
+                        .foregroundStyle(Color.secondary).lineStyle(Self.gapStroke)
+                    LineMark(x: .value("Time", gap.end.date), y: .value("Value", gap.end.value), series: .value("Series", gap.id))
+                        .foregroundStyle(Color.secondary).lineStyle(Self.gapStroke)
                 }
                 ForEach(series) { line in
                     ForEach(line.points) { point in
@@ -280,18 +308,22 @@ struct WindowLineChart: View {
                 }
             }
             .chartXScale(domain: window)
-            .chartXAxis(.hidden)
+            .chartXAxis {
+                AxisMarks(values: verticalGrid) { _ in
+                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.6)).foregroundStyle(Self.gridStyle)
+                }
+            }
             .chartYScale(domain: yDomain)
             .chartLegend(.hidden)
             .chartYAxis {
                 if let yValues {
                     AxisMarks(position: .trailing, values: yValues) { _ in
-                        AxisGridLine().foregroundStyle(.quaternary)
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.6)).foregroundStyle(Self.gridStyle)
                         AxisValueLabel().font(.system(size: 10))
                     }
                 } else {
-                    AxisMarks(position: .trailing, values: .automatic(desiredCount: 4)) { _ in
-                        AxisGridLine().foregroundStyle(.quaternary)
+                    AxisMarks(position: .trailing, values: .automatic(desiredCount: 5)) { _ in
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.6)).foregroundStyle(Self.gridStyle)
                         AxisValueLabel().font(.system(size: 10))
                     }
                 }

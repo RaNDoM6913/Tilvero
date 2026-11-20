@@ -247,6 +247,19 @@ import PowerCore
         XCTAssertEqual(Set(HistorySeries.points(switched, measurement: .charge, window: window).map(\.series)).count, 1)
     }
 
+    func testGapConnectorsJoinOnlySegmentEnds() {
+        let now = Date()
+        func point(_ offset: Double, _ value: Double, _ series: String) -> HistoryChartPoint {
+            HistoryChartPoint(id: UUID(), date: now.addingTimeInterval(offset), value: value, series: series)
+        }
+        let line = WindowChartSeries(id: "charge", points: [point(0, 50, "a"), point(60, 51, "a"), point(4000, 60, "b"), point(4060, 61, "b")], color: .green)
+        let gaps = WindowChartGap.connectors([line])
+        XCTAssertEqual(gaps.count, 1)
+        XCTAssertEqual(gaps.first?.start.value, 51)
+        XCTAssertEqual(gaps.first?.end.value, 60)
+        XCTAssertTrue(WindowChartGap.connectors([WindowChartSeries(id: "x", points: [point(0, 1, "a"), point(60, 2, "a")], color: .green)]).isEmpty)
+    }
+
     func testYDomain() {
         XCTAssertEqual(HistorySeries.yDomain([18.6, 7.2]), 0...20)
         XCTAssertEqual(HistorySeries.yDomain([]), 0...10)

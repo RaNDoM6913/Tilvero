@@ -339,9 +339,8 @@ private struct RecordedKey: Hashable { let range: OverviewRange; let count: Int;
                 } else {
                     WindowLineChart(
                         series: [WindowChartSeries(id: "charge", points: recorded.charge, color: WindowTheme.accent)],
-                        window: recorded.window, yDomain: 0...100, yValues: [0, 50, 100],
-                        xLabels: WindowChartLabels.labels(window: recorded.window, range: chartRange),
-                        gapShading: HistorySeries.gaps(recorded.charge, minimum: 1800))
+                        window: recorded.window, yDomain: 0...100, yValues: [0, 25, 50, 75, 100],
+                        xLabels: WindowChartLabels.labels(window: recorded.window, range: chartRange))
                         .frame(height: 110)
                         .accessibilityLabel(L10n.text("Charge, %"))
                 }
