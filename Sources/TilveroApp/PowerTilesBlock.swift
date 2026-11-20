@@ -63,7 +63,7 @@ import PowerCore
         .metricCardChrome(padding: 10)
     }
 
-    /// Only adapter input (054) has live points among the tiles; battery power stays recorded once a minute.
+    /// Battery power (038) and adapter input (054) have live points among the tiles.
     private var liveNote: String {
         guard model.wantsLiveCharts, !model.live.tail.points(id: id).isEmpty else { return "" }
         return L10n.text("Newest minutes: live SMC readings, about once a second.")

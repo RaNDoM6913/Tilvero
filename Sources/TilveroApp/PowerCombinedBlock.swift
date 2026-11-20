@@ -83,10 +83,10 @@ import PowerCore
     private var batteryReading: CatalogReading? { model.snapshot.catalog.first { $0.id == "038" } }
     private var adapterReading: CatalogReading? { model.snapshot.catalog.first { $0.id == "054" } }
 
-    /// The newest minutes of the adapter line are live SMC readings; battery power is not (it stays recorded).
+    /// The newest minutes of the battery and adapter lines are live SMC readings.
     private var liveNote: String {
-        guard model.wantsLiveCharts, !model.live.tail.points(id: "054").isEmpty else { return "" }
-        return L10n.text("Newest minutes: live SMC readings, about once a second.") + "\n" + L10n.text("Battery power stays recorded once a minute.")
+        guard model.wantsLiveCharts, !model.live.tail.points(id: "038").isEmpty || !model.live.tail.points(id: "054").isEmpty else { return "" }
+        return L10n.text("Newest minutes: live SMC readings, about once a second.")
     }
 
     /// Plug + adapter watts, battery + battery watts, unit. A missing value is a muted "—"; the icons are

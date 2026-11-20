@@ -14,21 +14,27 @@ public struct LivePowerSample: Equatable, Sendable {
     public var adapterWatts: Double?
     /// Mean of the battery temperature sensors `TB0T`, `TB1T`, `TB2T`, °C.
     public var temperatureCelsius: Double?
-    public init(collectedAt: Date, systemWatts: Double?, adapterWatts: Double?, temperatureCelsius: Double?) {
-        self.collectedAt = collectedAt; self.systemWatts = systemWatts; self.adapterWatts = adapterWatts; self.temperatureCelsius = temperatureCelsius
+    /// SMC `B0AP`: signed battery power, W (negative while discharging, the sign of the registry's Voltage×Amperage).
+    /// The registry's once-a-minute `Amperage`/`Voltage` are snapshots of `B0AC`/`B0AV`, so this continues the recorded
+    /// line (measured 2026-11-20, Mac17,3, on battery; the charging sign is still to be confirmed on AC).
+    public var batteryWatts: Double?
+    public init(collectedAt: Date, systemWatts: Double?, adapterWatts: Double?, temperatureCelsius: Double?, batteryWatts: Double? = nil) {
+        self.collectedAt = collectedAt; self.systemWatts = systemWatts; self.adapterWatts = adapterWatts
+        self.temperatureCelsius = temperatureCelsius; self.batteryWatts = batteryWatts
     }
-    /// The catalog metric id each live value feeds: 039 temperature, 043 system, 054 adapter input. Battery power (038)
-    /// is NOT derived: `PSTR` trails `PDTR` by one update, so their difference is noise (measured 2026-11-12), and the
-    /// battery power chart keeps its recorded one-minute readings.
+    /// The catalog metric id each live value feeds: 038 battery power, 039 temperature, 043 system, 054 adapter input.
+    /// Battery power is read directly (`B0AP`), never derived from `PDTR - PSTR`: `PSTR` trails `PDTR` by one update, so
+    /// their difference is noise (measured 2026-11-12).
     public func value(metricID: String) -> Double? {
         switch metricID {
+        case "038": batteryWatts
         case "039": temperatureCelsius
         case "043": systemWatts
         case "054": adapterWatts
         default: nil
         }
     }
-    public static let metricIDs = ["039", "043", "054"]
+    public static let metricIDs = ["038", "039", "043", "054"]
 }
 
 /// Value decoding and plausibility, tested without hardware.
@@ -38,6 +44,10 @@ public enum SMCSensorDecoding {
         case ("flt ", 4): return Double(bytes.withUnsafeBytes { $0.loadUnaligned(as: Float.self) })
         case ("sp78", 2): return Double(Int16(bitPattern: UInt16(bytes[0]) << 8 | UInt16(bytes[1]))) / 256
         case ("ui8 ", 1): return Double(bytes[0])
+        // The SMC returns integer keys little-endian on Apple silicon (B0AV 11642 mV, B0AT 3007 = 27.5 °C; measured).
+        case ("ui16", 2): return Double(UInt16(bytes[0]) | UInt16(bytes[1]) << 8)
+        case ("si16", 2): return Double(Int16(bitPattern: UInt16(bytes[0]) | UInt16(bytes[1]) << 8))
+        case ("si32", 4): return Double(Int32(bitPattern: UInt32(bytes[0]) | UInt32(bytes[1]) << 8 | UInt32(bytes[2]) << 16 | UInt32(bytes[3]) << 24))
         default: return nil
         }
     }
@@ -45,6 +55,17 @@ public enum SMCSensorDecoding {
     public static func watts(_ value: Double?) -> Double? {
         guard let value, value.isFinite, value >= -5, value <= 400 else { return nil }
         return value
+    }
+    /// Battery power in W from `B0AP` (mW), checked against `B0AC` (mA) × `B0AV` (mV): voltage 5-20 V, current within
+    /// ±20 A, power within ±300 W and the two agreeing within 0.25 W (the keys are read one after another, so an update
+    /// between the reads can split them). Anything else is unavailable for that second, never clamped.
+    public static func batteryWatts(powerMilliwatts: Double?, currentMilliamps: Double?, voltageMillivolts: Double?) -> Double? {
+        guard let power = powerMilliwatts, let current = currentMilliamps, let voltage = voltageMillivolts,
+              power.isFinite, current.isFinite, voltage.isFinite,
+              (5000...20000).contains(voltage), abs(current) <= 20000, abs(power) <= 300_000 else { return nil }
+        let watts = power / 1000
+        guard abs(watts - current * voltage / 1_000_000) < 0.25 else { return nil }
+        return watts
     }
     public static func celsius(_ value: Double?) -> Double? {
         guard let value, value.isFinite, value > -30, value < 150 else { return nil }
@@ -56,7 +77,7 @@ public enum SMCSensorDecoding {
 /// here (only key-info and read), and no key outside `allowedKeys` can be requested. The message layout is adapted
 /// from the MIT-licensed Stats project (see THIRD_PARTY_NOTICES.md).
 public final class SMCSensorReader: @unchecked Sendable {
-    public static let allowedKeys: Set<String> = ["PSTR", "PDTR", "TB0T", "TB1T", "TB2T"]
+    public static let allowedKeys: Set<String> = ["PSTR", "PDTR", "TB0T", "TB1T", "TB2T", "B0AP", "B0AC", "B0AV"]
 
     private struct Message {
         struct Version { var major: UInt8 = 0; var minor: UInt8 = 0; var build: UInt8 = 0; var reserved: UInt8 = 0; var release: UInt16 = 0 }
@@ -105,14 +126,16 @@ public final class SMCSensorReader: @unchecked Sendable {
         return SMCSensorDecoding.number(type: type, bytes: bytes)
     }
 
-    /// One sample (about 5 key reads, ~1 ms). Missing or implausible sensors are nil; nil when nothing could be read.
+    /// One sample (about 8 key reads, ~1 ms). Missing or implausible sensors are nil; nil when nothing could be read.
     public func read(at date: Date = Date()) -> LivePowerSample? {
         lock.lock(); defer { lock.unlock() }
         let temperatures = ["TB0T", "TB1T", "TB2T"].compactMap { SMCSensorDecoding.celsius(value($0)) }
         let sample = LivePowerSample(collectedAt: date,
                                      systemWatts: SMCSensorDecoding.watts(value("PSTR")),
                                      adapterWatts: SMCSensorDecoding.watts(value("PDTR")),
-                                     temperatureCelsius: temperatures.isEmpty ? nil : temperatures.reduce(0, +) / Double(temperatures.count))
-        return sample.systemWatts == nil && sample.adapterWatts == nil && sample.temperatureCelsius == nil ? nil : sample
+                                     temperatureCelsius: temperatures.isEmpty ? nil : temperatures.reduce(0, +) / Double(temperatures.count),
+                                     batteryWatts: SMCSensorDecoding.batteryWatts(powerMilliwatts: value("B0AP"), currentMilliamps: value("B0AC"),
+                                                                                  voltageMillivolts: value("B0AV")))
+        return sample.systemWatts == nil && sample.adapterWatts == nil && sample.temperatureCelsius == nil && sample.batteryWatts == nil ? nil : sample
     }
 }

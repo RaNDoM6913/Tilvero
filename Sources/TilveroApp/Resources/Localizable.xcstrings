@@ -16625,22 +16625,6 @@
         }
       }
     },
-    "Battery power stays recorded once a minute.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Battery power stays recorded once a minute."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Мощность батареи по-прежнему записывается раз в минуту."
-          }
-        }
-      }
-    },
     "Off (short)": {
       "localizations": {
         "en": {
