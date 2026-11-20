@@ -1,0 +1,156 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (c) 2026 RaNDoM6913
+
+import XCTest
+import AppKit
+import SwiftUI
+import PowerCore
+@testable import TilveroApp
+
+@MainActor final class WindowDiagnosticsPageTests: XCTestCase {
+    private var savedArguments: [String: Any] = [:]
+
+    override func setUp() async throws {
+        savedArguments = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
+        setLanguage("en", model: nil)
+    }
+    override func tearDown() async throws {
+        UserDefaults.standard.setVolatileDomain(savedArguments, forName: UserDefaults.argumentDomain)
+    }
+
+    private func setLanguage(_ language: String, model: TilveroModel?) {
+        UserDefaults.standard.setVolatileDomain(savedArguments.merging(["language": language]) { _, value in value },
+                                               forName: UserDefaults.argumentDomain)
+        model?.language = language
+    }
+
+    // MARK: Lead and items
+
+    func testAllGoodLead() {
+        let lead = DiagnosticsSummary.lead(DiagnosticsInputs(readableFields: 84))
+        XCTAssertEqual(lead.value, "✓")
+        XCTAssertEqual(lead.status, L10n.text("All good"))
+        XCTAssertEqual(lead.tone, .accent)
+        XCTAssertEqual(lead.detail, L10n.text("sources readable") + ", " + L10n.text("nothing held by the app"))
+    }
+
+    func testAllGoodDetailNeverClaimsWhatIsNotTrue() {
+        // No readable field: no "sources readable"; the app holds a limit: no "nothing held".
+        let lead = DiagnosticsSummary.lead(DiagnosticsInputs(appHolds: true, readableFields: 0))
+        XCTAssertEqual(lead.value, "✓")
+        XCTAssertEqual(lead.detail, "")
+        let monitoring = DiagnosticsSummary.lead(DiagnosticsInputs(monitoringOnly: true, readableFields: 3))
+        XCTAssertTrue(monitoring.detail.hasPrefix(L10n.text("monitoring only")))
+    }
+
+    func testAttentionCountsAndNamesTheFirstItem() {
+        var input = DiagnosticsInputs(nativeAttentionKey: NativeChargePresentation.Attention.sessionReview.titleKey)
+        var lead = DiagnosticsSummary.lead(input)
+        XCTAssertEqual(lead.value, "1")
+        XCTAssertEqual(lead.tone, .attention)
+        XCTAssertEqual(lead.status, L10n.text("Needs review"))
+        XCTAssertEqual(lead.detail, L10n.text("Charging session needs review"))
+
+        input.recoveryRequired = true
+        input.systemSleepDisabled = true
+        lead = DiagnosticsSummary.lead(input)
+        XCTAssertEqual(lead.value, "3")
+        XCTAssertEqual(lead.detail, L10n.text("App-owned settings require restoration"), "recovery comes first")
+        XCTAssertEqual(DiagnosticsSummary.items(input),
+                       ["App-owned settings require restoration", "Charging session needs review",
+                        DiagnosticsSummary.sleepDisabledWarningKey])
+    }
+
+    func testOwnedSettingsAndRecoveryAreOneItem() {
+        let items = DiagnosticsSummary.items(DiagnosticsInputs(recoveryRequired: true, ownsSettings: true))
+        XCTAssertEqual(items, ["App-owned settings require restoration"])
+    }
+
+    func testLidRecoveryOutranksTheSleepDisabledWarning() {
+        let items = DiagnosticsSummary.items(DiagnosticsInputs(lidNeedsRecovery: true, systemSleepDisabled: true))
+        XCTAssertEqual(items, ["Closed-lid sleep needs restoring"])
+    }
+
+    func testMonitoringOnlyAloneIsNotAnAttentionItem() {
+        XCTAssertTrue(DiagnosticsSummary.items(DiagnosticsInputs(monitoringOnly: true)).isEmpty)
+    }
+
+    func testSleepWarningKeyMatchesTheSleepPage() {
+        XCTAssertEqual(DiagnosticsSummary.sleepDisabledWarningKey, LidSleepOverrideRow.sleepDisabledWarningKey)
+    }
+
+    // MARK: Rows
+
+    func testFieldCountsUseAvailabilityOverEveryKnownField() {
+        let now = Date()
+        func reading(_ id: String, _ availability: TelemetryAvailability) -> CatalogReading {
+            CatalogReading(definition: BatteryCatalog.definition(id), value: availability == .available ? .integer(1) : nil,
+                           source: "fixture", keyPath: "Watts", collectedAt: now, provenance: .measured,
+                           availability: availability, freshness: .fresh)
+        }
+        let catalog = [reading("011", .available), reading("027", .available), reading("054", .unavailable)]
+        let counts = DiagnosticsSummary.fieldCounts(catalog)
+        XCTAssertEqual(counts.readable, 2)
+        XCTAssertEqual(counts.total, BatteryCatalog.definitions.count)
+        XCTAssertEqual(DiagnosticsSummary.fieldCounts([]).readable, 0, "nothing read is 0, never a guess")
+    }
+
+    func testLidRowValue() {
+        XCTAssertEqual(DiagnosticsSummary.lidValueKey(isOn: false, needsRecovery: false, systemSleepDisabled: false), "Not held (lid sleep)")
+        XCTAssertEqual(DiagnosticsSummary.lidValueKey(isOn: true, needsRecovery: false, systemSleepDisabled: false), "Held (lid sleep)")
+        XCTAssertEqual(DiagnosticsSummary.lidValueKey(isOn: false, needsRecovery: false, systemSleepDisabled: true), "Sleep disabled in macOS")
+        XCTAssertEqual(DiagnosticsSummary.lidValueKey(isOn: true, needsRecovery: true, systemSleepDisabled: true), "Needs restoring")
+    }
+
+    // MARK: Render
+
+    /// Hosts the page in a window configured like the main window; RU/EN × light/dark PNGs when `TILVERO_RENDER_OUT`
+    /// is set. Rendering never starts or changes a control.
+    func testDiagnosticsGallery() async throws {
+        let fixture = try await WindowFixture.make()
+        defer { fixture.cleanup() }
+        let model = fixture.model
+        RenderProbe.isEnabled = true; RenderProbe.reset()
+        defer { RenderProbe.isEnabled = false }
+        let output = ProcessInfo.processInfo.environment["TILVERO_RENDER_OUT"].map { URL(fileURLWithPath: $0, isDirectory: true) }
+        if let output { try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true) }
+        for language in ["ru", "en"] {
+            setLanguage(language, model: model)
+            for dark in [false, true] {
+                let window = NSWindow(contentRect: NSRect(x: 60, y: 60, width: 800, height: 720),
+                                      styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
+                                      backing: .buffered, defer: false)
+                MainWindowController.configure(window)
+                let host = NSHostingView(rootView:
+                    WindowThemeResolver {
+                        NavigationStack { DiagnosticsPage(model: model) }
+                            .background { WindowCanvas().ignoresSafeArea() }
+                            .tint(WindowTheme.accent)
+                    }
+                    .environment(\.locale, L10n.locale)
+                    .font(.system(size: 13)))
+                host.sceneBridgingOptions = [.title, .toolbars]
+                window.contentView = host
+                window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+                window.setFrame(NSRect(x: 60, y: 60, width: 800, height: 760), display: true)
+                window.makeKeyAndOrderFront(nil)
+                NSApplication.shared.activate(ignoringOtherApps: true)
+                try? await Task.sleep(for: .seconds(1.5))
+                XCTAssertEqual(window.title, L10n.text("Diagnostics"))
+                if let output {
+                    let capture = Process()
+                    capture.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+                    capture.arguments = ["-x", "-o", "-l\(window.windowNumber)",
+                                         output.appendingPathComponent("diagnostics-\(language)-\(dark ? "dark" : "light").png").path]
+                    try capture.run(); capture.waitUntilExit()
+                }
+                window.close()
+            }
+        }
+        XCTAssertGreaterThanOrEqual(RenderProbe.counts["DiagnosticsPage"] ?? 0, 1)
+        XCTAssertFalse(model.keepAwake.hasOwnedAssertion)
+        XCTAssertFalse(model.lidSleep.isOn)
+        XCTAssertNil(model.nativeCharge.observed)
+        XCTAssertNil(model.exportPreview, "the export sheet opens only on the toolbar action")
+    }
+}
