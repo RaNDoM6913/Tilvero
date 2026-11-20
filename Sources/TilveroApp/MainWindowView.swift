@@ -115,6 +115,14 @@ import SwiftUI
             switch section {
             case .overview:
                 OverviewPage(model: model)
+            case .battery:
+                BatteryPage(model: model)
+            case .cooling:
+                CoolingPage(model: model)
+            case .history:
+                HistoryPage(model: model)
+            case .diagnostics:
+                DiagnosticsPage(model: model)
             default:
                 LegacyPage(model: model, section: section)
             }

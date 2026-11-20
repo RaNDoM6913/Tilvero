@@ -650,7 +650,7 @@ struct SimulationPanel: View {
 }
 
 @MainActor
-private struct FanControlPanel: View {
+struct FanControlPanel: View {
     var model: TilveroModel
     @State private var rpm = 2400.0
     private var minimum: Double { Double(model.fanDescriptors.map(\.minimumRPM).max() ?? 1200) }

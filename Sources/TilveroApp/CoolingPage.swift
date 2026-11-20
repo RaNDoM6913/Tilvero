@@ -39,8 +39,10 @@ enum CoolingKind: Equatable, Sendable {
                 CoolingTemperatureChartTile(model: model)
                 CoolingFanSection(model: model)
                 CoolingOtherSensors(model: model)
-                // Fan controls: the existing `FanControlPanel(model:)` (private in TilveroViews.swift) belongs here,
-                // shown only when `CoolingPage.showsFanControls(...)` is true. Wired by the lead.
+                if CoolingPage.showsFanControls(fanless: model.fanless, isDemo: model.isDemo, canControlFans: model.canControlFans,
+                                                discoveredFans: model.fanDescriptors.count) {
+                    WindowTile { FanControlPanel(model: model) }
+                }
             }
             .padding(WindowTheme.pagePadding)
             .frame(maxWidth: .infinity, alignment: .topLeading)
