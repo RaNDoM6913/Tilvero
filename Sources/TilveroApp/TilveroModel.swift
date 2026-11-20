@@ -514,6 +514,8 @@ final class TilveroModel {
     /// Features still in development (the Modes tab, "Profiles & schedules"): debug and laboratory builds only, the same
     /// flag as `QuickPanelSection.showsDevelopmentSections`. Off in a release, where a saved schedule never fires either.
     let developmentFeatures: Bool
+    /// What this build shows (resolved once at launch; the quick menu and the window read the same value).
+    let features: FeatureFlags
     @ObservationIgnored var isPopoverVisible = false { didSet { if oldValue != isPopoverVisible { updateLiveCharts() } } }
     /// The quick panel's page (reported by the panel itself): live charts run only on Overview.
     @ObservationIgnored var quickPanelSection: QuickPanelSection = .overview { didSet { if oldValue != quickPanelSection { updateLiveCharts() } } }
@@ -608,6 +610,7 @@ final class TilveroModel {
          sideEffects: TilveroModelSideEffects? = nil,
          setupBundle: Bundle = .main,
          developmentFeatures: Bool = QuickPanelSection.showsDevelopmentSections,
+         newWindow: Bool? = FeatureFlags.newWindowOverride(),
          lowPowerMode: (@Sendable () -> Bool)? = nil) {
         updates = UpdateCheckService(identity: updateIdentity ?? .current(), defaults: preferences)
         self.updateLeaseDirectory = updateLeaseDirectory
@@ -671,6 +674,8 @@ final class TilveroModel {
         let setupIdentity = try? ReleaseIdentity.current(bundle: setupBundle)
         canShowSetup = !isDemo && setupIdentity?.isLaboratory == false && !closedLid.isFixture && !closedLid.isLiveTrial
         hasReviewedSetup = canShowSetup && preferences.bool(forKey: SetupRuntime.reviewedKey)
+        features = FeatureFlags.resolve(development: developmentFeatures, isDemo: isDemo, canShowSetup: canShowSetup,
+                                        newWindowOverride: newWindow)
         let ordinaryAppID = setupBundle.bundleIdentifier == ReleaseIdentity.prototypeBundleIdentifier
             || setupBundle.bundleIdentifier == UpdateInstallConfiguration.productionBundleID
         let nativeSetupHost = canShowSetup && sideEffects == nil && ordinaryAppID
