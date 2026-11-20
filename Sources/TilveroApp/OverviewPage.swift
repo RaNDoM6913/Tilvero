@@ -113,6 +113,7 @@ enum OverviewRange: String, CaseIterable, Identifiable, Sendable {
         let input = NoticeDisplay.Inputs(
             recoveryRequired: model.liveControl.recoveryRequired,
             ownsSettings: model.liveControl.hasOwnedSettings,
+            helperTargetPending: !model.usesNativeCharge && model.pendingTarget != nil,
             attentionKey: attention.flatMap { $0.showsAttentionBanner ? $0.attention.titleKey : nil },
             storeError: model.storeError,
             notice: model.notices.current(excluding: model.isDemo ? [.chargeStatus, .simulation] : [.chargeStatus])?.text)

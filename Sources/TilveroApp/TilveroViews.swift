@@ -126,7 +126,7 @@ struct BatteryInfoView: View {
             .id(model.language)
             .studioElement("application", kind: "container", label: "Application canvas")
             .studioScope("page." + presentedSection.rawValue)
-            .sheet(isPresented: Binding(get: { model.exportPreview != nil }, set: { if !$0 { model.exportPreview = nil } })) {
+            .sheet(isPresented: Binding(get: { !embedded && model.exportPreview != nil }, set: { if !$0 { model.exportPreview = nil } })) {
                 VStack(alignment: .leading, spacing: 14) {
                     StudioText(L10n.text("Export preview"), id: "export.title").font(.title2)
                     StudioText(L10n.text("Serials and private identifiers are excluded."), id: "export.privacy").foregroundStyle(.secondary)

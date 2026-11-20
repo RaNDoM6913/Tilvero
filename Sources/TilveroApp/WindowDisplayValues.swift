@@ -196,13 +196,15 @@ struct NoticeDisplay: Equatable, Sendable {
     struct Inputs: Equatable, Sendable {
         var recoveryRequired = false
         var ownsSettings = false
+        /// Helper charge path: a lower target is pending with nothing written yet (restore is still offered, as before).
+        var helperTargetPending = false
         var attentionKey: String?
         var storeError: String?
         var notice: String?
     }
 
     static func choose(_ input: Inputs) -> NoticeDisplay? {
-        if input.recoveryRequired {
+        if input.recoveryRequired || (input.helperTargetPending && !input.ownsSettings) {
             return NoticeDisplay(symbol: "exclamationmark.triangle", textKey: "App-owned settings require restoration", action: .restore)
         }
         if input.ownsSettings {

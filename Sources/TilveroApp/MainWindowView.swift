@@ -144,6 +144,11 @@ extension WindowSidebarRow {
         }
         .background { WindowCanvas().ignoresSafeArea() }
         .tint(WindowTheme.accent)
+        // One export preview for the whole window: an export started on one page and finished after switching to
+        // another is still presented, never stranded until a page with its own sheet appears.
+        .sheet(isPresented: Binding(get: { model.exportPreview != nil }, set: { if !$0 { model.exportPreview = nil } })) {
+            ExportPreviewSheet(model: model)
+        }
         .toolbar {
             if model.isDemo {
                 ToolbarItem(placement: .navigation) {
@@ -162,5 +167,26 @@ extension WindowSidebarRow {
     var body: some View {
         BatteryInfoView(model: model, embedded: true)
             .navigationTitle(WindowSection.entry(section).title)
+    }
+}
+
+/// Export preview (same layout as the previous window's sheet).
+@MainActor struct ExportPreviewSheet: View {
+    var model: TilveroModel
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(L10n.text("Export preview")).font(.title2)
+            Text(L10n.text("Serials and private identifiers are excluded.")).foregroundStyle(.secondary)
+            ScrollView {
+                Text(model.exportPreview ?? "").font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            HStack {
+                Button(L10n.text("Cancel")) { model.exportPreview = nil }
+                Spacer()
+                Button(L10n.text("Save…")) { model.saveExport() }.buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(24).frame(width: 620, height: 470)
     }
 }

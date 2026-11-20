@@ -35,6 +35,7 @@ enum CoolingKind: Equatable, Sendable {
         ScrollView {
             VStack(alignment: .leading, spacing: WindowTheme.tileGap) {
                 CoolingLeadView(model: model)
+                WindowNoticeView(model: model)
                 CoolingReadingStrip(model: model)
                 CoolingTemperatureChartTile(model: model)
                 CoolingFanSection(model: model)
@@ -78,7 +79,7 @@ enum CoolingKind: Equatable, Sendable {
         case "fair", "serious", "critical": tone = .attention
         default: tone = .secondary
         }
-        return LeadDisplay(value: temperature.text, status: thermalText ?? "", tone: tone, detail: detail)
+        return LeadDisplay(value: temperature.text, status: thermalText ?? "—", tone: thermalText == nil ? .secondary : tone, detail: detail)
     }
 
     /// «Ячейки» (040): per-cell temperatures in the chosen unit, «—» when not reported.

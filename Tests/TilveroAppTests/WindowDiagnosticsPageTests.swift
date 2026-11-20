@@ -154,3 +154,28 @@ import PowerCore
         XCTAssertNil(model.exportPreview, "the export sheet opens only on the toolbar action")
     }
 }
+
+@MainActor final class WindowDiagnosticsAdminActionsTests: XCTestCase {
+    /// The previous window's conditions: enable when registrable; restore when settings are owned, recovery is required
+    /// or (helper path) a lower target is pending; disable when the helper is enabled. Each rule on both sides.
+    func testAdminActionsMatchThePreviousWindow() {
+        func visible(register: Bool = false, owns: Bool = false, recovery: Bool = false, pending: Bool = false, enabled: Bool = false) -> Set<DiagnosticsAdminActions> {
+            DiagnosticsAdminActions.visible(canRegister: register, ownsSettings: owns, recoveryRequired: recovery,
+                                            helperTargetPending: pending, helperEnabled: enabled)
+        }
+        XCTAssertEqual(visible(), [])
+        XCTAssertEqual(visible(register: true), [.enable])
+        XCTAssertEqual(visible(owns: true), [.restore])
+        XCTAssertEqual(visible(recovery: true), [.restore])
+        XCTAssertEqual(visible(pending: true), [.restore])
+        XCTAssertEqual(visible(enabled: true), [.disable])
+        XCTAssertEqual(visible(register: true, owns: true, enabled: true), [.enable, .restore, .disable])
+    }
+
+    func testOwnershipAloneIsNotAnItemButRecoveryIs() {
+        XCTAssertTrue(DiagnosticsSummary.items(DiagnosticsInputs(ownsSettings: true)).isEmpty)
+        XCTAssertEqual(DiagnosticsSummary.items(DiagnosticsInputs(recoveryRequired: true)), ["App-owned settings require restoration"])
+        XCTAssertEqual(NoticeDisplay.choose(NoticeDisplay.Inputs(helperTargetPending: true))?.action, .restore)
+        XCTAssertEqual(NoticeDisplay.choose(NoticeDisplay.Inputs(ownsSettings: true, helperTargetPending: true))?.action, .returnControl)
+    }
+}

@@ -20,13 +20,28 @@ struct DiagnosticsInputs: Equatable, Sendable {
     var readableFields = 0
 }
 
+/// Which admin actions Diagnostics offers: exactly the previous window's conditions (privileged-controls box and the
+/// page-wide recovery banner).
+enum DiagnosticsAdminActions: Hashable, Sendable {
+    case enable, restore, disable
+    static func visible(canRegister: Bool, ownsSettings: Bool, recoveryRequired: Bool, helperTargetPending: Bool,
+                        helperEnabled: Bool) -> Set<DiagnosticsAdminActions> {
+        var result: Set<DiagnosticsAdminActions> = []
+        if canRegister { result.insert(.enable) }
+        if ownsSettings || recoveryRequired || helperTargetPending { result.insert(.restore) }
+        if helperEnabled { result.insert(.disable) }
+        return result
+    }
+}
+
 enum DiagnosticsSummary {
     /// Same key as `LidSleepOverrideRow.sleepDisabledWarningKey` (that one is main-actor isolated).
     static let sleepDisabledWarningKey = "Mac can’t sleep with the lid closed: sleep is disabled in macOS"
     /// Localisation keys of everything that needs review, most important first (recovery › charge › sleep).
     static func items(_ input: DiagnosticsInputs) -> [String] {
         var items: [String] = []
-        if input.recoveryRequired || input.ownsSettings { items.append("App-owned settings require restoration") }
+        // Normal ownership is not a fault (the notice offers to return control); only recovery needs review.
+        if input.recoveryRequired { items.append("App-owned settings require restoration") }
         if let key = input.nativeAttentionKey { items.append(key) }
         if input.lidNeedsRecovery { items.append("Closed-lid sleep needs restoring") }
         else if input.systemSleepDisabled { items.append(sleepDisabledWarningKey) }
@@ -73,6 +88,7 @@ enum DiagnosticsSummary {
         ScrollView {
             VStack(alignment: .leading, spacing: WindowTheme.tileGap) {
                 DiagnosticsLeadView(model: model)
+                WindowNoticeView(model: model)
                 if let reason = model.launchPolicy.monitoringReasonKey {
                     NoticeTile(symbol: "info.circle", text: L10n.text(reason), tint: .secondary)
                 }
@@ -93,9 +109,6 @@ enum DiagnosticsSummary {
                 .help(L10n.text("Export diagnostics…"))
                 .accessibilityIdentifier("diagnostics-export")
             }
-        }
-        .sheet(isPresented: Binding(get: { model.exportPreview != nil }, set: { if !$0 { model.exportPreview = nil } })) {
-            DiagnosticsExportSheet(model: model)
         }
     }
 }
@@ -164,6 +177,10 @@ private struct DiagnosticsHeading: View {
     var body: some View {
         let live = model.liveControl
         let owned = live.hasOwnedSettings || live.recoveryRequired
+        let actions = DiagnosticsAdminActions.visible(canRegister: live.canRegister, ownsSettings: live.hasOwnedSettings,
+                                                      recoveryRequired: live.recoveryRequired,
+                                                      helperTargetPending: !model.usesNativeCharge && model.pendingTarget != nil,
+                                                      helperEnabled: live.registrationState == .enabled)
         var info = [L10n.text("Monitoring works without a privileged helper. Control ownership and restoration are shown separately.")]
         if let reason = model.launchPolicy.monitoringReasonKey { info.append(L10n.text(reason)) }
         return VStack(alignment: .leading, spacing: 8) {
@@ -172,20 +189,24 @@ private struct DiagnosticsHeading: View {
                 WindowRow(id: "helper", label: L10n.text("Helper"), value: model.helperStatusText,
                           dim: live.registrationState != .enabled),
                 WindowRow(id: "owned", label: L10n.text("App-owned settings"),
-                          value: L10n.text(owned ? "Need restoration" : "None (owned settings)")),
+                          value: L10n.text(live.recoveryRequired ? "Need restoration" : owned ? "In use (owned settings)" : "None (owned settings)")),
             ])
+            if !model.launchPolicy.monitoringOnly, let message = live.message {
+                Text(L10n.text(message)).font(.callout).foregroundStyle(.secondary).padding(.leading, 4)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             // The same three actions as before, under exactly the same conditions.
-            if live.canRegister || owned || live.registrationState == .enabled {
+            if !actions.isEmpty {
                 HStack(spacing: 10) {
-                    if live.canRegister {
+                    if actions.contains(.enable) {
                         Button(L10n.text("Enable supported controls")) { model.registerHelper() }
                             .accessibilityIdentifier("diagnostics.helper.enable")
                     }
-                    if owned {
+                    if actions.contains(.restore) {
                         Button(L10n.text("Restore original settings")) { model.restoreAll() }
                             .accessibilityIdentifier("diagnostics.helper.restore-original-settings")
                     }
-                    if live.registrationState == .enabled {
+                    if actions.contains(.disable) {
                         Button(L10n.text("Disable helper after restoration")) { model.removeHelper() }
                             .accessibilityIdentifier("diagnostics.helper.disable")
                     }
@@ -226,7 +247,7 @@ private struct DiagnosticsHeading: View {
             DiagnosticsHeading(title: L10n.text("Readings & sources"))
             WindowRowsTile(rows: [
                 WindowRow(id: "fields", label: L10n.text("Readable fields"), value: value,
-                          action: { model.navigation.navigate(to: .section(.battery)) }),
+                          action: { model.navigation.navigate(to: .battery(.catalog)) }),
                 WindowRow(id: "copy", label: L10n.text("Running copy"), value: Bundle.main.bundleURL.path),
             ])
             HStack {
@@ -236,27 +257,5 @@ private struct DiagnosticsHeading: View {
             }
             .padding(.leading, 4)
         }
-    }
-}
-
-// MARK: Export preview (same layout as the previous page's sheet)
-
-@MainActor private struct DiagnosticsExportSheet: View {
-    var model: TilveroModel
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text(L10n.text("Export preview")).font(.title2)
-            Text(L10n.text("Serials and private identifiers are excluded.")).foregroundStyle(.secondary)
-            ScrollView {
-                Text(model.exportPreview ?? "").font(.system(.caption, design: .monospaced)).textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            HStack {
-                Button(L10n.text("Cancel")) { model.exportPreview = nil }
-                Spacer()
-                Button(L10n.text("Save…")) { model.saveExport() }.buttonStyle(.borderedProminent)
-            }
-        }
-        .padding(24).frame(width: 620, height: 470)
     }
 }

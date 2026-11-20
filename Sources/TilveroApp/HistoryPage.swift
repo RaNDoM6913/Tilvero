@@ -208,9 +208,9 @@ enum HistoryPageText {
         let _ = RenderProbe.hit("HistoryPage")
         ScrollView {
             VStack(alignment: .leading, spacing: WindowTheme.tileGap) {
-                HistoryLeadView(model: model, measurement: measurement, series: series)
+                HistoryLeadView(model: model, measurement: measurement, range: range, series: series)
                 WindowNoticeView(model: model)
-                HistoryChartTile(model: model, series: series, measurement: measurement)
+                HistoryChartTile(model: model, series: series, measurement: measurement, range: range)
                 if !model.isDemo {
                     HistoryTotals(model: model)
                     HistorySessions(model: model)
@@ -257,9 +257,6 @@ enum HistoryPageText {
             guard !Task.isCancelled else { return }
             series = built
         }
-        .sheet(isPresented: Binding(get: { model.exportPreview != nil }, set: { if !$0 { model.exportPreview = nil } })) {
-            HistoryExportSheet(model: model)
-        }
     }
 }
 
@@ -276,12 +273,13 @@ private struct SeriesKey: Hashable {
 @MainActor private struct HistoryLeadView: View {
     var model: TilveroModel
     let measurement: HistoryMeasurement
+    let range: HistoryRange
     let series: HistoryPageSeries
     private func reading(_ id: String) -> CatalogReading? { model.snapshot.catalog.first { $0.id == id } }
 
     var body: some View {
         var input = HistoryPageText.LeadInputs(recording: model.historyEnabled, demo: model.isDemo)
-        if series.measurement == measurement {
+        if series.measurement == measurement, series.range == range {
             input.minimum = series.minimum; input.maximum = series.maximum; input.count = series.count
         }
         switch measurement {
@@ -318,6 +316,7 @@ private struct SeriesKey: Hashable {
     var model: TilveroModel
     let series: HistoryPageSeries
     let measurement: HistoryMeasurement
+    let range: HistoryRange
     private let height: CGFloat = 200
 
     var body: some View {
@@ -325,8 +324,8 @@ private struct SeriesKey: Hashable {
             if model.isDemo {
                 EmptyFrame(symbol: "chart.xyaxis.line", title: L10n.text("No recorded measurements yet"),
                            detail: L10n.text("Simulation is never stored in history"), height: height)
-            } else if series.measurement != measurement || series.points.isEmpty {
-                if model.historyLoading || series.measurement != measurement || !series.isBuilt {
+            } else if series.measurement != measurement || series.range != range || series.points.isEmpty {
+                if model.historyLoading || series.measurement != measurement || series.range != range || !series.isBuilt {
                     EmptyFrame(symbol: "chart.xyaxis.line", title: "", loading: true, height: height)
                 } else if !model.historyEnabled {
                     EmptyFrame(symbol: "pause.circle", title: L10n.text("History is not recorded"),
@@ -433,27 +432,5 @@ private struct SeriesKey: Hashable {
                 }
             }
         }
-    }
-}
-
-// MARK: Export preview
-
-@MainActor private struct HistoryExportSheet: View {
-    var model: TilveroModel
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text(L10n.text("Export preview")).font(.title2)
-            Text(L10n.text("Serials and private identifiers are excluded.")).foregroundStyle(.secondary)
-            ScrollView {
-                Text(model.exportPreview ?? "").font(.system(.caption, design: .monospaced)).textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            HStack {
-                Button(L10n.text("Cancel")) { model.exportPreview = nil }
-                Spacer()
-                Button(L10n.text("Save…")) { model.saveExport() }.buttonStyle(.borderedProminent)
-            }
-        }
-        .padding(24).frame(width: 620, height: 470)
     }
 }

@@ -21,13 +21,14 @@ enum BatteryMode: String, CaseIterable, Identifiable, Sendable {
 /// missing number is «—».
 @MainActor struct BatteryPage: View {
     var model: TilveroModel
-    @State private var mode: BatteryMode
     @State private var showUnavailable = true
     @State private var reveal = false
+    /// Bound to the navigation, so Diagnostics can open All data directly.
+    private var mode: BatteryMode { model.navigation.batteryMode }
 
-    init(model: TilveroModel, mode: BatteryMode = .summary) {
+    init(model: TilveroModel, mode: BatteryMode? = nil) {
         self.model = model
-        _mode = State(initialValue: mode)
+        if let mode { model.navigation.batteryMode = mode }
     }
 
     var body: some View {
@@ -39,9 +40,12 @@ enum BatteryMode: String, CaseIterable, Identifiable, Sendable {
             }
         }
         .navigationTitle(WindowSection.entry(.battery).title)
+        // Identifiers revealed in All data are hidden again on leaving it (Summary has no toggle to hide them).
+        .onChange(of: mode) { _, _ in reveal = false }
         .toolbar {
             ToolbarItem(placement: .principal) {
-                Picker(L10n.text("Battery section"), selection: $mode) {
+                Picker(L10n.text("Battery section"), selection: Binding(get: { model.navigation.batteryMode },
+                                                                         set: { model.navigation.navigate(to: .battery($0)) })) {
                     ForEach(BatteryMode.allCases) { Text(L10n.text($0.titleKey)).tag($0) }
                 }
                 .pickerStyle(.segmented).fixedSize().labelsHidden()
@@ -117,7 +121,8 @@ enum BatteryLead {
     /// Wear as the existing health card derives it: 100 minus the shown retention, an estimate (≈).
     static func wear(retention: Double?, stale: Bool = false, locale: Locale = L10n.locale) -> ReadingDisplay {
         guard let retention, retention.isFinite else { return .unavailable }
-        var wear = 100 - retention
+        // A retention above 100 % (a new battery) is no wear, never a negative one.
+        var wear = max(0, 100 - retention)
         if wear == 0 { wear = 0 }   // never «-0»
         return ReadingDisplay(number: wear.formatted(.number.locale(locale).precision(.fractionLength(1))), unit: "%",
                               approximate: true, state: stale ? .stale : .live, masked: false)
@@ -316,6 +321,7 @@ extension BatterySectionHeading where Info == EmptyView {
         ScrollView {
             VStack(alignment: .leading, spacing: WindowTheme.tileGap) {
                 BatteryLeadView(model: model)
+                WindowNoticeView(model: model)
                 BatteryCapacityStrip(model: model)
                 BatterySummaryRows(model: model, reveal: reveal)
                 BatteryLifetimeSection(model: model)

@@ -12,12 +12,15 @@ enum AppDestination: Hashable, Sendable {
     case sleep(SleepPage)
     /// Settings on the given page.
     case settings(SettingsPage)
+    /// Battery in the given mode (Summary or All data).
+    case battery(BatteryMode)
 
     var section: InfoSection {
         switch self {
         case .section(let section): section
         case .sleep: .sleep
         case .settings: .settings
+        case .battery: .battery
         }
     }
 }
@@ -32,6 +35,7 @@ enum AppDestination: Hashable, Sendable {
     private(set) var section: InfoSection
     var settingsPage: SettingsPage = .general
     var sleepPage: SleepPage = .timer
+    var batteryMode: BatteryMode = .summary
 
     /// Shows the details window; set by the app delegate (nil in tests and previews).
     @ObservationIgnored var presentDetails: (@MainActor () -> Void)?
@@ -50,6 +54,7 @@ enum AppDestination: Hashable, Sendable {
         case .section: break
         case .sleep(let page): sleepPage = page
         case .settings(let page): settingsPage = page
+        case .battery(let mode): batteryMode = mode
         }
         select(destination.section)
     }

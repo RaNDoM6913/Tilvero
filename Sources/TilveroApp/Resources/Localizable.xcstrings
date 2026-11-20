@@ -19088,6 +19088,22 @@
           }
         }
       }
+    },
+    "In use (owned settings)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In use"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Используются"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

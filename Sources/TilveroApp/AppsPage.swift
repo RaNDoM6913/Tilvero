@@ -128,6 +128,7 @@ enum AppsComposition {
         ScrollView {
             VStack(alignment: .leading, spacing: WindowTheme.tileGap) {
                 AppsLeadView(model: model)
+                WindowNoticeView(model: model)
                 AppsListTile(model: model, search: search, loadFilter: loadFilter, sort: sort, scope: scope)
             }
             .padding(WindowTheme.pagePadding)
