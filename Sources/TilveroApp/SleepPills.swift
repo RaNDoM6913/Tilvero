@@ -184,6 +184,44 @@ enum SleepPillGrid {
     static let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 4)
 }
 
+/// Duration pills: the four-column grid in the popover; in the main window (fixed pill width) packed from the leading
+/// edge and wrapped to the tile width, so the narrowest window never overflows.
+@MainActor struct SleepPillRows<Content: View>: View {
+    var pillWidth: CGFloat?
+    @ViewBuilder var content: () -> Content
+    var body: some View {
+        if pillWidth != nil {
+            SleepPillFlow(spacing: 6) { content() }
+        } else {
+            LazyVGrid(columns: SleepPillGrid.columns, spacing: 6) { content() }
+        }
+    }
+}
+
+/// Left-to-right flow with wrapping (equal-height pills).
+struct SleepPillFlow: Layout {
+    var spacing: CGFloat
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? .infinity
+        var x: CGFloat = 0, y: CGFloat = 0, row: CGFloat = 0, widest: CGFloat = 0
+        for view in subviews {
+            let size = view.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > width { y += row + spacing; x = 0; row = 0 }
+            x += size.width + spacing; row = max(row, size.height); widest = max(widest, x - spacing)
+        }
+        return CGSize(width: proposal.width ?? widest, height: y + row)
+    }
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX, y = bounds.minY, row: CGFloat = 0
+        for view in subviews {
+            let size = view.sizeThatFits(.unspecified)
+            if x > bounds.minX, x + size.width > bounds.maxX { y += row + spacing; x = bounds.minX; row = 0 }
+            view.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+            x += size.width + spacing; row = max(row, size.height)
+        }
+    }
+}
+
 /// One preset pill as data. The pill row sits in a one-second `TimelineView`, but a `ForEach` over constants is not
 /// re-run by the tick: the selection and the countdown travel in the element so a changed second is a changed element.
 struct SleepPillItem: Identifiable, Equatable {
@@ -274,6 +312,7 @@ struct SleepPillItem: Identifiable, Equatable {
     var model: TilveroModel
     /// False in the main window, which shows Sleep at charge and the lid switch in their own tiles.
     var showsCompanions = true
+    @Environment(\.sleepPillsLayout) private var layout
     /// Draft presets for the editor's passive preview; `nil` reads the saved ones.
     var presets: QuickPresets? = nil
     @State private var showsWheel = false
@@ -298,7 +337,7 @@ struct SleepPillItem: Identifiable, Equatable {
                 let countdown = KeepAwakePresentation.countdown(service.remainingSeconds)
                 // Four columns: up to four cells is one row, five to eight two rows, «Своё» always last. The row count
                 // follows the configuration only, so the popover height never changes with the state.
-                LazyVGrid(columns: SleepPillGrid.columns, spacing: 6) {
+                SleepPillRows(pillWidth: layout.pillWidth) {
                     // The elements carry the selection and the countdown: a ForEach over constants is not re-evaluated
                     // by the tick, so the preset pills' text used to refresh only when something else invalidated them.
                     ForEach(SleepPillItem.items(of: list, applied: selection, countdown: countdown)) { item in
@@ -513,10 +552,6 @@ struct SleepPillItem: Identifiable, Equatable {
     @State private var consent: SleepPillConfirmation?
     @State private var confirms = false
     private var service: KeepAwakeService { model.keepAwake }
-    private var columns: [GridItem] {
-        layout.pillWidth.map { Array(repeating: GridItem(.fixed($0), spacing: 6), count: 7) + [GridItem(.flexible(minimum: $0), alignment: .leading)] }
-            ?? SleepPillGrid.columns
-    }
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             masterRow
@@ -525,7 +560,7 @@ struct SleepPillItem: Identifiable, Equatable {
                 let list = awakeList
                 let applied = SleepPillActions.awakeSelection(model, presets: list)
                 let countdown = KeepAwakePresentation.countdown(service.remainingSeconds)
-                LazyVGrid(columns: columns, spacing: 6) {
+                SleepPillRows(pillWidth: layout.pillWidth) {
                     // Elements carry the state so the tick re-evaluates them (see SleepTimerPillsPanel).
                     ForEach(SleepPillItem.items(of: list, applied: applied, countdown: countdown)) { item in
                         pill(PresetLabel.duration(item.minutes), option: .preset(item.minutes), applied: applied, countdown: item.countdown,

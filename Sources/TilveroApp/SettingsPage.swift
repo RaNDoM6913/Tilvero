@@ -268,21 +268,32 @@ struct SettingsRowDivider: View {
 @MainActor private struct SettingsKeyboardBacklightControl: View {
     @ObservedObject var service: KeyboardBacklightService
     var body: some View {
-        HStack(spacing: 8) {
-            if service.isBusy { ProgressView().controlSize(.small) }
-            if service.isAvailable, let enabled = service.isEnabled {
-                Toggle(L10n.text("Keyboard backlight"), isOn: Binding(get: { enabled }, set: { value in
-                    Task { await service.setEnabled(value) }
-                }))
-                .toggleStyle(.switch).labelsHidden().controlSize(.small)
-                .disabled(service.isBusy)
-                .accessibilityIdentifier("settings.keyboardBacklight")
-            } else if !service.isBusy {
-                Text("—").foregroundStyle(.tertiary)
-                    .help(L10n.text(service.observation != nil
-                        ? "macOS has dimmed or suppressed the backlight. The setting does not confirm illuminated keys."
-                        : "Keyboard backlight state is unavailable."))
-                    .accessibilityLabel(L10n.text("Unavailable"))
+        VStack(alignment: .trailing, spacing: 4) {
+            HStack(spacing: 8) {
+                if service.isBusy { ProgressView().controlSize(.small) }
+                if service.isAvailable, let enabled = service.isEnabled {
+                    Toggle(L10n.text("Keyboard backlight"), isOn: Binding(get: { enabled }, set: { value in
+                        Task { await service.setEnabled(value) }
+                    }))
+                    .toggleStyle(.switch).labelsHidden().controlSize(.small)
+                    .disabled(service.isBusy)
+                    .accessibilityIdentifier("settings.keyboardBacklight")
+                } else if service.observation != nil {
+                    // Suppressed by macOS: the position is unknown, so explicit Turn on / Turn off (as before), no switch.
+                    Button(L10n.text("Turn on")) { Task { await service.setEnabled(true) } }
+                    Button(L10n.text("Turn off")) { Task { await service.setEnabled(false) } }
+                        .help(L10n.text("macOS has dimmed or suppressed the backlight. The setting does not confirm illuminated keys."))
+                } else if !service.isBusy {
+                    Text("—").foregroundStyle(.tertiary)
+                        .help(L10n.text(service.error == .disabledInSimulation
+                            ? "Keyboard controls are unavailable in this build or simulation." : "Keyboard backlight state is unavailable."))
+                        .accessibilityLabel(L10n.text("Unavailable"))
+                }
+            }
+            .disabled(service.isBusy)
+            if let error = service.error, error != .disabledInSimulation {
+                Text(L10n.text(error.localizedDescription)).font(.caption).foregroundStyle(.orange)
+                    .multilineTextAlignment(.trailing).fixedSize(horizontal: false, vertical: true)
             }
         }
         .task { await service.refresh() }

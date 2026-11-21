@@ -184,7 +184,8 @@ struct QuickPresetDurationDraft: Equatable {
             .frame(minWidth: 380, maxWidth: .infinity, alignment: .leading)
             QuickPresetsPreview(presets: previewPresets, row: focus)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        // minWidth 0: the frame reports the offered width, not the wider side-by-side child, so a narrow window stacks.
+        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
         .onGeometryChange(for: Bool.self) { $0.size.width >= Self.wideWidth } action: { wide = $0 }
     }
 

@@ -19324,7 +19324,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "нет данных после"
+            "value": "нет данных после пробуждения"
           }
         }
       }
@@ -19692,7 +19692,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Каждый день"
+            "value": "Повседневные"
           }
         }
       }
@@ -19884,7 +19884,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ток, предел"
+            "value": "Предельный ток"
           }
         }
       }

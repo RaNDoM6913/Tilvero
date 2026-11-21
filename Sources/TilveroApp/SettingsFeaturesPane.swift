@@ -115,7 +115,8 @@ enum SettingsFeatures {
     /// «6 / 8», «Готово», «2 функции ждут разрешения». «Готово» while every everyday feature is ready (the rest are
     /// optional); otherwise «Нужна проверка». Before the first read: «—», «Нет данных».
     static func lead(_ rows: [SettingsFeatureRow], loaded: Bool, language: String = L10n.language) -> LeadDisplay {
-        guard loaded else {
+        // Until every row is read (the admin rows wait for the permission read), no count: «—», never a partial «6 / 8».
+        guard loaded, !rows.contains(where: { $0.state == .unknown }) else {
             return LeadDisplay(value: "—", status: L10n.text("No data"), tone: .secondary, detail: L10n.text("Checking setup status…"))
         }
         let count = count(rows)

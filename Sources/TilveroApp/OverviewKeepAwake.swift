@@ -9,8 +9,7 @@ import PowerCore
 /// segment shows the countdown; every start, switch and confirmation goes through `SleepPillActions`,
 /// exactly like the Keep Awake page of the Sleep tab.
 @MainActor struct OverviewKeepAwake: View {
-    /// The default strip (no stored presets). The quick menu reads `model.quickPresets`; this stays for callers that
-    /// have not adopted the store yet (the window's Overview Keep Awake menu).
+    /// The default strip (no stored presets). Live surfaces read `model.quickPresets`; tests pin the defaults here.
     static let presets = QuickPresets.defaults.overviewAwake
     var model: TilveroModel
     /// Draft presets for the editor's passive preview; `nil` reads the saved ones.

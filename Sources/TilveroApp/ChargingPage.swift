@@ -190,6 +190,7 @@ enum ChargingComposition {
                     header(value: nil, applied: false, state: state)
                     ChargeLimitValidateButton(model: model)
                     statusLine(state)
+                    actions
                 case .readOnly: readOnly
                 }
             }
@@ -248,6 +249,12 @@ enum ChargingComposition {
         }
         ChargeLimitLevelSlider(model: model, targets: ChargeLimitKit.targets(model), chosen: $chosen)
         statusLine(state)
+        actions
+    }
+
+    /// Charge once and charge by time: shown with the slider and while the levels await validation (as in the quick menu,
+    /// where they stay dimmed until they can start).
+    @ViewBuilder private var actions: some View {
         Divider()
         HStack {
             if model.isDemo {
