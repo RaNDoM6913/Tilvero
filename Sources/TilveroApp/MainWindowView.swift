@@ -138,8 +138,12 @@ extension WindowSidebarRow {
                 DiagnosticsPage(model: model)
             case .activity:
                 AppsPage(model: model)
-            default:
-                LegacyPage(model: model, section: section)
+            case .charging:
+                ChargingPage(model: model)
+            case .sleep:
+                SleepDrainPage(model: model)
+            case .settings:
+                SettingsHostPage(model: model)
             }
         }
         .background { WindowCanvas().ignoresSafeArea() }
@@ -157,16 +161,6 @@ extension WindowSidebarRow {
                 }
             }
         }
-    }
-}
-
-/// A page not rebuilt yet: the previous page body inside the new shell (temporary, removed page by page).
-@MainActor private struct LegacyPage: View {
-    let model: TilveroModel
-    let section: InfoSection
-    var body: some View {
-        BatteryInfoView(model: model, embedded: true)
-            .navigationTitle(WindowSection.entry(section).title)
     }
 }
 

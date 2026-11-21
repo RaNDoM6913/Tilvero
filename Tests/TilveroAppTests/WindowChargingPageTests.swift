@@ -9,8 +9,8 @@ import PowerCore
 import PowerPersistence
 @testable import TilveroApp
 
-/// The app's editor (PowerCore has an unrelated `ChargeLimitEditor` model type).
-private typealias Editor = TilveroApp.ChargeLimitEditor
+/// The shared limit editor of the quick menu and the window.
+private typealias Editor = ChargeLimitKit
 
 /// Native transport that fails the test on any write: rendering the page (and the quick menu beside it) only reads.
 private actor ReadOnlyChargeTransport: NativeChargeTransport {

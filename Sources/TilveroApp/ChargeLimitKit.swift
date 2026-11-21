@@ -7,7 +7,7 @@ import ChargeBackends
 /// The charge-limit editor shared by the quick menu's Charge page and the window's Charging page: one set of rules and
 /// one set of pieces (slider over the verified levels that applies on release, validation entry, one-time full charge,
 /// info text), laid out by each surface. Both surfaces read and write the same model state, so they always agree.
-enum ChargeLimitEditor {
+enum ChargeLimitKit {
     /// What the limit tile offers.
     enum Mode: Equatable, Sendable {
         /// Slider over the verified levels.
@@ -99,7 +99,7 @@ enum ChargeLimitEditor {
 /// (i) beside the «Лимит зарядки» title.
 @MainActor struct ChargeLimitInfoButton: View {
     var body: some View {
-        SectionInfoButton(title: L10n.text("Charge limit"), paragraphs: ChargeLimitEditor.infoParagraphKeys.map(L10n.text),
+        SectionInfoButton(title: L10n.text("Charge limit"), paragraphs: ChargeLimitKit.infoParagraphKeys.map(L10n.text),
                           id: "charge-limit-info")
     }
 }
@@ -116,7 +116,7 @@ enum ChargeLimitEditor {
     @State private var settle: Task<Void, Never>?
 
     var body: some View {
-        let shown = ChargeLimitEditor.shown(chosen: chosen, model: model)
+        let shown = ChargeLimitKit.shown(chosen: chosen, model: model)
         VStack(alignment: .leading, spacing: 8) {
             Slider(value: Binding(get: { sliderPosition(shown) }, set: { setSlider($0) }),
                    in: 0...Double(max(1, targets.count - 1)), step: 1,
@@ -183,7 +183,7 @@ enum ChargeLimitEditor {
     var model: TilveroModel
     var body: some View {
         if !model.nativeCharge.admitted && !model.nativeCharge.recoveryRequired {
-            let enabled = ChargeLimitEditor.canValidate(model)
+            let enabled = ChargeLimitKit.canValidate(model)
             Button { model.qualifyNativeCharge() } label: {
                 Text(L10n.text("Validate 80–100%…"))
                     .font(.system(size: 13, weight: .semibold))
@@ -195,7 +195,7 @@ enum ChargeLimitEditor {
             .buttonStyle(.plain).disabled(!enabled)
             .help(L10n.text("Validation writes 80%, 85%, 95% and 100% in turn and restores your setting, after a confirmed persistent baseline and a battery level below 80%."))
             .accessibilityIdentifier("action.validate-native-control")
-            if ChargeLimitEditor.needsPowerForValidation(admitted: model.nativeCharge.admitted, onBattery: ChargeLimitEditor.onBattery(model)) {
+            if ChargeLimitKit.needsPowerForValidation(admitted: model.nativeCharge.admitted, onBattery: ChargeLimitKit.onBattery(model)) {
                 Text(L10n.text("Connect the charger for the one-time validation. After that the limit works on battery power too."))
                     .font(.system(size: 13)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }

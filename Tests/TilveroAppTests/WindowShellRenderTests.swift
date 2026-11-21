@@ -178,13 +178,13 @@ import PowerPersistence
                     try capture.run(); capture.waitUntilExit()
                 }
                 if let output, language == "ru", !dark {
-                    // A page not rebuilt yet: the previous body inside the new shell.
+                    // Another page through the router.
                     model.navigation.navigate(to: .section(.battery))
                     await spin(1.5)
                     XCTAssertEqual(window.title, L10n.text("Battery"))
                     let capture = Process()
                     capture.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-                    capture.arguments = ["-x", "-o", "-l\(window.windowNumber)", output.appendingPathComponent("legacy-battery-ru-light.png").path]
+                    capture.arguments = ["-x", "-o", "-l\(window.windowNumber)", output.appendingPathComponent("battery-ru-light.png").path]
                     try capture.run(); capture.waitUntilExit()
                     model.navigation.navigate(to: .section(.overview))
                 }

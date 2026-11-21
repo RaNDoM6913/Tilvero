@@ -5,7 +5,7 @@ import SwiftUI
 import ChargeBackends
 
 /// The quick panel's Charge page for the native macOS charge limit: the chosen level beside the title and the shared
-/// `ChargeLimitEditor` slider over the verified targets (100 means "no limit"). Letting go of the slider applies the
+/// `ChargeLimitKit` slider over the verified targets (100 means "no limit"). Letting go of the slider applies the
 /// level; there is no Apply button. Explanations live in the info popover; other lines appear only when there is
 /// something to say. The window's Charging page lays out the same editor pieces.
 @MainActor struct QuickNativeChargePanel: View {
@@ -13,7 +13,7 @@ import ChargeBackends
     /// What the slider shows from the user's first movement until the apply is done, so a busy model never snaps it back.
     @State private var chosen: Int?
 
-    private var targets: [Int] { ChargeLimitEditor.targets(model) }
+    private var targets: [Int] { ChargeLimitKit.targets(model) }
 
     var body: some View {
         let _ = RenderProbe.hit("QuickNativeChargePanel")
@@ -37,8 +37,8 @@ import ChargeBackends
             Spacer(minLength: 8)
             // A fixed slot: a native read or an apply comes and goes without moving the row.
             ProgressView().controlSize(.mini).frame(width: 12, height: 12)
-                .opacity(ChargeLimitEditor.isWorking(model, state) ? 1 : 0)
-                .animation(.easeOut(duration: 0.15), value: ChargeLimitEditor.isWorking(model, state))
+                .opacity(ChargeLimitKit.isWorking(model, state) ? 1 : 0)
+                .animation(.easeOut(duration: 0.15), value: ChargeLimitKit.isWorking(model, state))
                 .accessibilityHidden(true)
             if let value {
                 HStack(alignment: .firstTextBaseline, spacing: 2) {
@@ -56,7 +56,7 @@ import ChargeBackends
 
     private func controls(_ state: NativeChargePresentation) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            title(value: ChargeLimitEditor.shown(chosen: chosen, model: model), state: state)
+            title(value: ChargeLimitKit.shown(chosen: chosen, model: model), state: state)
             ChargeLimitLevelSlider(model: model, targets: targets, chosen: $chosen)
                 .studioElement("charge.slider", label: "Charge limit slider")
         }
@@ -73,7 +73,7 @@ import ChargeBackends
     }
     /// Validation needs macOS's own registry entry, which exists only while the Mac is plugged in.
     static func needsPowerForValidation(admitted: Bool, onBattery: Bool) -> Bool {
-        ChargeLimitEditor.needsPowerForValidation(admitted: admitted, onBattery: onBattery)
+        ChargeLimitKit.needsPowerForValidation(admitted: admitted, onBattery: onBattery)
     }
 
     // MARK: Only when there is something to say

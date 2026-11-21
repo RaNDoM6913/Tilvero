@@ -6,7 +6,7 @@ import ChargeBackends
 import PowerCore
 
 /// Charging page of the main window (direction C, IA §3.3, one scroll, no toolbar): power lead, notice, the charge-limit
-/// tile (the shared `ChargeLimitEditor`, charge once, charge by time), reading strip, last-hour power chart, rows
+/// tile (the shared `ChargeLimitKit`, charge once, charge by time), reading strip, last-hour power chart, rows
 /// «Адаптер» (+ «Ещё») and «Система». Reads only what it draws; every missing number is «—».
 @MainActor struct ChargingPage: View {
     var model: TilveroModel
@@ -89,9 +89,9 @@ enum ChargingComposition {
     /// «Управляет macOS» when the native limit is off; «—» when nothing fresh is known.
     static func macOSLimitText(native: NativeChargeConfiguration?, systemManual: Int?, language: String = L10n.language) -> String {
         if let native {
-            return native.enabled ? ChargeLimitEditor.percent(native.target, language: language) : L10n.text("System managed")
+            return native.enabled ? ChargeLimitKit.percent(native.target, language: language) : L10n.text("System managed")
         }
-        return systemManual.map { ChargeLimitEditor.percent($0, language: language) } ?? "—"
+        return systemManual.map { ChargeLimitKit.percent($0, language: language) } ?? "—"
     }
 
     /// Adapter rows (IA §3.3): connection (015, with the transport 049 when known), 050, 051, 052, 047, 048 (masked).
@@ -180,7 +180,7 @@ enum ChargingComposition {
     @Environment(\.windowTheme) private var theme
 
     var body: some View {
-        let mode = ChargeLimitEditor.mode(model)
+        let mode = ChargeLimitKit.mode(model)
         let state = model.nativeCharge.presentation()
         WindowTile {
             VStack(alignment: .leading, spacing: 12) {
@@ -202,7 +202,7 @@ enum ChargingComposition {
     }
 
     private var current: Int? {
-        model.isDemo ? model.chargeState?.appliedTarget : ChargeLimitEditor.current(model.nativeCharge.presentation().currentPreference)
+        model.isDemo ? model.chargeState?.appliedTarget : ChargeLimitKit.current(model.nativeCharge.presentation().currentPreference)
     }
 
     private func header(value: Int?, applied: Bool, state: NativeChargePresentation) -> some View {
@@ -216,7 +216,7 @@ enum ChargingComposition {
             Spacer(minLength: 8)
             // A fixed slot: a native read or an apply comes and goes without moving the row.
             ProgressView().controlSize(.mini).frame(width: 12, height: 12)
-                .opacity(!model.isDemo && ChargeLimitEditor.isWorking(model, state) ? 1 : 0)
+                .opacity(!model.isDemo && ChargeLimitKit.isWorking(model, state) ? 1 : 0)
                 .accessibilityHidden(true)
             if let value {
                 // A level that is not the one macOS holds (pending, or still being applied) is never drawn as applied.
@@ -226,27 +226,27 @@ enum ChargingComposition {
                     .font(.system(size: 26, weight: .semibold)).monospacedDigit()
                     .frame(minWidth: 72, alignment: .trailing)
                     .accessibilityLabel(L10n.text("Charge limit"))
-                    .accessibilityValue(ChargeLimitEditor.percent(value))
+                    .accessibilityValue(ChargeLimitKit.percent(value))
             }
         }
         .frame(minHeight: 32)
     }
 
     @ViewBuilder private func editor(_ state: NativeChargePresentation) -> some View {
-        let shown = ChargeLimitEditor.shown(chosen: chosen, model: model)
+        let shown = ChargeLimitKit.shown(chosen: chosen, model: model)
         let pendingTarget = model.isDemo ? model.pendingTarget : state.pendingTarget
-        header(value: shown, applied: ChargeLimitEditor.isApplied(shown: shown, current: current, pendingTarget: pendingTarget), state: state)
-        if let pending = ChargeLimitEditor.pendingText(pendingTarget: pendingTarget) {
+        header(value: shown, applied: ChargeLimitKit.isApplied(shown: shown, current: current, pendingTarget: pendingTarget), state: state)
+        if let pending = ChargeLimitKit.pendingText(pendingTarget: pendingTarget) {
             HStack(spacing: 6) {
                 Image(systemName: "clock").foregroundStyle(.orange).accessibilityHidden(true)
                 Text(pending).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
-                if let current { Text(L10n.text("Now") + " " + ChargeLimitEditor.percent(current)).foregroundStyle(.secondary).monospacedDigit() }
+                if let current { Text(L10n.text("Now") + " " + ChargeLimitKit.percent(current)).foregroundStyle(.secondary).monospacedDigit() }
             }
             .font(.callout)
             .accessibilityElement(children: .combine)
         }
-        ChargeLimitLevelSlider(model: model, targets: ChargeLimitEditor.targets(model), chosen: $chosen)
+        ChargeLimitLevelSlider(model: model, targets: ChargeLimitKit.targets(model), chosen: $chosen)
         statusLine(state)
         Divider()
         HStack {

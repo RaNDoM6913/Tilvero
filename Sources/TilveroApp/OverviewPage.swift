@@ -512,8 +512,8 @@ private extension String {
                 }
                 Divider()
             }
-            ForEach(OverviewKeepAwake.presets, id: \.self) { minutes in
-                Button(WindowDuration.text(minutes: minutes)) { apply(.duration(minutes)) }
+            ForEach(model.quickPresets.presets.overviewAwake, id: \.self) { minutes in
+                Button(PresetLabel.duration(minutes)) { apply(.duration(minutes)) }
             }
             Button("∞") { apply(.untilStopped) }
             Divider()
