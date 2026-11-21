@@ -13,7 +13,8 @@ import Combine
 @MainActor final class SleepAtChargeService: ObservableObject {
     /// What happens at the level: force a system sleep (after safe preparation), or only stop holding the Mac awake.
     enum EndAction { case sleep, release }
-    static let targets = [50, 30, 20, 10, 5]
+    /// The levels the quick menu lists (set by the model from `QuickPresetStore`); only `canChooseTarget` reads them.
+    var levels: @MainActor () -> [Int] = { QuickPresets.defaults.sleepAtCharge }
     static let maximumHold: TimeInterval = 24 * 3600
 
     @Published private(set) var target: Int?
@@ -60,11 +61,11 @@ import Combine
     func canArm(target candidate: Int) -> Bool {
         allowed && !isRequesting && blockedBy() == nil && driver.isCurrentConsoleSession() && (currentPercent.map { candidate < $0 } ?? false)
     }
-    var canChooseTarget: Bool { Self.targets.contains { canArm(target: $0) } }
+    var canChooseTarget: Bool { levels().contains { canArm(target: $0) } }
 
     func arm(target candidate: Int) throws {
         guard allowed else { throw SleepAtChargeError.unavailable }
-        guard Self.targets.contains(candidate) || (1...99).contains(candidate) else { throw SleepAtChargeError.invalidTarget }
+        guard (1...99).contains(candidate) else { throw SleepAtChargeError.invalidTarget }
         guard !isRequesting, driver.isCurrentConsoleSession() else { throw SleepAtChargeError.unavailable }
         // Only one sleep / keep-awake mode at a time (changing the level of this one is not a new mode).
         if target == nil, blockedBy() != nil { throw SleepAtChargeError.otherModeActive }

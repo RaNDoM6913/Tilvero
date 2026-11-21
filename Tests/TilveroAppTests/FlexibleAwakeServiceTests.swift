@@ -243,7 +243,7 @@ import IOKit.pwr_mgt
         let driver = AwakeFixture(), model = TilveroModel(isDemo: true, preferences: prefs, keepAwakeTransport: driver)
         defer { model.stop() }
         XCTAssertEqual(model.keepAwakeDraft, .duration(.halfHour))
-        XCTAssertEqual(KeepAwakeDuration.allCases.map(\.rawValue), [15,30,60,120,240,480])
+        XCTAssertEqual(QuickPresets.defaults.keepAwake, [15,30,60,120,240,480])
         for minutes in [1,1440] {
             model.selectKeepAwakeOption(-1)
             model.keepAwakeCustomMinutes = String(minutes)

@@ -113,9 +113,10 @@ final class CountdownLid: LidSleepSystem, @unchecked Sendable {
         assertOncePerSecond(try await changes(rig.host, during: 3.2), "after switching back to a preset", window: 3.2)
     }
     func testPillItemsCarryTheCountdownOnlyOnTheAppliedPreset() {
-        let items = SleepPillItem.items(of: [15, 30, 60], applied: .preset(30), countdown: "29:59")
+        XCTAssertEqual(QuickPresets.defaults.sleepTimer, [15, 30, 60])
+        let items = SleepPillItem.items(of: QuickPresets.defaults.sleepTimer, applied: .preset(30), countdown: "29:59")
         XCTAssertEqual(items.map(\.countdown), [nil, "29:59", nil])
-        XCTAssertNotEqual(items, SleepPillItem.items(of: [15, 30, 60], applied: .preset(30), countdown: "29:58"))
-        XCTAssertEqual(SleepPillItem.items(of: [15, 30, 60], applied: .custom, countdown: "1:00").map(\.countdown), [nil, nil, nil])
+        XCTAssertNotEqual(items, SleepPillItem.items(of: QuickPresets.defaults.sleepTimer, applied: .preset(30), countdown: "29:58"))
+        XCTAssertEqual(SleepPillItem.items(of: QuickPresets.defaults.sleepTimer, applied: .custom, countdown: "1:00").map(\.countdown), [nil, nil, nil])
     }
 }
