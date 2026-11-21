@@ -197,6 +197,7 @@ struct SleepPillItem: Identifiable, Equatable {
     var selectedHelp: String? = nil
     let action: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.sleepPillsLayout) private var layout
     private var helpTitle: String {
         guard selected else { return accessibilityTitle ?? title }
         return selectedHelp ?? (L10n.language == "ru" ? "Изменить, продлить или завершить" : "Edit, extend or end session")
@@ -214,8 +215,8 @@ struct SleepPillItem: Identifiable, Equatable {
                 }
             }
             .lineLimit(1).minimumScaleFactor(0.8)
-            .frame(maxWidth: .infinity, minHeight: 26).padding(.vertical, 5)
-            .background(selected ? Color.accentColor : Color.primary.opacity(0.07), in: Capsule())
+            .frame(minWidth: layout.pillWidth, maxWidth: layout.pillWidth ?? .infinity, minHeight: 26).padding(.vertical, 5)
+            .background(selected ? layout.selectedFill : Color.primary.opacity(0.07), in: Capsule())
             .contentShape(Capsule())
             .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: selected)
         }
@@ -263,6 +264,8 @@ struct SleepPillItem: Identifiable, Equatable {
         let value: SleepWheelValue
     }
     var model: TilveroModel
+    /// False in the main window, which shows Sleep at charge and the lid switch in their own tiles.
+    var showsCompanions = true
     @State private var showsWheel = false
     @State private var wheelPresentationID = UUID()
     @State private var committedWheelValue: WheelCommit?
@@ -328,10 +331,9 @@ struct SleepPillItem: Identifiable, Equatable {
             if !service.isAvailable {
                 Text(L10n.text("Sleep timer is unavailable in this build or simulation.")).font(.caption).foregroundStyle(.secondary)
             }
-            Divider().padding(.vertical, 2)
-            SleepAtChargePanel(model: model)
+            if showsCompanions { Divider().padding(.vertical, 2); SleepAtChargePanel(model: model) }
             // Its own switch, like Keep Awake's (the permission is shared): a running timer continues with the lid closed.
-            if model.lidSleep.isAvailable {
+            if showsCompanions, model.lidSleep.isAvailable {
                 Divider().padding(.vertical, 2)
                 LidSleepOverrideRow(model: model, mode: .scheduledSleep)
             }
@@ -482,6 +484,9 @@ struct SleepPillItem: Identifiable, Equatable {
 
 @MainActor struct KeepAwakePillsPanel: View {
     var model: TilveroModel
+    /// False in the main window, which shows Keep awake until charge and the lid switch in their own tiles.
+    var showsCompanions = true
+    @Environment(\.sleepPillsLayout) private var layout
     @State private var wheelMode: SleepWheelMode?
     @State private var committedWheelValue: SleepWheelValue?
     @State private var error: String?
@@ -492,7 +497,10 @@ struct SleepPillItem: Identifiable, Equatable {
     @State private var consent: SleepPillConfirmation?
     @State private var confirms = false
     private var service: KeepAwakeService { model.keepAwake }
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 4)
+    private var columns: [GridItem] {
+        layout.pillWidth.map { Array(repeating: GridItem(.fixed($0), spacing: 6), count: 7) + [GridItem(.flexible(minimum: $0), alignment: .leading)] }
+            ?? Array(repeating: GridItem(.flexible(), spacing: 6), count: 4)
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             masterRow
@@ -531,10 +539,12 @@ struct SleepPillItem: Identifiable, Equatable {
             if !service.isAvailable {
                 Text(L10n.text("Keep Awake is unavailable in this build or simulation.")).font(.caption).foregroundStyle(.secondary)
             }
-            Divider().padding(.vertical, 2)
-            SleepAtChargePanel(model: model, mode: .keepAwake)
-            Divider().padding(.vertical, 2)
-            ClosedLidExplanationView(model: model)
+            if showsCompanions {
+                Divider().padding(.vertical, 2)
+                SleepAtChargePanel(model: model, mode: .keepAwake)
+                Divider().padding(.vertical, 2)
+                ClosedLidExplanationView(model: model)
+            }
         }
         .studioElement("awake.editor", kind: "container", label: "Keep Awake editor")
         .confirmationDialog(consent?.title ?? "", isPresented: $confirms, titleVisibility: .visible) {
@@ -760,13 +770,14 @@ struct SleepPillItem: Identifiable, Equatable {
     let id: String
     let action: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.sleepPillsLayout) private var layout
     var body: some View {
         Button(action: action) {
             StudioText(title, id: id + ".caption")
                 .font(.system(size: 12, weight: .medium)).monospacedDigit()
                 .foregroundStyle(selected ? Color.white : Color.primary)
-                .lineLimit(1).frame(maxWidth: .infinity, minHeight: 26).padding(.vertical, 5)
-                .background(selected ? Color.accentColor : Color.primary.opacity(0.07), in: Capsule())
+                .lineLimit(1).frame(minWidth: layout.pillWidth, maxWidth: layout.pillWidth ?? .infinity, minHeight: 26).padding(.vertical, 5)
+                .background(selected ? layout.selectedFill : Color.primary.opacity(0.07), in: Capsule())
                 .contentShape(Capsule())
                 .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: selected)
         }
