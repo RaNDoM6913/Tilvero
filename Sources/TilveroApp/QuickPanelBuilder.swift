@@ -18,15 +18,21 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     @Bindable var model: TilveroModel
     @State private var drag = OverviewDragState()
     @State private var dropTarget: OverviewMetric?
+    @State private var wide = true
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 24) {
-                ProductSurface(studioID: "quick.builder") { controls }.frame(minWidth: 300, idealWidth: 340, maxWidth: .infinity)
-                preview.frame(width: QuickPanelMetrics.width)
-            }
-            VStack(alignment: .leading, spacing: 20) { ProductSurface(studioID: "quick.builder") { controls }; preview.frame(width: QuickPanelMetrics.width) }
+        // One layout switched by width (not ViewThatFits): the preview of real quick-menu views is built once, not
+        // measured twice on every frame of a window resize or sidebar animation.
+        let layout = wide ? AnyLayout(HStackLayout(alignment: .top, spacing: 24))
+                          : AnyLayout(VStackLayout(alignment: .leading, spacing: 20))
+        layout {
+            ProductSurface(studioID: "quick.builder") { controls }.frame(minWidth: 300, idealWidth: 340, maxWidth: .infinity, alignment: .leading)
+            preview.frame(width: QuickPanelMetrics.width)
         }
+        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+        .onGeometryChange(for: Bool.self) { $0.size.width >= Self.wideWidth } action: { wide = $0 }
     }
+    /// Controls minimum (300) + gap (24) + preview.
+    static var wideWidth: CGFloat { 300 + 24 + QuickPanelMetrics.width }
     /// Order and visibility return to their defaults.
     static func restoreLayoutDefaults(_ model: TilveroModel) { model.overviewPreferences = OverviewPreferences() }
     private var controls: some View {

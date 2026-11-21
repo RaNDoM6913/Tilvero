@@ -2,6 +2,7 @@
 // Copyright (c) 2026 RaNDoM6913
 
 import SwiftUI
+import PowerCore
 
 /// The redesigned main window (direction C, behind `FeatureFlags.newWindow`): stock `NavigationSplitView`, system
 /// sidebar, unified toolbar with the page title. Pages not rebuilt yet host the previous page body.
@@ -33,6 +34,7 @@ import SwiftUI
         let _ = RenderProbe.hit("WindowSidebar")
         let selected = model.navigation.section
         List {
+            WindowSidebarBrand()
             ForEach(WindowSidebarGroup.allCases) { group in
                 Section {
                     ForEach(WindowSection.sections(in: group)) { entry in
@@ -69,6 +71,22 @@ import SwiftUI
             return model.updates.newerRelease.map { (WindowTheme.accent, String(format: L10n.text("New version %@"), String($0.tag.dropFirst()))) }
         default: return nil
         }
+    }
+}
+
+/// «Tilvero» with the energy mark above the sections, as the previous window's sidebar had it.
+struct WindowSidebarBrand: View {
+    var body: some View {
+        HStack(spacing: 7) {
+            Text(AppIdentity.displayName).font(.system(size: 22, weight: .semibold)).foregroundStyle(.primary)
+            TilveroEnergyMark().stroke(WindowTheme.accent, style: StrokeStyle(lineWidth: 2.4, lineCap: .round))
+                .frame(width: 33, height: 18).accessibilityHidden(true)
+        }
+        .padding(.top, 2).padding(.bottom, 8)
+        .listRowInsets(EdgeInsets(top: 0, leading: 10, bottom: 0, trailing: 8))
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+        .accessibilityIdentifier("sidebar.brand")
     }
 }
 

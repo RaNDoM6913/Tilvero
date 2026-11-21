@@ -94,6 +94,19 @@ import PowerPersistence
         XCTAssertEqual(window.contentMinSize, MainWindowController.minimumSize)
         XCTAssertFalse(window.isReleasedWhenClosed)
         XCTAssertTrue(window.contentView is NSHostingView<MainWindowView>)
+        // No SwiftUI min/ideal/max sizing passes on every frame (they made the sidebar animation stutter).
+        XCTAssertEqual((window.contentView as? NSHostingView<MainWindowView>)?.sizingOptions, [])
+        // Shrinking below the minimum is still refused by the window itself.
+        window.setContentSize(NSSize(width: 500, height: 300))
+        window.setFrame(window.frameRect(forContentRect: NSRect(origin: .zero, size: NSSize(width: 500, height: 300))), display: false)
+        XCTAssertGreaterThanOrEqual(window.contentMinSize.width, MainWindowController.minimumSize.width)
+    }
+
+    /// The builder switches one layout by width: no ViewThatFits measuring the quick-menu preview twice per frame.
+    func testQuickPanelBuilderHasNoViewThatFits() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .appendingPathComponent("../../Sources/TilveroApp/QuickPanelBuilder.swift").standardizedFileURL, encoding: .utf8)
+        XCTAssertFalse(source.contains("ViewThatFits {") || source.contains("ViewThatFits(in"))
     }
 
     /// Sidebar rows drive the router; the remembered section restores; an off-window route lands on its page.

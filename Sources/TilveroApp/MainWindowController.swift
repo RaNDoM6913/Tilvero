@@ -22,6 +22,9 @@ import PowerCore
         configure(window)
         let host = NSHostingView(rootView: MainWindowView(model: model))
         host.sceneBridgingOptions = [.title, .toolbars]
+        // No min/ideal/max sizing from SwiftUI: those three extra passes over the whole page on every frame made the
+        // sidebar animation and window resizing stutter. The window's minimum is set directly below.
+        host.sizingOptions = []
         window.contentView = host
         window.setContentSize(defaultSize)
         window.contentMinSize = minimumSize
