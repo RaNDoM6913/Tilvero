@@ -223,6 +223,8 @@ final class TilveroModel {
             }
         }
     }
+    /// The quick menu's preset pills (`quickPresets.v1`), separate from the Overview blocks' layout.
+    let quickPresets: QuickPresetStore
     var overviewPreferences: OverviewPreferences { didSet {
         if let data = try? JSONEncoder().encode(overviewPreferences) { preferences.set(data, forKey: "overviewPreferences.v1") }
         processScanSurfacesChanged()
@@ -326,16 +328,22 @@ final class TilveroModel {
     var sleepAtChargeChoice: Int {
         get {
             access(keyPath: \.sleepAtChargeChoice)
-            let saved = preferences.integer(forKey: "sleepAtChargeTarget"); return SleepAtChargeService.targets.contains(saved) ? saved : 20
+            return Self.rememberedLevel(preferences, key: "sleepAtChargeTarget", listed: quickPresets.presets.sleepAtCharge)
         }
         set { withMutation(keyPath: \.sleepAtChargeChoice) { preferences.set(newValue, forKey: "sleepAtChargeTarget") } }
     }
     var keepAwakeUntilChargeChoice: Int {
         get {
             access(keyPath: \.keepAwakeUntilChargeChoice)
-            let saved = preferences.integer(forKey: "keepAwakeUntilChargeTarget"); return SleepAtChargeService.targets.contains(saved) ? saved : 20
+            return Self.rememberedLevel(preferences, key: "keepAwakeUntilChargeTarget", listed: quickPresets.presets.awakeUntilCharge)
         }
         set { withMutation(keyPath: \.keepAwakeUntilChargeChoice) { preferences.set(newValue, forKey: "keepAwakeUntilChargeTarget") } }
+    }
+    /// The remembered level while it is listed. A level no longer listed (the stored choice is kept) gives the highest
+    /// listed level, so the switch's fallback picks the highest listed level below the charge.
+    static func rememberedLevel(_ preferences: UserDefaults, key: String, listed: [Int]) -> Int {
+        let saved = preferences.object(forKey: key) == nil ? 20 : preferences.integer(forKey: key)
+        return listed.contains(saved) ? saved : listed.first ?? 20
     }
     @ObservationIgnored private var sleepAtChargeSubscription: AnyCancellable?
 
@@ -435,7 +443,7 @@ final class TilveroModel {
             return KeepAwakeDuration.load(preferences.object(forKey: "keepAwakeMinutes"))
         }
         set {
-            keepAwakeUsesCustomDuration = !KeepAwakeDuration.allCases.contains(newValue)
+            keepAwakeUsesCustomDuration = !quickPresets.presets.keepAwake.contains(newValue.rawValue)
             keepAwakeCustomMinutes = String(newValue.rawValue)
             keepAwakeDraft = .duration(newValue)
         }
@@ -635,6 +643,7 @@ final class TilveroModel {
         let processes = ProcessActivityProvider()   // one provider: it keeps process identities between scans
         self.processActivityProvider = processActivityProvider ?? { await processes.read() }
         self.preferences = preferences
+        quickPresets = QuickPresetStore(defaults: preferences)
         navigation = AppNavigation(preferences: preferences)
         chargeOnceStorage = ChargeOnceStore(preferences: preferences)
         chargeByStorage = ChargeByService(defaults: preferences, wake: isDemo || launchPolicy.monitoringOnly ? DisabledWakeScheduler() : NativeWakeScheduler())
@@ -644,11 +653,11 @@ final class TilveroModel {
         let savedSleepMinutes = preferences.integer(forKey: "sleepTimerMinutes")
         let initialSleepMinutes = (1...1440).contains(savedSleepMinutes) ? savedSleepMinutes : 30
         sleepTimerMinutes = String(initialSleepMinutes)
-        sleepTimerUsesCustom = ![15, 30, 60].contains(initialSleepMinutes)
+        sleepTimerUsesCustom = !quickPresets.presets.sleepTimer.contains(initialSleepMinutes)
         let savedAwakeDuration = KeepAwakeDuration.load(preferences.object(forKey: "keepAwakeMinutes"))
         keepAwakeDraft = .duration(savedAwakeDuration)
         keepAwakeCustomMinutes = String(savedAwakeDuration.rawValue)
-        keepAwakeUsesCustomDuration = !KeepAwakeDuration.allCases.contains(savedAwakeDuration)
+        keepAwakeUsesCustomDuration = !quickPresets.presets.keepAwake.contains(savedAwakeDuration.rawValue)
         let monitoring = launchPolicy.monitoringOnly
         let hardwarePolicy = launchPolicy.ordinaryHardwarePolicy
         self.keyboardBacklight = keyboardBacklight ?? KeyboardBacklightService(
@@ -773,6 +782,8 @@ final class TilveroModel {
         }
         sleepAtCharge.blockedBy = { [weak self] in self?.awakeModeBlocker(for: .sleepAtCharge) }
         keepAwakeUntilCharge.blockedBy = { [weak self] in self?.awakeModeBlocker(for: .keepAwakeUntilCharge) }
+        sleepAtCharge.levels = { [weak self] in self?.quickPresets.presets.sleepAtCharge ?? QuickPresets.defaults.sleepAtCharge }
+        keepAwakeUntilCharge.levels = { [weak self] in self?.quickPresets.presets.awakeUntilCharge ?? QuickPresets.defaults.awakeUntilCharge }
         sleepAtChargeSubscription = sleepAtChargeStorage.objectWillChange.sink { [weak self] in self?.sleepAtChargeChanges &+= 1 }
         keepAwakeUntilChargeSubscription = keepAwakeUntilChargeStorage.objectWillChange.sink { [weak self] in self?.keepAwakeUntilChargeChanges &+= 1 }
         awakeSubscription = keepAwakeStorage.objectWillChange.sink { [weak self] in self?.keepAwakeChanges &+= 1 }

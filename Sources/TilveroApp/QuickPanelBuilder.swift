@@ -173,8 +173,8 @@ enum SettingsPage: String, CaseIterable, Identifiable {
             }
             else { KeepAwakeSummary(service: model.keepAwake) }
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 4), spacing: 6) {
-                ForEach(KeepAwakeDuration.allCases) { duration in
-                    passiveChoice(duration.rawValue < 60 ? "\(duration.rawValue) " + L10n.text("min") : "\(duration.rawValue / 60) " + L10n.text("h"), option: duration.rawValue)
+                ForEach(model.quickPresets.presets.keepAwake, id: \.self) { minutes in
+                    passiveChoice(PresetLabel.duration(minutes), option: minutes)
                 }
                 passiveChoice(L10n.text("Custom…"), option: -1)
                 passiveChoice(L10n.text("Until…"), option: -2)

@@ -42,13 +42,15 @@ enum SleepPillActionError: LocalizedError, Equatable {
 /// All mutations use the application's existing services. Applied projections
 /// come from confirmed service state; neither a draft nor a pending dialog owns it.
 @MainActor enum SleepPillActions {
-    static func awakeSelection(_ model: TilveroModel) -> SleepPillSelection? {
+    /// The applied Keep Awake session as a pill. A duration in `presets` (default: the quick menu's Keep Awake list) is
+    /// that preset; any other duration is `.custom`, so the selection follows the applied duration, never the editor.
+    static func awakeSelection(_ model: TilveroModel, presets: [Int]? = nil) -> SleepPillSelection? {
         let service = model.keepAwake
         guard service.isActive else { return nil }
         switch service.expiry {
         case .duration:
             guard let seconds = service.appliedPillDurationSeconds else { return nil }
-            if seconds % 60 == 0, KeepAwakeDuration.allCases.contains(where: { $0.rawValue == seconds / 60 }) {
+            if seconds % 60 == 0, (presets ?? model.quickPresets.presets.keepAwake).contains(seconds / 60) {
                 return .preset(seconds / 60)
             }
             return .custom
@@ -58,9 +60,10 @@ enum SleepPillActionError: LocalizedError, Equatable {
         }
     }
 
-    static func timerSelection(_ model: TilveroModel) -> SleepPillSelection? {
+    /// A running timer whose duration is not listed (custom, after «+5 мин», or its preset removed) selects «Своё».
+    static func timerSelection(_ model: TilveroModel, presets: [Int]? = nil) -> SleepPillSelection? {
         guard let minutes = model.sleepTimer.activePillMinutes else { return nil }
-        return [15, 30, 60].contains(minutes) ? .preset(minutes) : .custom
+        return (presets ?? model.quickPresets.presets.sleepTimer).contains(minutes) ? .preset(minutes) : .custom
     }
 
     static func canChooseAwake(_ model: TilveroModel) -> Bool {
@@ -176,6 +179,11 @@ enum SleepPillActionError: LocalizedError, Equatable {
     }
 }
 
+/// The duration rows' four-column grid (cell 73.5 pt in the 312 pt popover content).
+enum SleepPillGrid {
+    static let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 4)
+}
+
 /// One preset pill as data. The pill row sits in a one-second `TimelineView`, but a `ForEach` over constants is not
 /// re-run by the tick: the selection and the countdown travel in the element so a changed second is a changed element.
 struct SleepPillItem: Identifiable, Equatable {
@@ -187,7 +195,7 @@ struct SleepPillItem: Identifiable, Equatable {
     }
 }
 
-@MainActor private struct SleepDurationPill: View {
+@MainActor struct SleepDurationPill: View {
     let title: String
     let selected: Bool
     var countdown: String? = nil
@@ -263,6 +271,8 @@ struct SleepPillItem: Identifiable, Equatable {
         let value: SleepWheelValue
     }
     var model: TilveroModel
+    /// Draft presets for the editor's passive preview; `nil` reads the saved ones.
+    var presets: QuickPresets? = nil
     @State private var showsWheel = false
     @State private var wheelPresentationID = UUID()
     @State private var committedWheelValue: WheelCommit?
@@ -280,14 +290,18 @@ struct SleepPillItem: Identifiable, Equatable {
             masterRow
             TimelineView(.periodic(from: .now, by: 1)) { tick in
                 let _ = tick.date   // the content must read the tick, or SwiftUI may keep the first rendering
-                let selection = SleepPillActions.timerSelection(model)
+                let list = (presets ?? model.quickPresets.presets).sleepTimer
+                let selection = SleepPillActions.timerSelection(model, presets: list)
                 let countdown = KeepAwakePresentation.countdown(service.remainingSeconds)
-                HStack(spacing: 6) {
+                // Four columns: up to four cells is one row, five to eight two rows, «Своё» always last. The row count
+                // follows the configuration only, so the popover height never changes with the state.
+                LazyVGrid(columns: SleepPillGrid.columns, spacing: 6) {
                     // The elements carry the selection and the countdown: a ForEach over constants is not re-evaluated
                     // by the tick, so the preset pills' text used to refresh only when something else invalidated them.
-                    ForEach(SleepPillItem.items(of: [15, 30, 60], applied: selection, countdown: countdown)) { item in
-                        pill("\(item.minutes) " + L10n.text("min"), selection: .preset(item.minutes), applied: selection,
-                             countdown: item.countdown, id: "timer.preset.\(item.minutes)") { apply(minutes: item.minutes, custom: false) }
+                    ForEach(SleepPillItem.items(of: list, applied: selection, countdown: countdown)) { item in
+                        pill(PresetLabel.duration(item.minutes), selection: .preset(item.minutes), applied: selection,
+                             countdown: item.countdown, id: "timer.preset.\(item.minutes)",
+                             accessibilityTitle: PresetLabel.spokenDuration(item.minutes)) { apply(minutes: item.minutes, custom: false) }
                     }
                     pill(L10n.text("Custom timer time"), selection: .custom, applied: selection, countdown: countdown, id: "timer.custom") {
                         wheelPresentationID = UUID(); committedWheelValue = nil
@@ -329,7 +343,7 @@ struct SleepPillItem: Identifiable, Equatable {
                 Text(L10n.text("Sleep timer is unavailable in this build or simulation.")).font(.caption).foregroundStyle(.secondary)
             }
             Divider().padding(.vertical, 2)
-            SleepAtChargePanel(model: model)
+            SleepAtChargePanel(model: model, presets: presets)
             // Its own switch, like Keep Awake's (the permission is shared): a running timer continues with the lid closed.
             if model.lidSleep.isAvailable {
                 Divider().padding(.vertical, 2)
@@ -420,11 +434,11 @@ struct SleepPillItem: Identifiable, Equatable {
         }
     }
     private func pill(_ title: String, selection: SleepPillSelection, applied: SleepPillSelection?, countdown: String?,
-                      id: String, action: @escaping () -> Void) -> some View {
+                      id: String, accessibilityTitle: String? = nil, action: @escaping () -> Void) -> some View {
         let selected = applied == selection
         return SleepDurationPill(title: title, selected: selected,
             countdown: selected ? countdown : nil,
-            id: id, captionID: id + ".caption", action: {
+            id: id, captionID: id + ".caption", accessibilityTitle: accessibilityTitle, action: {
                 // Tapping the running pill ends the timer (like the Overview Keep Awake strip); the others start it.
                 if selected { setEnabled(false, token: SleepPillActions.controlToken(model, awake: false)) }
                 else { action() }
@@ -482,6 +496,8 @@ struct SleepPillItem: Identifiable, Equatable {
 
 @MainActor struct KeepAwakePillsPanel: View {
     var model: TilveroModel
+    /// Draft presets for the editor's passive preview; `nil` reads the saved ones.
+    var presets: QuickPresets? = nil
     @State private var wheelMode: SleepWheelMode?
     @State private var committedWheelValue: SleepWheelValue?
     @State private var error: String?
@@ -492,19 +508,19 @@ struct SleepPillItem: Identifiable, Equatable {
     @State private var consent: SleepPillConfirmation?
     @State private var confirms = false
     private var service: KeepAwakeService { model.keepAwake }
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 4)
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             masterRow
             TimelineView(.periodic(from: .now, by: 1)) { tick in
                 let _ = tick.date   // the content must read the tick, or SwiftUI may keep the first rendering
-                let applied = SleepPillActions.awakeSelection(model)
+                let list = awakeList
+                let applied = SleepPillActions.awakeSelection(model, presets: list)
                 let countdown = KeepAwakePresentation.countdown(service.remainingSeconds)
-                LazyVGrid(columns: columns, spacing: 6) {
+                LazyVGrid(columns: SleepPillGrid.columns, spacing: 6) {
                     // Elements carry the state so the tick re-evaluates them (see SleepTimerPillsPanel).
-                    ForEach(SleepPillItem.items(of: KeepAwakeDuration.allCases.map(\.rawValue), applied: applied, countdown: countdown)) { item in
-                        let duration = KeepAwakeDuration(rawValue: item.minutes)!
-                        pill(durationLabel(duration), option: .preset(item.minutes), applied: applied, countdown: item.countdown, raw: item.minutes) {
+                    ForEach(SleepPillItem.items(of: list, applied: applied, countdown: countdown)) { item in
+                        pill(PresetLabel.duration(item.minutes), option: .preset(item.minutes), applied: applied, countdown: item.countdown,
+                             raw: item.minutes, accessibilityTitle: PresetLabel.spokenDuration(item.minutes)) {
                             apply(.duration(item.minutes))
                         }
                     }
@@ -514,7 +530,7 @@ struct SleepPillItem: Identifiable, Equatable {
                         .background { wheelAnchor(mode: .until) }
                 }
             }
-            if SleepPillActions.awakeSelection(model) == .custom {
+            if SleepPillActions.awakeSelection(model, presets: awakeList) == .custom {
                 TimelineView(.periodic(from: .now, by: 1)) { tick in
                     let _ = tick.date   // the content must read the tick, or SwiftUI may keep the first rendering
                     StudioText(KeepAwakePresentation.countdown(service.remainingSeconds), id: "awake.custom.countdown")
@@ -532,7 +548,7 @@ struct SleepPillItem: Identifiable, Equatable {
                 Text(L10n.text("Keep Awake is unavailable in this build or simulation.")).font(.caption).foregroundStyle(.secondary)
             }
             Divider().padding(.vertical, 2)
-            SleepAtChargePanel(model: model, mode: .keepAwake)
+            SleepAtChargePanel(model: model, mode: .keepAwake, presets: presets)
             Divider().padding(.vertical, 2)
             ClosedLidExplanationView(model: model)
         }
@@ -606,9 +622,7 @@ struct SleepPillItem: Identifiable, Equatable {
         .accessibilityIdentifier("awake.extend.\(minutes)")
         .studioElement("awake.extend.\(minutes)", label: accessibilityTitle)
     }
-    private func durationLabel(_ duration: KeepAwakeDuration) -> String {
-        duration.rawValue < 60 ? "\(duration.rawValue) " + L10n.text("min") : "\(duration.rawValue / 60) " + L10n.text("h")
-    }
+    private var awakeList: [Int] { (presets ?? model.quickPresets.presets).keepAwake }
     private func pill(_ title: String, option: SleepPillSelection, applied: SleepPillSelection?, countdown: String?,
                       raw: Int, accessibilityTitle: String? = nil, action: @escaping () -> Void) -> some View {
         let selected = applied == option
@@ -680,10 +694,16 @@ struct SleepPillItem: Identifiable, Equatable {
     enum Mode { case sleep, keepAwake }
     var model: TilveroModel
     var mode: Mode = .sleep
+    /// Draft presets for the editor's passive preview; `nil` reads the saved ones.
+    var presets: QuickPresets? = nil
     @State private var error: String?
     private var service: SleepAtChargeService { mode == .sleep ? model.sleepAtCharge : model.keepAwakeUntilCharge }
     private var prefix: String { mode == .sleep ? "charge-sleep" : "charge-awake" }
     private var title: String { L10n.text(mode == .sleep ? "Sleep at charge" : "Keep awake until charge") }
+    private var levels: [Int] {
+        let value = presets ?? model.quickPresets.presets
+        return mode == .sleep ? value.sleepAtCharge : value.awakeUntilCharge
+    }
     private var choice: Int {
         get { mode == .sleep ? model.sleepAtChargeChoice : model.keepAwakeUntilChargeChoice }
     }
@@ -711,9 +731,10 @@ struct SleepPillItem: Identifiable, Equatable {
             }
             .frame(height: 32)
             HStack(spacing: 6) {
-                ForEach(SleepAtChargeService.targets, id: \.self) { target in
-                    SleepAtChargePill(title: "\(target) %", selected: service.target == target,
-                                      enabled: service.target == target || canArm(target), id: prefix + ".preset.\(target)") {
+                ForEach(levels, id: \.self) { target in
+                    SleepAtChargePill(title: PresetLabel.level(target), selected: service.target == target,
+                                      enabled: service.target == target || canArm(target), id: prefix + ".preset.\(target)",
+                                      accessibilityTitle: PresetLabel.spokenLevel(target)) {
                         choose(target)
                     }
                 }
@@ -747,17 +768,18 @@ struct SleepPillItem: Identifiable, Equatable {
         guard on else { service.disarm(); return }
         // The remembered level, or the highest one still below the present charge.
         let choice = self.choice
-        let target = canArm(choice) ? choice : SleepAtChargeService.targets.first(where: canArm)
+        let target = canArm(choice) ? choice : levels.first(where: canArm)
         guard let target else { error = SleepAtChargeError.alreadyReached.localizedDescription; return }
         choose(target)
     }
 }
 
-@MainActor private struct SleepAtChargePill: View {
+@MainActor struct SleepAtChargePill: View {
     let title: String
     let selected: Bool
     let enabled: Bool
     let id: String
+    var accessibilityTitle: String? = nil
     let action: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
@@ -772,7 +794,7 @@ struct SleepPillItem: Identifiable, Equatable {
         }
         .buttonStyle(.plain).disabled(!enabled).opacity(enabled ? 1 : 0.4)
         .accessibilityAddTraits(selected ? [.isSelected] : [])
-        .accessibilityLabel(title)
+        .accessibilityLabel(accessibilityTitle ?? title)
         .accessibilityIdentifier(id).studioElement(id, label: title)
     }
 }

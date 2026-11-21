@@ -25,7 +25,7 @@ import PowerCore
         await model.refresh()
         try await Task.sleep(for: .milliseconds(200))
         XCTAssertEqual(model.sleepAtCharge.currentPercent, 64)
-        XCTAssertEqual(SleepAtChargeService.targets.map { model.sleepAtCharge.canArm(target: $0) }, [true, true, true, true, true])
+        XCTAssertEqual(QuickPresets.defaults.sleepAtCharge.map { model.sleepAtCharge.canArm(target: $0) }, [true, true, true, true, true])
         try model.sleepAtCharge.arm(target: 20)
         XCTAssertEqual(model.sleepAtCharge.target, 20)
     }
@@ -34,7 +34,7 @@ import PowerCore
         let (low, cleanUpLow) = try model(freshness: .unknown, percent: 19)
         defer { cleanUpLow() }
         await low.refresh(); try await Task.sleep(for: .milliseconds(200))
-        XCTAssertEqual(SleepAtChargeService.targets.map { low.sleepAtCharge.canArm(target: $0) }, [false, false, false, true, true])
+        XCTAssertEqual(QuickPresets.defaults.sleepAtCharge.map { low.sleepAtCharge.canArm(target: $0) }, [false, false, false, true, true])
         let (stale, cleanUpStale) = try model(freshness: .stale)
         defer { cleanUpStale() }
         await stale.refresh(); try await Task.sleep(for: .milliseconds(200))

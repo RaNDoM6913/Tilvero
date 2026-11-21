@@ -5,9 +5,10 @@ import XCTest
 @testable import TilveroApp
 
 @MainActor final class OverviewKeepAwakeTests: XCTestCase {
-    func testTheQuickStripOffersFifteenThirtySixtyAndTwoFortyMinutes() {
-        XCTAssertEqual(OverviewKeepAwake.presets, [15, 30, 60, 240])
-        XCTAssertTrue(OverviewKeepAwake.presets.allSatisfy { KeepAwakeDuration(rawValue: $0) != nil })
+    func testTheDefaultQuickStripOffersFifteenThirtySixtyAndTwoFortyMinutes() {
+        XCTAssertEqual(QuickPresets.defaults.overviewAwake, [15, 30, 60, 240])
+        XCTAssertEqual(OverviewKeepAwake.presets, QuickPresets.defaults.overviewAwake)
+        XCTAssertTrue(QuickPresets.defaults.overviewAwake.allSatisfy { KeepAwakeDuration(rawValue: $0) != nil })
     }
 
     func testOnlyATimedSessionNamesItsEnd() {
