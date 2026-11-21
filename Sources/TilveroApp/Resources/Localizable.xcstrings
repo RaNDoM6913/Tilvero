@@ -6166,13 +6166,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Quick panel builder"
+            "value": "Quick menu builder"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Конструктор быстрого окна"
+            "value": "Конструктор быстрого меню"
           }
         }
       }
@@ -6262,13 +6262,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Customize quick panel…"
+            "value": "Customize quick menu…"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Настроить быстрое окно…"
+            "value": "Настроить быстрое меню…"
           }
         }
       }
