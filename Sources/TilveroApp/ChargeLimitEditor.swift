@@ -49,6 +49,12 @@ enum ChargeLimitEditor {
               preference: model.isDemo ? nil : model.nativeCharge.presentation().currentPreference)
     }
 
+    /// The shown level is the one macOS holds and nothing waits: only then is it drawn as applied (pending never is).
+    static func isApplied(shown: Int?, current: Int?, pendingTarget: Int?) -> Bool {
+        guard let shown, let current, pendingTarget == nil else { return false }
+        return shown == current
+    }
+
     /// «80 %» / "80%".
     static func percent(_ value: Int, language: String = L10n.language) -> String {
         language == "ru" ? "\(value) %" : "\(value)%"
@@ -125,7 +131,8 @@ enum ChargeLimitEditor {
             GeometryReader { proxy in
                 let inset: CGFloat = 10
                 let step = targets.count > 1 ? (proxy.size.width - 2 * inset) / CGFloat(targets.count - 1) : 0
-                ForEach(Array(targets.enumerated()), id: \.offset) { index, target in
+                // A dense simulated range (80…100 by one) labels every fifth level; the verified five are all labelled.
+                ForEach(Array(targets.enumerated()).filter { targets.count <= 7 || $0.element % 5 == 0 }, id: \.offset) { index, target in
                     Text("\(target)").font(.system(size: labelSize, weight: shown == target ? .semibold : .regular)).monospacedDigit()
                         .foregroundStyle(shown == target ? Color.primary : Color.secondary)
                         .fixedSize()
