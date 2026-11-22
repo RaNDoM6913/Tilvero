@@ -121,6 +121,8 @@ import PowerPersistence
             let text = try source(name)
             XCTAssertTrue(text.contains("WindowTabbedPage {"), name)
             XCTAssertFalse(text.contains("placement: .principal"), name)
+            // The glass capsule the toolbar gave the tabs before (owner 2026-11-22), not a flat segmented control.
+            XCTAssertTrue(text.contains("WindowPageTabs("), name)
         }
         XCTAssertTrue(try source("BatteryCatalogPage").contains("LazyVStack"))
     }

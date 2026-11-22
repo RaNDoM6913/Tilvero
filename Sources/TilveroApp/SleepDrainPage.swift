@@ -235,12 +235,10 @@ enum SleepReportWords {
     var body: some View {
         let _ = RenderProbe.hit("SleepDrainPage")
         WindowTabbedPage {
-            Picker(L10n.text("Sleep & drain"), selection: Binding(get: { model.navigation.sleepPage },
-                                                                  set: { model.navigation.navigate(to: .sleep($0)) })) {
-                ForEach(SleepPage.allCases) { Text($0.title).tag($0) }
-            }
-            .pickerStyle(.segmented).fixedSize().labelsHidden()
-            .accessibilityIdentifier("sleep-page")
+            WindowPageTabs(label: L10n.text("Sleep & drain"),
+                           selection: Binding(get: { model.navigation.sleepPage }, set: { model.navigation.navigate(to: .sleep($0)) }),
+                           values: SleepPage.allCases) { $0.title }
+                .accessibilityIdentifier("sleep-page")
         } content: {
             ScrollView {
                 VStack(alignment: .leading, spacing: WindowTheme.tileGap) {

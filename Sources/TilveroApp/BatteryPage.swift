@@ -34,12 +34,10 @@ enum BatteryMode: String, CaseIterable, Identifiable, Sendable {
     var body: some View {
         let _ = RenderProbe.hit("BatteryPage")
         WindowTabbedPage {
-            Picker(L10n.text("Battery section"), selection: Binding(get: { model.navigation.batteryMode },
-                                                                     set: { model.navigation.navigate(to: .battery($0)) })) {
-                ForEach(BatteryMode.allCases) { Text(L10n.text($0.titleKey)).tag($0) }
-            }
-            .pickerStyle(.segmented).fixedSize().labelsHidden()
-            .accessibilityIdentifier("battery-mode")
+            WindowPageTabs(label: L10n.text("Battery section"),
+                           selection: Binding(get: { model.navigation.batteryMode }, set: { model.navigation.navigate(to: .battery($0)) }),
+                           values: BatteryMode.allCases) { L10n.text($0.titleKey) }
+                .accessibilityIdentifier("battery-mode")
         } content: {
             switch mode {
             case .summary: BatterySummaryPage(model: model, reveal: reveal)

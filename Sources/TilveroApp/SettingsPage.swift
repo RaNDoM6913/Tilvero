@@ -22,11 +22,8 @@ struct SettingsTabPicker: View {
     @Binding var selection: SettingsPage
     let tabs: [SettingsPage]
     var body: some View {
-        Picker(L10n.text("Settings section"), selection: $selection) {
-            ForEach(tabs) { Text(L10n.text($0.title)).tag($0) }
-        }
-        .pickerStyle(.segmented).fixedSize().labelsHidden()
-        .accessibilityIdentifier("settings-tabs")
+        WindowPageTabs(label: L10n.text("Settings section"), selection: $selection, values: tabs) { L10n.text($0.title) }
+            .accessibilityIdentifier("settings-tabs")
     }
 }
 

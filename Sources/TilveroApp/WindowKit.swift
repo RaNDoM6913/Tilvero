@@ -31,6 +31,44 @@ struct WindowTabbedPage<Tabs: View, Content: View>: View {
     }
 }
 
+/// Sub-page tabs in the look the toolbar gave them before (owner 2026-11-22): a glass capsule with a grey capsule on the
+/// chosen tab. It sits in the page, so it never falls into the toolbar overflow when the sidebar takes the width.
+struct WindowPageTabs<Value: Hashable & Identifiable>: View {
+    let label: String
+    @Binding var selection: Value
+    let values: [Value]
+    let title: (Value) -> String
+    @Namespace private var plate
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(values) { value in
+                let on = value == selection
+                Button { selection = value } label: {
+                    Text(title(value)).font(.system(size: 13)).lineLimit(1)
+                        .foregroundStyle(on ? Color.primary : Color.secondary)
+                        .padding(.horizontal, 14).frame(height: 28)
+                        .background {
+                            if on {
+                                Capsule().fill(Color.primary.opacity(0.09)).matchedGeometryEffect(id: "plate", in: plate)
+                            }
+                        }
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .focusEffectDisabled()
+                .accessibilityAddTraits(on ? .isSelected : [])
+            }
+        }
+        .padding(4)
+        .glassEffect(.regular, in: Capsule())
+        .fixedSize()
+        .animation(.smooth(duration: 0.2), value: selection)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(label)
+    }
+}
+
 /// Opaque rounded tile.
 struct WindowTile<Content: View>: View {
     @Environment(\.windowTheme) private var theme
