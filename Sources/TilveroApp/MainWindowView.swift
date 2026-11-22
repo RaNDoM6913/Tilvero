@@ -84,7 +84,9 @@ import PowerCore
     }
 }
 
-/// Reports its own leading x in window coordinates whenever AppKit lays it out or moves it to a window.
+/// Reports its own leading x in window coordinates. AppKit moves toolbar items after their first layout (opening,
+/// resizing, key/active changes), and moving an ancestor does not lay out this view, so it re-measures on every frame
+/// change of its ancestors and on every window update; the value is cheap to compare and reported only when it changes.
 struct WindowXReader: NSViewRepresentable {
     let report: @MainActor (CGFloat) -> Void
     func makeNSView(context: Context) -> ReaderView { ReaderView(report: report) }
@@ -93,18 +95,42 @@ struct WindowXReader: NSViewRepresentable {
     final class ReaderView: NSView {
         var report: @MainActor (CGFloat) -> Void
         private var last: CGFloat?
+        nonisolated(unsafe) private var observers: [NSObjectProtocol] = []
         init(report: @escaping @MainActor (CGFloat) -> Void) {
             self.report = report
             super.init(frame: .zero)
-            postsFrameChangedNotifications = true
         }
         required init?(coder: NSCoder) { nil }
-        override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); measure() }
+        deinit { observers.forEach(NotificationCenter.default.removeObserver) }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            observers.forEach(NotificationCenter.default.removeObserver)
+            observers = []
+            guard let window else { return }
+            let center = NotificationCenter.default
+            var ancestor = superview
+            while let view = ancestor {
+                view.postsFrameChangedNotifications = true
+                observers.append(center.addObserver(forName: NSView.frameDidChangeNotification, object: view, queue: .main) {
+                    [weak self] _ in MainActor.assumeIsolated { self?.measure() }
+                })
+                ancestor = view.superview
+            }
+            for name in [NSWindow.didUpdateNotification, NSWindow.didResizeNotification, NSWindow.didBecomeKeyNotification,
+                         NSWindow.didResignKeyNotification] {
+                observers.append(center.addObserver(forName: name, object: window, queue: .main) {
+                    [weak self] _ in MainActor.assumeIsolated { self?.measure() }
+                })
+            }
+            last = nil
+            measure()
+        }
         override func layout() { super.layout(); measure() }
-        override func setFrameOrigin(_ newOrigin: NSPoint) { super.setFrameOrigin(newOrigin); measure() }
+
         func measure() {
             guard window != nil else { return }
-            let x = (convert(bounds, to: nil).minX).rounded()
+            let x = convert(bounds, to: nil).minX.rounded()
             guard x != last else { return }
             last = x
             let report = self.report
