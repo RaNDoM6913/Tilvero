@@ -33,23 +33,11 @@ import PowerCore
     var body: some View {
         let collapsed = model.navigation.sidebarCollapsed
         let inset = WindowColumn.inset(progress: collapsed ? 1 : 0)
-        let toggle = L10n.text(collapsed ? "Show sidebar" : "Hide sidebar")
         ZStack(alignment: .topLeading) {
             detail()
                 .safeAreaPadding(.leading, inset)
                 .toolbar(removing: .title)
                 .toolbar {
-                    ToolbarItem(placement: .navigation) {
-                        Button {
-                            withAnimation(WindowColumn.motion) { model.navigation.sidebarCollapsed.toggle() }
-                        } label: {
-                            Image(systemName: "sidebar.left")
-                        }
-                        .keyboardShortcut("s", modifiers: [.control, .command])
-                        .help(toggle)
-                        .accessibilityLabel(toggle)
-                        .accessibilityIdentifier("sidebar.toggle")
-                    }
                     ToolbarItem(placement: .navigation) {
                         WindowPageTitle(model: model, progress: collapsed ? 1 : 0)
                     }
@@ -79,7 +67,7 @@ import PowerCore
     var body: some View {
         HStack(spacing: 0) {
             Color.clear.frame(width: max(0, WindowColumn.inset(progress: progress) + WindowTheme.pagePadding.leading
-                                         - WindowColumn.titleMinX), height: 1)
+                                         - WindowColumn.titleItemX), height: 1)
             Text(WindowSection.entry(model.navigation.section).title)
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(active ? .primary : .tertiary)
@@ -106,8 +94,8 @@ import PowerCore
     static let railWidth: CGFloat = 60
     static let edge: CGFloat = 8
     static let toolbarHeight: CGFloat = 52
-    /// The title never goes under the toolbar button.
-    static let titleMinX: CGFloat = 136
+    /// Where the first toolbar item (the title) starts, right of the traffic lights.
+    static let titleItemX: CGFloat = 88
     static let motion = Animation.smooth(duration: 0.32)
     static func width(progress: Double) -> CGFloat { railWidth + (fullWidth - railWidth) * (1 - progress) }
     /// Leading space the page keeps free.
@@ -122,7 +110,9 @@ import PowerCore
         let selected = model.navigation.section
         let railed = progress > 0.5
         VStack(alignment: .leading, spacing: 0) {
-            WindowColumnBrand(names: names)
+            WindowColumnHeader(progress: progress, names: names, collapsed: model.navigation.sidebarCollapsed) {
+                withAnimation(Self.motion) { model.navigation.sidebarCollapsed.toggle() }
+            }
             ForEach(Array(WindowSidebarGroup.allCases.enumerated()), id: \.element) { index, group in
                 if index > 0 {
                     ZStack(alignment: .leading) {
@@ -159,6 +149,45 @@ import PowerCore
     }
 }
 
+/// The column's head: the brand, and the sidebar toggle (⌃⌘S) that lives in the column — at the right end of the brand
+/// row while the column is open, under the wave on the rail — moving with the column through the motion.
+@MainActor struct WindowColumnHeader: View {
+    let progress: Double
+    let names: Double
+    let collapsed: Bool
+    let action: @MainActor () -> Void
+    @State private var hovering = false
+
+    static let toggleSize = CGSize(width: 32, height: 30)
+
+    var body: some View {
+        let label = L10n.text(collapsed ? "Show sidebar" : "Hide sidebar")
+        let fullX = WindowColumn.fullWidth - 22 - Self.toggleSize.width
+        let railX = (38 - Self.toggleSize.width) / 2
+        let x = fullX + (railX - fullX) * progress
+        let y = 14 + 36 * progress
+        ZStack(alignment: .topLeading) {
+            WindowColumnBrand(names: names)
+            Button(action: action) {
+                Image(systemName: "sidebar.left").font(.system(size: 15)).foregroundStyle(.secondary)
+                    .frame(width: Self.toggleSize.width, height: Self.toggleSize.height)
+                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color.primary.opacity(hovering ? 0.08 : 0)))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .focusEffectDisabled()
+            .onHover { hovering = $0 }
+            .keyboardShortcut("s", modifiers: [.control, .command])
+            .help(label)
+            .accessibilityLabel(label)
+            .accessibilityIdentifier("sidebar.toggle")
+            .offset(x: x, y: y)
+        }
+        .frame(height: 14 + 30 + 12 + 34 * progress, alignment: .topLeading)
+    }
+}
+
 /// The wave in the icon column and «Tilvero» beside it (the name fades with the section names).
 struct WindowColumnBrand: View {
     let names: Double
@@ -168,7 +197,7 @@ struct WindowColumnBrand: View {
                 .frame(width: 30, height: 16).frame(width: 38)
             Text(AppIdentity.displayName).font(.system(size: 20, weight: .semibold)).fixedSize().opacity(names)
         }
-        .frame(height: 30).padding(.top, 14).padding(.bottom, 12)
+        .frame(height: 30).padding(.top, 14)
         .accessibilityElement().accessibilityLabel(AppIdentity.displayName).accessibilityAddTraits(.isHeader)
         .accessibilityIdentifier("sidebar.brand")
     }

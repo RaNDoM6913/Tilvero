@@ -39,14 +39,16 @@ struct WindowPageTabs<Value: Hashable & Identifiable>: View {
     let values: [Value]
     let title: (Value) -> String
     @Namespace private var plate
+    @Environment(\.appearsActive) private var active
 
     var body: some View {
         HStack(spacing: 2) {
             ForEach(values) { value in
                 let on = value == selection
                 Button { selection = value } label: {
+                    // Like the toolbar control: every label in the label colour while the window is active.
                     Text(title(value)).font(.system(size: 13)).lineLimit(1)
-                        .foregroundStyle(on ? Color.primary : Color.secondary)
+                        .foregroundStyle(active ? Color.primary : Color.secondary)
                         .padding(.horizontal, 14).frame(height: 28)
                         .background {
                             if on {
@@ -61,7 +63,7 @@ struct WindowPageTabs<Value: Hashable & Identifiable>: View {
             }
         }
         .padding(4)
-        .glassEffect(.regular, in: Capsule())
+        .glassEffect(.regular.interactive(), in: Capsule())
         .fixedSize()
         .animation(.smooth(duration: 0.2), value: selection)
         .accessibilityElement(children: .contain)
