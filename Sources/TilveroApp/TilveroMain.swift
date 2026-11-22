@@ -772,7 +772,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         button.font = NativeStatusPresentation.font(for: model.menuBarTextSize)
         let lowOnBattery = !attached && (level.map { $0 <= NativeBatteryStatusImage.lowChargeThreshold } ?? false)
         func icon(pressed: Bool) -> NSImage {
-            NativeBatteryStatusImage.make(level: level, style: model.displayStyle, externalPower: attached, scale: CGFloat(model.menuBarIconScale),
+            NativeBatteryStatusImage.make(level: level, style: model.shownDisplayStyle, externalPower: attached, scale: CGFloat(model.menuBarIconScale),
                                           textSize: model.menuBarTextSize, awake: awake, highlighted: pressed,
                                           appearance: model.menuBarBatteryAppearance, redWhenLow: true, awakeColor: model.awakeIndicatorColor.nsColor)
         }
@@ -780,7 +780,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         // The coloured fill (Keep Awake blue, low-charge red) stays while the menu is open; the solid-white modern body hands
         // over to its template twin so AppKit adapts it to the pressed highlight.
         button.alternateImage = awake == .active || lowOnBattery || model.menuBarBatteryAppearance == .macOS27 ? icon(pressed: true) : nil
-        let percentageTitle = model.displayStyle == .beside ? NativeStatusPresentation.percentageTitle(level: level) : ""
+        let percentageTitle = model.shownDisplayStyle == .beside ? NativeStatusPresentation.percentageTitle(level: level) : ""
         // Development-only marker: fixtures must remain identifiable even when closed.
         button.title = percentageTitle + (model.isDemo ? " DEMO" : "") + (firstRunMode.isPreview ? " PREVIEW" : "")
         let mode = (model.isDemo ? L10n.text("Simulation") + " · " : "") + (model.snapshot.chargePercent.freshness == .stale ? L10n.text("Stale") + " · " : "")
@@ -907,6 +907,15 @@ extension TilveroAppDelegate: FirstRunHost {
 enum MenuBarDisplayStyle: String, CaseIterable, Identifiable {
     case beside, inside, iconOnly
     var id: String { rawValue }
+    /// The macOS 26 battery has no percentage inside (the system never drew one), so it offers beside and none only.
+    static func available(for appearance: MenuBarBatteryAppearance) -> [Self] {
+        appearance == .macOS27 ? allCases : [.beside, .iconOnly]
+    }
+    /// What the menu bar shows: a stored «inside» falls back to «beside» on the macOS 26 battery (the stored choice
+    /// stays, so switching back to macOS 27 restores it).
+    func effective(for appearance: MenuBarBatteryAppearance) -> Self {
+        self == .inside && appearance == .macOS26 ? .beside : self
+    }
     var title: String {
         switch self {
         case .beside: L10n.text("Percent beside")

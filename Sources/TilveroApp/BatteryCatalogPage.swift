@@ -44,7 +44,7 @@ enum BatteryCatalogSections {
                                                    reveal: reveal, fahrenheit: fahrenheit)
         let readings = Dictionary(catalog.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
         ScrollView {
-            VStack(alignment: .leading, spacing: WindowTheme.tileGap) {
+            LazyVStack(alignment: .leading, spacing: WindowTheme.tileGap) {
                 BatteryCatalogSearchField(search: $search)
                 if sections.isEmpty {
                     WindowTile {

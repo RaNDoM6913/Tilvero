@@ -199,6 +199,29 @@ final class MenuBarBatteryAppearancePreferenceTests: XCTestCase {
         XCTAssertEqual(preferences.string(forKey: "menuBarDisplayStyle"), MenuBarDisplayStyle.beside.rawValue)
     }
 
+    /// The macOS 26 battery offers no percentage inside; a stored «inside» shows as «beside» there and comes back with
+    /// the macOS 27 battery.
+    func testMacOS26BatteryHasNoPercentageInside() {
+        XCTAssertEqual(MenuBarDisplayStyle.available(for: .macOS26), [.beside, .iconOnly])
+        XCTAssertEqual(MenuBarDisplayStyle.available(for: .macOS27), MenuBarDisplayStyle.allCases)
+        let suite = TestDefaults.name()
+        let preferences = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
+        preferences.set(MenuBarBatteryAppearance.macOS27.rawValue, forKey: "menuBarBatteryAppearance")
+        preferences.set(MenuBarDisplayStyle.inside.rawValue, forKey: "menuBarDisplayStyle")
+        let model = TilveroModel(isDemo: true, preferences: preferences)
+        XCTAssertEqual(model.shownDisplayStyle, .inside)
+        model.menuBarBatteryAppearance = .macOS26
+        XCTAssertEqual(model.shownDisplayStyle, .beside)
+        XCTAssertEqual(preferences.string(forKey: "menuBarDisplayStyle"), MenuBarDisplayStyle.inside.rawValue, "the stored choice stays")
+        model.menuBarBatteryAppearance = .macOS27
+        XCTAssertEqual(model.shownDisplayStyle, .inside)
+        model.menuBarBatteryAppearance = .macOS26
+        model.shownDisplayStyle = .iconOnly
+        XCTAssertEqual(model.displayStyle, .iconOnly)
+        XCTAssertEqual(MenuBarDisplayStyle.iconOnly.effective(for: .macOS26), .iconOnly)
+    }
+
     func testMissingPlacementUsesAppearanceDefaultWhileAnExplicitPlacementSurvives() {
         for appearance in MenuBarBatteryAppearance.allCases {
             let suite = TestDefaults.name()

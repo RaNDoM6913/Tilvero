@@ -17,6 +17,20 @@ struct WindowCanvas: View {
     }
 }
 
+/// A page with sub-page tabs centred above its content (Battery, Sleep & drain, Settings). The tabs live in the page,
+/// not the toolbar: a toolbar picker went into the overflow menu whenever the sidebar took the width, and every switch
+/// re-laid out the whole toolbar (≈ 50 ms in a debug build).
+struct WindowTabbedPage<Tabs: View, Content: View>: View {
+    @ViewBuilder var tabs: () -> Tabs
+    @ViewBuilder var content: () -> Content
+    var body: some View {
+        VStack(spacing: 0) {
+            tabs().frame(maxWidth: .infinity).padding(.top, 6).padding(.bottom, 12)
+            content().frame(maxHeight: .infinity, alignment: .top)
+        }
+    }
+}
+
 /// Opaque rounded tile.
 struct WindowTile<Content: View>: View {
     @Environment(\.windowTheme) private var theme

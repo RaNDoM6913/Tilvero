@@ -535,7 +535,7 @@ private struct SettingsPanel: View {
                 HStack(alignment: .firstTextBaseline) {
                     StudioText(L10n.text("Menu bar"), id: "settings.menuBar.title")
                     Spacer()
-                    Picker(L10n.text("Menu bar"), selection: $model.displayStyle) { ForEach(MenuBarDisplayStyle.allCases) { Text($0.title).tag($0) } }.studioElement("settings.displayStyle", label: "Menu bar display style")
+                    Picker(L10n.text("Menu bar"), selection: $model.shownDisplayStyle) { ForEach(MenuBarDisplayStyle.available(for: model.menuBarBatteryAppearance)) { Text($0.title).tag($0) } }.studioElement("settings.displayStyle", label: "Menu bar display style")
                         .labelsHidden().frame(width: 220)
                 }
                 Divider()
@@ -544,7 +544,7 @@ private struct SettingsPanel: View {
                     Spacer()
                     Picker(L10n.text("Percentage size"), selection: $model.menuBarTextSize) {
                         ForEach(MenuBarTextSize.allCases) { Text($0.title).tag($0) }
-                    }.labelsHidden().frame(width: 220).disabled(model.displayStyle == .iconOnly)
+                    }.labelsHidden().frame(width: 220).disabled(model.shownDisplayStyle == .iconOnly)
                 }
                 HStack {
                     StudioText(L10n.text("Icon scale"), id: "settings.iconScale.title")

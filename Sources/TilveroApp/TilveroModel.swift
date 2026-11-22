@@ -265,6 +265,11 @@ final class TilveroModel {
     var awakeIndicatorColor: AwakeIndicatorColor {
         didSet { preferences.set(awakeIndicatorColor.rawValue, forKey: "awakeIndicatorColor"); onPresentationChange?() }
     }
+    /// The placement the menu bar shows and the pickers select: `displayStyle` resolved for the battery appearance.
+    var shownDisplayStyle: MenuBarDisplayStyle {
+        get { displayStyle.effective(for: menuBarBatteryAppearance) }
+        set { displayStyle = newValue }
+    }
     var menuBarBatteryAppearance: MenuBarBatteryAppearance {
         didSet { preferences.set(menuBarBatteryAppearance.rawValue, forKey: "menuBarBatteryAppearance"); onPresentationChange?() }
     }

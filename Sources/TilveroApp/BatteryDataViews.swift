@@ -221,6 +221,9 @@ struct ReadingInfoPresentation {
         .buttonStyle(.plain)
         .foregroundStyle(.secondary)
         .focusable()
+        // Like SectionInfoButton: no focus frame (it stayed on the button after a click until the page changed);
+        // keyboard activation and the accessibility label are unchanged.
+        .focusEffectDisabled()
         .focused($buttonFocused)
         .onKeyPress(.space) { showingInfo = true; return .handled }
         .onKeyPress(.return) { showingInfo = true; return .handled }

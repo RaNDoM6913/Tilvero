@@ -225,7 +225,7 @@ enum SleepReportWords {
 
 // MARK: Page
 
-/// Sleep & drain page of the main window (direction C): toolbar picker «Таймер сна · Не засыпать · Отчёты» bound to
+/// Sleep & drain page of the main window (direction C): page tabs «Таймер сна · Не засыпать · Отчёты» bound to
 /// `navigation.sleepPage`. The two control tabs host the quick menu's own pill panels, Sleep at charge panels and lid
 /// switches (same views, actions and confirmations); Reports shows the recorded intervals and the current blockers.
 @MainActor struct SleepDrainPage: View {
@@ -234,28 +234,29 @@ enum SleepReportWords {
 
     var body: some View {
         let _ = RenderProbe.hit("SleepDrainPage")
-        ScrollView {
-            VStack(alignment: .leading, spacing: WindowTheme.tileGap) {
-                switch page {
-                case .timer: SleepTimerTab(model: model)
-                case .awake: KeepAwakeTab(model: model)
-                case .reports: SleepReportsTab(model: model)
-                }
+        WindowTabbedPage {
+            Picker(L10n.text("Sleep & drain"), selection: Binding(get: { model.navigation.sleepPage },
+                                                                  set: { model.navigation.navigate(to: .sleep($0)) })) {
+                ForEach(SleepPage.allCases) { Text($0.title).tag($0) }
             }
-            .padding(WindowTheme.pagePadding)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .pickerStyle(.segmented).fixedSize().labelsHidden()
+            .accessibilityIdentifier("sleep-page")
+        } content: {
+            ScrollView {
+                VStack(alignment: .leading, spacing: WindowTheme.tileGap) {
+                    switch page {
+                    case .timer: SleepTimerTab(model: model)
+                    case .awake: KeepAwakeTab(model: model)
+                    case .reports: SleepReportsTab(model: model)
+                    }
+                }
+                .padding(WindowTheme.pagePadding)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
         }
         .environment(\.sleepPillsLayout, .window)
         .navigationTitle(WindowSection.entry(.sleep).title)
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                Picker(L10n.text("Sleep & drain"), selection: Binding(get: { model.navigation.sleepPage },
-                                                                      set: { model.navigation.navigate(to: .sleep($0)) })) {
-                    ForEach(SleepPage.allCases) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented).fixedSize().labelsHidden()
-                .accessibilityIdentifier("sleep-page")
-            }
             if page == .reports {
                 ToolbarItem(placement: .primaryAction) {
                     SleepReportsRefreshButton(model: model)

@@ -109,6 +109,22 @@ import PowerPersistence
         XCTAssertFalse(source.contains("ViewThatFits {") || source.contains("ViewThatFits(in"))
     }
 
+    /// Sub-page tabs sit in the page (`WindowTabbedPage`), not in the toolbar: a principal toolbar picker went into the
+    /// overflow menu while the sidebar was open (Settings › Quick menu could not be found) and re-laid out the toolbar on
+    /// every switch (Battery lag). All data builds its rows lazily.
+    func testSubPageTabsLiveInThePage() throws {
+        func source(_ name: String) throws -> String {
+            try String(contentsOf: URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+                .appendingPathComponent("../../Sources/TilveroApp/\(name).swift").standardizedFileURL, encoding: .utf8)
+        }
+        for name in ["BatteryPage", "SleepDrainPage", "SettingsPage"] {
+            let text = try source(name)
+            XCTAssertTrue(text.contains("WindowTabbedPage {"), name)
+            XCTAssertFalse(text.contains("placement: .principal"), name)
+        }
+        XCTAssertTrue(try source("BatteryCatalogPage").contains("LazyVStack"))
+    }
+
     /// Sidebar rows drive the router; the remembered section restores; an off-window route lands on its page.
     func testSidebarAndRouter() async throws {
         let fixture = try await WindowFixture.make()

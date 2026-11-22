@@ -4,7 +4,7 @@
 import SwiftUI
 import PowerCore
 
-/// Sub-page of Battery (toolbar picker «Сводка · Все данные»).
+/// Sub-page of Battery (page tabs «Сводка · Все данные»).
 enum BatteryMode: String, CaseIterable, Identifiable, Sendable {
     case summary, catalog
     var id: String { rawValue }
@@ -33,7 +33,14 @@ enum BatteryMode: String, CaseIterable, Identifiable, Sendable {
 
     var body: some View {
         let _ = RenderProbe.hit("BatteryPage")
-        Group {
+        WindowTabbedPage {
+            Picker(L10n.text("Battery section"), selection: Binding(get: { model.navigation.batteryMode },
+                                                                     set: { model.navigation.navigate(to: .battery($0)) })) {
+                ForEach(BatteryMode.allCases) { Text(L10n.text($0.titleKey)).tag($0) }
+            }
+            .pickerStyle(.segmented).fixedSize().labelsHidden()
+            .accessibilityIdentifier("battery-mode")
+        } content: {
             switch mode {
             case .summary: BatterySummaryPage(model: model, reveal: reveal)
             case .catalog: BatteryCatalogPage(model: model, showUnavailable: showUnavailable, reveal: reveal)
@@ -43,14 +50,6 @@ enum BatteryMode: String, CaseIterable, Identifiable, Sendable {
         // Identifiers revealed in All data are hidden again on leaving it (Summary has no toggle to hide them).
         .onChange(of: mode) { _, _ in reveal = false }
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                Picker(L10n.text("Battery section"), selection: Binding(get: { model.navigation.batteryMode },
-                                                                         set: { model.navigation.navigate(to: .battery($0)) })) {
-                    ForEach(BatteryMode.allCases) { Text(L10n.text($0.titleKey)).tag($0) }
-                }
-                .pickerStyle(.segmented).fixedSize().labelsHidden()
-                .accessibilityIdentifier("battery-mode")
-            }
             if mode == .catalog {
                 ToolbarItem(placement: .primaryAction) {
                     Menu {

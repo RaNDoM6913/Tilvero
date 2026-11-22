@@ -17,7 +17,7 @@ enum SettingsTabs {
     }
 }
 
-/// The toolbar picker «Основные · Быстрое меню · История · Обновления · Функции».
+/// The page tabs «Основные · Быстрое меню · История · Обновления · Функции».
 struct SettingsTabPicker: View {
     @Binding var selection: SettingsPage
     let tabs: [SettingsPage]
@@ -30,7 +30,7 @@ struct SettingsTabPicker: View {
     }
 }
 
-/// Settings page of the main window (direction C): toolbar picker and one pane per tab. Every control binds to the
+/// Settings page of the main window (direction C): page tabs and one pane per tab. Every control binds to the
 /// same model property or calls the same action as the previous Settings panel.
 @MainActor struct SettingsHostPage: View {
     var model: TilveroModel
@@ -39,23 +39,22 @@ struct SettingsTabPicker: View {
         let _ = RenderProbe.hit("SettingsHostPage")
         let tabs = SettingsTabs.visible(setupPage: model.features.setupPage)
         let page = SettingsTabs.presented(model.navigation.settingsPage, visible: tabs)
-        Group {
-            switch page {
-            case .general: SettingsGeneralPane(model: model)
-            case .quickPanel: SettingsQuickMenuPane(model: model)
-            case .history: SettingsHistoryPane(model: model)
-            case .updates: SettingsUpdatesPane(model: model, service: model.updates)
-            case .setup: SettingsFeaturesPane(model: model)
+        WindowTabbedPage {
+            SettingsTabPicker(selection: Binding(get: { page }, set: { model.navigation.navigate(to: .settings($0)) }),
+                              tabs: tabs)
+        } content: {
+            Group {
+                switch page {
+                case .general: SettingsGeneralPane(model: model)
+                case .quickPanel: SettingsQuickMenuPane(model: model)
+                case .history: SettingsHistoryPane(model: model)
+                case .updates: SettingsUpdatesPane(model: model, service: model.updates)
+                case .setup: SettingsFeaturesPane(model: model)
+                }
             }
+            .id(page)
         }
-        .id(page)
         .navigationTitle(WindowSection.entry(.settings).title)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                SettingsTabPicker(selection: Binding(get: { page }, set: { model.navigation.navigate(to: .settings($0)) }),
-                                  tabs: tabs)
-            }
-        }
     }
 }
 
@@ -145,8 +144,8 @@ struct SettingsRowDivider: View {
             }
             SettingsRowDivider()
             SettingsRow(label: L10n.text("Percentage (menu bar)")) {
-                Picker(L10n.text("Percentage (menu bar)"), selection: $model.displayStyle) {
-                    ForEach(MenuBarDisplayStyle.allCases) { Text(L10n.text(Self.segmentKey($0))).tag($0) }
+                Picker(L10n.text("Percentage (menu bar)"), selection: $model.shownDisplayStyle) {
+                    ForEach(MenuBarDisplayStyle.available(for: model.menuBarBatteryAppearance)) { Text(L10n.text(Self.segmentKey($0))).tag($0) }
                 }
                 .pickerStyle(.segmented).fixedSize().labelsHidden()
                 .accessibilityIdentifier("settings.displayStyle")
@@ -157,7 +156,7 @@ struct SettingsRowDivider: View {
                     ForEach(MenuBarTextSize.allCases) { Text($0.title).tag($0) }
                 }
                 .pickerStyle(.segmented).fixedSize().labelsHidden()
-                .disabled(model.displayStyle == .iconOnly)
+                .disabled(model.shownDisplayStyle == .iconOnly)
                 .accessibilityIdentifier("settings.percentageSize")
             }
             SettingsRowDivider()

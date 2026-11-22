@@ -153,8 +153,8 @@ struct QuickPanel: View {
             StudioActionButton(L10n.text("Settings"), id: "action.settings") { model.navigation.open(.section(.settings)) }
             StudioActionButton(L10n.text("Customize quick panel…"), id: "action.customize-quick-panel") { model.navigation.open(.settings(.quickPanel)) }
             StudioActionButton(L10n.text("Keep Mac Awake…"), id: "action.keep-mac-awake") { model.navigation.open(.sleep(.awake)) }
-            Picker(L10n.text("Menu bar"), selection: $model.displayStyle) {
-                ForEach(MenuBarDisplayStyle.allCases) { style in Text(style.title).tag(style) }
+            Picker(L10n.text("Menu bar"), selection: $model.shownDisplayStyle) {
+                ForEach(MenuBarDisplayStyle.available(for: model.menuBarBatteryAppearance)) { style in Text(style.title).tag(style) }
             }
             Divider()
             StudioActionButton(L10n.text("Quit Tilvero"), id: "action.quit-tilvero") { NSApplication.shared.terminate(nil) }

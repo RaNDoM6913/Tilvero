@@ -340,9 +340,10 @@ import PowerCore
                 // Features (hidden in fixture builds): the pane's content with fixture readiness.
                 let rows = SettingsFeatures.rows(readiness: Self.readiness(),
                                                  permissions: .some([.lidClosed: .notAllowed, .chargeByTime: .notAllowed]))
-                let features = SettingsFeaturesContent(rows: rows, loaded: true, allow: .privileged, perform: { _ in })
-                    .navigationTitle(WindowSection.entry(.settings).title)
-                    .toolbar { ToolbarItem(placement: .principal) { SettingsTabPicker(selection: .constant(.setup), tabs: SettingsPage.allCases) } }
+                let features = WindowTabbedPage { SettingsTabPicker(selection: .constant(.setup), tabs: SettingsPage.allCases) } content: {
+                    SettingsFeaturesContent(rows: rows, loaded: true, allow: .privileged, perform: { _ in })
+                }
+                .navigationTitle(WindowSection.entry(.settings).title)
                 var window = host(features, dark: dark)
                 try? await Task.sleep(for: .seconds(1.2))
                 try capture(window, "settings-features-\(suffix)", to: output)
@@ -353,9 +354,10 @@ import PowerCore
                                                  phase: .succeeded(UpdateCheckSnapshot(checkedAt: now, channel: .stable,
                                                      result: UpdateDiscoveryResult(availability: .appAvailable, release: release("0.8.0"), sourceRelease: nil))),
                                                  installerQualified: true)
-                let updates = SettingsScroll { SettingsUpdatesContent(display: SettingsUpdates.display(input), showsNotes: .constant(false), perform: { _, _ in }) }
-                    .navigationTitle(WindowSection.entry(.settings).title)
-                    .toolbar { ToolbarItem(placement: .principal) { SettingsTabPicker(selection: .constant(.updates), tabs: SettingsPage.allCases) } }
+                let updates = WindowTabbedPage { SettingsTabPicker(selection: .constant(.updates), tabs: SettingsPage.allCases) } content: {
+                    SettingsScroll { SettingsUpdatesContent(display: SettingsUpdates.display(input), showsNotes: .constant(false), perform: { _, _ in }) }
+                }
+                .navigationTitle(WindowSection.entry(.settings).title)
                 window = host(updates, dark: dark)
                 try? await Task.sleep(for: .seconds(1.0))
                 try capture(window, "settings-updates-available-\(suffix)", to: output)
