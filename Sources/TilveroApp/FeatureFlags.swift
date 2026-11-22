@@ -25,14 +25,15 @@ struct FeatureFlags: Equatable, Sendable {
 
     /// Pure resolution, so every build kind is testable.
     /// - development: debug and laboratory builds (`QuickPanelSection.showsDevelopmentSections`).
-    /// - newWindowOverride: the launch argument, when given.
+    /// - newWindowOverride: the launch argument, when given. Without it the redesigned window is on in every build
+    ///   kind on this branch (owner testing, build 91); `-TilveroNewWindow NO` brings the old window back.
     static func resolve(development: Bool, isDemo: Bool, canShowSetup: Bool, newWindowOverride: Bool?) -> FeatureFlags {
         FeatureFlags(modes: development,
                      profilesAndSchedules: development,
                      fanControls: development || isDemo,
                      simulationControls: isDemo,
                      setupPage: canShowSetup,
-                     newWindow: newWindowOverride ?? development)
+                     newWindow: newWindowOverride ?? true)
     }
 
     /// `-TilveroNewWindow YES|NO` from the launch arguments only (a persisted preference never switches the window).

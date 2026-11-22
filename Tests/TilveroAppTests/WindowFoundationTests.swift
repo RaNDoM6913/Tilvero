@@ -14,7 +14,7 @@ import PowerCore
     func testFlagsPerBuildKind() {
         let release = FeatureFlags.resolve(development: false, isDemo: false, canShowSetup: true, newWindowOverride: nil)
         XCTAssertEqual(release, FeatureFlags(modes: false, profilesAndSchedules: false, fanControls: false,
-                                             simulationControls: false, setupPage: true, newWindow: false))
+                                             simulationControls: false, setupPage: true, newWindow: true))
         let debug = FeatureFlags.resolve(development: true, isDemo: false, canShowSetup: true, newWindowOverride: nil)
         XCTAssertTrue(debug.modes && debug.profilesAndSchedules && debug.newWindow)
         XCTAssertEqual(debug.modes, debug.profilesAndSchedules, "Modes and profiles hide together")
@@ -22,10 +22,13 @@ import PowerCore
         XCTAssertFalse(laboratory.setupPage)
         let demo = FeatureFlags.resolve(development: false, isDemo: true, canShowSetup: false, newWindowOverride: nil)
         XCTAssertTrue(demo.simulationControls && demo.fanControls)
-        XCTAssertFalse(demo.setupPage || demo.modes || demo.newWindow)
+        XCTAssertFalse(demo.setupPage || demo.modes)
+        XCTAssertTrue(demo.newWindow, "the redesigned window is the default without the launch argument")
         XCTAssertFalse(release.fanControls, "a release shows no fan controls")
         XCTAssertTrue(FeatureFlags.resolve(development: false, isDemo: false, canShowSetup: true, newWindowOverride: true).newWindow)
         XCTAssertFalse(FeatureFlags.resolve(development: true, isDemo: false, canShowSetup: true, newWindowOverride: false).newWindow)
+        XCTAssertFalse(FeatureFlags.resolve(development: false, isDemo: false, canShowSetup: true, newWindowOverride: false).newWindow,
+                       "-TilveroNewWindow NO brings the old window back in a release build")
     }
 
     func testNewWindowOverrideReadsOnlyLaunchArguments() {
