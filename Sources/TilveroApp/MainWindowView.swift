@@ -4,75 +4,224 @@
 import SwiftUI
 import PowerCore
 
-/// The redesigned main window (direction C, behind `FeatureFlags.newWindow`): stock `NavigationSplitView`, system
-/// sidebar, unified toolbar with the page title. A collapsed sidebar leaves a floating glass rail of section icons
-/// (variant B, owner choice 2026-11-22); the system toolbar button opens the full sidebar again.
+/// The redesigned main window (direction C, behind `FeatureFlags.newWindow`): the glass column with the sections, the
+/// page beside it, unified toolbar.
 @MainActor struct MainWindowView: View {
     let model: TilveroModel
-    @State private var columns: NavigationSplitViewVisibility = .all
 
     var body: some View {
         let _ = RenderProbe.hit("MainWindowView")
-        let collapsed = columns == .detailOnly
         WindowThemeResolver {
-            NavigationSplitView(columnVisibility: $columns) {
-                WindowSidebar(model: model)
-                    .navigationSplitViewColumnWidth(min: 190, ideal: 200, max: 240)
-            } detail: {
-                WindowDetail(model: model)
-                    .safeAreaPadding(.leading, collapsed ? WindowRail.reservedWidth : 0)
-                    .overlay(alignment: .topLeading) {
-                        if collapsed {
-                            WindowRail(model: model)
-                                .transition(.opacity.combined(with: .move(edge: .leading)))
-                        }
-                    }
-                    .animation(.smooth(duration: 0.25), value: collapsed)
-            }
+            WindowShell(model: model) { WindowDetail(model: model) }
         }
         .environment(\.locale, L10n.locale)
         .font(.system(size: 13))
         .id(model.language)
-        .frame(minWidth: MainWindowController.minimumSize.width, minHeight: MainWindowController.minimumSize.height)
+        // No SwiftUI minimum frame: the window's `contentMinSize` holds it. A 560 pt minimum here applied below the
+        // toolbar, overflowed a 560 pt window and the hosting view centred it (page tabs slid under the toolbar).
     }
 }
 
-/// Sidebar: its own view, so telemetry does not re-render it (only the attention marks and the section are read).
-@MainActor struct WindowSidebar: View {
+/// Sidebar variant C «Колонна» (owner choice 2026-11-22): one inset glass panel with the sections, full height, the
+/// traffic lights on its glass. The toolbar button (⌃⌘S) narrows it to an icon rail below the toolbar in one motion:
+/// icons keep their place, names and group titles fade, group titles turn into dividers. The page keeps the column's
+/// width free; the page title is drawn beside the column, because the system title would sit on the glass.
+@MainActor struct WindowShell<Detail: View>: View {
     let model: TilveroModel
+    @ViewBuilder var detail: () -> Detail
 
     var body: some View {
-        let _ = RenderProbe.hit("WindowSidebar")
-        let selected = model.navigation.section
-        List {
-            WindowSidebarBrand()
-            ForEach(WindowSidebarGroup.allCases) { group in
-                Section {
-                    ForEach(WindowSection.sections(in: group)) { entry in
-                        let mark = mark(entry.section)
-                        WindowSidebarRow(entry: entry, selected: entry.section == selected, mark: mark?.color, markLabel: mark?.label) {
-                            model.navigation.navigate(to: .section(entry.section))
+        let collapsed = model.navigation.sidebarCollapsed
+        let inset = WindowColumn.inset(progress: collapsed ? 1 : 0)
+        let toggle = L10n.text(collapsed ? "Show sidebar" : "Hide sidebar")
+        ZStack(alignment: .topLeading) {
+            detail()
+                .safeAreaPadding(.leading, inset)
+                .toolbar(removing: .title)
+                .toolbar {
+                    ToolbarItem(placement: .navigation) {
+                        Button {
+                            withAnimation(WindowColumn.motion) { model.navigation.sidebarCollapsed.toggle() }
+                        } label: {
+                            Image(systemName: "sidebar.left")
                         }
+                        .keyboardShortcut("s", modifiers: [.control, .command])
+                        .help(toggle)
+                        .accessibilityLabel(toggle)
+                        .accessibilityIdentifier("sidebar.toggle")
                     }
-                } header: {
-                    if let title = group.title { Text(title) }
+                    ToolbarItem(placement: .navigation) {
+                        WindowPageTitle(model: model, progress: collapsed ? 1 : 0)
+                    }
+                    .sharedBackgroundVisibility(.hidden)
+                    ToolbarSpacer(.flexible)
                 }
+            GeometryReader { proxy in
+                WindowColumn(model: model, progress: collapsed ? 1 : 0, height: proxy.size.height)
             }
-        }
-        .listStyle(.sidebar)
-        .safeAreaInset(edge: .bottom) {
-            if model.isDemo {
-                Label(L10n.text("Simulation"), systemImage: "testtube.2")
-                    .font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading).padding(14)
-            }
+            .ignoresSafeArea()
         }
     }
-
-    private func mark(_ section: InfoSection) -> (color: Color, label: String)? { WindowSidebarMark.mark(section, model: model) }
 }
 
-/// Attention dots shared by the sidebar and the rail.
+/// The page title in the toolbar, kept beside the column: a leading gap that follows the column's width through the
+/// motion (system title style).
+@MainActor struct WindowPageTitle: View, Animatable {
+    let model: TilveroModel
+    var progress: Double
+    @Environment(\.appearsActive) private var active
+
+    nonisolated var animatableData: Double {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Color.clear.frame(width: max(0, WindowColumn.inset(progress: progress) + WindowTheme.pagePadding.leading
+                                         - WindowColumn.titleMinX), height: 1)
+            Text(WindowSection.entry(model.navigation.section).title)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(active ? .primary : .tertiary)
+                .lineLimit(1).fixedSize()
+        }
+        .accessibilityHidden(true)   // the window title carries it
+    }
+}
+
+/// The glass column. Animatable: the body runs every frame of the toggle, so names fade in the first half and the
+/// dividers appear in the second. Its own view: telemetry does not re-render it (only the section, the attention marks
+/// and the progress are read).
+@MainActor struct WindowColumn: View, Animatable {
+    let model: TilveroModel
+    var progress: Double          // 0 = full column, 1 = icon rail
+    let height: CGFloat
+
+    nonisolated var animatableData: Double {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    static let fullWidth: CGFloat = 220
+    static let railWidth: CGFloat = 60
+    static let edge: CGFloat = 8
+    static let toolbarHeight: CGFloat = 52
+    /// The title never goes under the toolbar button.
+    static let titleMinX: CGFloat = 136
+    static let motion = Animation.smooth(duration: 0.32)
+    static func width(progress: Double) -> CGFloat { railWidth + (fullWidth - railWidth) * (1 - progress) }
+    /// Leading space the page keeps free.
+    static func inset(progress: Double) -> CGFloat { edge + width(progress: progress) }
+
+    var body: some View {
+        let _ = RenderProbe.hit("WindowColumn")
+        let names = max(0, 1 - progress / 0.5)
+        let dividers = max(0, (progress - 0.5) / 0.5)
+        let width = Self.width(progress: progress)
+        let top = Self.edge + (Self.toolbarHeight - Self.edge) * progress
+        let selected = model.navigation.section
+        let railed = progress > 0.5
+        VStack(alignment: .leading, spacing: 0) {
+            WindowColumnBrand(names: names)
+            ForEach(Array(WindowSidebarGroup.allCases.enumerated()), id: \.element) { index, group in
+                if index > 0 {
+                    ZStack(alignment: .leading) {
+                        Text(group.title ?? "").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+                            .fixedSize().padding(.leading, 6).opacity(names)
+                        Divider().frame(width: 26).padding(.leading, 6).opacity(dividers)
+                    }
+                    .frame(height: 26 - 6 * progress, alignment: .bottomLeading).padding(.bottom, 4)
+                    .accessibilityHidden(names == 0)
+                }
+                ForEach(WindowSection.sections(in: group)) { entry in
+                    let mark = WindowSidebarMark.mark(entry.section, model: model)
+                    WindowColumnRow(entry: entry, selected: entry.section == selected, width: width - 22, names: names,
+                                    railed: railed, mark: mark?.color, markLabel: mark?.label) {
+                        model.navigation.navigate(to: .section(entry.section))
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+            if model.isDemo {
+                Label(L10n.text("Simulation"), systemImage: "testtube.2").labelStyle(.titleAndIcon)
+                    .font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary).fixedSize()
+                    .opacity(names).padding(.leading, 6).padding(.bottom, 14)
+            }
+        }
+        .padding(.top, (Self.toolbarHeight - Self.edge) * (1 - progress))   // clears the traffic lights at full height
+        .padding(.horizontal, 11)
+        .frame(width: width, height: max(0, height - top - Self.edge), alignment: .topLeading)
+        .clipped()
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .padding(.leading, Self.edge).padding(.top, top)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("sidebar")
+    }
+}
+
+/// The wave in the icon column and «Tilvero» beside it (the name fades with the section names).
+struct WindowColumnBrand: View {
+    let names: Double
+    var body: some View {
+        HStack(spacing: 10) {
+            TilveroEnergyMark().stroke(WindowTheme.accent, style: StrokeStyle(lineWidth: 2.6, lineCap: .round))
+                .frame(width: 30, height: 16).frame(width: 38)
+            Text(AppIdentity.displayName).font(.system(size: 20, weight: .semibold)).fixedSize().opacity(names)
+        }
+        .frame(height: 30).padding(.top, 14).padding(.bottom, 12)
+        .accessibilityElement().accessibilityLabel(AppIdentity.displayName).accessibilityAddTraits(.isHeader)
+        .accessibilityIdentifier("sidebar.brand")
+    }
+}
+
+/// One section: green icon in a fixed column, name, the neutral grey selection plate (owner decision 2026-11-20). On
+/// the rail the attention dot moves onto the icon and the name becomes the tooltip.
+@MainActor struct WindowColumnRow: View {
+    let entry: WindowSection
+    let selected: Bool
+    let width: CGFloat
+    let names: Double
+    let railed: Bool
+    var mark: Color?
+    var markLabel: String?
+    let action: @MainActor () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: entry.symbol).font(.system(size: 16)).foregroundStyle(WindowTheme.accent)
+                    .frame(width: 38, height: 34)
+                    .overlay(alignment: .topTrailing) {
+                        if let mark, railed { Circle().fill(mark).frame(width: 7, height: 7).offset(x: -3, y: 4) }
+                    }
+                Text(entry.title).font(.system(size: 13.5)).foregroundStyle(.primary).lineLimit(1).fixedSize()
+                    .opacity(names)
+                Spacer(minLength: 4)
+                if let mark, !railed { Circle().fill(mark).frame(width: 7, height: 7).padding(.trailing, 10).opacity(names) }
+            }
+            .frame(width: max(38, width), alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.primary.opacity(selected ? WindowTheme.sidebarSelectionOpacity : 0)))
+            .clipped()
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.vertical, 2)
+        .help(railed ? entry.title : "")
+        .keyboardShortcut(Self.shortcut(entry), modifiers: .command)
+        .accessibilityLabel(entry.title)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityValue(markLabel ?? "")
+        .accessibilityIdentifier("sidebar." + entry.section.rawValue)
+    }
+
+    /// ⌘1…⌘9 follow the column order (Go menu equivalents).
+    static func shortcut(_ entry: WindowSection) -> KeyEquivalent {
+        KeyEquivalent(Character(String(WindowSection.shortcutIndex(entry.section) ?? 0)))
+    }
+}
+
+/// Attention dots on the column's sections.
 @MainActor enum WindowSidebarMark {
     /// Orange dot on Diagnostics (charge attention, recovery required); dot on Settings when an update is available.
     /// The dot is never colour alone: VoiceOver reads its label as the row's value.
@@ -87,136 +236,6 @@ import PowerCore
             return model.updates.newerRelease.map { (WindowTheme.accent, String(format: L10n.text("New version %@"), String($0.tag.dropFirst()))) }
         default: return nil
         }
-    }
-}
-
-/// The collapsed sidebar: a floating glass rail with the wave on top and one icon per section, grouped like the
-/// sidebar. Its own view, so telemetry does not re-render it (only the section and the attention marks are read).
-@MainActor struct WindowRail: View {
-    let model: TilveroModel
-    /// Leading space the page keeps free while the rail floats over the canvas.
-    static let reservedWidth: CGFloat = 72
-    static let width: CGFloat = 58
-
-    var body: some View {
-        let _ = RenderProbe.hit("WindowRail")
-        let selected = model.navigation.section
-        VStack(spacing: 0) {
-            TilveroEnergyMark().stroke(WindowTheme.accent, style: StrokeStyle(lineWidth: 2.6, lineCap: .round))
-                .frame(width: 30, height: 16).padding(.top, 14).padding(.bottom, 18)
-                .accessibilityElement().accessibilityLabel(AppIdentity.displayName).accessibilityAddTraits(.isHeader)
-                .accessibilityIdentifier("rail.brand")
-            ForEach(Array(WindowSidebarGroup.allCases.enumerated()), id: \.element) { index, group in
-                if index > 0 { Divider().frame(width: 26).padding(.vertical, 8) }
-                ForEach(WindowSection.sections(in: group)) { entry in
-                    let mark = WindowSidebarMark.mark(entry.section, model: model)
-                    WindowRailButton(entry: entry, selected: entry.section == selected, mark: mark?.color, markLabel: mark?.label) {
-                        model.navigation.navigate(to: .section(entry.section))
-                    }
-                }
-            }
-        }
-        .frame(width: Self.width)
-        .padding(.bottom, 12)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .padding(.leading, 10).padding(.top, 52)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("rail")
-    }
-}
-
-/// One rail icon: the sidebar's grey selection plate, a tooltip with the section name, the same ⌘1…⌘9 shortcut.
-@MainActor struct WindowRailButton: View {
-    let entry: WindowSection
-    let selected: Bool
-    var mark: Color?
-    var markLabel: String?
-    let action: @MainActor () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            ZStack(alignment: .topTrailing) {
-                Image(systemName: entry.symbol).font(.system(size: 16)).foregroundStyle(WindowTheme.accent)
-                    .frame(width: 38, height: 34)
-                    .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .fill(Color.primary.opacity(selected ? WindowTheme.sidebarSelectionOpacity : 0)))
-                if let mark {
-                    Circle().fill(mark).frame(width: 7, height: 7).offset(x: -3, y: 4).accessibilityHidden(true)
-                }
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .padding(.vertical, 2)
-        .help(entry.title)
-        .keyboardShortcut(WindowSidebarRow.shortcut(entry), modifiers: .command)
-        .accessibilityLabel(entry.title)
-        .accessibilityAddTraits(selected ? .isSelected : [])
-        .accessibilityValue(markLabel ?? "")
-        .accessibilityIdentifier("rail." + entry.section.rawValue)
-    }
-}
-
-/// «Tilvero» with the energy mark above the sections, as the previous window's sidebar had it.
-struct WindowSidebarBrand: View {
-    var body: some View {
-        HStack(spacing: 7) {
-            Text(AppIdentity.displayName).font(.system(size: 22, weight: .semibold)).foregroundStyle(.primary)
-            TilveroEnergyMark().stroke(WindowTheme.accent, style: StrokeStyle(lineWidth: 2.4, lineCap: .round))
-                .frame(width: 33, height: 18).accessibilityHidden(true)
-        }
-        .padding(.top, 2).padding(.bottom, 8)
-        .listRowInsets(EdgeInsets(top: 0, leading: 10, bottom: 0, trailing: 8))
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isHeader)
-        .accessibilityIdentifier("sidebar.brand")
-    }
-}
-
-/// One sidebar row. Selection is a neutral grey plate (owner decision 2026-11-20), icons green, text primary.
-@MainActor struct WindowSidebarRow: View {
-    let entry: WindowSection
-    let selected: Bool
-    var mark: Color?
-    var markLabel: String?
-    let action: @MainActor () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 0) {
-                Label {
-                    Text(entry.title).foregroundStyle(.primary).lineLimit(1)
-                } icon: {
-                    Image(systemName: entry.symbol).foregroundStyle(WindowTheme.accent)
-                }
-                Spacer(minLength: 4)
-                if let mark {
-                    Circle().fill(mark).frame(width: 7, height: 7).accessibilityHidden(true)
-                }
-            }
-            .padding(.vertical, 5).padding(.horizontal, 8)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(Color.primary.opacity(selected ? WindowTheme.sidebarSelectionOpacity : 0))
-            }
-            .contentShape(Rectangle())
-            .padding(.horizontal, -8)   // the plate spans the sidebar like the approved render
-        }
-        .buttonStyle(.plain)
-        .listRowInsets(EdgeInsets(top: 1, leading: 8, bottom: 1, trailing: 8))
-        .keyboardShortcut(shortcut, modifiers: .command)
-        .accessibilityAddTraits(selected ? .isSelected : [])
-        .accessibilityValue(markLabel ?? "")
-        .accessibilityIdentifier("sidebar." + entry.section.rawValue)
-    }
-}
-
-extension WindowSidebarRow {
-    /// ⌘1…⌘9 follow the sidebar order (Go menu equivalents).
-    var shortcut: KeyEquivalent { Self.shortcut(entry) }
-    static func shortcut(_ entry: WindowSection) -> KeyEquivalent {
-        KeyEquivalent(Character(String(WindowSection.shortcutIndex(entry.section) ?? 0)))
     }
 }
 

@@ -133,9 +133,7 @@ import PowerCore
                               backing: .buffered, defer: false)
         MainWindowController.configure(window)
         let root = WindowThemeResolver {
-            NavigationSplitView {
-                WindowSidebar(model: model).navigationSplitViewColumnWidth(min: 190, ideal: 200, max: 240)
-            } detail: {
+            WindowShell(model: model) {
                 HistoryPage(model: model)
                     .background { WindowCanvas().ignoresSafeArea() }
                     .tint(WindowTheme.accent)

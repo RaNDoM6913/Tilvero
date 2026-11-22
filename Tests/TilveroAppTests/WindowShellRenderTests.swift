@@ -151,32 +151,35 @@ import PowerPersistence
         XCTAssertNil(model.nativeCharge.observed)
     }
 
-    /// Collapsing the sidebar leaves the floating icon rail (variant B); opening it again brings the full sidebar back.
-    func testCollapsedSidebarLeavesTheRail() async throws {
+    /// Variant C: the glass column narrows to the icon rail and back; the page keeps the column's width free; the
+    /// choice is remembered across launches.
+    func testGlassColumnCollapsesToRail() async throws {
+        XCTAssertEqual(WindowColumn.inset(progress: 0), 228)
+        XCTAssertEqual(WindowColumn.inset(progress: 1), 68)
         let fixture = try await WindowFixture.make()
         defer { fixture.cleanup() }
         let model = fixture.model
         model.navigation.navigate(to: .section(.overview))
+        XCTAssertFalse(model.navigation.sidebarCollapsed, "a new install opens with the full column")
+        RenderProbe.isEnabled = true; RenderProbe.reset()
+        defer { RenderProbe.isEnabled = false }
         let window = MainWindowController.makeWindow(model: model, remembersFrame: false)
         defer { window.close() }
         window.orderFront(nil)
         await spin(0.5)
+        XCTAssertGreaterThanOrEqual(RenderProbe.counts["WindowColumn"] ?? 0, 1)
+        // No system split view any more: the column is ours.
         func views(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(views) }
-        let controller = try XCTUnwrap(views(window.contentView!).compactMap { $0.nextResponder as? NSSplitViewController }.first)
-        RenderProbe.isEnabled = true; RenderProbe.reset()
-        defer { RenderProbe.isEnabled = false }
-        XCTAssertEqual(RenderProbe.counts["WindowRail"] ?? 0, 0, "no rail while the sidebar is open")
-        controller.toggleSidebar(nil)
-        await spin(1.0)
-        XCTAssertTrue(controller.splitViewItems.first?.isCollapsed ?? false)
-        XCTAssertGreaterThanOrEqual(RenderProbe.counts["WindowRail"] ?? 0, 1)
-        // A rail icon drives the same router as a sidebar row.
+        XCTAssertNil(views(window.contentView!).compactMap { $0.nextResponder as? NSSplitViewController }.first)
+        RenderProbe.reset()
+        withAnimation(WindowColumn.motion) { model.navigation.sidebarCollapsed = true }
+        await spin(0.8)
+        XCTAssertGreaterThan(RenderProbe.counts["WindowColumn"] ?? 0, 1, "the column redraws through the motion")
+        XCTAssertTrue(AppNavigation(preferences: fixture.defaults).sidebarCollapsed)
         model.navigation.navigate(to: .section(.cooling))
-        await spin(0.3)
         XCTAssertEqual(model.navigation.section, .cooling)
-        controller.toggleSidebar(nil)
-        await spin(1.0)
-        XCTAssertFalse(controller.splitViewItems.first?.isCollapsed ?? true)
+        model.navigation.sidebarCollapsed = false
+        XCTAssertFalse(AppNavigation(preferences: fixture.defaults).sidebarCollapsed)
     }
 
     /// The Overview Hour chart subscribes to live charts only while it is shown in a visible window: another page

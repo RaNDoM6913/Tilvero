@@ -31,11 +31,16 @@ enum AppDestination: Hashable, Sendable {
 /// remembered across launches (`lastSection`); sub-pages start on their first page each launch.
 @MainActor @Observable final class AppNavigation {
     static let lastSectionKey = "lastSection"
+    static let sidebarCollapsedKey = "windowSidebarCollapsed"
 
     private(set) var section: InfoSection
     var settingsPage: SettingsPage = .general
     var sleepPage: SleepPage = .timer
     var batteryMode: BatteryMode = .summary
+    /// The window's glass column narrowed to the icon rail; remembered across launches.
+    var sidebarCollapsed: Bool {
+        didSet { if sidebarCollapsed != oldValue { preferences.set(sidebarCollapsed, forKey: Self.sidebarCollapsedKey) } }
+    }
 
     /// Shows the details window; set by the app delegate (nil in tests and previews).
     @ObservationIgnored var presentDetails: (@MainActor () -> Void)?
@@ -46,6 +51,7 @@ enum AppDestination: Hashable, Sendable {
     init(preferences: UserDefaults) {
         self.preferences = preferences
         section = InfoSection(rawValue: preferences.string(forKey: Self.lastSectionKey) ?? "") ?? .overview
+        sidebarCollapsed = preferences.bool(forKey: Self.sidebarCollapsedKey)
     }
 
     /// Selects `destination` in the details window without showing the window.

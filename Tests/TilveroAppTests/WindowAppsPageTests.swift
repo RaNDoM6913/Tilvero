@@ -184,16 +184,14 @@ private actor AppsProcessFixture {
         model.language = language
     }
 
-    /// The page inside the production chrome: configured window, split view with the real sidebar, canvas, tint.
+    /// The page inside the production chrome: configured window, the real glass column, canvas, tint.
     private func makeWindow(model: TilveroModel, dark: Bool) -> NSWindow {
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: MainWindowController.defaultSize),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                               backing: .buffered, defer: false)
         MainWindowController.configure(window)
         let root = WindowThemeResolver {
-            NavigationSplitView {
-                WindowSidebar(model: model).navigationSplitViewColumnWidth(min: 190, ideal: 200, max: 240)
-            } detail: {
+            WindowShell(model: model) {
                 AppsPage(model: model).background { WindowCanvas().ignoresSafeArea() }.tint(WindowTheme.accent)
             }
         }
