@@ -58,6 +58,9 @@ import PowerCore
     let model: TilveroModel
     var progress: Double
     @Environment(\.appearsActive) private var active
+    /// Where AppKit actually placed this toolbar item, in window points (measured: it differs between windows and
+    /// states, so a fixed guess put the title against the column).
+    @State private var itemX: CGFloat?
 
     nonisolated var animatableData: Double {
         get { progress }
@@ -65,15 +68,48 @@ import PowerCore
     }
 
     var body: some View {
+        let target = WindowColumn.inset(progress: progress) + WindowTheme.pagePadding.leading
         HStack(spacing: 0) {
-            Color.clear.frame(width: max(0, WindowColumn.inset(progress: progress) + WindowTheme.pagePadding.leading
-                                         - WindowColumn.titleItemX), height: 1)
+            Color.clear.frame(width: max(0, target - (itemX ?? WindowColumn.titleItemX)), height: 1)
             Text(WindowSection.entry(model.navigation.section).title)
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(active ? .primary : .tertiary)
                 .lineLimit(1).fixedSize()
         }
+        .fixedSize()
+        .background(alignment: .leading) {
+            WindowXReader { x in if itemX != x { itemX = x } }.frame(width: 1, height: 1)
+        }
         .accessibilityHidden(true)   // the window title carries it
+    }
+}
+
+/// Reports its own leading x in window coordinates whenever AppKit lays it out or moves it to a window.
+struct WindowXReader: NSViewRepresentable {
+    let report: @MainActor (CGFloat) -> Void
+    func makeNSView(context: Context) -> ReaderView { ReaderView(report: report) }
+    func updateNSView(_ view: ReaderView, context: Context) { view.report = report; view.measure() }
+
+    final class ReaderView: NSView {
+        var report: @MainActor (CGFloat) -> Void
+        private var last: CGFloat?
+        init(report: @escaping @MainActor (CGFloat) -> Void) {
+            self.report = report
+            super.init(frame: .zero)
+            postsFrameChangedNotifications = true
+        }
+        required init?(coder: NSCoder) { nil }
+        override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); measure() }
+        override func layout() { super.layout(); measure() }
+        override func setFrameOrigin(_ newOrigin: NSPoint) { super.setFrameOrigin(newOrigin); measure() }
+        func measure() {
+            guard window != nil else { return }
+            let x = (convert(bounds, to: nil).minX).rounded()
+            guard x != last else { return }
+            last = x
+            let report = self.report
+            DispatchQueue.main.async { report(x) }
+        }
     }
 }
 
