@@ -109,10 +109,9 @@ import PowerPersistence
         XCTAssertFalse(source.contains("ViewThatFits {") || source.contains("ViewThatFits(in"))
     }
 
-    /// Sub-page tabs sit in the page (`WindowTabbedPage`), not in the toolbar: a principal toolbar picker went into the
-    /// overflow menu while the sidebar was open (Settings › Quick menu could not be found) and re-laid out the toolbar on
-    /// every switch (Battery lag). All data builds its rows lazily.
-    func testSubPageTabsLiveInThePage() throws {
+    /// Sub-page tabs are the toolbar's segmented picker in the title row, like the Overview range picker (owner
+    /// 2026-11-23); no principal item (it went into the overflow beside the system sidebar). All data builds lazily.
+    func testSubPageTabsLiveInTheToolbar() throws {
         func source(_ name: String) throws -> String {
             try String(contentsOf: URL(fileURLWithPath: #filePath).deletingLastPathComponent()
                 .appendingPathComponent("../../Sources/TilveroApp/\(name).swift").standardizedFileURL, encoding: .utf8)
@@ -120,10 +119,12 @@ import PowerPersistence
         for name in ["BatteryPage", "SleepDrainPage", "SettingsPage"] {
             let text = try source(name)
             XCTAssertTrue(text.contains("WindowTabbedPage {"), name)
-            XCTAssertFalse(text.contains("placement: .principal"), name)
-            // The glass capsule the toolbar gave the tabs before (owner 2026-11-22), not a flat segmented control.
             XCTAssertTrue(text.contains("WindowPageTabs("), name)
+            XCTAssertFalse(text.contains("placement: .principal"), name)
         }
+        let kit = try source("WindowKit")
+        XCTAssertTrue(kit.contains("ToolbarItem(placement: .primaryAction) { tabs() }"))
+        XCTAssertTrue(kit.contains(".pickerStyle(.segmented)"))
         XCTAssertTrue(try source("BatteryCatalogPage").contains("LazyVStack"))
     }
 
@@ -180,6 +181,39 @@ import PowerPersistence
         XCTAssertEqual(model.navigation.section, .cooling)
         model.navigation.sidebarCollapsed = false
         XCTAssertFalse(AppNavigation(preferences: fixture.defaults).sidebarCollapsed)
+    }
+
+    /// At the minimum width, with the column open and the longest set (five Russian Settings tabs), the tabs stay in
+    /// the toolbar instead of the overflow menu.
+    func testSettingsTabsFitTheToolbarAtMinimumWidth() async throws {
+        let fixture = try await WindowFixture.make()
+        defer { fixture.cleanup() }
+        let model = fixture.model
+        setLanguage("ru", model: model)
+        let root = WindowThemeResolver {
+            WindowShell(model: model) {
+                WindowTabbedPage { SettingsTabPicker(selection: .constant(.general), tabs: SettingsPage.allCases) } content: {
+                    Color.clear
+                }
+                .navigationTitle(WindowSection.entry(.settings).title)
+            }
+        }.environment(\.locale, L10n.locale).font(.system(size: 13))
+        let size = MainWindowController.minimumSize
+        let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
+                              styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+                              backing: .buffered, defer: false)
+        MainWindowController.configure(window)
+        let host = NSHostingView(rootView: root)
+        host.sceneBridgingOptions = [.title, .toolbars]
+        host.sizingOptions = []
+        window.contentView = host
+        window.setFrame(NSRect(origin: .zero, size: size), display: true)
+        window.orderFront(nil)
+        defer { window.close() }
+        await spin(0.8)
+        func views(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(views) }
+        let tabs = views(window.contentView!.superview!).compactMap { $0 as? NSSegmentedControl }.filter { $0.segmentCount == 5 }
+        XCTAssertTrue(tabs.contains { !$0.isHiddenOrHasHiddenAncestor && $0.frame.width > 0 }, "tabs went into the overflow")
     }
 
     /// The Overview Hour chart subscribes to live charts only while it is shown in a visible window: another page

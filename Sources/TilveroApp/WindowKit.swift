@@ -17,57 +17,31 @@ struct WindowCanvas: View {
     }
 }
 
-/// A page with sub-page tabs centred above its content (Battery, Sleep & drain, Settings). The tabs live in the page,
-/// not the toolbar: a toolbar picker went into the overflow menu whenever the sidebar took the width, and every switch
-/// re-laid out the whole toolbar (≈ 50 ms in a debug build).
+/// A page with sub-page tabs (Battery, Sleep & drain, Settings). The tabs are a toolbar item in the title row, the same
+/// control and place as the Overview range picker (owner 2026-11-23). The glass column leaves the toolbar the window's
+/// full width, so the tabs no longer fall into the overflow menu as they did beside the system sidebar.
 struct WindowTabbedPage<Tabs: View, Content: View>: View {
     @ViewBuilder var tabs: () -> Tabs
     @ViewBuilder var content: () -> Content
     var body: some View {
-        VStack(spacing: 0) {
-            tabs().frame(maxWidth: .infinity).padding(.top, 6).padding(.bottom, 12)
-            content().frame(maxHeight: .infinity, alignment: .top)
-        }
+        content()
+            .frame(maxHeight: .infinity, alignment: .top)
+            .toolbar { ToolbarItem(placement: .primaryAction) { tabs() } }
     }
 }
 
-/// Sub-page tabs in the look the toolbar gave them before (owner 2026-11-22): a glass capsule with a grey capsule on the
-/// chosen tab. It sits in the page, so it never falls into the toolbar overflow when the sidebar takes the width.
+/// Sub-page tabs: the system segmented picker exactly as the Overview range picker uses it in the toolbar.
 struct WindowPageTabs<Value: Hashable & Identifiable>: View {
     let label: String
     @Binding var selection: Value
     let values: [Value]
     let title: (Value) -> String
-    @Namespace private var plate
-    @Environment(\.appearsActive) private var active
 
     var body: some View {
-        HStack(spacing: 2) {
-            ForEach(values) { value in
-                let on = value == selection
-                Button { selection = value } label: {
-                    // Like the toolbar control: every label in the label colour while the window is active.
-                    Text(title(value)).font(.system(size: 13)).lineLimit(1)
-                        .foregroundStyle(active ? Color.primary : Color.secondary)
-                        .padding(.horizontal, 14).frame(height: 28)
-                        .background {
-                            if on {
-                                Capsule().fill(Color.primary.opacity(0.09)).matchedGeometryEffect(id: "plate", in: plate)
-                            }
-                        }
-                        .contentShape(Capsule())
-                }
-                .buttonStyle(.plain)
-                .focusEffectDisabled()
-                .accessibilityAddTraits(on ? .isSelected : [])
-            }
+        Picker(label, selection: $selection) {
+            ForEach(values) { Text(title($0)).tag($0) }
         }
-        .padding(4)
-        .glassEffect(.regular.interactive(), in: Capsule())
-        .fixedSize()
-        .animation(.smooth(duration: 0.2), value: selection)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(label)
+        .pickerStyle(.segmented).fixedSize().labelsHidden()
     }
 }
 

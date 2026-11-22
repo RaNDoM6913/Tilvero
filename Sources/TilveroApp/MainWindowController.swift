@@ -11,7 +11,8 @@ import PowerCore
 /// the system.
 @MainActor enum MainWindowController {
     static let defaultSize = NSSize(width: 1000, height: 720)
-    static let minimumSize = NSSize(width: 880, height: 560)
+    /// 940 pt wide: the five Settings tabs in Russian (570 pt) fit in the toolbar beside the open column and title.
+    static let minimumSize = NSSize(width: 940, height: 560)
     static let frameName = "TilveroMainWindow.v2"
 
     /// - remembersFrame: false in tests, so no window frame is written to the test runner's defaults.
