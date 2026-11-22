@@ -5,18 +5,29 @@ import SwiftUI
 import PowerCore
 
 /// The redesigned main window (direction C, behind `FeatureFlags.newWindow`): stock `NavigationSplitView`, system
-/// sidebar, unified toolbar with the page title. Pages not rebuilt yet host the previous page body.
+/// sidebar, unified toolbar with the page title. A collapsed sidebar leaves a floating glass rail of section icons
+/// (variant B, owner choice 2026-11-22); the system toolbar button opens the full sidebar again.
 @MainActor struct MainWindowView: View {
     let model: TilveroModel
+    @State private var columns: NavigationSplitViewVisibility = .all
 
     var body: some View {
         let _ = RenderProbe.hit("MainWindowView")
+        let collapsed = columns == .detailOnly
         WindowThemeResolver {
-            NavigationSplitView {
+            NavigationSplitView(columnVisibility: $columns) {
                 WindowSidebar(model: model)
                     .navigationSplitViewColumnWidth(min: 190, ideal: 200, max: 240)
             } detail: {
                 WindowDetail(model: model)
+                    .safeAreaPadding(.leading, collapsed ? WindowRail.reservedWidth : 0)
+                    .overlay(alignment: .topLeading) {
+                        if collapsed {
+                            WindowRail(model: model)
+                                .transition(.opacity.combined(with: .move(edge: .leading)))
+                        }
+                    }
+                    .animation(.smooth(duration: 0.25), value: collapsed)
             }
         }
         .environment(\.locale, L10n.locale)
@@ -58,9 +69,14 @@ import PowerCore
         }
     }
 
+    private func mark(_ section: InfoSection) -> (color: Color, label: String)? { WindowSidebarMark.mark(section, model: model) }
+}
+
+/// Attention dots shared by the sidebar and the rail.
+@MainActor enum WindowSidebarMark {
     /// Orange dot on Diagnostics (charge attention, recovery required); dot on Settings when an update is available.
     /// The dot is never colour alone: VoiceOver reads its label as the row's value.
-    private func mark(_ section: InfoSection) -> (color: Color, label: String)? {
+    static func mark(_ section: InfoSection, model: TilveroModel) -> (color: Color, label: String)? {
         switch section {
         case .diagnostics:
             guard !model.isDemo else { return nil }
@@ -71,6 +87,73 @@ import PowerCore
             return model.updates.newerRelease.map { (WindowTheme.accent, String(format: L10n.text("New version %@"), String($0.tag.dropFirst()))) }
         default: return nil
         }
+    }
+}
+
+/// The collapsed sidebar: a floating glass rail with the wave on top and one icon per section, grouped like the
+/// sidebar. Its own view, so telemetry does not re-render it (only the section and the attention marks are read).
+@MainActor struct WindowRail: View {
+    let model: TilveroModel
+    /// Leading space the page keeps free while the rail floats over the canvas.
+    static let reservedWidth: CGFloat = 72
+    static let width: CGFloat = 58
+
+    var body: some View {
+        let _ = RenderProbe.hit("WindowRail")
+        let selected = model.navigation.section
+        VStack(spacing: 0) {
+            TilveroEnergyMark().stroke(WindowTheme.accent, style: StrokeStyle(lineWidth: 2.6, lineCap: .round))
+                .frame(width: 30, height: 16).padding(.top, 14).padding(.bottom, 18)
+                .accessibilityElement().accessibilityLabel(AppIdentity.displayName).accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("rail.brand")
+            ForEach(Array(WindowSidebarGroup.allCases.enumerated()), id: \.element) { index, group in
+                if index > 0 { Divider().frame(width: 26).padding(.vertical, 8) }
+                ForEach(WindowSection.sections(in: group)) { entry in
+                    let mark = WindowSidebarMark.mark(entry.section, model: model)
+                    WindowRailButton(entry: entry, selected: entry.section == selected, mark: mark?.color, markLabel: mark?.label) {
+                        model.navigation.navigate(to: .section(entry.section))
+                    }
+                }
+            }
+        }
+        .frame(width: Self.width)
+        .padding(.bottom, 12)
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .padding(.leading, 10).padding(.top, 52)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("rail")
+    }
+}
+
+/// One rail icon: the sidebar's grey selection plate, a tooltip with the section name, the same ⌘1…⌘9 shortcut.
+@MainActor struct WindowRailButton: View {
+    let entry: WindowSection
+    let selected: Bool
+    var mark: Color?
+    var markLabel: String?
+    let action: @MainActor () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            ZStack(alignment: .topTrailing) {
+                Image(systemName: entry.symbol).font(.system(size: 16)).foregroundStyle(WindowTheme.accent)
+                    .frame(width: 38, height: 34)
+                    .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(Color.primary.opacity(selected ? WindowTheme.sidebarSelectionOpacity : 0)))
+                if let mark {
+                    Circle().fill(mark).frame(width: 7, height: 7).offset(x: -3, y: 4).accessibilityHidden(true)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.vertical, 2)
+        .help(entry.title)
+        .keyboardShortcut(WindowSidebarRow.shortcut(entry), modifiers: .command)
+        .accessibilityLabel(entry.title)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityValue(markLabel ?? "")
+        .accessibilityIdentifier("rail." + entry.section.rawValue)
     }
 }
 
@@ -131,7 +214,8 @@ struct WindowSidebarBrand: View {
 
 extension WindowSidebarRow {
     /// ⌘1…⌘9 follow the sidebar order (Go menu equivalents).
-    var shortcut: KeyEquivalent {
+    var shortcut: KeyEquivalent { Self.shortcut(entry) }
+    static func shortcut(_ entry: WindowSection) -> KeyEquivalent {
         KeyEquivalent(Character(String(WindowSection.shortcutIndex(entry.section) ?? 0)))
     }
 }

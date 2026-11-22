@@ -149,6 +149,34 @@ import PowerPersistence
         XCTAssertNil(model.nativeCharge.observed)
     }
 
+    /// Collapsing the sidebar leaves the floating icon rail (variant B); opening it again brings the full sidebar back.
+    func testCollapsedSidebarLeavesTheRail() async throws {
+        let fixture = try await WindowFixture.make()
+        defer { fixture.cleanup() }
+        let model = fixture.model
+        model.navigation.navigate(to: .section(.overview))
+        let window = MainWindowController.makeWindow(model: model, remembersFrame: false)
+        defer { window.close() }
+        window.orderFront(nil)
+        await spin(0.5)
+        func views(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(views) }
+        let controller = try XCTUnwrap(views(window.contentView!).compactMap { $0.nextResponder as? NSSplitViewController }.first)
+        RenderProbe.isEnabled = true; RenderProbe.reset()
+        defer { RenderProbe.isEnabled = false }
+        XCTAssertEqual(RenderProbe.counts["WindowRail"] ?? 0, 0, "no rail while the sidebar is open")
+        controller.toggleSidebar(nil)
+        await spin(1.0)
+        XCTAssertTrue(controller.splitViewItems.first?.isCollapsed ?? false)
+        XCTAssertGreaterThanOrEqual(RenderProbe.counts["WindowRail"] ?? 0, 1)
+        // A rail icon drives the same router as a sidebar row.
+        model.navigation.navigate(to: .section(.cooling))
+        await spin(0.3)
+        XCTAssertEqual(model.navigation.section, .cooling)
+        controller.toggleSidebar(nil)
+        await spin(1.0)
+        XCTAssertFalse(controller.splitViewItems.first?.isCollapsed ?? true)
+    }
+
     /// The Overview Hour chart subscribes to live charts only while it is shown in a visible window: another page
     /// releases it and a hidden window reads nothing. (Day/Week drop the `.liveCharts` view entirely; DEMO never
     /// samples by `wantsLiveCharts`.)
