@@ -7,9 +7,9 @@ import Darwin
 
 final class LaboratoryRuntimeTests: XCTestCase {
     @MainActor func testMonitoringPolicyReachesEveryModelControlAndQuitDoesNotAcquireOwnership() async throws {
-        let suite = "LabMonitoring-\(UUID())", preferences = UserDefaults(suiteName: suite)!
+        let suite = TestDefaults.name("LabMonitoring"), preferences = TestDefaults.defaults(suite)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("LabMonitoring-\(UUID())")
-        defer { preferences.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         let policy = AppLaunchPolicy.resolve(metadata: [:], arguments: ["--monitor-only"])
         let awake = MonitoringAwakeDriver(), timer = MonitoringSleepDriver()
         let model = TilveroModel(isDemo: false, launchPolicy: policy, preferences: preferences,

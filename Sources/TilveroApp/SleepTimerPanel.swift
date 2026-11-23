@@ -47,7 +47,7 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
 }
 
 @MainActor struct SleepControlsPanel: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     var compact = false
     @State private var quickPage: SleepPage = .timer
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -58,7 +58,7 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
         #if TILVERO_LAB_STUDIO
         if let route = studioCaptureRoute { return .constant(route.sleepPage) }
         #endif
-        return compact ? $quickPage : $model.selectedSleepPage
+        return compact ? $quickPage : Bindable(model.navigation).sleepPage
     }
     private var presentedPage: SleepPage { pageSelection.wrappedValue }
     var body: some View {
@@ -105,7 +105,7 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
 }
 
 @MainActor struct SleepTimerPanel: View {
-    @ObservedObject var model: TilveroModel
+    @Bindable var model: TilveroModel
     var compact = false
     @State private var error: String?
     @State private var confirmsSwitch = false
@@ -261,7 +261,7 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
 }
 
 @MainActor struct SleepTimerActiveRow: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     var open: (@MainActor () -> Void)? = nil
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { tick in
@@ -269,7 +269,7 @@ struct SleepTimerPrimaryStyle: ButtonStyle {
             HStack(spacing: 10) {
                 Button {
                     if let open { open() }
-                    else { model.selectedSleepPage = .timer; model.selectedSection = .sleep; model.openDetails?() }
+                    else { model.navigation.open(.sleep(.timer)) }
                 } label: {
                     HStack(spacing: 9) {
                         Image(systemName: "moon.zzz.fill").foregroundStyle(Color.accentColor)

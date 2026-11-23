@@ -15,8 +15,8 @@ import XCTest
         XCTAssertEqual(ChargeOnceRule.decide(previous: 85, observedTarget: 90, percent: 100, isCharging: false, externalPower: false), .drop, "The user's own choice wins, nothing is written.")
     }
     func testStorePersistsAndIgnoresInvalidValues() {
-        let suite = "TilveroChargeOnce-\(UUID())", defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name("ChargeOnce"), defaults = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         XCTAssertFalse(ChargeOnceStore(preferences: defaults).isActive)
         let store = ChargeOnceStore(preferences: defaults)
         store.begin(previous: 85)

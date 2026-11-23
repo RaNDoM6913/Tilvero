@@ -11,13 +11,14 @@ import PowerPersistence
 /// Technical metadata stays behind explicit info buttons, not in summary rails.
 @MainActor struct OverviewDashboard: View {
     @Environment(\.studioPresentation) private var studioPresentation
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     @State private var liveMetrics = OverviewLiveMetrics()
     private var level: Int? { EnergyVisualSnapshot(model.snapshot).level }
     private var chargeReading: CatalogReading? { reading("011") }
     private func reading(_ id: String) -> CatalogReading? { model.snapshot.catalog.first { $0.id == id } }
 
     var body: some View {
+        let _ = RenderProbe.hit("OverviewDashboard")
         VStack(spacing: studioPresentation.spacing(18)) {
             chargeHeader
             ViewThatFits(in: .horizontal) {
@@ -45,7 +46,7 @@ import PowerPersistence
                 }.font(.system(size: 12))
                     .help(L10n.text("macOS manages this setting independently of Tilvero."))
                 Spacer(minLength: 8)
-                StudioActionButton(L10n.text("Details"), id: "battery-summary.details") { model.selectedSection = .battery }
+                StudioActionButton(L10n.text("Details"), id: "battery-summary.details") { model.navigation.navigate(to: .section(.battery)) }
             }
         }
         .task { await refreshLiveMetrics() }
@@ -122,7 +123,7 @@ import PowerPersistence
             HStack {
                 StudioText(L10n.text("Charge over 24 hours"), id: "overview.history.title").font(.system(size: 13, weight: .semibold))
                 Spacer()
-                Button { model.selectedSection = .history } label: {
+                Button { model.navigation.navigate(to: .section(.history)) } label: {
                     Label(L10n.text("Open history"), systemImage: "chevron.right")
                 }.buttonStyle(.borderless).font(.system(size: 12))
             }

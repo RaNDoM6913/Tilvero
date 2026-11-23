@@ -81,7 +81,15 @@ and production copies together during migration.
 
 Production uses a separate store to protect prototype data. Release notes must
 state which migration paths were verified. Removing the app does not erase its
-history. Use Settings to erase history intentionally; preview exports/diagnostics
+history.
+
+Before Tilvero upgrades the history to a newer format it keeps a copy of the old
+one next to it (`History.pre-v3.sqlite`, private, removed after 30 days). An
+older Tilvero cannot read the upgraded store. To roll back: quit Tilvero, run
+`bash scripts/restore-history-backup.sh "<History.sqlite path>"` (it refuses
+while Tilvero runs and moves the upgraded files aside as `History.v3-<time>.*`,
+deleting nothing), then open the older version. Readings recorded after the
+upgrade stay only in the moved-aside store. Use Settings to erase history intentionally; preview exports/diagnostics
 before sharing them. No automatic updater is enabled.
 
 [Compatibility](COMPATIBILITY.md) · [Changelog](../CHANGELOG.md) · [License](../LICENSE)
@@ -169,6 +177,15 @@ bash scripts/run-local.sh
 
 Отдельная production-база защищает данные прототипа. Заметки выпуска должны
 указывать проверенные варианты переноса. Удаление приложения не удаляет историю.
+
+Перед переводом истории в новый формат Tilvero сохраняет рядом копию старой
+базы (`History.pre-v3.sqlite`, только для владельца, удаляется через 30 дней).
+Более старая версия Tilvero обновлённую базу не прочитает. Чтобы откатиться:
+завершите Tilvero, выполните
+`bash scripts/restore-history-backup.sh "<путь к History.sqlite>"` (скрипт
+откажется работать, пока Tilvero запущен, и отложит обновлённые файлы как
+`History.v3-<время>.*`, ничего не удаляя), затем откройте старую версию.
+Измерения после обновления останутся только в отложенной базе.
 Для намеренного удаления используйте настройки; просмотрите экспорт и диагностику
 перед передачей. Автоматическое обновление не включено.
 

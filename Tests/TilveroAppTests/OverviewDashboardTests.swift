@@ -10,9 +10,9 @@ import SwiftUI
     func testCenteredOverviewFitsNarrowAndWideWindowsWithoutApplyingControls() async throws {
         let saved = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
         defer { UserDefaults.standard.setVolatileDomain(saved, forName: UserDefaults.argumentDomain) }
-        let suite = "TilveroOverview-\(UUID())"
-        let preferences = UserDefaults(suiteName: suite)!
-        defer { preferences.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name("Overview")
+        let preferences = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         let model = TilveroModel(isDemo: true, preferences: preferences)
         defer { model.stop() }
         await model.refresh()

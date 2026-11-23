@@ -8,9 +8,9 @@ import XCTest
 
 @MainActor final class QuickPageTransitionTests: XCTestCase {
     func testSwitchingSleepPagesCompletesAndRendersACrossFadeFrame() async throws {
-        let suite = "PageAnim-\(UUID())", preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let suite = TestDefaults.name("PageAnim"), preferences = TestDefaults.defaults(suite)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("PageAnim-\(UUID())")
-        defer { preferences.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         preferences.set(false, forKey: "historyEnabled")
         let model = TilveroModel(isDemo: false, preferences: preferences, historyURL: root.appendingPathComponent("History.sqlite"),
                                  snapshotProvider: { .unavailable(reason: "fixture") })

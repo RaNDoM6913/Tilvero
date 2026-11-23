@@ -26,8 +26,8 @@ import XCTest
 
     func testTheDefaultIsTheSystemAndALegacyChoiceIsKept() throws {
         func model(_ prefs: UserDefaults) -> TilveroModel { TilveroModel(isDemo: true, preferences: prefs) }
-        let suite = "TempUnit-\(UUID())", prefs = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { prefs.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name("TempUnit"), prefs = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         XCTAssertEqual(model(prefs).temperatureUnit, .system, "Nothing chosen: follow the system.")
         // A build before this setting stored a Bool only when the user picked a unit: that pick is explicit.
         prefs.set(true, forKey: "fahrenheit")
@@ -39,8 +39,8 @@ import XCTest
     }
 
     func testChoosingAUnitPersistsAndDrivesTheFahrenheitFlag() throws {
-        let suite = "TempUnit2-\(UUID())", prefs = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { prefs.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name("TempUnit2"), prefs = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         let model = TilveroModel(isDemo: true, preferences: prefs)
         model.temperatureUnit = .fahrenheit
         XCTAssertTrue(model.fahrenheit)

@@ -48,8 +48,8 @@ final class FirstRunDecisionTests: XCTestCase {
     }
 
     func testSignalsAreReadFromPreferencesFilesAndTheLoginItem() {
-        let suite = "FirstRunSignals-\(UUID())", defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name("FirstRunSignals"), defaults = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         let history = URL(fileURLWithPath: "/tmp/tilvero-test/History.sqlite")
         XCTAssertEqual(FirstRunSignals.read(defaults: defaults, historyURL: history, fileExists: { _ in false }, loginItemEnabled: { false }), FirstRunSignals())
         defaults.set(true, forKey: SetupRuntime.reviewedKey); defaults.set(false, forKey: "historyEnabled")
@@ -58,7 +58,8 @@ final class FirstRunDecisionTests: XCTestCase {
         XCTAssertEqual(signals, FirstRunSignals(introduced: false, setupReviewed: true, historyPreferenceStored: true, historyStoreExists: true,
                                                 chargeValidationExists: true, ruleFilesExist: true, loginItemEnabled: true))
         for path in ["/etc/sudoers.d/tilvero", "/etc/sudoers.d/tilvero-lid"] {
-            XCTAssertTrue(FirstRunSignals.read(defaults: UserDefaults(suiteName: "x-\(UUID())")!, historyURL: history, fileExists: { $0 == path }, loginItemEnabled: { false }).ruleFilesExist)
+            let empty = makeTestDefaults("FirstRunRules").defaults
+            XCTAssertTrue(FirstRunSignals.read(defaults: empty, historyURL: history, fileExists: { $0 == path }, loginItemEnabled: { false }).ruleFilesExist)
         }
         FirstRunDecision.markIntroduced(defaults)
         XCTAssertTrue(FirstRunSignals.read(defaults: defaults, historyURL: history, fileExists: { _ in false }, loginItemEnabled: { false }).introduced)
@@ -777,8 +778,8 @@ final class PrivilegedPresenceTests: XCTestCase {
     }
 
     func testTheRecordRoundTripsAndTheSignatureFollowsTheFiles() {
-        let suite = "Presence-\(UUID())", defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name("Presence"), defaults = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         PrivilegedRulePresence.record([.chargeByTime, .lidClosed], in: defaults)
         XCTAssertEqual(defaults.stringArray(forKey: SudoersRules.mergedFeaturesKey), ["lidClosed", "chargeByTime"])
         PrivilegedRulePresence.record([], in: defaults)
@@ -844,8 +845,8 @@ private final class VirtualClock: @unchecked Sendable {
     private var suite = "", defaults: UserDefaults!
     private var files: Set<String> = []
     private var signature = "a"
-    override func setUp() async throws { suite = "Installer-\(UUID())"; defaults = UserDefaults(suiteName: suite); files = []; signature = "a" }
-    override func tearDown() async throws { defaults.removePersistentDomain(forName: suite) }
+    override func setUp() async throws { suite = TestDefaults.name("Installer"); defaults = TestDefaults.defaults(suite); files = []; signature = "a" }
+    override func tearDown() async throws { TestDefaults.remove(suite) }
 
     private func installer(_ executor: FakeExecutor = FakeExecutor(.succeeded), terminal: FakeTerminal = FakeTerminal(), probe: FakeProbe = FakeProbe(),
                            clock: VirtualClock = VirtualClock()) -> PrivilegedRuleInstaller {
@@ -1400,12 +1401,12 @@ final class FirstRunCopyTests: XCTestCase {
         coordinator.teardown()
     }
 }
-/// A fake process for `CancellableProcessRun`: never launches anything real.
+/// A fake process for `ProcessRunner`: never launches anything real.
 private final class FakeProcess: @unchecked Sendable {
     private let lock = NSLock()
     private(set) var launches = 0, terminations = 0
     private var finished: (@Sendable (Int32, String) -> Void)?
-    var launch: CancellableProcessRun.Launch {
+    var launch: ProcessRunner.Launch {
         { [self] done in
             lock.withLock { launches += 1; finished = done }
             return { [self] in
@@ -1417,10 +1418,10 @@ private final class FakeProcess: @unchecked Sendable {
     func exit(_ status: Int32, _ output: String) { lock.withLock { finished }?(status, output) }
 }
 
-final class CancellableProcessRunTests: XCTestCase {
+final class ProcessRunnerTests: XCTestCase {
     func testCancellingMidRunTerminatesAndFinishesAsCancelled() async throws {
         let fake = FakeProcess()
-        let task = Task { await CancellableProcessRun.run(launch: fake.launch) }
+        let task = Task { await ProcessRunner.run(launch: fake.launch) }
         for _ in 0..<100 where fake.launches == 0 { try await Task.sleep(for: .milliseconds(5)) }
         XCTAssertEqual(fake.launches, 1)
         task.cancel()
@@ -1435,17 +1436,17 @@ final class CancellableProcessRunTests: XCTestCase {
         let fake = FakeProcess()
         let task = Task {
             withUnsafeCurrentTask { $0?.cancel() }
-            return await CancellableProcessRun.run(launch: fake.launch)
+            return await ProcessRunner.run(launch: fake.launch)
         }
         let result = await task.value
         XCTAssertEqual(fake.launches, 0)
-        XCTAssertEqual(result.status, CancellableProcessRun.cancelledBeforeStart)
+        XCTAssertEqual(result.status, ProcessRunner.cancelledBeforeStart)
         XCTAssertEqual(OsascriptAdministratorExecutor.outcome(status: result.status, output: "", cancelled: false), .cancelled)
     }
 
     func testANormalExitResumesOnceWithItsResult() async throws {
         let fake = FakeProcess()
-        let task = Task { await CancellableProcessRun.run(launch: fake.launch) }
+        let task = Task { await ProcessRunner.run(launch: fake.launch) }
         for _ in 0..<100 where fake.launches == 0 { try await Task.sleep(for: .milliseconds(5)) }
         fake.exit(1, "execution error: User canceled. (-128)")
         let result = await task.value
@@ -1455,8 +1456,8 @@ final class CancellableProcessRunTests: XCTestCase {
     }
 
     func testALaunchFailureFinishes() async {
-        let result = await CancellableProcessRun.run(launch: { _ in throw CocoaError(.fileNoSuchFile) })
-        XCTAssertEqual(result.status, CancellableProcessRun.launchFailed)
+        let result = await ProcessRunner.run(launch: { _ in throw CocoaError(.fileNoSuchFile) })
+        XCTAssertEqual(result.status, ProcessRunner.launchFailed)
     }
 }
 

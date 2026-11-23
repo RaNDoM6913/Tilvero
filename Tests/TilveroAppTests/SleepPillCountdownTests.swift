@@ -41,8 +41,8 @@ final class CountdownLid: LidSleepSystem, @unchecked Sendable {
         UserDefaults.standard.set(true, forKey: "TilveroReleaseTabs")
         let service = SleepTimerService(driver: CountdownTimerTransport(), allowed: true)
         let awake = KeepAwakeService(driver: AwakeFixture())
-        let suite = "Cd\(UUID())", prefs = UserDefaults(suiteName: suite)!
-        addTeardownBlock { prefs.removePersistentDomain(forName: suite); UserDefaults.standard.removeObject(forKey: "TilveroReleaseTabs") }
+        let suite = TestDefaults.name("Cd"), prefs = TestDefaults.defaults(suite)
+        addTeardownBlock { TestDefaults.remove(suite); UserDefaults.standard.removeObject(forKey: "TilveroReleaseTabs") }
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"),
                                  keepAwakeService: awake, sleepTimerService: service, lidSleepSystem: CountdownLid())
@@ -113,9 +113,10 @@ final class CountdownLid: LidSleepSystem, @unchecked Sendable {
         assertOncePerSecond(try await changes(rig.host, during: 3.2), "after switching back to a preset", window: 3.2)
     }
     func testPillItemsCarryTheCountdownOnlyOnTheAppliedPreset() {
-        let items = SleepPillItem.items(of: [15, 30, 60], applied: .preset(30), countdown: "29:59")
+        XCTAssertEqual(QuickPresets.defaults.sleepTimer, [15, 30, 60])
+        let items = SleepPillItem.items(of: QuickPresets.defaults.sleepTimer, applied: .preset(30), countdown: "29:59")
         XCTAssertEqual(items.map(\.countdown), [nil, "29:59", nil])
-        XCTAssertNotEqual(items, SleepPillItem.items(of: [15, 30, 60], applied: .preset(30), countdown: "29:58"))
-        XCTAssertEqual(SleepPillItem.items(of: [15, 30, 60], applied: .custom, countdown: "1:00").map(\.countdown), [nil, nil, nil])
+        XCTAssertNotEqual(items, SleepPillItem.items(of: QuickPresets.defaults.sleepTimer, applied: .preset(30), countdown: "29:58"))
+        XCTAssertEqual(SleepPillItem.items(of: QuickPresets.defaults.sleepTimer, applied: .custom, countdown: "1:00").map(\.countdown), [nil, nil, nil])
     }
 }

@@ -353,7 +353,7 @@ import XCTest
         XCTAssertFalse(f.model.keepAwake.hasOwnedAssertion)
     }
 
-    func testNonPresetCustomDurationStartsAndReplacesWithConfirmedCustomIdentity() throws {
+    func testNonPresetCustomDurationStartsAndReplacesWithConfirmedCustomIdentity() async throws {
         let f = try PillFixture(); defer { f.cleanUp() }
         try SleepPillActions.awake(f.model, request: .duration(7))
         let awakeID = f.model.keepAwake.ownedAssertionID
@@ -367,6 +367,7 @@ import XCTest
         try SleepPillActions.timer(f.model, minutes: 7, custom: true)
         XCTAssertEqual(f.model.sleepTimer.remainingSeconds, 420)
         XCTAssertEqual(SleepPillActions.timerSelection(f.model), .custom)
+        await f.model.waitForHistoryWork()   // the store opens off the main actor
         XCTAssertTrue(FileManager.default.fileExists(atPath: f.root.appendingPathComponent("History.sqlite").path))
     }
 
@@ -449,10 +450,10 @@ import XCTest
     let clock: PillClock
     let model: TilveroModel
     init() throws {
-        let suite = "SleepPills-\(UUID())"
+        let suite = TestDefaults.name("SleepPills")
         self.suite = suite
         root = FileManager.default.temporaryDirectory.appendingPathComponent(suite, isDirectory: true)
-        let preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let preferences = TestDefaults.defaults(suite)
         self.preferences = preferences
         preferences.set(false, forKey: "historyEnabled")
         let clock = PillClock(), awake = AwakeFixture(), timer = PillTimerDriver()
@@ -469,7 +470,7 @@ import XCTest
         awake.failRelease = false; awake.failRead = false
         timer.failRelease = false
         model.stop()
-        preferences.removePersistentDomain(forName: suite)
+        TestDefaults.remove(suite)
         try? FileManager.default.removeItem(at: root)
     }
 }

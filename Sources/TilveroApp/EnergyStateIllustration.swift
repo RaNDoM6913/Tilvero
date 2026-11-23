@@ -102,7 +102,7 @@ struct EnergySchematicCaption: View {
 
 @MainActor struct BatteryEnergyHeading: View {
     @Environment(\.studioPresentation) private var studioPresentation
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     private var state: EnergyVisualSnapshot { .init(model.snapshot) }
     var body: some View {
         VStack(spacing: 18) {
@@ -206,7 +206,7 @@ struct PowerHeadlineReading {
 
 @MainActor struct PowerConnectionHeading: View {
     @Environment(\.studioPresentation) private var studioPresentation
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     private var state: EnergyVisualSnapshot { .init(model.snapshot) }
     var body: some View {
         VStack(spacing: 20) {

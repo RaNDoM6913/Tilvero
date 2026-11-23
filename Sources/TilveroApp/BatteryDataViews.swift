@@ -221,6 +221,9 @@ struct ReadingInfoPresentation {
         .buttonStyle(.plain)
         .foregroundStyle(.secondary)
         .focusable()
+        // Like SectionInfoButton: no focus frame (it stayed on the button after a click until the page changed);
+        // keyboard activation and the accessibility label are unchanged.
+        .focusEffectDisabled()
         .focused($buttonFocused)
         .onKeyPress(.space) { showingInfo = true; return .handled }
         .onKeyPress(.return) { showingInfo = true; return .handled }
@@ -358,7 +361,7 @@ struct ReadingInfoPresentation {
 
 /// Summary readings share the value, privacy and quality rules of their detail rows.
 @MainActor struct CatalogSummaryMetric: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     let id: String
     let title: String
     var reveal = false
@@ -398,7 +401,7 @@ struct ReadingInfoPresentation {
 }
 
 @MainActor struct BatteryDataPanel: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     var showUnavailable = true
     var reveal = false
     var options: AnyView? = nil
@@ -478,7 +481,7 @@ struct ReadingInfoPresentation {
 }
 
 @MainActor struct BatteryStateHeading: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     var body: some View {
         HStack(alignment: .center, spacing: 18) {
             Image(nsImage: NativeBatteryStatusImage.make(
@@ -497,7 +500,7 @@ struct ReadingInfoPresentation {
 }
 
 @MainActor struct PowerDataPanel: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     var showUnavailable = true
     var reveal = false
     var options: AnyView? = nil
@@ -506,6 +509,7 @@ struct ReadingInfoPresentation {
     @State private var showRecorded = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
+        let _ = RenderProbe.hit("PowerDataPanel")
         VStack(alignment: .leading, spacing: 22) {
             Picker(L10n.text("Power section"), selection: $tab) {
                 ForEach(PowerDataTab.allCases) { StudioText(L10n.text($0.title), id: "power.tab." + $0.rawValue).tag($0) }
@@ -565,12 +569,15 @@ struct ReadingInfoPresentation {
                 ChargeLimitControl(model: model).padding(.top, 10)
                 if model.canShowChargeControls {
                     HStack {
-                        StudioActionButton(L10n.text(model.isOneShotDemo ? "Cancel one-time charge" : "Charge to 100% once"), id: "charge.once") { model.toggleOneShotDemo() }.disabled(!model.canChargeToFullOnce)
+                        // The live one-time charge lives in the quick menu; this one is the simulation's.
+                        if model.isDemo {
+                            StudioActionButton(L10n.text(model.isFullChargeOnceRequested ? "Cancel one-time charge" : "Charge to 100% once"), id: "charge.once") { model.toggleSimulatedFullChargeOnce() }
+                        }
                         StudioActionButton(L10n.text("Return to system control"), id: "action.return-to-system-control") { model.releaseControl() }.disabled(!model.canReleaseCharge)
                     }.disabled(model.isApplying)
                 }
-                Label(L10n.text("Power mode") + ": " + L10n.text(ProcessInfo.processInfo.isLowPowerModeEnabled ? "Low Power" : "Automatic"), systemImage: "bolt.circle")
-                ProfilePanel(model: model)
+                Label(L10n.text("Power mode") + ": " + L10n.text(model.isLowPowerModeEnabled ? "Low Power" : "Automatic"), systemImage: "bolt.circle")
+                if model.developmentFeatures { ProfilePanel(model: model) }   // in development, like the Modes tab
             }.padding(.top, 12).padding(.bottom, 4)
         } label: {
             StudioText(L10n.text("Charging controls & modes"), id: "power.controls.title").font(.callout.weight(.medium)).foregroundStyle(.primary)

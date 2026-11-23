@@ -95,13 +95,39 @@ enum ProcessActivitySearch {
     }
 }
 
+/// How often the process table is scanned. While processes are shown, or would be the moment the popover opens (the
+/// Overview applications block is enabled, or the Activity page is on screen), every poll scans, so an opening popover
+/// already has a current sample and the block never pops in. Otherwise at most every two minutes, which still feeds the
+/// high-CPU highlights at a fraction of the cost.
+enum ProcessScanCadence {
+    /// Poll cadence: the polling loop's own sleep (5 s or 30 s) sets the pace; this only absorbs back-to-back requests.
+    static let pollInterval: TimeInterval = 2
+    static let slowInterval: TimeInterval = 120
+    /// Longest interval the sampler and the highlights count: the slow cadence, one closed-panel poll (30 s) and slack.
+    static let longestInterval: TimeInterval = 180
+    /// Between two scans made at the poll cadence a longer pause is a collection gap, not an interval.
+    static let pollGap: TimeInterval = 45
+
+    static func isDue(sinceLastScan: TimeInterval?, followsPoll: Bool, force: Bool = false) -> Bool {
+        if force { return true }
+        guard let sinceLastScan, sinceLastScan >= 0 else { return true }
+        return sinceLastScan >= (followsPoll ? pollInterval : slowInterval)
+    }
+    /// The longest interval the highlights accept for this scan: the gap rule applies only when both this scan and the
+    /// previous one were made at the poll cadence with nothing switching to the slow cadence in between.
+    static func maximumInterval(previousFollowedPoll: Bool, followsPoll: Bool) -> TimeInterval {
+        previousFollowedPoll && followsPoll ? pollGap : longestInterval
+    }
+}
+
 struct SustainedCPUActivity {
     private struct Run { var seconds: Double; var intervals: Int; var endedAt: Double }
     private var runs: [String: Run] = [:]
     mutating func reset() { runs.removeAll() }
-    mutating func accept(_ snapshot: ProcessActivitySnapshot, monotonic: Double) -> [ProcessActivityRow] {
+    /// `maximumInterval`: a longer interval is a gap and clears every run (see `ProcessScanCadence`).
+    mutating func accept(_ snapshot: ProcessActivitySnapshot, monotonic: Double, maximumInterval: Double = ProcessScanCadence.pollGap) -> [ProcessActivityRow] {
         guard !snapshot.isWarmingUp, snapshot.collectionError == nil,
-              let interval = snapshot.intervalSeconds, interval.isFinite, (0.05...45).contains(interval), monotonic.isFinite else {
+              let interval = snapshot.intervalSeconds, interval.isFinite, interval >= 0.05, interval <= maximumInterval, monotonic.isFinite else {
             reset(); return []
         }
         var next: [String: Run] = [:]
@@ -126,7 +152,7 @@ struct SustainedCPUActivity {
 }
 
 @MainActor struct ProcessActivityPanel: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     var compact = false
     var allowsNavigation = true
     @State private var search = ""
@@ -136,6 +162,7 @@ struct SustainedCPUActivity {
     @State private var expanded: Set<String> = []
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
+        let _ = RenderProbe.hit(compact ? "ProcessActivityPanel.compact" : "ProcessActivityPanel")
         if compact { compactContent } else { detailedContent }
     }
     private var compactRows: [ProcessActivityRow] {
@@ -151,7 +178,7 @@ struct SustainedCPUActivity {
                         Label(L10n.text("High CPU usage"), systemImage: "app.badge").font(.subheadline)
                         Spacer()
                         if allowsNavigation {
-                            Button { model.selectedSection = .activity; model.openDetails?() } label: { Image(systemName: "chevron.right") }
+                            Button { model.navigation.open(.section(.activity)) } label: { Image(systemName: "chevron.right") }
                                 .buttonStyle(.borderless).accessibilityLabel(L10n.text("Application details"))
                         }
                     }

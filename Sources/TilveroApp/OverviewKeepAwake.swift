@@ -9,8 +9,11 @@ import PowerCore
 /// segment shows the countdown; every start, switch and confirmation goes through `SleepPillActions`,
 /// exactly like the Keep Awake page of the Sleep tab.
 @MainActor struct OverviewKeepAwake: View {
-    static let presets = [15, 30, 60, 240]
-    @ObservedObject var model: TilveroModel
+    /// The default strip (no stored presets). Live surfaces read `model.quickPresets`; tests pin the defaults here.
+    static let presets = QuickPresets.defaults.overviewAwake
+    var model: TilveroModel
+    /// Draft presets for the editor's passive preview; `nil` reads the saved ones.
+    var presets: [Int]? = nil
     /// Opens the Sleep page. `nil` in the passive builder preview.
     var openSleep: (@MainActor () -> Void)?
     @State private var error: String?
@@ -37,7 +40,8 @@ import PowerCore
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { tick in
             let _ = tick.date   // the content must read the tick, or SwiftUI may keep the first rendering
-            let applied = SleepPillActions.awakeSelection(model)
+            // The strip's own list decides what is selected: a duration it does not list shows the remaining-time line.
+            let applied = SleepPillActions.awakeSelection(model, presets: list)
             VStack(alignment: .leading, spacing: 10) {
                 header
                 HStack(spacing: 6) {
@@ -99,7 +103,7 @@ import PowerCore
 
     private func strip(applied: SleepPillSelection?) -> some View {
         HStack(spacing: 2) {
-            ForEach(Self.presets, id: \.self) { minutes in
+            ForEach(list, id: \.self) { minutes in
                 let selected = applied == .preset(minutes)
                 Button { if selected { stopSession() } else { apply(.duration(minutes)) } } label: {
                     Group {
@@ -113,7 +117,7 @@ import PowerCore
                 }.buttonStyle(.plain)
                     .disabled(!selected && !SleepPillActions.canChooseAwake(model))
                     .help(selected ? Self.endSessionHelp : "")
-                    .accessibilityLabel(Self.label(minutes)).accessibilityAddTraits(selected ? .isSelected : [])
+                    .accessibilityLabel(PresetLabel.spokenDuration(minutes)).accessibilityAddTraits(selected ? .isSelected : [])
                     .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: selected)
             }
         }
@@ -131,10 +135,10 @@ import PowerCore
             .accessibilityLabel(label).accessibilityAddTraits(selected ? .isSelected : []).accessibilityIdentifier(id)
     }
 
-    /// 15 min, 30 min, 1 h, 4 h in the app's language.
-    static func label(_ minutes: Int) -> String {
-        minutes < 60 ? "\(minutes) " + L10n.text("min") : "\(minutes / 60) " + L10n.text("h")
-    }
+    private var list: [Int] { presets ?? model.quickPresets.presets.overviewAwake }
+
+    /// 15 min, 30 min, 1 h, 4 h in the app's language; a mixed value takes the narrow form («1 ч 30»).
+    static func label(_ minutes: Int) -> String { PresetLabel.duration(minutes, form: .narrow) }
 
     static var endSessionHelp: String { L10n.language == "ru" ? "Завершить сеанс" : "End session" }
 

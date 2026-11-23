@@ -8,7 +8,7 @@ import PowerCore
 /// timer's "Until"), the level as the overview's capsule strip with 100 as its own button, one status line. The
 /// explanations live in the info popover.
 @MainActor struct ChargeByBlock: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     @ObservedObject var service: ChargeByService
     @State private var showsWheel = false
     /// The wheel's result waits for the popover to close before it is applied (as in Keep Awake), so the pill changing

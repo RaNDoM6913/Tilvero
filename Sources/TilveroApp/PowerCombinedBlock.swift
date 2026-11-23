@@ -10,7 +10,7 @@ import PowerCore
 /// the unit), so the plot keeps the full card width. There is no caption: an absent
 /// adapter shows "—" in the legend and draws no line.
 @MainActor struct PowerCombinedBlock: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
 
     /// Pure text and drawing decisions, so wording and which lines exist are testable without a view tree.
     struct Content: Equatable {
@@ -83,10 +83,10 @@ import PowerCore
     private var batteryReading: CatalogReading? { model.snapshot.catalog.first { $0.id == "038" } }
     private var adapterReading: CatalogReading? { model.snapshot.catalog.first { $0.id == "054" } }
 
-    /// The newest minutes of the adapter line are live SMC readings; battery power is not (it stays recorded).
+    /// The newest minutes of the battery and adapter lines are live SMC readings.
     private var liveNote: String {
-        guard model.wantsLiveCharts, !model.live.tail.points(id: "054").isEmpty else { return "" }
-        return L10n.text("Newest minutes: live SMC readings, about once a second.") + "\n" + L10n.text("Battery power stays recorded once a minute.")
+        guard model.wantsLiveCharts, !model.live.tail.points(id: "038").isEmpty || !model.live.tail.points(id: "054").isEmpty else { return "" }
+        return L10n.text("Newest minutes: live SMC readings, about once a second.")
     }
 
     /// Plug + adapter watts, battery + battery watts, unit. A missing value is a muted "—"; the icons are
@@ -102,11 +102,15 @@ import PowerCore
         .help(content.legendDescription)
     }
 
+    /// The icon carries the series colour (it matches the chart line); the number stays in the primary text colour
+    /// for readability, like the values of the other Overview blocks.
     private static func legendGroup(symbol: String, value: String?, color: Color) -> some View {
         HStack(spacing: 3) {
-            Image(systemName: symbol).font(.system(size: 10)).accessibilityHidden(true)
+            Image(systemName: symbol).font(.system(size: 12)).accessibilityHidden(true)
+                .foregroundStyle(value == nil ? AnyShapeStyle(.secondary) : AnyShapeStyle(color))
             Text(value ?? "—").lineLimit(1)
-        }.foregroundStyle(value == nil ? AnyShapeStyle(.secondary) : AnyShapeStyle(color))
+                .foregroundStyle(value == nil ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
+        }
     }
 
     /// Title on the left, legend on the right; the legend is never truncated. A stale reading mutes the whole heading

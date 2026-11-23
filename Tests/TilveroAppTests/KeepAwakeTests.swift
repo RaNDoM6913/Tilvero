@@ -191,8 +191,8 @@ import XCTest
         XCTAssertEqual(driver.releaseCount, 2)
     }
     func testDurationAndCompositionPersistButOpeningPreviewNeverStartsOrRestarts() async throws {
-        let suite = "TilveroAwake-\(UUID())", prefs = UserDefaults(suiteName: suite)!
-        defer { prefs.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name("Awake"), prefs = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         let driver = AwakeFixture()
         let model = TilveroModel(isDemo: true, preferences: prefs, keepAwakeTransport: driver)
         model.keepAwakeDuration = .hour
@@ -205,9 +205,9 @@ import XCTest
         XCTAssertFalse(reopened.overviewPreferences.hidden.contains(.keepAwake))
     }
     func testTerminationFailureKeepsOwnedSessionForRetryAndNormalStopReleases() async throws {
-        let suite = "TilveroAwake-\(UUID())", prefs = UserDefaults(suiteName: suite)!
+        let suite = TestDefaults.name("Awake"), prefs = TestDefaults.defaults(suite)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         let driver = AwakeFixture()
         let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"), keepAwakeTransport: driver)
         try model.keepAwake.start(seconds: 900)

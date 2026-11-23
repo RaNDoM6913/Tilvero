@@ -2,6 +2,7 @@
 // Copyright (c) 2026 RaNDoM6913
 
 import Foundation
+import Observation
 
 /// One shipped String Catalog feeds both the SwiftPM and Xcode bundles.
 enum L10n {
@@ -9,9 +10,14 @@ enum L10n {
     private static let studioLanguage = StudioLanguagePreference()
     /// The sandbox owns its preference suite; never write the app/production
     /// domain merely to preview the actual product's language setting.
-    @discardableResult static func useStudioLanguage(_ value: String?) -> Bool { studioLanguage.set(value) }
+    @discardableResult static func useStudioLanguage(_ value: String?) -> Bool {
+        guard studioLanguage.set(value) else { return false }
+        PresentationRevision.shared.bump()
+        return true
+    }
     #endif
     static var language: String {
+        _ = PresentationRevision.shared.value   // every view showing localized text depends on the language and clock
         #if TILVERO_LAB_STUDIO
         let preference = studioLanguage.get() ?? UserDefaults.standard.string(forKey: "language") ?? "system"
         #else
@@ -43,6 +49,24 @@ enum L10n {
         return result
     }()
     static func text(_ key: String) -> String { strings[key]?[language] ?? key }
+}
+
+/// What every localized text depends on besides the model: the language and the clock (time zone, system time).
+/// `L10n.language` (and so `text` and `locale`) registers an Observation access to `value`, so a view that shows
+/// localized text or a formatted date re-renders once when either changes, as it did when every view observed the whole
+/// model. The model bumps it when the language setting changes; the app delegate on a clock or time-zone change.
+final class PresentationRevision: Observable, @unchecked Sendable {
+    static let shared = PresentationRevision()
+    private let registrar = ObservationRegistrar()
+    private let lock = NSLock()
+    private var stored: UInt64 = 0
+    var value: UInt64 {
+        registrar.access(self, keyPath: \.value)
+        return lock.withLock { stored }
+    }
+    func bump() {
+        registrar.withMutation(of: self, keyPath: \.value) { lock.withLock { stored &+= 1 } }
+    }
 }
 
 #if TILVERO_LAB_STUDIO

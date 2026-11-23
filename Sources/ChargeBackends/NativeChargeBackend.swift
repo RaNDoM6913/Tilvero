@@ -25,24 +25,62 @@ public enum NativeLimitParser {
 }
 
 public enum BoundedProcess {
+    /// Output kept from a read-only query; a longer answer is rejected.
+    static let outputLimit = 65_536
+
     /// Only fixed executable paths/typed arguments are supplied by adapters, never IPC strings.
     public static func read(executable: String, arguments: [String], timeout: TimeInterval = 3) throws -> String {
         let allowed: [String: Set<[String]>] = ["/usr/bin/pmset": [["-g", "battlimit"], ["-g", "custom"], ["-g", "cap"]]]
         guard allowed[executable]?.contains(arguments) == true else { throw PolicyError.invalidPolicy }
-        let process = Process(); process.executableURL = URL(fileURLWithPath: executable); process.arguments = arguments
-        let output = Pipe(); process.standardOutput = output; process.standardError = FileHandle.nullDevice
-        try process.run()
-        let deadline = Date().addingTimeInterval(timeout)
-        while process.isRunning && Date() < deadline { Thread.sleep(forTimeInterval: 0.01) }
-        if process.isRunning {
-            process.terminate()
-            if process.isRunning { kill(process.processIdentifier, SIGKILL) }
-            process.waitUntilExit()
+        guard let result = try run(executable: executable, arguments: arguments, timeout: timeout, captureOutput: true) else {
             throw ControlUnavailableError(reason: "Read-only system query timed out.")
         }
-        let data = output.fileHandleForReading.readDataToEndOfFile()
-        guard process.terminationStatus == 0, data.count <= 65_536, let text = String(data: data, encoding: .utf8) else { throw PolicyError.readbackMismatch }
+        guard result.status == 0, !result.overflowed, let text = String(data: result.output, encoding: .utf8) else { throw PolicyError.readbackMismatch }
         return text
+    }
+
+    private final class Output: @unchecked Sendable {
+        private let lock = NSLock()
+        private var data = Data()
+        private var overflow = false
+        func append(_ chunk: Data, limit: Int) {
+            lock.withLock {
+                let room = limit - data.count
+                if chunk.count > room { overflow = true }
+                if room > 0 { data.append(chunk.prefix(room)) }
+            }
+        }
+        var value: (Data, Bool) { lock.withLock { (data, overflow) } }
+    }
+
+    /// Runs one fixed command and waits for it without polling: the termination handler and the end of the output each
+    /// signal a dispatch group, and the caller waits on that group with the timeout. The output is read while the
+    /// process runs (a pipe holds only 64 KB), kept up to `outputLimit` and drained beyond it. Nil when the timeout
+    /// passed; the process is then terminated (killed if it does not exit). Callers own the allow-list.
+    static func run(executable: String, arguments: [String], timeout: TimeInterval, captureOutput: Bool,
+                    outputLimit: Int = BoundedProcess.outputLimit) throws -> (status: Int32, output: Data, overflowed: Bool)? {
+        let process = Process(); process.executableURL = URL(fileURLWithPath: executable); process.arguments = arguments
+        process.standardInput = FileHandle.nullDevice; process.standardError = FileHandle.nullDevice
+        let pipe = captureOutput ? Pipe() : nil
+        process.standardOutput = pipe ?? FileHandle.nullDevice
+        let done = DispatchGroup(), output = Output()
+        done.enter()
+        process.terminationHandler = { _ in done.leave() }
+        try process.run()
+        if let reader = pipe?.fileHandleForReading {
+            done.enter()
+            DispatchQueue.global(qos: .utility).async {
+                while let chunk = try? reader.read(upToCount: 16 * 1024), !chunk.isEmpty { output.append(chunk, limit: outputLimit) }
+                done.leave()
+            }
+        }
+        guard done.wait(timeout: .now() + timeout) == .success else {
+            process.terminate()
+            if done.wait(timeout: .now() + 1) == .timedOut, process.isRunning { kill(process.processIdentifier, SIGKILL) }
+            return nil
+        }
+        let (data, overflowed) = output.value
+        return (process.terminationStatus, data, overflowed)
     }
 }
 

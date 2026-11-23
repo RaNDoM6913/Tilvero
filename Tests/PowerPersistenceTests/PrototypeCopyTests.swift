@@ -8,16 +8,17 @@ import PowerCore
 @testable import PowerPersistence
 
 @MainActor final class PrototypeCopyTests: XCTestCase {
-    func testLegacySchemaIsUpgradedOnlyInCopyBeforeIdentifierIsJournaled() throws {
+    func testLegacySchemaIsUpgradedOnlyInCopyBeforeIdentifierIsJournaled() async throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("TilveroCopyTests-\(UUID())")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         let sourceURL = folder.appendingPathComponent("legacy.sqlite")
         let copyURL = folder.appendingPathComponent("production/History.sqlite")
         let source = try BatteryHistoryStore(url: nil)
-        try source.record(BatterySnapshot(chargePercent: .init(value: 77, source: "isolated fixture")))
-        let payload = try JSONEncoder().encode(try XCTUnwrap(source.samples().first))
-        try source.close()
+        try await source.record(BatterySnapshot(chargePercent: .init(value: 77, source: "isolated fixture")))
+        let recorded = try await source.samples().first
+        let payload = try JSONEncoder().encode(try XCTUnwrap(recorded))
+        try await source.close()
         let coordinator = NSPersistentStoreCoordinator(managedObjectModel: BatteryHistoryStore.model(version: 1))
         let legacy = try coordinator.addPersistentStore(ofType: NSSQLiteStoreType, configurationName: nil,
             at: sourceURL, options: [NSSQLitePragmasOption: ["journal_mode": "DELETE"]])
@@ -31,22 +32,23 @@ import PowerCore
         let original = try Data(contentsOf: sourceURL)
         try BatteryHistoryStore.copyForPrototypeMigration(from: sourceURL, to: copyURL)
         let metadata = try NSPersistentStoreCoordinator.metadataForPersistentStore(ofType: NSSQLiteStoreType, at: copyURL)
-        XCTAssertTrue(BatteryHistoryStore.model(version: 2).isConfiguration(withName: nil, compatibleWithStoreMetadata: metadata))
+        XCTAssertTrue(BatteryHistoryStore.model(version: BatteryHistoryStore.currentSchemaVersion).isConfiguration(withName: nil, compatibleWithStoreMetadata: metadata))
         let identifier = try BatteryHistoryStore.persistentStoreIdentifier(at: copyURL)
         let reopened = try BatteryHistoryStore(url: copyURL)
-        XCTAssertEqual(try reopened.samples().first?.chargePercent, 77)
-        try reopened.close()
+        let copied = try await reopened.samples().first
+        XCTAssertEqual(copied?.chargePercent, 77)
+        try await reopened.close()
         XCTAssertEqual(try BatteryHistoryStore.persistentStoreIdentifier(at: copyURL), identifier)
         XCTAssertEqual(try Data(contentsOf: sourceURL), original)
         XCTAssertFalse(FileManager.default.fileExists(atPath: copyURL.path + "-wal") && ((try? Data(contentsOf: URL(fileURLWithPath: copyURL.path + "-wal")).count) ?? 0) > 0)
     }
 
-    func testCopyCannotOverwriteAnyExistingDestination() throws {
+    func testCopyCannotOverwriteAnyExistingDestination() async throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("TilveroCopyTests-\(UUID())")
         defer { try? FileManager.default.removeItem(at: folder) }
         let first = folder.appendingPathComponent("first.sqlite"), second = folder.appendingPathComponent("second.sqlite")
-        let source = try BatteryHistoryStore(url: first); try source.close()
-        let destination = try BatteryHistoryStore(url: second); try destination.close()
+        let source = try BatteryHistoryStore(url: first); try await source.close()
+        let destination = try BatteryHistoryStore(url: second); try await destination.close()
         let original = try Data(contentsOf: second)
         XCTAssertThrowsError(try BatteryHistoryStore.copyForPrototypeMigration(from: first, to: second))
         XCTAssertEqual(try Data(contentsOf: second), original)

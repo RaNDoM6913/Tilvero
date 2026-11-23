@@ -15,9 +15,9 @@ import KeyboardBackends
             UserDefaults.standard.setVolatileDomain(saved.merging(["language": language]) { _, v in v }, forName: UserDefaults.argumentDomain)
             defer { UserDefaults.standard.setVolatileDomain(saved, forName: UserDefaults.argumentDomain) }
             for available in [true, false] {
-                let suite = "QuickKbd-\(UUID())", prefs = UserDefaults(suiteName: suite)!
+                let suite = TestDefaults.name("QuickKbd"), prefs = TestDefaults.defaults(suite)
                 let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-                defer { prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+                defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
                 let service = KeyboardBacklightService(driver: QuickKeyboardDriver(fails: !available), storage: QuickKeyboardMemory())
                 XCTAssertFalse(service.isAvailable, "Before the panel opens nothing has been read.")
                 let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"), keyboardBacklight: service)

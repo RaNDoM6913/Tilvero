@@ -153,8 +153,8 @@ import PowerCore
     }
 
     func testDataTabsAndEveryPassivePreviewTabRenderWithoutMutatingActionsOrComposition() async throws {
-        let suite = "TilveroDataUI-\(UUID())", prefs = UserDefaults(suiteName: suite)!
-        defer { prefs.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name("DataUI"), prefs = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         let model = TilveroModel(isDemo: true, preferences: prefs)
         defer { model.stop() }
         await model.refresh()
@@ -198,13 +198,13 @@ import PowerCore
         XCTAssertFalse(model.keepAwake.hasOwnedAssertion)
     }
     func testPassivePreviewWithAvailableAwakeTransportNeverExposesEnabledActionButtons() async throws {
-        let suite = "TilveroPassiveLive-\(UUID())", prefs = UserDefaults(suiteName: suite)!
+        let suite = TestDefaults.name("PassiveLive"), prefs = TestDefaults.defaults(suite)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         prefs.set(false, forKey: "historyEnabled")
         let transport = AwakeFixture()
         let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("history.sqlite"),
                                  snapshotProvider: { .unavailable(reason: "Data UI fixture — no hardware read") }, keepAwakeTransport: transport)
-        defer { model.stop(); prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        defer { model.stop(); TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         await model.refresh()
         let draft = model.keepAwakeDraft
         for tab in QuickPanelSection.allCases {

@@ -163,7 +163,7 @@ import PowerCore
 }
 
 @MainActor private struct DiscoveryFixture {
-    let suite = "NativeChargeDiscovery-\(UUID())"
+    let suite = TestDefaults.name("NativeChargeDiscovery")
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("NativeChargeDiscovery-\(UUID())")
     let preferences: UserDefaults
     let transport = DiscoveryTransport()
@@ -173,7 +173,7 @@ import PowerCore
     var admission: URL { root.appendingPathComponent("admission.json") }
 
     init(admitted: Bool) throws {
-        preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
+        preferences = TestDefaults.defaults(suite)
         preferences.set(false, forKey: "historyEnabled")
         native = NativeChargeService(client: transport, journalURL: root.appendingPathComponent("session.json"),
             admitted: admitted, verificationAttempts: 2, environment: "discovery-fixture",
@@ -185,7 +185,7 @@ import PowerCore
 
     func cleanUp() {
         model.stop()
-        preferences.removePersistentDomain(forName: suite)
+        TestDefaults.remove(suite)
         try? FileManager.default.removeItem(at: root)
     }
 }

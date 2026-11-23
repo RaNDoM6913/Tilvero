@@ -33,6 +33,22 @@
         }
       }
     },
+    "Hide sidebar": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hide sidebar"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Скрыть боковое меню"
+          }
+        }
+      }
+    },
     "No recording": {
       "localizations": {
         "en": {
@@ -173,6 +189,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Данные этого Mac"
+          }
+        }
+      }
+    },
+    "Show sidebar": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show sidebar"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показать боковое меню"
           }
         }
       }
@@ -1377,22 +1409,6 @@
         }
       }
     },
-    "Wear": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wear"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Износ"
-          }
-        }
-      }
-    },
     "Cycle count": {
       "localizations": {
         "en": {
@@ -1740,7 +1756,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Запись отключена"
+            "value": "Запись выключена"
           }
         }
       }
@@ -2524,7 +2540,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Обычное"
+            "value": "Норма"
           }
         }
       }
@@ -5777,22 +5793,6 @@
         }
       }
     },
-    "One-time full charging awaits a separate completion and cancellation check.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "One-time full charging awaits a separate completion and cancellation check."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Разовый заряд до 100% требует отдельной проверки завершения и отмены."
-          }
-        }
-      }
-    },
     "macOS did not respond before the deadline. The call may still complete; further writes are blocked.": {
       "localizations": {
         "en": {
@@ -6166,13 +6166,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Quick panel"
+            "value": "Quick menu"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Быстрое окно"
+            "value": "Быстрое меню"
           }
         }
       }
@@ -6198,13 +6198,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Quick panel builder"
+            "value": "Quick menu builder"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Конструктор быстрого окна"
+            "value": "Конструктор быстрого меню"
           }
         }
       }
@@ -6294,13 +6294,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Customize quick panel…"
+            "value": "Customize quick menu…"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Настроить быстрое окно…"
+            "value": "Настроить быстрое меню…"
           }
         }
       }
@@ -7548,7 +7548,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Не спать"
+            "value": "Не засыпать"
           }
         }
       }
@@ -8172,7 +8172,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Не спать до указанной даты и времени"
+            "value": "Не засыпать до указанной даты и времени"
           }
         }
       }
@@ -8220,7 +8220,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS не удалось обновить сеанс «Не спать». Попробуйте ещё раз."
+            "value": "macOS не удалось обновить сеанс «Не засыпать». Попробуйте ещё раз."
           }
         }
       }
@@ -8252,7 +8252,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "После изменения системных часов до выбранного времени осталось больше 24 часов. Сеанс «Не спать» остановлен."
+            "value": "После изменения системных часов до выбранного времени осталось больше 24 часов. Сеанс «Не засыпать» остановлен."
           }
         }
       }
@@ -8636,7 +8636,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Режим «Не спать» активен"
+            "value": "Режим «Не засыпать» активен"
           }
         }
       }
@@ -8652,7 +8652,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Состояние «Не спать» не подтверждено"
+            "value": "Состояние «Не засыпать» не подтверждено"
           }
         }
       }
@@ -14214,13 +14214,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Setup"
+            "value": "Features"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Настройка"
+            "value": "Функции"
           }
         }
       }
@@ -15537,6 +15537,54 @@
         }
       }
     },
+    "Mac can’t sleep with the lid closed: sleep is disabled in macOS": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac can’t sleep with the lid closed: sleep is disabled in macOS"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac не уснёт с закрытой крышкой: сон отключён в macOS"
+          }
+        }
+      }
+    },
+    "The lid mode could not start safely.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The lid mode could not start safely."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Режим закрытой крышки не удалось безопасно включить."
+          }
+        }
+      }
+    },
+    "The lid mode was stopped for safety.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The lid mode was stopped for safety."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Режим закрытой крышки остановлен ради безопасности."
+          }
+        }
+      }
+    },
     "Remove permission…": {
       "localizations": {
         "en": {
@@ -15793,18 +15841,18 @@
         }
       }
     },
-    "Validation writes 80%, 85%, 95% and 100% in turn and restores your setting, after a confirmed persistent baseline and a battery level below 80%.": {
+    "Validation writes each of the other verified limits in turn and restores your setting, after a confirmed persistent baseline and a battery level below 80%.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Validation writes 80%, 85%, 95% and 100% in turn and restores your setting, after a confirmed persistent baseline and a battery level below 80%."
+            "value": "Validation writes each of the other verified limits in turn and restores your setting, after a confirmed persistent baseline and a battery level below 80%."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Проверка по очереди ставит 80, 85, 95 и 100 % и возвращает вашу настройку; нужна подтверждённая постоянная настройка и заряд ниже 80 %."
+            "value": "Проверка по очереди ставит каждый из остальных проверенных лимитов и возвращает вашу настройку; нужна подтверждённая постоянная настройка и заряд ниже 80 %."
           }
         }
       }
@@ -16605,22 +16653,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Последние минуты: живые показания SMC, примерно раз в секунду."
-          }
-        }
-      }
-    },
-    "Battery power stays recorded once a minute.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Battery power stays recorded once a minute."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Мощность батареи по-прежнему записывается раз в минуту."
           }
         }
       }
@@ -17569,6 +17601,22 @@
         }
       }
     },
+    "setup.permissions.blocked.lidRecovery": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "First restore normal sleep"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сначала восстановите обычный сон"
+          }
+        }
+      }
+    },
     "setup.permissions.blocked.wake": {
       "localizations": {
         "en": {
@@ -17677,6 +17725,2886 @@
           "stringUnit": {
             "state": "translated",
             "value": "Разрешено другим правилом"
+          }
+        }
+      }
+    },
+    "%@ · wear %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · wear %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · износ %@"
+          }
+        }
+      }
+    },
+    "History size: %lld MB of %lld MB": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "History size: %lld MB of %lld MB"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Размер истории: %lld МБ из %lld МБ"
+          }
+        }
+      }
+    },
+    "No data": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No data"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нет данных"
+          }
+        }
+      }
+    },
+    "Battery not read yet": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Battery not read yet"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Аккумулятор пока не прочитан"
+          }
+        }
+      }
+    },
+    "Insights": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Insights"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Анализ"
+          }
+        }
+      }
+    },
+    "System (sidebar group)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Система"
+          }
+        }
+      }
+    },
+    "Charging (sidebar)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charging"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Зарядка"
+          }
+        }
+      }
+    },
+    "Apps (sidebar)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apps"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Приложения"
+          }
+        }
+      }
+    },
+    "Hour (range)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hour"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Час"
+          }
+        }
+      }
+    },
+    "Day (range)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Day"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сутки"
+          }
+        }
+      }
+    },
+    "Week (range)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Week"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Неделя"
+          }
+        }
+      }
+    },
+    "Range": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Range"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Период"
+          }
+        }
+      }
+    },
+    "Power, W": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Power, W"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Мощность, Вт"
+          }
+        }
+      }
+    },
+    "hour (chart)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "hour"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "час"
+          }
+        }
+      }
+    },
+    "24 hours (chart)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "24 hours"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "сутки"
+          }
+        }
+      }
+    },
+    "7 days (chart)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "7 days"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "неделя"
+          }
+        }
+      }
+    },
+    "input (legend)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "input"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "вход"
+          }
+        }
+      }
+    },
+    "battery (legend)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "battery"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "батарея"
+          }
+        }
+      }
+    },
+    "No measurements (chart)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No measurements"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нет измерений"
+          }
+        }
+      }
+    },
+    "Simulation is never stored in history": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Simulation is never stored in history"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Симуляция не пишется в историю"
+          }
+        }
+      }
+    },
+    "They appear within seconds": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "They appear within seconds"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Появятся через несколько секунд"
+          }
+        }
+      }
+    },
+    "Charge, %": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charge, %"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Заряд, %"
+          }
+        }
+      }
+    },
+    "History starts recording now": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "History starts recording now"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "История начнёт записываться сейчас"
+          }
+        }
+      }
+    },
+    "Into battery": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Into battery"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В батарею"
+          }
+        }
+      }
+    },
+    "From battery": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "From battery"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Из батареи"
+          }
+        }
+      }
+    },
+    "Input": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Input"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вход"
+          }
+        }
+      }
+    },
+    "Fanless (cooling)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fanless"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пассивное"
+          }
+        }
+      }
+    },
+    "+15 min": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "+15 min"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "+15 мин"
+          }
+        }
+      }
+    },
+    "On battery (lead)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On battery"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "От батареи"
+          }
+        }
+      }
+    },
+    "macOS charging": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS charging"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Зарядка macOS"
+          }
+        }
+      }
+    },
+    "Admin controls": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Admin controls"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Права администратора"
+          }
+        }
+      }
+    },
+    "System sleep": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System sleep"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон системы"
+          }
+        }
+      }
+    },
+    "Readings & sources": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Readings & sources"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показания и источники"
+          }
+        }
+      }
+    },
+    "Readable fields": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Readable fields"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Доступно полей"
+          }
+        }
+      }
+    },
+    "App-owned settings": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App-owned settings"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Настройки у приложения"
+          }
+        }
+      }
+    },
+    "None (owned settings)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "None"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нет"
+          }
+        }
+      }
+    },
+    "Need restoration": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Need restoration"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Требуют восстановления"
+          }
+        }
+      }
+    },
+    "All good": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All good"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Всё в порядке"
+          }
+        }
+      }
+    },
+    "Needs review": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Needs review"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нужно проверить"
+          }
+        }
+      }
+    },
+    "sources readable": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sources readable"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "источники читаются"
+          }
+        }
+      }
+    },
+    "nothing held by the app": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "nothing held by the app"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "приложение ничего не держит"
+          }
+        }
+      }
+    },
+    "monitoring only": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "monitoring only"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "только мониторинг"
+          }
+        }
+      }
+    },
+    "Closed-lid sleep needs restoring": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Closed-lid sleep needs restoring"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нужно вернуть сон с закрытой крышкой"
+          }
+        }
+      }
+    },
+    "Not held (lid sleep)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not held"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удерживается"
+          }
+        }
+      }
+    },
+    "Held (lid sleep)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Held"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удерживается"
+          }
+        }
+      }
+    },
+    "Needs restoring": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Needs restoring"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нужно восстановить"
+          }
+        }
+      }
+    },
+    "Sleep disabled in macOS": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep disabled in macOS"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон отключён в macOS"
+          }
+        }
+      }
+    },
+    "Export": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Экспорт"
+          }
+        }
+      }
+    },
+    "Turn on in Settings › History": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn on in Settings › History"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Включите в Настройках › История"
+          }
+        }
+      }
+    },
+    "Open Settings": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Settings"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть настройки"
+          }
+        }
+      }
+    },
+    "History is not recorded": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "History is not recorded"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "История не записывается"
+          }
+        }
+      }
+    },
+    "Saved measurements stay": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved measurements stay"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохранённые измерения остаются"
+          }
+        }
+      }
+    },
+    "All recorded history (heading)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All recorded history"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "За всё время"
+          }
+        }
+      }
+    },
+    "Totals cover everything Tilvero has recorded, not only the chosen range. Energy is estimated from recorded power.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Totals cover everything Tilvero has recorded, not only the chosen range. Energy is estimated from recorded power."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Итоги — за всё записанное время, а не только за выбранный период. Энергия рассчитана по записанной мощности."
+          }
+        }
+      }
+    },
+    "Gaps (history)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gaps"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пропуски"
+          }
+        }
+      }
+    },
+    "Charged (history)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charged"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Получено"
+          }
+        }
+      }
+    },
+    "Used (history)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Used"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Израсходовано"
+          }
+        }
+      }
+    },
+    "Sessions (history)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sessions"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сеансы"
+          }
+        }
+      }
+    },
+    "Recorded readings": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recorded readings"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Записанные показания"
+          }
+        }
+      }
+    },
+    "Summary": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Summary"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сводка"
+          }
+        }
+      }
+    },
+    "capacity retention (lead)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "capacity retention"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "сохранение ёмкости"
+          }
+        }
+      }
+    },
+    "Full charge": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Full charge"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Полная ёмкость"
+          }
+        }
+      }
+    },
+    "Design (capacity)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Design"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проектная"
+          }
+        }
+      }
+    },
+    "Wear": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wear"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Износ"
+          }
+        }
+      }
+    },
+    "Cell spread": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cell spread"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разброс ячеек"
+          }
+        }
+      }
+    },
+    "Cell": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cell"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ячейка"
+          }
+        }
+      }
+    },
+    "macOS condition": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS condition"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Состояние macOS"
+          }
+        }
+      }
+    },
+    "Manufacturer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manufacturer"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Производитель"
+          }
+        }
+      }
+    },
+    "All time (battery)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All time"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "За всё время"
+          }
+        }
+      }
+    },
+    "Unavailable fields": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unavailable fields"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Недоступные поля"
+          }
+        }
+      }
+    },
+    "Filter": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filter"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Фильтр"
+          }
+        }
+      }
+    },
+    "No matching readings": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No matching readings"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ничего не найдено"
+          }
+        }
+      }
+    },
+    "battery · fanless cooling": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "battery · fanless cooling"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "аккумулятор · пассивное охлаждение"
+          }
+        }
+      }
+    },
+    "battery · fans": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "battery · fans"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "аккумулятор · вентиляторы"
+          }
+        }
+      }
+    },
+    "battery · system cooling": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "battery · system cooling"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "аккумулятор · системное охлаждение"
+          }
+        }
+      }
+    },
+    "Battery temperature, °C": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Battery temperature, °C"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Температура аккумулятора, °C"
+          }
+        }
+      }
+    },
+    "Battery temperature, °F": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Battery temperature, °F"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Температура аккумулятора, °F"
+          }
+        }
+      }
+    },
+    "Fan": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fan"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вентилятор"
+          }
+        }
+      }
+    },
+    "Control (fans)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Control"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Управление"
+          }
+        }
+      }
+    },
+    "macOS (auto)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS (auto)"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS (авто)"
+          }
+        }
+      }
+    },
+    "Auto · macOS": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto · macOS"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Авто · macOS"
+          }
+        }
+      }
+    },
+    "High load": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "High load"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Высокая нагрузка"
+          }
+        }
+      }
+    },
+    "Calm": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calm"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Спокойно"
+          }
+        }
+      }
+    },
+    "Search": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поиск"
+          }
+        }
+      }
+    },
+    "Processes (count)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Processes"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Процессов"
+          }
+        }
+      }
+    },
+    "Return control to macOS": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Return control to macOS"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вернуть управление системе"
+          }
+        }
+      }
+    },
+    "Tilvero holds charging settings": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero holds charging settings"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilvero управляет настройками зарядки"
+          }
+        }
+      }
+    },
+    "In use (owned settings)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In use"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Используются"
+          }
+        }
+      }
+    },
+    "Sleeps at (time)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleeps at"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Уснёт в"
+          }
+        }
+      }
+    },
+    "one-minute warning before sleep": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "one-minute warning"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "предупредим за минуту"
+          }
+        }
+      }
+    },
+    "pick a time — the timer starts at once": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "pick a time — it starts at once"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "выберите время — таймер запустится сразу"
+          }
+        }
+      }
+    },
+    "pick a time — it starts at once": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "pick a time — it starts at once"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "выберите время — включится сразу"
+          }
+        }
+      }
+    },
+    "until (lead)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "until"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "до"
+          }
+        }
+      }
+    },
+    "the Mac won’t idle-sleep": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "the Mac won’t idle-sleep"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac не уснёт сам"
+          }
+        }
+      }
+    },
+    "Last sleep": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last sleep"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Последний сон"
+          }
+        }
+      }
+    },
+    "Before sleep (tile)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Before sleep"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перед сном"
+          }
+        }
+      }
+    },
+    "Drain per hour": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drain per hour"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Расход в час"
+          }
+        }
+      }
+    },
+    "pp/h": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "pp/h"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "п.п./ч"
+          }
+        }
+      }
+    },
+    "Charge change over the observed interval, per hour.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charge change over the observed interval, per hour."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Изменение заряда за наблюдаемый интервал в пересчёте на час."
+          }
+        }
+      }
+    },
+    "Sleep intervals": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep intervals"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Интервалы сна"
+          }
+        }
+      }
+    },
+    "Sleep blockers": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep blockers"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Что мешает сну"
+          }
+        }
+      }
+    },
+    "no wake reading": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "no wake reading"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "нет данных после пробуждения"
+          }
+        }
+      }
+    },
+    "Yesterday": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yesterday"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вчера"
+          }
+        }
+      }
+    },
+    "today (lead)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "today"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "сегодня"
+          }
+        }
+      }
+    },
+    "yesterday (lead)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "yesterday"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "вчера"
+          }
+        }
+      }
+    },
+    "App (settings group)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Приложение"
+          }
+        }
+      }
+    },
+    "Percentage (menu bar)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Percentage"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проценты"
+          }
+        }
+      }
+    },
+    "Beside (percentage)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beside"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Рядом"
+          }
+        }
+      }
+    },
+    "Inside (percentage)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inside"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Внутри"
+          }
+        }
+      }
+    },
+    "None (percentage)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нет"
+          }
+        }
+      }
+    },
+    "Recording (history)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recording"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запись идёт"
+          }
+        }
+      }
+    },
+    "Up to date": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Up to date"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Актуальная версия"
+          }
+        }
+      }
+    },
+    "Update available": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update available"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Есть обновление"
+          }
+        }
+      }
+    },
+    "Checking (updates)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверка…"
+          }
+        }
+      }
+    },
+    "Could not check": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not check"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось проверить"
+          }
+        }
+      }
+    },
+    "Cancelled (update check)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancelled"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отменено"
+          }
+        }
+      }
+    },
+    "Source code only": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Source code only"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Только исходный код"
+          }
+        }
+      }
+    },
+    "Not checked yet": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not checked yet"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ещё не проверялось"
+          }
+        }
+      }
+    },
+    "Updated manually": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updated manually"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обновляется вручную"
+          }
+        }
+      }
+    },
+    "No app release": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No app release"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нет выпуска приложения"
+          }
+        }
+      }
+    },
+    "Open Release": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Release"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть релиз"
+          }
+        }
+      }
+    },
+    "Channel (updates)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Channel"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Канал"
+          }
+        }
+      }
+    },
+    "Stable (channel)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stable"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Стабильный"
+          }
+        }
+      }
+    },
+    "Beta and stable (channel)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beta and stable"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бета и стабильный"
+          }
+        }
+      }
+    },
+    "Everyday (features)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Everyday"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Повседневные"
+          }
+        }
+      }
+    },
+    "Needs admin password": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Needs admin password"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "С паролем администратора"
+          }
+        }
+      }
+    },
+    "Monitoring (feature)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monitoring"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Мониторинг"
+          }
+        }
+      }
+    },
+    "Fan control": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fan control"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Управление вентиляторами"
+          }
+        }
+      }
+    },
+    "Unsupported (feature)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unsupported"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не поддерживается"
+          }
+        }
+      }
+    },
+    "On adapter": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On adapter"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "От адаптера"
+          }
+        }
+      }
+    },
+    "charging": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "charging"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "заряжается"
+          }
+        }
+      }
+    },
+    "not charging": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "not charging"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "не заряжается"
+          }
+        }
+      }
+    },
+    "no adapter": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "no adapter"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "адаптер не подключён"
+          }
+        }
+      }
+    },
+    "Adapter rating": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adapter rating"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Мощность адаптера"
+          }
+        }
+      }
+    },
+    "Not connected": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not connected"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не подключён"
+          }
+        }
+      }
+    },
+    "Connected": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connected"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подключён"
+          }
+        }
+      }
+    },
+    "Current limit": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Current limit"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Предельный ток"
+          }
+        }
+      }
+    },
+    "More": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "More"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ещё"
+          }
+        }
+      }
+    },
+    "Optimized charging": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Optimized charging"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оптимизированная зарядка"
+          }
+        }
+      }
+    },
+    "On": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Включено"
+          }
+        }
+      }
+    },
+    "macOS Settings…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS Settings…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Настройки macOS…"
+          }
+        }
+      }
+    },
+    "Pending: {level} after discharging below {level}": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pending: {level} after discharging below {level}"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ожидает: {level} после разряда ниже {level}"
+          }
+        }
+      }
+    },
+    "Overview blocks": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Overview blocks"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Блоки обзора"
+          }
+        }
+      }
+    },
+    "Sleep presets": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep presets"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пресеты сна"
+          }
+        }
+      }
+    },
+    "Quick menu": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quick menu"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Быстрое меню"
+          }
+        }
+      }
+    },
+    "Restore defaults": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore defaults"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вернуть по умолчанию"
+          }
+        }
+      }
+    },
+    "Add": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавить"
+          }
+        }
+      }
+    },
+    "Change": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Изменить"
+          }
+        }
+      }
+    },
+    "Remove": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удалить"
+          }
+        }
+      }
+    },
+    "cannot be removed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cannot be removed"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "нельзя удалить"
+          }
+        }
+      }
+    },
+    "Overview: Keep Awake": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Overview: Keep Awake"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Обзор: «Не засыпать»"
+          }
+        }
+      }
+    },
+    "Sleep timer pills in the quick menu, up to 7. Custom always stays for any other time.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep timer pills in the quick menu, up to 7. Custom always stays for any other time."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пилюли таймера сна в быстром меню, до 7. «Своё» остаётся всегда — для любого другого времени."
+          }
+        }
+      }
+    },
+    "Keep Awake pills in the quick menu, up to 6. ∞ and Until… always stay.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep Awake pills in the quick menu, up to 6. ∞ and Until… always stay."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пилюли «Не засыпать» в быстром меню, до 6. ∞ и «До…» остаются всегда."
+          }
+        }
+      }
+    },
+    "Sleep at charge levels, up to 6, from 5 to 95 %. Levels at or above the current charge are unavailable.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep at charge levels, up to 6, from 5 to 95%. Levels at or above the current charge are unavailable."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Уровни «Сна при заряде», до 6, от 5 до 95 %. Уровни не ниже текущего заряда недоступны."
+          }
+        }
+      }
+    },
+    "Keep awake until charge levels, up to 6, from 5 to 95 %. Levels at or above the current charge are unavailable.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep awake until charge levels, up to 6, from 5 to 95%. Levels at or above the current charge are unavailable."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Уровни «Не засыпать до заряда», до 6, от 5 до 95 %. Уровни не ниже текущего заряда недоступны."
+          }
+        }
+      }
+    },
+    "The Keep Awake strip of the quick Overview, up to 4. ∞ always stays.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Keep Awake strip of the quick Overview, up to 4. ∞ always stays."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Полоса «Не засыпать» в быстром обзоре, до 4. ∞ остаётся всегда."
+          }
+        }
+      }
+    },
+    "Pills are sorted automatically. Editing never changes a running session.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pills are sorted automatically. Editing never changes a running session."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пилюли сортируются сами. Правка не меняет идущий сеанс."
+          }
+        }
+      }
+    },
+    "Verified (charge limits)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verified"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверено"
+          }
+        }
+      }
+    },
+    "Not checked (charge limits)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not checked"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не проверено"
+          }
+        }
+      }
+    },
+    "Charging settings in macOS": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charging settings in macOS"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Настройки зарядки macOS"
+          }
+        }
+      }
+    },
+    "Not used (helper)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not used"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не используется"
+          }
+        }
+      }
+    },
+    "Sleep normal (lid sleep)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep normal"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон в норме"
+          }
+        }
+      }
+    },
+    "Data (diagnostics)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Data"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Данные"
+          }
+        }
+      }
+    },
+    "The trusted helper is unavailable. Monitoring continues without control.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The trusted helper is unavailable. Monitoring continues without control."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Доверенный помощник недоступен. Мониторинг продолжается без управления."
+          }
+        }
+      }
+    },
+    "A helper operation is already in progress.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A helper operation is already in progress."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Операция помощника уже выполняется."
+          }
+        }
+      }
+    },
+    "The requested setting was not independently confirmed. Recovery may be required.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The requested setting was not independently confirmed. Recovery may be required."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запрошенная настройка не подтверждена независимо. Может понадобиться восстановление."
+          }
+        }
+      }
+    },
+    "Owned settings have not been verified as restored. Keep the app/helper installed for recovery.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Owned settings have not been verified as restored. Keep the app/helper installed for recovery."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не подтверждено, что настройки приложения восстановлены. Не удаляйте приложение и помощника до восстановления."
+          }
+        }
+      }
+    },
+    "This control is not qualified for the current hardware and trusted signed build.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This control is not qualified for the current hardware and trusted signed build."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Это управление не проверено для этого Mac и подписанной сборки."
+          }
+        }
+      }
+    },
+    "Approve the registered helper in macOS Login Items settings before using qualified control.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Approve the registered helper in macOS Login Items settings before using qualified control."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешите помощника в «Объектах входа» настроек macOS, чтобы пользоваться управлением."
+          }
+        }
+      }
+    },
+    "Helper is not enabled. Only independently qualified controls can request registration.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Helper is not enabled. Only independently qualified controls can request registration."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Помощник не включён. Его можно включить только для проверенного управления."
+          }
+        }
+      }
+    },
+    "App-owned settings were verified as restored.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App-owned settings were verified as restored."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Настройки приложения восстановлены, это подтверждено."
+          }
+        }
+      }
+    },
+    "macOS approval is required before the registered helper can operate.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS approval is required before the registered helper can operate."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Чтобы помощник заработал, его нужно разрешить в macOS."
+          }
+        }
+      }
+    },
+    "Helper removed after verified restoration.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Helper removed after verified restoration."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Помощник удалён после подтверждённого восстановления."
+          }
+        }
+      }
+    },
+    "The trusted helper operation failed. Existing ownership evidence is retained; monitoring continues.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The trusted helper operation failed. Existing ownership evidence is retained; monitoring continues."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Операция помощника не удалась. Сведения о настройках приложения сохранены, мониторинг продолжается."
+          }
+        }
+      }
+    },
+    "History could not be backed up before its upgrade. It was left unchanged; the upgrade is retried at the next launch.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "History could not be backed up before its upgrade. It was left unchanged; the upgrade is retried at the next launch."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перед обновлением истории не удалось сделать резервную копию. История не изменена, обновление повторится при следующем запуске."
+          }
+        }
+      }
+    },
+    "The local history store is unavailable. Existing files were preserved.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The local history store is unavailable. Existing files were preserved."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "История недоступна. Сохранённые файлы не тронуты."
+          }
+        }
+      }
+    },
+    "A history record is invalid; existing data was preserved.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A history record is invalid; existing data was preserved."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Одна запись истории повреждена. Остальные данные сохранены."
+          }
+        }
+      }
+    },
+    "This history schema is not supported by this app version.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This history schema is not supported by this app version."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эта версия приложения не поддерживает формат истории."
+          }
+        }
+      }
+    },
+    "Simulation samples are excluded from live history.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Simulation samples are excluded from live history."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Данные симуляции не попадают в живую историю."
+          }
+        }
+      }
+    },
+    "Separate battery and adapter modes require signed-helper apply/readback/restoration qualification.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Separate battery and adapter modes require signed-helper apply/readback/restoration qualification."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Раздельные режимы батареи и адаптера требуют проверки подписанного помощника: применение, контроль и восстановление."
           }
         }
       }

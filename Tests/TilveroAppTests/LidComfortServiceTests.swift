@@ -79,14 +79,14 @@ private final class FakeClamshell: LidComfortClamshell, @unchecked Sendable {
     }
     fileprivate func make(allowed: Bool = true, consoleUserIsUs: Bool = true, journalFrom: UserDefaults? = nil,
                           debounce: Duration = .milliseconds(5)) -> Rig {
-        let suite = "LidComfort-\(UUID())"
-        let defaults = journalFrom ?? UserDefaults(suiteName: suite)!
+        let suite = TestDefaults.name("LidComfort")
+        let defaults = journalFrom ?? TestDefaults.defaults(suite)
         let display = FakeDisplay(), audio = FakeAudio(), lid = FakeClamshell()
         let service = LidComfortService(display: display, audio: audio, clamshell: lid, defaults: defaults, allowed: allowed,
                                         consoleUserIsUs: { consoleUserIsUs }, debounce: debounce, retryDelay: .milliseconds(1),
                                         restoreRetryDelay: .milliseconds(15))
         return Rig(service: service, display: display, audio: audio, lid: lid, defaults: defaults,
-                   cleanUp: { defaults.removePersistentDomain(forName: suite) })
+                   cleanUp: { TestDefaults.remove(suite) })
     }
     private func settle(_ ms: Int = 120) async { try? await Task.sleep(for: .milliseconds(ms)) }
     fileprivate func close(_ r: Rig, causesSleep: Bool = true) async {
@@ -250,8 +250,8 @@ private final class FakeClamshell: LidComfortClamshell, @unchecked Sendable {
     }
 
     func testAnUnreadableJournalIsDroppedNotReplayed() {
-        let suite = "LidComfort-bad-\(UUID())", defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name("LidComfort-bad"), defaults = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         defaults.set(Data("garbage".utf8), forKey: LidComfortService.journalKey)
         let r = make(journalFrom: defaults)
         XCTAssertFalse(r.service.isApplied)
@@ -262,7 +262,7 @@ private final class FakeClamshell: LidComfortClamshell, @unchecked Sendable {
 
     func testBindingRegistersTheRestoreBeforeTheOverrideIsReleased() async {
         let r = make(); defer { r.cleanUp() }
-        let lidSleep = LidSleepOverrideService(defaults: UserDefaults(suiteName: "LidComfort-hook-\(UUID())")!, allowed: true)
+        let lidSleep = LidSleepOverrideService(defaults: makeTestDefaults("LidComfort-hook").defaults, allowed: true)
         r.service.bind(lidSleep); await settle()   // the initial "override off" emission arrives first
         r.service.armedChanged(.keepAwake)
         await close(r)
@@ -362,7 +362,7 @@ private final class FakeClamshell: LidComfortClamshell, @unchecked Sendable {
 
     func testAPendingDebounceCannotApplyInTheMiddleOfAReleaseAndTheNextArmingStartsClean() async {
         let r = make(debounce: .milliseconds(150)); defer { r.cleanUp() }
-        let lidSleep = LidSleepOverrideService(defaults: UserDefaults(suiteName: "LidComfort-race-\(UUID())")!, allowed: true)
+        let lidSleep = LidSleepOverrideService(defaults: makeTestDefaults("LidComfort-race").defaults, allowed: true)
         r.service.bind(lidSleep); await settle()
         r.service.armedChanged(.keepAwake)
         r.lid.set(closed: true); r.service.sampleChanged(r.lid.sample())      // debounce is running

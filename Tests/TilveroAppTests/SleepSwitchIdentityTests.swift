@@ -20,8 +20,8 @@ import PowerCore
     private func makeRig(awakePage: Bool) async -> Rig {
         let timer = SleepTimerService(driver: CountdownTimerTransport(), allowed: true)
         let awake = KeepAwakeService(driver: AwakeFixture())
-        let suite = "TilveroTests.SwitchId.\(UUID().uuidString)", prefs = UserDefaults(suiteName: suite)!
-        addTeardownBlock { prefs.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name("SwitchId"), prefs = TestDefaults.defaults(suite)
+        addTeardownBlock { TestDefaults.remove(suite) }
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"),
                                  keepAwakeService: awake, sleepTimerService: timer, lidSleepSystem: CountdownLid())

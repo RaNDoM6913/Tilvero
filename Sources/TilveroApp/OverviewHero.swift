@@ -34,7 +34,7 @@ enum OverviewHeroLimit: Equatable {
 /// The battery block of the Overview page: charge, state, icon and the limit capsule, as wide as the icon.
 @MainActor struct OverviewHero: View {
     nonisolated static let iconWidth: CGFloat = 54
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     /// Opens the Charge page. `nil` in the passive builder preview.
     var openCharge: (@MainActor () -> Void)?
 
@@ -43,6 +43,7 @@ enum OverviewHeroLimit: Equatable {
     }
 
     var body: some View {
+        let _ = RenderProbe.hit("OverviewHero")
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {

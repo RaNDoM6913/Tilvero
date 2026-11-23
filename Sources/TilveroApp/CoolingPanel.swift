@@ -8,7 +8,7 @@ import PowerCore
 @MainActor
 struct CoolingPanel: View {
     @Environment(\.studioPresentation) private var studioPresentation
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     let showUnavailable: Bool
 
     private func reading(_ id: String) -> CatalogReading? {
