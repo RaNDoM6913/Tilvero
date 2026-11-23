@@ -436,7 +436,7 @@ enum LidMode: Equatable { case keepAwake, scheduledSleep }
         if needsRecovery { failure = L10n.text("Normal sleep could not be restored. Use Restore sleep.") }
     }
 
-    /// One time, at the first launch of 0.7.2 or later: up to 0.7.1 a run that ended without restoring could leave
+    /// One time, at the first launch of 0.8.0 or later: up to 0.7.1 a run that ended without restoring could leave
     /// `SleepDisabled 1` behind with no marker that launch recovery follows. It is cleared only when the evidence says
     /// Tilvero set it: one of the "With lid closed" switches is on AND Tilvero's own passwordless rule is installed
     /// (nothing else installs it; the override never starts without it). Then the same passwordless write as a restore,
