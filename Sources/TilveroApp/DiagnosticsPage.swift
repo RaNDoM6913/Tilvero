@@ -69,11 +69,12 @@ enum DiagnosticsSummary {
     }
 
     /// The closed-lid row value: recovery › disabled by macOS › held by the app › not held.
-    static func lidValueKey(isOn: Bool, needsRecovery: Bool, systemSleepDisabled: Bool) -> String {
+    /// "Sleep normal" only after a real read; unread, the row says only what is certain: Tilvero holds nothing.
+    static func lidValueKey(isOn: Bool, needsRecovery: Bool, systemSleepDisabled: Bool, systemSleepKnown: Bool = true) -> String {
         if needsRecovery { return "Needs restoring" }
         if isOn { return "Held (lid sleep)" }
         if systemSleepDisabled { return "Sleep disabled in macOS" }
-        return "Sleep normal (lid sleep)"
+        return systemSleepKnown ? "Sleep normal (lid sleep)" : "Not held (lid sleep)"
     }
 }
 
@@ -163,13 +164,19 @@ private struct DiagnosticsHeading: View {
         let restores = state.hasOwnership || native.recoveryRequired || native.restorationPending
         let validates = !native.admitted && !native.recoveryRequired
         let blocked = model.isApplying || native.isBusy || native.isQualifying || state.pendingPurpose != nil
+        // The registered `pmset` manual limit when the native setting is not readable (the Charging page's fallback).
+        let manualLimit: Int? = {
+            guard let observation = model.systemChargeLimit, observation.isFresh(), let limits = observation.limits,
+                  !limits.manualLimitIsConflicting else { return nil }
+            return limits.manualLimit
+        }()
         VStack(alignment: .leading, spacing: 8) {
             DiagnosticsHeading(title: L10n.text("macOS charging"),
                                info: DiagnosticsChargeRows.infoKeys.map(L10n.text), id: "diagnostics-charge-info")
             WindowRowsTile(rows: [
                 WindowRow(id: "limit", label: L10n.text("Charge limit"),
                           value: DiagnosticsChargeRows.limitText(preference: state.currentPreference.map { ($0.enabled, $0.target) },
-                                                                 reported: native.currentReportedTarget)),
+                                                                 reported: native.currentReportedTarget ?? manualLimit)),
                 WindowRow(id: "verified", label: L10n.text("Verified (charge limits)"),
                           value: DiagnosticsChargeRows.verifiedText(native.admitted ? native.authorizedPersistentTargets : []),
                           dim: !native.admitted),
@@ -295,13 +302,14 @@ enum DiagnosticsChargeRows {
     var body: some View {
         let lid = model.lidSleep
         let key = DiagnosticsSummary.lidValueKey(isOn: lid.isOn, needsRecovery: lid.needsRecovery,
-                                                 systemSleepDisabled: lid.systemSleepDisabled)
+                                                 systemSleepDisabled: lid.systemSleepDisabled, systemSleepKnown: lid.systemSleepKnown)
         return VStack(alignment: .leading, spacing: 8) {
             DiagnosticsHeading(title: L10n.text("System sleep"),
                                info: LidSleepOverrideRow.infoKeys(for: .keepAwake).map(L10n.text),
                                id: "diagnostics-sleep-info")
             WindowRowsTile(rows: [WindowRow(id: "lid", label: L10n.text("With lid closed"), value: L10n.text(key))])
         }
+        .task { await lid.checkSystemSleep() }   // one `pmset -g` read, like the Sleep page (throttled, never a write)
     }
 }
 

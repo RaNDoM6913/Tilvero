@@ -56,6 +56,8 @@ enum LidMode: Equatable { case keepAwake, scheduledSleep }
     /// `SleepDisabled 1` while Tilvero holds no session (a run that ended without restoring, or another tool): the Mac
     /// does not sleep with the lid closed. Read at launch and when a Sleep page appears; shown with "Restore sleep".
     @Published private(set) var systemSleepDisabled = false
+    /// The system sleep state was read at least once (a failed `pmset -g` leaves it unknown, never "normal").
+    @Published private(set) var systemSleepKnown = false
     @Published private(set) var ruleFilePresent = false
 
     private let system: any LidSleepSystem
@@ -217,10 +219,8 @@ enum LidMode: Equatable { case keepAwake, scheduledSleep }
 
     /// Checks the baseline and makes sure the passwordless path exists (prompting once if it does not).
     private func prepareRule() async -> Bool {
-        guard await system.readSleepDisabled() == false else {
-            failure = L10n.text("Sleep is already disabled by another tool or setting. Tilvero will not change it.")
-            return false
-        }
+        let baseline = await system.readSleepDisabled()
+        guard baseline == false else { refuseSetBaseline(baseline); return false }
         if !(await system.passwordlessPathWorks()) {
             guard await system.installRule(), await system.passwordlessPathWorks() else {
                 failure = L10n.text("The permission was not granted. The lid mode stays off.")
@@ -232,6 +232,14 @@ enum LidMode: Equatable { case keepAwake, scheduledSleep }
         return true
     }
 
+    /// An override that is already set is never adopted. A known `SleepDisabled 1` shows as the regular warning with
+    /// "Restore sleep" (not a failure saying Tilvero will not change it, which contradicted that button and stuck until
+    /// relaunch); only an unreadable state is a failure.
+    private func refuseSetBaseline(_ reading: Bool?) {
+        if reading == true { systemSleepDisabled = true; systemSleepKnown = true; failure = nil }
+        else { failure = L10n.text("Sleep is already disabled by another tool or setting. Tilvero will not change it.") }
+    }
+
     private func enable(_ mode: LidMode, allowPrompt: Bool) async {
         // While the permission is being removed an override could not be ended again: it never starts then.
         guard allowed, !busy, !needsRecovery, !isOn, isActive(mode), !PrivilegedRuleInstaller.removalInProgress else { return }
@@ -241,10 +249,8 @@ enum LidMode: Equatable { case keepAwake, scheduledSleep }
         let id = generation
         // Restore only what Tilvero owns: an override that is already set (another tool, the user's own pmset) or
         // unreadable is never adopted, because ending the session would clear a state this app did not create.
-        guard await system.readSleepDisabled() == false else {
-            failure = L10n.text("Sleep is already disabled by another tool or setting. Tilvero will not change it.")
-            return
-        }
+        let baseline = await system.readSleepDisabled()
+        guard baseline == false else { refuseSetBaseline(baseline); return }
         guard generation == id, isActive(mode) else { return }
         if !(await system.passwordlessPathWorks()) {
             // A session starting by itself never raises a password prompt: the user is told how to repair it.
@@ -340,7 +346,7 @@ enum LidMode: Equatable { case keepAwake, scheduledSleep }
         try? markers.delete()
         defaults.removeObject(forKey: Self.legacyRecoveryKey)
         session?.handle.release(); session = nil
-        systemSleepDisabled = false
+        systemSleepDisabled = false; systemSleepKnown = true
     }
 
     // MARK: Restore
@@ -459,7 +465,7 @@ enum LidMode: Equatable { case keepAwake, scheduledSleep }
         _ = await system.setSleepDisabledPasswordless(false)
         guard await system.readSleepDisabled() == false else { return }
         defaults.set(true, forKey: Self.leftoverCleanupKey)
-        systemSleepDisabled = false
+        systemSleepDisabled = false; systemSleepKnown = true
     }
 
     /// The marker read at init is gone (the watchdog of the ended run restored and removed it first): nothing of ours
@@ -484,6 +490,7 @@ enum LidMode: Equatable { case keepAwake, scheduledSleep }
         let reading = await system.readSleepDisabled()
         guard !busy, !isOn, !needsRecovery else { return }
         systemSleepDisabled = reading == true
+        systemSleepKnown = reading != nil
     }
 
     /// Explicit user action after a failed restore: may show the administrator prompt.

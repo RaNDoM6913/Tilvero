@@ -142,13 +142,19 @@ import PowerPersistence
         }
     }
 
-    /// "Restore sleep" never sits under "Tilvero will not change it": with a failure shown it appears only after a failed restore.
-    func testRestoreSleepIsNotOfferedUnderTheForeignOverrideFailure() {
-        XCTAssertTrue(LidSleepOverrideRow.offersRestore(needsRecovery: false, systemSleepDisabled: true, failure: nil))
-        XCTAssertFalse(LidSleepOverrideRow.offersRestore(needsRecovery: false, systemSleepDisabled: true,
-                                                         failure: "Sleep is already disabled by another tool or setting. Tilvero will not change it."))
-        XCTAssertTrue(LidSleepOverrideRow.offersRestore(needsRecovery: true, systemSleepDisabled: true, failure: "Normal sleep could not be restored."))
-        XCTAssertFalse(LidSleepOverrideRow.offersRestore(needsRecovery: false, systemSleepDisabled: false, failure: nil))
+    /// "Restore sleep" is offered whenever sleep is disabled or a restore failed.
+    func testRestoreSleepIsOfferedWhileSleepIsDisabled() {
+        XCTAssertTrue(LidSleepOverrideRow.offersRestore(needsRecovery: false, systemSleepDisabled: true))
+        XCTAssertTrue(LidSleepOverrideRow.offersRestore(needsRecovery: true, systemSleepDisabled: false))
+        XCTAssertFalse(LidSleepOverrideRow.offersRestore(needsRecovery: false, systemSleepDisabled: false))
+    }
+
+    /// "Sleep normal" only after a read; unread, only "Not held".
+    func testLidRowSaysSleepNormalOnlyAfterARead() {
+        XCTAssertEqual(DiagnosticsSummary.lidValueKey(isOn: false, needsRecovery: false, systemSleepDisabled: false, systemSleepKnown: false),
+                       "Not held (lid sleep)")
+        XCTAssertEqual(DiagnosticsSummary.lidValueKey(isOn: false, needsRecovery: false, systemSleepDisabled: false, systemSleepKnown: true),
+                       "Sleep normal (lid sleep)")
     }
 
     /// A store failure reads as a translated sentence, never a Swift case name.
