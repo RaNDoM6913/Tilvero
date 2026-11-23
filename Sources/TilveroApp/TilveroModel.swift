@@ -253,7 +253,7 @@ final class TilveroModel {
         preferences.set(historyEnabled, forKey: "historyEnabled")
         let boundary = Date()   // when the switch happened, not when the queue gets to it
         historyWork { [weak self] store in
-            do { try await store.markGap(reason: .explicitBoundary, at: boundary) } catch { self?.storeError = String(describing: error) }
+            do { try await store.markGap(reason: .explicitBoundary, at: boundary) } catch { self?.storeError = HistoryStoreErrorText.text(error) }
         }
         lastPersisted = nil
         resetSleepObservation(reason: .historyDisabled, persist: !historyEnabled)
@@ -736,7 +736,7 @@ final class TilveroModel {
                 let url = try historyURL ?? ReleaseIdentity.current().historyURL()
                 openHistory(at: url)
             }
-            catch { storeError = String(describing: error) }
+            catch { storeError = HistoryStoreErrorText.text(error) }
         }
         updateLoginStatus()
         navigation.onSectionChange = { [weak self] _, _ in
@@ -1126,7 +1126,7 @@ final class TilveroModel {
             if !isDemo { Task { if !(await liveControl.prepareForSleep()) { notices.post(L10n.text("Recovery required"), from: .recovery) } } }
             let sleptAt = Date()
             historyWork { [weak self] store in
-                do { try await store.markGap(reason: .sleep, at: sleptAt) } catch { self?.storeError = String(describing: error) }
+                do { try await store.markGap(reason: .sleep, at: sleptAt) } catch { self?.storeError = HistoryStoreErrorText.text(error) }
             }
         } else {
             observedWake = true
@@ -1283,7 +1283,7 @@ final class TilveroModel {
                         self.storeError = nil
                     } catch {
                         if due, self.lastPersisted == observed { self.lastPersisted = nil }
-                        self.storeError = String(describing: error)
+                        self.storeError = HistoryStoreErrorText.text(error)
                     }
                 }
             }
@@ -1640,12 +1640,12 @@ final class TilveroModel {
             guard self?.historyStopped == false else { self?.historyLoading = false; return }
             let opened: BatteryHistoryStore
             do { opened = try await BatteryHistoryStore.open(url: url) }
-            catch { self?.storeError = String(describing: error); self?.historyLoading = false; return }
+            catch { self?.storeError = HistoryStoreErrorText.text(error); self?.historyLoading = false; return }
             guard let self, !self.historyStopped else { try? await opened.close(); return }
             self.store = opened
             // Independent history readers must still run if sleep-codec validation
             // rejects retention. Never turn a preserved corrupt record into empty success.
-            do { try await opened.configureRetention(self.retentionDays) } catch { self.storeError = String(describing: error) }
+            do { try await opened.configureRetention(self.retentionDays) } catch { self.storeError = HistoryStoreErrorText.text(error) }
             await self.loadHistory(from: opened)
             await self.loadSleepSessions(from: opened)
             self.historyLoading = false
@@ -1659,13 +1659,13 @@ final class TilveroModel {
             do { try await store.completeBackfill() }
             catch {
                 // A backfill cancelled or cut short by `stop()` is not a store error.
-                await MainActor.run { if let self, !self.historyStopped { self.storeError = String(describing: error) } }
+                await MainActor.run { if let self, !self.historyStopped { self.storeError = HistoryStoreErrorText.text(error) } }
                 return
             }
             await MainActor.run {
                 _ = self?.historyWork { [weak self] store in
                     guard let self, self.historySummary == nil else { return }
-                    do { self.historySummary = try await store.summaryIfReady() } catch { self.storeError = String(describing: error) }
+                    do { self.historySummary = try await store.summaryIfReady() } catch { self.storeError = HistoryStoreErrorText.text(error) }
                 }
             }
         }
@@ -1733,7 +1733,7 @@ final class TilveroModel {
                 historyStorage = usage
             }
         }
-        catch { storeError = String(describing: error) }
+        catch { storeError = HistoryStoreErrorText.text(error) }
     }
 
     /// A full VACUUM at most weekly, only while no Tilvero window is shown and the Mac runs on the adapter.
@@ -1751,7 +1751,7 @@ final class TilveroModel {
         let days = retentionDays
         historyWork { [weak self] store in
             guard let self else { return }
-            do { try await store.configureRetention(days) } catch { self.storeError = String(describing: error) }
+            do { try await store.configureRetention(days) } catch { self.storeError = HistoryStoreErrorText.text(error) }
             await self.loadHistory(from: store)
             await self.loadSleepSessions(from: store)
         }
@@ -1765,7 +1765,7 @@ final class TilveroModel {
         unsavedSleepRecords = []   // an unwritten report must not come back after the erase
         historyWork { [weak self] store in
             guard let self else { return }
-            do { try await store.erase() } catch { self.storeError = String(describing: error) }
+            do { try await store.erase() } catch { self.storeError = HistoryStoreErrorText.text(error) }
             await self.loadHistory(from: store)
             await self.loadSleepSessions(from: store)
         }

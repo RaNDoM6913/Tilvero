@@ -3,6 +3,7 @@
 
 import Foundation
 import PowerCore
+import PowerPersistence
 
 /// One reading as the window draws it. The single place that enforces "a missing number is «—», never zero": a valid
 /// zero stays «0». Pure and locale-aware, so the rules are testable without a view tree.
@@ -227,5 +228,15 @@ struct NoticeDisplay: Equatable, Sendable {
         let head = textKey.isEmpty ? "" : L10n.text(textKey)
         guard let detail, !detail.isEmpty else { return head }
         return head.isEmpty ? detail : head + ": " + detail
+    }
+}
+
+/// What the user reads for a history store failure: the error's own description, translated; never a Swift case name
+/// (`String(describing:)` printed "migrationBackupFailed"). An error from outside the store gets the generic text.
+enum HistoryStoreErrorText {
+    static let genericKey = "The local history store is unavailable. Existing files were preserved."
+    static func text(_ error: any Error) -> String {
+        guard let store = error as? HistoryStoreError, let description = store.errorDescription else { return L10n.text(genericKey) }
+        return L10n.text(description)
     }
 }

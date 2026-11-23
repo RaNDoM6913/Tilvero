@@ -76,6 +76,12 @@ import ClosedLidControl
     @State private var requested: Bool?
     init(model: TilveroModel, mode: LidMode = .keepAwake) { self.model = model; service = model.lidSleep; self.mode = mode }
     static let sleepDisabledWarningKey = "Mac can’t sleep with the lid closed: sleep is disabled in macOS"
+    /// "Restore sleep" after a failed restore always; for a disabled sleep only while no failure is shown, because the
+    /// failure "Sleep is already disabled by another tool… Tilvero will not change it." must not sit above a button
+    /// that changes it.
+    static func offersRestore(needsRecovery: Bool, systemSleepDisabled: Bool, failure: String?) -> Bool {
+        needsRecovery || (systemSleepDisabled && failure == nil)
+    }
     private var isTimer: Bool { mode == .scheduledSleep }
     private var preferred: Bool { isTimer ? service.isPreferredForScheduledSleep : service.isPreferred }
     /// Two short paragraphs: what the switch does (differs by mode), then the permission and the warning (shared).
@@ -118,7 +124,8 @@ import ClosedLidControl
             }
             // The levels only matter while this mode's lid switch is on.
             if preferred { LidComfortRow(model: model, mode: isTimer ? .scheduledSleep : .keepAwake) }
-            if service.needsRecovery || service.systemSleepDisabled {
+            if Self.offersRestore(needsRecovery: service.needsRecovery, systemSleepDisabled: service.systemSleepDisabled,
+                                  failure: service.failure) {
                 Button(L10n.text("Restore sleep")) { Task { await service.restoreSleep() } }.font(.caption).disabled(service.busy)
             }
         }

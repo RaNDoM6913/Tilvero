@@ -193,7 +193,7 @@ enum ChargeLimitKit {
                     .contentShape(Capsule())
             }
             .buttonStyle(.plain).disabled(!enabled)
-            .help(L10n.text("Validation writes 80%, 85%, 95% and 100% in turn and restores your setting, after a confirmed persistent baseline and a battery level below 80%."))
+            .help(L10n.text("Validation writes each of the other verified limits in turn and restores your setting, after a confirmed persistent baseline and a battery level below 80%."))
             .accessibilityIdentifier("action.validate-native-control")
             if ChargeLimitKit.needsPowerForValidation(admitted: model.nativeCharge.admitted, onBattery: ChargeLimitKit.onBattery(model)) {
                 Text(L10n.text("Connect the charger for the one-time validation. After that the limit works on battery power too."))

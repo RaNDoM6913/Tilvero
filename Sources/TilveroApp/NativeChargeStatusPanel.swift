@@ -60,7 +60,7 @@ import ChargeBackends
                 if !model.nativeCharge.admitted && !model.nativeCharge.recoveryRequired {
                     StudioActionButton(L10n.text("Validate 80–100%…"), id: "action.validate-native-control") { model.qualifyNativeCharge() }
                         .disabled(actionsBlocked || !model.nativeCharge.canRequestQualification)
-                        .help(L10n.text("Validation writes 80%, 85%, 95% and 100% in turn and restores your setting, after a confirmed persistent baseline and a battery level below 80%."))
+                        .help(L10n.text("Validation writes each of the other verified limits in turn and restores your setting, after a confirmed persistent baseline and a battery level below 80%."))
                 }
             }
             if model.nativeCharge.interfaceWasDiscovered && !model.nativeCharge.admitted {

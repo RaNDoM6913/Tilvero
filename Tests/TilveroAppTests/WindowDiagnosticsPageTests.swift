@@ -5,6 +5,7 @@ import XCTest
 import AppKit
 import SwiftUI
 import PowerCore
+import PowerPersistence
 @testable import TilveroApp
 
 @MainActor final class WindowDiagnosticsPageTests: XCTestCase {
@@ -96,10 +97,70 @@ import PowerCore
     }
 
     func testLidRowValue() {
-        XCTAssertEqual(DiagnosticsSummary.lidValueKey(isOn: false, needsRecovery: false, systemSleepDisabled: false), "Not held (lid sleep)")
+        XCTAssertEqual(DiagnosticsSummary.lidValueKey(isOn: false, needsRecovery: false, systemSleepDisabled: false), "Sleep normal (lid sleep)")
         XCTAssertEqual(DiagnosticsSummary.lidValueKey(isOn: true, needsRecovery: false, systemSleepDisabled: false), "Held (lid sleep)")
         XCTAssertEqual(DiagnosticsSummary.lidValueKey(isOn: false, needsRecovery: false, systemSleepDisabled: true), "Sleep disabled in macOS")
         XCTAssertEqual(DiagnosticsSummary.lidValueKey(isOn: true, needsRecovery: true, systemSleepDisabled: true), "Needs restoring")
+    }
+
+    /// The charge tile reads as rows: a missing reading is «—», verified levels read as a range or a list, none = not checked.
+    func testChargeRowValues() {
+        XCTAssertEqual(DiagnosticsChargeRows.limitText(preference: nil, reported: nil), "—", "nothing read is «—», never a guess")
+        XCTAssertEqual(DiagnosticsChargeRows.limitText(preference: (false, 80), reported: nil), L10n.text("System managed"))
+        XCTAssertEqual(DiagnosticsChargeRows.limitText(preference: nil, reported: 90), DiagnosticsChargeRows.percent(90))
+        XCTAssertEqual(DiagnosticsChargeRows.verifiedText([100, 80, 85, 90, 95]), "80–" + DiagnosticsChargeRows.percent(100))
+        XCTAssertEqual(DiagnosticsChargeRows.verifiedText([80, 95]),
+                       [80, 95].map(DiagnosticsChargeRows.percent).joined(separator: ", "), "a gap is a list, not a range")
+        XCTAssertEqual(DiagnosticsChargeRows.verifiedText([85]), DiagnosticsChargeRows.percent(85))
+        XCTAssertEqual(DiagnosticsChargeRows.verifiedText([]), L10n.text("Not checked (charge limits)"))
+    }
+
+    /// The page shows no developer tools (raw property read, running copy path) and no unconditional refresh buttons.
+    func testDiagnosticsPageHasNoDeveloperTools() throws {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/TilveroApp/DiagnosticsPage.swift")
+        let source = try String(contentsOf: url, encoding: .utf8)
+        for gone in ["inspectRawProperties", "Running copy", "bundleURL", "SystemChargeLimitPanel(", "\"Refresh\""] {
+            XCTAssertFalse(source.contains(gone), gone)
+        }
+    }
+
+    /// The helper messages that reach the UI are translated (the RU page showed "Helper is not enabled…" in English).
+    func testHelperMessagesAreTranslated() throws {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: url.appendingPathComponent("Sources/TilveroApp/LiveControlService.swift"), encoding: .utf8)
+        let catalog = try JSONSerialization.jsonObject(with: Data(contentsOf: url.appendingPathComponent("Sources/TilveroApp/Resources/Localizable.xcstrings"))) as! [String: Any]
+        let strings = catalog["strings"] as! [String: Any]
+        let pattern = try NSRegularExpression(pattern: #"(?:message = |: |\? |return )"([A-Z][^"\\]{20,})""#)
+        let keys = pattern.matches(in: source, range: NSRange(source.startIndex..., in: source)).compactMap { match in
+            Range(match.range(at: 1), in: source).map { String(source[$0]) }
+        }.filter { !$0.contains("\\(") }
+        XCTAssertGreaterThanOrEqual(keys.count, 10)
+        for key in keys where key.hasSuffix(".") {
+            let ru = ((strings[key] as? [String: Any])?["localizations"] as? [String: Any])?["ru"]
+            XCTAssertNotNil(ru, "missing RU: \(key)")
+        }
+    }
+
+    /// "Restore sleep" never sits under "Tilvero will not change it": with a failure shown it appears only after a failed restore.
+    func testRestoreSleepIsNotOfferedUnderTheForeignOverrideFailure() {
+        XCTAssertTrue(LidSleepOverrideRow.offersRestore(needsRecovery: false, systemSleepDisabled: true, failure: nil))
+        XCTAssertFalse(LidSleepOverrideRow.offersRestore(needsRecovery: false, systemSleepDisabled: true,
+                                                         failure: "Sleep is already disabled by another tool or setting. Tilvero will not change it."))
+        XCTAssertTrue(LidSleepOverrideRow.offersRestore(needsRecovery: true, systemSleepDisabled: true, failure: "Normal sleep could not be restored."))
+        XCTAssertFalse(LidSleepOverrideRow.offersRestore(needsRecovery: false, systemSleepDisabled: false, failure: nil))
+    }
+
+    /// A store failure reads as a translated sentence, never a Swift case name.
+    func testStoreErrorsAreSentencesNotCaseNames() {
+        let cases: [HistoryStoreError] = [.unavailable, .corruptRecord, .unsupportedSchema, .simulationExcluded, .migrationBackupFailed]
+        for error in cases {
+            let text = HistoryStoreErrorText.text(error)
+            XCTAssertNotEqual(text, String(describing: error))
+            XCTAssertTrue(text.contains(" "), "a sentence, not a case name: \(text)")
+            XCTAssertTrue(text.hasSuffix("."), text)
+        }
+        XCTAssertEqual(HistoryStoreErrorText.text(CocoaError(.fileReadCorruptFile)), L10n.text(HistoryStoreErrorText.genericKey))
     }
 
     // MARK: Render

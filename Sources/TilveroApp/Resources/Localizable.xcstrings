@@ -15841,18 +15841,18 @@
         }
       }
     },
-    "Validation writes 80%, 85%, 95% and 100% in turn and restores your setting, after a confirmed persistent baseline and a battery level below 80%.": {
+    "Validation writes each of the other verified limits in turn and restores your setting, after a confirmed persistent baseline and a battery level below 80%.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Validation writes 80%, 85%, 95% and 100% in turn and restores your setting, after a confirmed persistent baseline and a battery level below 80%."
+            "value": "Validation writes each of the other verified limits in turn and restores your setting, after a confirmed persistent baseline and a battery level below 80%."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Проверка по очереди ставит 80, 85, 95 и 100 % и возвращает вашу настройку; нужна подтверждённая постоянная настройка и заряд ниже 80 %."
+            "value": "Проверка по очереди ставит каждый из остальных проверенных лимитов и возвращает вашу настройку; нужна подтверждённая постоянная настройка и заряд ниже 80 %."
           }
         }
       }
@@ -18284,7 +18284,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Настройки приложения"
+            "value": "Настройки у приложения"
           }
         }
       }
@@ -20237,6 +20237,374 @@
           "stringUnit": {
             "state": "translated",
             "value": "Пилюли сортируются сами. Правка не меняет идущий сеанс."
+          }
+        }
+      }
+    },
+    "Verified (charge limits)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verified"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверено"
+          }
+        }
+      }
+    },
+    "Not checked (charge limits)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not checked"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не проверено"
+          }
+        }
+      }
+    },
+    "Charging settings in macOS": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charging settings in macOS"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Настройки зарядки macOS"
+          }
+        }
+      }
+    },
+    "Not used (helper)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not used"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не используется"
+          }
+        }
+      }
+    },
+    "Sleep normal (lid sleep)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sleep normal"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сон в норме"
+          }
+        }
+      }
+    },
+    "Data (diagnostics)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Data"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Данные"
+          }
+        }
+      }
+    },
+    "The trusted helper is unavailable. Monitoring continues without control.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The trusted helper is unavailable. Monitoring continues without control."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Доверенный помощник недоступен. Мониторинг продолжается без управления."
+          }
+        }
+      }
+    },
+    "A helper operation is already in progress.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A helper operation is already in progress."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Операция помощника уже выполняется."
+          }
+        }
+      }
+    },
+    "The requested setting was not independently confirmed. Recovery may be required.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The requested setting was not independently confirmed. Recovery may be required."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запрошенная настройка не подтверждена независимо. Может понадобиться восстановление."
+          }
+        }
+      }
+    },
+    "Owned settings have not been verified as restored. Keep the app/helper installed for recovery.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Owned settings have not been verified as restored. Keep the app/helper installed for recovery."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не подтверждено, что настройки приложения восстановлены. Не удаляйте приложение и помощника до восстановления."
+          }
+        }
+      }
+    },
+    "This control is not qualified for the current hardware and trusted signed build.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This control is not qualified for the current hardware and trusted signed build."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Это управление не проверено для этого Mac и подписанной сборки."
+          }
+        }
+      }
+    },
+    "Approve the registered helper in macOS Login Items settings before using qualified control.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Approve the registered helper in macOS Login Items settings before using qualified control."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешите помощника в «Объектах входа» настроек macOS, чтобы пользоваться управлением."
+          }
+        }
+      }
+    },
+    "Helper is not enabled. Only independently qualified controls can request registration.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Helper is not enabled. Only independently qualified controls can request registration."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Помощник не включён. Его можно включить только для проверенного управления."
+          }
+        }
+      }
+    },
+    "App-owned settings were verified as restored.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App-owned settings were verified as restored."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Настройки приложения восстановлены, это подтверждено."
+          }
+        }
+      }
+    },
+    "macOS approval is required before the registered helper can operate.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS approval is required before the registered helper can operate."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Чтобы помощник заработал, его нужно разрешить в macOS."
+          }
+        }
+      }
+    },
+    "Helper removed after verified restoration.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Helper removed after verified restoration."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Помощник удалён после подтверждённого восстановления."
+          }
+        }
+      }
+    },
+    "The trusted helper operation failed. Existing ownership evidence is retained; monitoring continues.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The trusted helper operation failed. Existing ownership evidence is retained; monitoring continues."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Операция помощника не удалась. Сведения о настройках приложения сохранены, мониторинг продолжается."
+          }
+        }
+      }
+    },
+    "History could not be backed up before its upgrade. It was left unchanged; the upgrade is retried at the next launch.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "History could not be backed up before its upgrade. It was left unchanged; the upgrade is retried at the next launch."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перед обновлением истории не удалось сделать резервную копию. История не изменена, обновление повторится при следующем запуске."
+          }
+        }
+      }
+    },
+    "The local history store is unavailable. Existing files were preserved.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The local history store is unavailable. Existing files were preserved."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "История недоступна. Сохранённые файлы не тронуты."
+          }
+        }
+      }
+    },
+    "A history record is invalid; existing data was preserved.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A history record is invalid; existing data was preserved."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Одна запись истории повреждена. Остальные данные сохранены."
+          }
+        }
+      }
+    },
+    "This history schema is not supported by this app version.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This history schema is not supported by this app version."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эта версия приложения не поддерживает формат истории."
+          }
+        }
+      }
+    },
+    "Simulation samples are excluded from live history.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Simulation samples are excluded from live history."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Данные симуляции не попадают в живую историю."
+          }
+        }
+      }
+    },
+    "Separate battery and adapter modes require signed-helper apply/readback/restoration qualification.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Separate battery and adapter modes require signed-helper apply/readback/restoration qualification."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Раздельные режимы батареи и адаптера требуют проверки подписанного помощника: применение, контроль и восстановление."
           }
         }
       }
