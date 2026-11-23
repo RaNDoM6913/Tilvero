@@ -40,6 +40,8 @@ enum LidMode: Equatable { case keepAwake, scheduledSleep }
     static let legacyRecoveryKey = "lidSleepOverrideActive"
     static let preferenceKey = "lidClosedPreferred"
     static let scheduledSleepPreferenceKey = "lidClosedPreferredScheduledSleep"
+    /// Set once the one-time cleanup of a pre-0.7.2 leftover (`SleepDisabled 1` without any marker) has settled.
+    static let leftoverCleanupKey = "lidLeftoverCleanupDone"
     /// The option: "with the lid closed" applies to every Keep Awake session the user starts. It never starts one.
     @Published private(set) var isPreferred = false
     /// The one option for the sleep timer AND Sleep at charge: a running timer / an armed level also continues with the lid
@@ -416,7 +418,7 @@ enum LidMode: Equatable { case keepAwake, scheduledSleep }
     /// Launch: a marker left by a crashed or killed run means the override may still be set (its watchdog may be
     /// acting right now, hence the lock). Without a marker, the system state is read once for the warning.
     func recoverIfNeeded() async {
-        guard markerPresent else { await markerGone(); return }
+        guard markerPresent else { await cleanUpLegacyLeftover(); await markerGone(); return }
         let locked = await markerLock.acquire(timeout: recoveryLockTimeout)
         var holding = locked
         defer { if holding { markerLock.release() } }
@@ -432,6 +434,32 @@ enum LidMode: Equatable { case keepAwake, scheduledSleep }
         busy = true; defer { busy = false }
         await restoreInline(userInitiated: false)
         if needsRecovery { failure = L10n.text("Normal sleep could not be restored. Use Restore sleep.") }
+    }
+
+    /// One time, at the first launch of 0.7.2 or later: up to 0.7.1 a run that ended without restoring could leave
+    /// `SleepDisabled 1` behind with no marker that launch recovery follows. It is cleared only when the evidence says
+    /// Tilvero set it: one of the "With lid closed" switches is on AND Tilvero's own passwordless rule is installed
+    /// (nothing else installs it; the override never starts without it). Then the same passwordless write as a restore,
+    /// confirmed by a read; never a password prompt at launch. Without that evidence the setting is not touched (a
+    /// user's own `pmset` or another tool) and the regular warning with "Restore sleep" shows instead. The cleanup is
+    /// marked done once sleep reads normal or the evidence is missing; an unreadable state or a refused write is retried
+    /// at the next launch.
+    private func cleanUpLegacyLeftover() async {
+        guard allowed, observesSystemSleep, !defaults.bool(forKey: Self.leftoverCleanupKey),
+              !busy, !isOn, session == nil else { return }
+        let usedLidMode = defaults.bool(forKey: Self.preferenceKey) || defaults.bool(forKey: Self.scheduledSleepPreferenceKey)
+        guard usedLidMode, system.ruleFilePresent else { defaults.set(true, forKey: Self.leftoverCleanupKey); return }
+        busy = true; defer { busy = false }
+        guard let disabled = await system.readSleepDisabled() else { return }
+        guard disabled else { defaults.set(true, forKey: Self.leftoverCleanupKey); return }
+        let locked = await markerLock.acquire(timeout: recoveryLockTimeout)
+        defer { if locked { markerLock.release() } }
+        // A marker that appeared meanwhile belongs to a run that is acting: its own recovery path handles it.
+        guard !markerPresent, !isOn, session == nil else { return }
+        _ = await system.setSleepDisabledPasswordless(false)
+        guard await system.readSleepDisabled() == false else { return }
+        defaults.set(true, forKey: Self.leftoverCleanupKey)
+        systemSleepDisabled = false
     }
 
     /// The marker read at init is gone (the watchdog of the ended run restored and removed it first): nothing of ours

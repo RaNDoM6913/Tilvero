@@ -267,6 +267,82 @@ final class FakeWatchdogLauncher: LidWatchdogLaunching, @unchecked Sendable {
         XCTAssertEqual(noMarker.calls, ["read"], "Without a marker launch only reads the state (for the warning) and writes nothing.")
     }
 
+    /// Update from ≤ 0.7.1 with `SleepDisabled 1` and no marker at all: cleared once, without a prompt, only when a lid
+    /// switch is on and Tilvero's own rule is installed; otherwise never touched.
+    func testLeftoverWithoutMarkerIsClearedOnceWhenTilveroSetIt() async throws {
+        func relaunch(_ system: FakeLidSystem, _ defaults: UserDefaults, _ base: LidSleepOverrideService) -> LidSleepOverrideService {
+            LidSleepOverrideService(system: system, defaults: defaults, allowed: true, markers: base.markers)
+        }
+        let key = LidSleepOverrideService.leftoverCleanupKey
+
+        // Ours: switch on + rule installed → cleared at launch, done flag set, no prompt, no warning.
+        let ours = FakeLidSystem(); ours.sleepDisabled = true
+        let (a, da, _, cleanA) = make(ours); defer { cleanA() }
+        da.set(true, forKey: LidSleepOverrideService.preferenceKey)
+        let launched = relaunch(ours, da, a)
+        await launched.recoverIfNeeded()
+        XCTAssertFalse(ours.sleepDisabled)
+        XCTAssertTrue(ours.calls.contains("set false"))
+        XCTAssertFalse(ours.calls.contains("authorized restore"), "Never a password prompt at launch.")
+        XCTAssertFalse(ours.calls.contains("set true"))
+        XCTAssertTrue(da.bool(forKey: key))
+        XCTAssertFalse(launched.systemSleepDisabled)
+        XCTAssertFalse(launched.isOn)
+        // One time only: a later SleepDisabled 1 (another tool) is left alone and only warned about.
+        ours.sleepDisabled = true
+        let writes = ours.calls.filter { $0 == "set false" }.count
+        await relaunch(ours, da, a).recoverIfNeeded()
+        XCTAssertTrue(ours.sleepDisabled)
+        XCTAssertEqual(ours.calls.filter { $0 == "set false" }.count, writes)
+
+        // The scheduled-sleep switch counts as the same evidence.
+        let timer = FakeLidSystem(); timer.sleepDisabled = true
+        let (t, dt, _, cleanT) = make(timer); defer { cleanT() }
+        dt.set(true, forKey: LidSleepOverrideService.scheduledSleepPreferenceKey)
+        await relaunch(timer, dt, t).recoverIfNeeded()
+        XCTAssertFalse(timer.sleepDisabled)
+
+        // Not ours: switches off (the user's own pmset or another tool) → untouched, warning shown, flag settled.
+        let foreign = FakeLidSystem(); foreign.sleepDisabled = true
+        let (b, db, _, cleanB) = make(foreign); defer { cleanB() }
+        let plain = relaunch(foreign, db, b)
+        await plain.recoverIfNeeded()
+        XCTAssertTrue(foreign.sleepDisabled)
+        XCTAssertFalse(foreign.calls.contains { $0.hasPrefix("set") })
+        XCTAssertTrue(plain.systemSleepDisabled, "The regular warning with Restore sleep shows instead.")
+        XCTAssertTrue(db.bool(forKey: key))
+
+        // Switch on but no Tilvero rule: Tilvero could not have set it (and could not clear it without a prompt).
+        let noRule = FakeLidSystem(); noRule.sleepDisabled = true; noRule.ruleWorks = false
+        let (c, dc, _, cleanC) = make(noRule); defer { cleanC() }
+        dc.set(true, forKey: LidSleepOverrideService.preferenceKey)
+        await relaunch(noRule, dc, c).recoverIfNeeded()
+        XCTAssertTrue(noRule.sleepDisabled)
+        XCTAssertFalse(noRule.calls.contains { $0.hasPrefix("set") || $0 == "authorized restore" })
+
+        // Already normal: nothing written, flag settled.
+        let normal = FakeLidSystem()
+        let (n, dn, _, cleanN) = make(normal); defer { cleanN() }
+        dn.set(true, forKey: LidSleepOverrideService.preferenceKey)
+        await relaunch(normal, dn, n).recoverIfNeeded()
+        XCTAssertFalse(normal.calls.contains { $0.hasPrefix("set") })
+        XCTAssertTrue(dn.bool(forKey: key))
+
+        // The write did not take (rule refused at run time): not marked done, retried at the next launch.
+        let refused = FakeLidSystem(); refused.sleepDisabled = true; refused.writeSucceeds = false; refused.writeApplies = false
+        let (r, dr, _, cleanR) = make(refused); defer { cleanR() }
+        dr.set(true, forKey: LidSleepOverrideService.preferenceKey)
+        let first = relaunch(refused, dr, r)
+        await first.recoverIfNeeded()
+        XCTAssertTrue(refused.sleepDisabled)
+        XCTAssertFalse(dr.bool(forKey: key))
+        XCTAssertTrue(first.systemSleepDisabled, "Still disabled: the warning shows.")
+        refused.writeSucceeds = true
+        await relaunch(refused, dr, r).recoverIfNeeded()
+        XCTAssertFalse(refused.sleepDisabled)
+        XCTAssertTrue(dr.bool(forKey: key))
+    }
+
     func testRemovingThePermissionIsRefusedWhileTheModeIsOn() async throws {
         let system = FakeLidSystem()
         let (service, _, _, cleanUp) = make(system)
