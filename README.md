@@ -63,7 +63,7 @@ A redesigned main window, a safer **With lid closed** and an upgraded, faster hi
 **Fixed**
 - Helper messages are translated (the Russian page showed English), history errors read as sentences, and "Restore sleep" no longer sits under "Tilvero will not change it".
 
-**Known limits.** The new window has been seen on macOS 27.2 only, not yet on macOS 26. Not yet verified on a real Mac: the sign of the live battery power while charging on AC, the lid watchdog after a real force-quit of a signed build, and waking a sleeping Mac for charge by time.
+**Known limits.** The new window has been seen on macOS 27.2 only, not yet on macOS 26. The lid watchdog was checked on a real Mac with a signed build: after `kill -9` normal sleep was back within a second. Not yet verified on a real Mac: the sign of the live battery power while charging on AC and waking a sleeping Mac for charge by time.
 
 ## What was new in 0.7.1
 
