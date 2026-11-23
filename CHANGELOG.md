@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.8.0 — New Window Source Preview — 2026-11-23
+
+A redesigned main window, a safer "With lid closed" and an upgraded, faster history store.
+
+**Added**
+- The redesigned main window: a glass sidebar column (Overview, Battery, Charging, Sleep & drain, Cooling, History, Apps, Diagnostics, Settings) that
+  narrows to an icon rail with Control-Command-S and remembers the choice. Pages with several views (Battery, Sleep & drain, Settings) keep their
+  tabs in the toolbar. The Charging page holds the charge limit, the one-time full charge and charge by time beside the power chart and the adapter
+  readings; the Apps page lists process activity; Diagnostics is tidier (charging rows, long explanations behind an info button, no refresh buttons).
+- Settings > Quick menu edits the duration and level buttons of the sleep timer, Keep Awake, Sleep at charge and Keep awake until charge.
+- A lifeline watchdog for "With lid closed": every override session starts a small child copy of the app that holds a pipe to the app and
+  sees an on-disk marker (`lid-override.json` with a lock). If the app crashes, is force-quit or killed, the child puts normal sleep back, but
+  only while the marker still carries its token; it can restore sleep and cannot disable it. If the watchdog cannot start, the override is refused.
+- A one-time cleanup at the first launch of this build: sleep left disabled by 0.7.1 or earlier is cleared only when a "With lid closed" switch is
+  on and Tilvero's own passwordless rule is installed (the same passwordless write as a restore, confirmed by a read, never a prompt).
+- Live battery power once a second from the SMC while a live chart is on screen, instead of the once-a-minute registry value.
+- A new app icon and README banner.
+
+**Changed**
+- History store upgraded to schema 3: it runs off the main actor, charts and the summary read scalar columns, the summary is kept as a running state,
+  and a size budget of 512 MB (history plus write-ahead log) trims the oldest data first, never the last 7 days. Settings > History shows the size
+  against the limit. Before an older store is upgraded, a private backup `History.pre-v3.sqlite` is written next to it (kept 30 days; if it cannot be
+  made the upgrade waits for the next launch), and `scripts/restore-history-backup.sh` restores it for a rollback.
+- The capacity-retention card shows the cycle count and the wear on one line, with the capacities small beside them.
+- The power chart legend uses coloured 12 pt icons and the numbers in the primary text colour.
+- Less background work: process activity is scanned about every two minutes while no panel shows it, the charge-by-time timer ticks only while a
+  plan exists, the charge limit is read once per poll cycle, a closed quick menu measures nothing, and nothing keeps running after the model stops.
+- Charge by time validates a stored wake stamp before it reaches `sudo`.
+- The model uses Observation instead of one observable object; notices have one slot per source.
+
+**Fixed**
+- Helper messages are translated (the Russian page showed English); history store failures read as sentences, not Swift case names.
+- "Restore sleep" no longer sits under "Tilvero will not change it" when another tool disabled sleep.
+- The Diagnostics validation copy lists every verified limit it writes (90 % was missing).
+
+Source for Apple silicon with macOS 26.0+ and full Xcode; no app or DMG. Not yet verified on a real Mac: the sign of the live battery power
+while charging on AC, the lid watchdog after a real force-quit of a signed build, and waking a sleeping Mac on schedule for charge by time. The new
+window has been seen on macOS 27.2 only, not on macOS 26.
+
 ## 0.7.1 — Update Notice Source Preview — 2026-11-18
 
 A polish release: a clearer battery-health card, an update notice in the quick menu, and one animation fix.
