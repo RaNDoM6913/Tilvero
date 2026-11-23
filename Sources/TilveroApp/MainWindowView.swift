@@ -23,9 +23,10 @@ import PowerCore
 }
 
 /// Sidebar variant C «Колонна» (owner choice 2026-11-22): one inset glass panel with the sections, full height, the
-/// traffic lights on its glass. The toolbar button (⌃⌘S) narrows it to an icon rail below the toolbar in one motion:
+/// traffic lights on its glass. The column's toggle (⌃⌘S) narrows it to an icon rail below the toolbar in one motion:
 /// icons keep their place, names and group titles fade, group titles turn into dividers. The page keeps the column's
-/// width free; the page title is drawn beside the column, because the system title would sit on the glass.
+/// width free. The page title is drawn by this view in the toolbar row, not as a toolbar item: a toolbar item's place
+/// is AppKit's to decide (it moved between window states), and steering it from a measurement made it jitter.
 @MainActor struct WindowShell<Detail: View>: View {
     let model: TilveroModel
     @ViewBuilder var detail: () -> Detail
@@ -38,29 +39,41 @@ import PowerCore
                 .safeAreaPadding(.leading, inset)
                 .toolbar(removing: .title)
                 .toolbar {
+                    // Keeps toolbar items off the drawn title. Computed, never measured: a measured item fed back into
+                    // the toolbar layout and jittered.
                     ToolbarItem(placement: .navigation) {
-                        WindowPageTitle(model: model, progress: collapsed ? 1 : 0)
+                        Color.clear.frame(width: WindowPageTitle.reservedWidth(model: model, collapsed: collapsed), height: 1)
+                            .accessibilityHidden(true)
                     }
                     .sharedBackgroundVisibility(.hidden)
                     ToolbarSpacer(.flexible)
                 }
             GeometryReader { proxy in
-                WindowColumn(model: model, progress: collapsed ? 1 : 0, height: proxy.size.height)
+                ZStack(alignment: .topLeading) {
+                    WindowColumn(model: model, progress: collapsed ? 1 : 0, height: proxy.size.height)
+                    WindowPageTitle(model: model, progress: collapsed ? 1 : 0)
+                }
             }
             .ignoresSafeArea()
         }
     }
 }
 
-/// The page title in the toolbar, kept beside the column: a leading gap that follows the column's width through the
-/// motion (system title style).
+/// The page title in the toolbar row, above the page's leading edge; it travels with the column through the motion.
 @MainActor struct WindowPageTitle: View, Animatable {
     let model: TilveroModel
     var progress: Double
     @Environment(\.appearsActive) private var active
-    /// Where AppKit actually placed this toolbar item, in window points (measured: it differs between windows and
-    /// states, so a fixed guess put the title against the column).
-    @State private var itemX: CGFloat?
+
+    static let font = NSFont.systemFont(ofSize: 15, weight: .semibold)
+    /// Width of the leading toolbar spacer that keeps items clear of the title: up to the title's end plus a gap, from
+    /// the earliest place AppKit starts the first item (66 pt, right of the traffic lights).
+    static func reservedWidth(model: TilveroModel, collapsed: Bool) -> CGFloat {
+        let title = WindowSection.entry(model.navigation.section).title as NSString
+        let end = WindowColumn.inset(progress: collapsed ? 1 : 0) + WindowTheme.pagePadding.leading
+            + title.size(withAttributes: [.font: font]).width
+        return max(1, (end + 16 - 66).rounded(.up))
+    }
 
     nonisolated var animatableData: Double {
         get { progress }
@@ -68,74 +81,14 @@ import PowerCore
     }
 
     var body: some View {
-        let target = WindowColumn.inset(progress: progress) + WindowTheme.pagePadding.leading
-        HStack(spacing: 0) {
-            Color.clear.frame(width: max(0, target - (itemX ?? WindowColumn.titleItemX)), height: 1)
-            Text(WindowSection.entry(model.navigation.section).title)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(active ? .primary : .tertiary)
-                .lineLimit(1).fixedSize()
-        }
-        .fixedSize()
-        .background(alignment: .leading) {
-            WindowXReader { x in if itemX != x { itemX = x } }.frame(width: 1, height: 1)
-        }
-        .accessibilityHidden(true)   // the window title carries it
-    }
-}
-
-/// Reports its own leading x in window coordinates. AppKit moves toolbar items after their first layout (opening,
-/// resizing, key/active changes), and moving an ancestor does not lay out this view, so it re-measures on every frame
-/// change of its ancestors and on every window update; the value is cheap to compare and reported only when it changes.
-struct WindowXReader: NSViewRepresentable {
-    let report: @MainActor (CGFloat) -> Void
-    func makeNSView(context: Context) -> ReaderView { ReaderView(report: report) }
-    func updateNSView(_ view: ReaderView, context: Context) { view.report = report; view.measure() }
-
-    final class ReaderView: NSView {
-        var report: @MainActor (CGFloat) -> Void
-        private var last: CGFloat?
-        nonisolated(unsafe) private var observers: [NSObjectProtocol] = []
-        init(report: @escaping @MainActor (CGFloat) -> Void) {
-            self.report = report
-            super.init(frame: .zero)
-        }
-        required init?(coder: NSCoder) { nil }
-        deinit { observers.forEach(NotificationCenter.default.removeObserver) }
-
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            observers.forEach(NotificationCenter.default.removeObserver)
-            observers = []
-            guard let window else { return }
-            let center = NotificationCenter.default
-            var ancestor = superview
-            while let view = ancestor {
-                view.postsFrameChangedNotifications = true
-                observers.append(center.addObserver(forName: NSView.frameDidChangeNotification, object: view, queue: .main) {
-                    [weak self] _ in MainActor.assumeIsolated { self?.measure() }
-                })
-                ancestor = view.superview
-            }
-            for name in [NSWindow.didUpdateNotification, NSWindow.didResizeNotification, NSWindow.didBecomeKeyNotification,
-                         NSWindow.didResignKeyNotification] {
-                observers.append(center.addObserver(forName: name, object: window, queue: .main) {
-                    [weak self] _ in MainActor.assumeIsolated { self?.measure() }
-                })
-            }
-            last = nil
-            measure()
-        }
-        override func layout() { super.layout(); measure() }
-
-        func measure() {
-            guard window != nil else { return }
-            let x = convert(bounds, to: nil).minX.rounded()
-            guard x != last else { return }
-            last = x
-            let report = self.report
-            DispatchQueue.main.async { report(x) }
-        }
+        Text(WindowSection.entry(model.navigation.section).title)
+            .font(Font(Self.font))
+            .foregroundStyle(active ? .primary : .tertiary)
+            .lineLimit(1).fixedSize()
+            .frame(height: WindowColumn.toolbarHeight)
+            .offset(x: WindowColumn.inset(progress: progress) + WindowTheme.pagePadding.leading)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)   // the window title carries it
     }
 }
 
@@ -156,8 +109,6 @@ struct WindowXReader: NSViewRepresentable {
     static let railWidth: CGFloat = 60
     static let edge: CGFloat = 8
     static let toolbarHeight: CGFloat = 52
-    /// Where the first toolbar item (the title) starts, right of the traffic lights.
-    static let titleItemX: CGFloat = 88
     static let motion = Animation.smooth(duration: 0.32)
     static func width(progress: Double) -> CGFloat { railWidth + (fullWidth - railWidth) * (1 - progress) }
     /// Leading space the page keeps free.

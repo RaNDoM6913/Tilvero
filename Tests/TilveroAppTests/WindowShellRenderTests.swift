@@ -216,6 +216,16 @@ import PowerPersistence
         XCTAssertTrue(tabs.contains { !$0.isHiddenOrHasHiddenAncestor && $0.frame.width > 0 }, "tabs went into the overflow")
     }
 
+    /// The page title is drawn by the shell, not steered as a toolbar item from a measurement (that fed back into the
+    /// toolbar layout and made titles jitter); toolbar items keep clear of it through a computed spacer.
+    func testPageTitleIsNotAMeasuredToolbarItem() throws {
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .appendingPathComponent("../../Sources/TilveroApp/MainWindowView.swift").standardizedFileURL, encoding: .utf8)
+        XCTAssertFalse(source.contains("NSViewRepresentable"), "no view reads toolbar geometry back")
+        XCTAssertFalse(source.contains("ToolbarItem(placement: .navigation) {\n                        WindowPageTitle"))
+        XCTAssertTrue(source.contains("WindowPageTitle.reservedWidth("))
+    }
+
     /// The Overview Hour chart subscribes to live charts only while it is shown in a visible window: another page
     /// releases it and a hidden window reads nothing. (Day/Week drop the `.liveCharts` view entirely; DEMO never
     /// samples by `wantsLiveCharts`.)
