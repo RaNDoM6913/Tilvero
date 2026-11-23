@@ -35,8 +35,9 @@ A redesigned main window, a safer "With lid closed" and an upgraded, faster hist
 - "Restore sleep" no longer sits under "Tilvero will not change it" when another tool disabled sleep.
 - The Diagnostics validation copy lists every verified limit it writes (90 % was missing).
 
-Source for Apple silicon with macOS 26.0+ and full Xcode; no app or DMG. Not yet verified on a real Mac: the sign of the live battery power
-while charging on AC, the lid watchdog after a real force-quit of a signed build, and waking a sleeping Mac on schedule for charge by time. The new
+Source for Apple silicon with macOS 26.0+ and full Xcode; no app or DMG. The lid watchdog was checked on a real Mac with a signed build (after `kill -9`
+normal sleep was back within a second). Not yet verified on a real Mac: the sign of the live battery power while charging on AC and waking a
+sleeping Mac on schedule for charge by time. The new
 window has been seen on macOS 27.2 only, not on macOS 26.
 
 ## 0.7.1 — Update Notice Source Preview — 2026-11-18
