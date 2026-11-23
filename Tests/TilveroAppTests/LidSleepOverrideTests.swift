@@ -125,7 +125,7 @@ final class FakeWatchdogLauncher: LidWatchdogLaunching, @unchecked Sendable {
         defer { cleanUp() }
         await service.setPreferred(true)
         XCTAssertFalse(service.isOn)
-        XCTAssertNotNil(service.failure)
+        XCTAssertTrue(service.systemSleepDisabled, "shown as the regular sleep-disabled warning")
         XCTAssertFalse(system.calls.contains { $0.hasPrefix("set") }, "Foreign state is never written.")
         XCTAssertFalse(lidMarked(service))
         XCTAssertTrue(system.sleepDisabled)
@@ -341,6 +341,20 @@ final class FakeWatchdogLauncher: LidWatchdogLaunching, @unchecked Sendable {
         await relaunch(refused, dr, r).recoverIfNeeded()
         XCTAssertFalse(refused.sleepDisabled)
         XCTAssertTrue(dr.bool(forKey: key))
+    }
+
+    /// Sleep already disabled by someone else when the switch is turned on: nothing is adopted or written, and the row
+    /// shows the regular warning with Restore sleep (no "Tilvero will not change it" failure that hid the button).
+    func testForeignBaselineShowsTheWarningNotAFailure() async throws {
+        let system = FakeLidSystem(); system.sleepDisabled = true
+        let (service, _, _, cleanUp) = make(system)
+        defer { cleanUp() }
+        await service.setPreferred(true)
+        XCTAssertFalse(service.isOn)
+        XCTAssertFalse(system.calls.contains { $0.hasPrefix("set") }, "an override that is already set is never adopted")
+        XCTAssertNil(service.failure)
+        XCTAssertTrue(service.systemSleepDisabled)
+        XCTAssertTrue(LidSleepOverrideRow.offersRestore(needsRecovery: service.needsRecovery, systemSleepDisabled: service.systemSleepDisabled))
     }
 
     func testRemovingThePermissionIsRefusedWhileTheModeIsOn() async throws {
