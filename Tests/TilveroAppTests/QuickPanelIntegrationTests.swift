@@ -83,8 +83,8 @@ import ChargeBackends
     }
 
     func testCompactModesExposeSavedSelectionWithoutEditingControls() async throws {
-        let suite = "TilveroCompact-\(UUID())", prefs = UserDefaults(suiteName: suite)!
-        defer { prefs.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name("Compact"), prefs = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         let model = TilveroModel(isDemo: true, preferences: prefs)
         await model.refresh()
         var saved = model.modeLibrary.plan(.economy); saved.chargeTarget = 90; saved.brightnessPercent = 40
@@ -100,9 +100,9 @@ import ChargeBackends
         XCTAssertNil(model.modeReport, "Opening Modes never applies a plan")
     }
     func testKnownACSuppressesDischargeForecastWithoutChangingSavedComposition() async throws {
-        let suite = "TilveroForecast-\(UUID())", prefs = UserDefaults(suiteName: suite)!
+        let suite = TestDefaults.name("Forecast"), prefs = TestDefaults.defaults(suite)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"), snapshotProvider: {
             BatterySnapshot(chargePercent: .init(value: 80, source: "fixture", freshness: .fresh), isExternalPower: .init(value: true, source: "fixture", freshness: .unknown))
         })
@@ -132,8 +132,8 @@ import ChargeBackends
     let model: TilveroModel
 
     init(isDemo: Bool = false) throws {
-        suite = "TilveroAwakePanel-\(UUID())"
-        prefs = try XCTUnwrap(UserDefaults(suiteName: suite))
+        suite = TestDefaults.name("AwakePanel")
+        prefs = TestDefaults.defaults(suite)
         prefs.set(false, forKey: "historyEnabled")
         root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         driver = AwakeFixture()
@@ -143,7 +143,7 @@ import ChargeBackends
     }
     func cleanUp() {
         model.stop()
-        prefs.removePersistentDomain(forName: suite)
+        TestDefaults.remove(suite)
         try? FileManager.default.removeItem(at: root)
     }
 }

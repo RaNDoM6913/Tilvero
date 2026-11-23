@@ -25,6 +25,13 @@ enum SleepTimerQuitReason {
 @MainActor
 struct TilveroMain {
     static func main() {
+        // The closed-lid watchdog is this executable too: it branches off before anything else (no NSApplication,
+        // no model, no store) and never returns. A malformed watchdog launch is neither.
+        switch LidWatchdog.earlyRoute(arguments: CommandLine.arguments) {
+        case .watchdog(let invocation): LidWatchdog.runAndExit(invocation)
+        case .malformed: exit(64)
+        case .application: break
+        }
         if CommandLine.arguments.contains("--doctor") {
             do {
                 let report = try DoctorReport(snapshot: MacBatteryProvider().readSnapshot()).encodedJSON()
@@ -88,15 +95,18 @@ struct TilveroMain {
 
     fileprivate static func prepare(application: NSApplication) -> TilveroAppDelegate? {
         if let bundleID = Bundle.main.bundleIdentifier {
+            // A lid watchdog runs this executable but is not a running copy of the app.
             let existing = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
-                .filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier && !$0.isTerminated }
+                .filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier && !$0.isTerminated
+                    && !LidWatchdog.isWatchdogProcess(pid: $0.processIdentifier) }
             guard AppInstancePolicy.mayStart(application: application, existing: existing) else { return nil }
         }
         let identity: ReleaseIdentity
         var launchPolicy = AppLaunchPolicy.resolve(metadata: Bundle.main.infoDictionary ?? [:], arguments: CommandLine.arguments,
             runningBundleIdentifiers: Set(AppLaunchPolicy.knownBundleIdentifiers.flatMap {
                 NSRunningApplication.runningApplications(withBundleIdentifier: $0)
-            }.filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier && !$0.isTerminated }
+            }.filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier && !$0.isTerminated
+                && !LidWatchdog.isWatchdogProcess(pid: $0.processIdentifier) }
                 .compactMap(\.bundleIdentifier)))
         var controllerLease: ControllerSessionLease?
         #if TILVERO_LAB_STUDIO
@@ -426,6 +436,8 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         popover.contentViewController = panel
         popover.contentSize = panel.preferredContentSize
         popover.delegate = self
+        // A panel made for a closed popover measures nothing until it shows; a rebuild while it is shown (first run) stays live.
+        if !popover.isShown { panel.didClose() }
 
     }
 
@@ -433,10 +445,9 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         #if TILVERO_LAB_STUDIO
         L10n.useStudioLanguage(model.language)
         #endif
-        model.openDetails = { [weak self] in self?.showDetails() }
+        model.navigation.presentDetails = { [weak self] in self?.showDetails() }
         sleepTimerWarning = SleepTimerWarningController(service: model.sleepTimer) { [weak self] in
-            guard let self else { return }
-            self.model.selectedSleepPage = .timer; self.model.selectedSection = .sleep; self.showDetails()
+            self?.model.navigation.open(.sleep(.timer))
         }
         model.onPresentationChange = { [weak self] in
             guard let self else { return }
@@ -507,7 +518,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
                 let alert = NSAlert(); alert.messageText = L10n.text("Recovery required")
                 alert.informativeText = model.terminationRecoveryMessage ?? L10n.text("Operation failed")
                 alert.runModal()
-                model.selectedSection = .diagnostics; showDetails()
+                model.navigation.open(.section(.diagnostics))
             }
             sender.reply(toApplicationShouldTerminate: restored)
         }
@@ -549,14 +560,11 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     @objc private func willSleep() { model.setSleeping(true) }
     @objc private func sessionResigned() { model.sleepTimer.sessionResigned() }
     @objc private func powerChanged() { Task { await model.refresh() } }
-    @objc private func clockChanged() {
-        try? model.keepAwake.reconcile()
-        model.objectWillChange.send() // Reformat the same absolute Until target after a zone change.
-    }
+    @objc private func clockChanged() { model.clockDidChange() }   // reformat absolute times after a zone or clock change
     @objc private func reopenDetails() { showDetails() }
-    @objc private func openSettings() { model.selectedSection = .settings; showDetails() }
+    @objc private func openSettings() { model.navigation.open(.section(.settings)) }
     @objc private func checkForUpdates() {
-        model.selectedSection = .settings; model.selectedSettingsPage = .updates; showDetails()
+        model.navigation.open(.settings(.updates))
         if model.updateInstaller.isQualified { model.updateInstaller.checkForUpdates(channel: model.updates.channel) }
         Task { await model.updates.check() }
     }
@@ -635,7 +643,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         Task { await model.quickPanelWillOpen() }
         try? model.keepAwake.reconcile()
         guard NSApplication.shared.isActive || presentingWithoutActivation, let button = statusItem?.button else { return }
-        (popover.contentViewController as? QuickPanelHostingController)?.updateMaximumHeight(panelMaximumHeight)
+        (popover.contentViewController as? QuickPanelHostingController)?.willShow(maximumHeight: panelMaximumHeight)
         model.isPopoverVisible = true
         QuickPanelMotion.configure(popover, reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
@@ -697,11 +705,27 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         escapeMonitor = nil
     }
 
+    private var isLabStudio: Bool {
+        #if TILVERO_LAB_STUDIO
+        true
+        #else
+        false
+        #endif
+    }
+
     private func showDetails() {
         // Setup presents and refreshes its own read-only facts.
-        let observeControls = model.selectedSection != .settings || model.selectedSettingsPage != .setup
+        let observeControls = model.navigation.section != .settings || model.navigation.settingsPage != .setup
         if observeControls { try? model.keepAwake.reconcile() }
         closePopover(reason: "details opened")
+        if detailsWindow == nil, !isLabStudio, model.features.newWindow {
+            let window = MainWindowController.makeWindow(model: model)
+            window.delegate = self
+            detailsWindow = window
+            NotificationCenter.default.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: window, queue: .main) { [weak self] _ in
+                Task { @MainActor [weak self] in self?.syncDetailsVisibility() }
+            }
+        }
         if detailsWindow == nil {
             #if TILVERO_LAB_STUDIO
             let controller = NSHostingController(rootView: LabStudioWorkspace(session: sandbox, studio: studio))
@@ -748,7 +772,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         button.font = NativeStatusPresentation.font(for: model.menuBarTextSize)
         let lowOnBattery = !attached && (level.map { $0 <= NativeBatteryStatusImage.lowChargeThreshold } ?? false)
         func icon(pressed: Bool) -> NSImage {
-            NativeBatteryStatusImage.make(level: level, style: model.displayStyle, externalPower: attached, scale: CGFloat(model.menuBarIconScale),
+            NativeBatteryStatusImage.make(level: level, style: model.shownDisplayStyle, externalPower: attached, scale: CGFloat(model.menuBarIconScale),
                                           textSize: model.menuBarTextSize, awake: awake, highlighted: pressed,
                                           appearance: model.menuBarBatteryAppearance, redWhenLow: true, awakeColor: model.awakeIndicatorColor.nsColor)
         }
@@ -756,7 +780,7 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         // The coloured fill (Keep Awake blue, low-charge red) stays while the menu is open; the solid-white modern body hands
         // over to its template twin so AppKit adapts it to the pressed highlight.
         button.alternateImage = awake == .active || lowOnBattery || model.menuBarBatteryAppearance == .macOS27 ? icon(pressed: true) : nil
-        let percentageTitle = model.displayStyle == .beside ? NativeStatusPresentation.percentageTitle(level: level) : ""
+        let percentageTitle = model.shownDisplayStyle == .beside ? NativeStatusPresentation.percentageTitle(level: level) : ""
         // Development-only marker: fixtures must remain identifiable even when closed.
         button.title = percentageTitle + (model.isDemo ? " DEMO" : "") + (firstRunMode.isPreview ? " PREVIEW" : "")
         let mode = (model.isDemo ? L10n.text("Simulation") + " · " : "") + (model.snapshot.chargePercent.freshness == .stale ? L10n.text("Stale") + " · " : "")
@@ -788,6 +812,7 @@ extension TilveroAppDelegate: NSPopoverDelegate {
         studio.setRegistryVisible("popover", false)
         #endif
         popoverGeneration &+= 1
+        (popover.contentViewController as? QuickPanelHostingController)?.didClose()
         refreshFirstRunBeacon()
         stopPopoverEventMonitors()
         statusItem?.button?.state = .off
@@ -826,7 +851,7 @@ extension TilveroAppDelegate: FirstRunHost {
         configureQuickPanel()
         if !popover.isShown && !activationGate.isWaiting { togglePopover() }
     }
-    func firstRunOpenDetails() { showDetails() }
+    func firstRunOpenDetails() { model.navigation.openDetails() }
     /// The ring shows whenever the quick menu is closed after the hand-off (the system dialog can take focus and close
     /// it at once). It goes away when the menu opens and stays open for a moment, or after five minutes.
     func firstRunPointAtIcon() {
@@ -882,6 +907,15 @@ extension TilveroAppDelegate: FirstRunHost {
 enum MenuBarDisplayStyle: String, CaseIterable, Identifiable {
     case beside, inside, iconOnly
     var id: String { rawValue }
+    /// The macOS 26 battery has no percentage inside (the system never drew one), so it offers beside and none only.
+    static func available(for appearance: MenuBarBatteryAppearance) -> [Self] {
+        appearance == .macOS27 ? allCases : [.beside, .iconOnly]
+    }
+    /// What the menu bar shows: a stored «inside» falls back to «beside» on the macOS 26 battery (the stored choice
+    /// stays, so switching back to macOS 27 restores it).
+    func effective(for appearance: MenuBarBatteryAppearance) -> Self {
+        self == .inside && appearance == .macOS26 ? .beside : self
+    }
     var title: String {
         switch self {
         case .beside: L10n.text("Percent beside")

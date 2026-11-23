@@ -43,13 +43,14 @@ enum QuickPanelMetrics {
 @MainActor
 struct QuickPanel: View {
     @Environment(\.studioPresentation) private var studioPresentation
-    @ObservedObject var model: TilveroModel
+    @Bindable var model: TilveroModel
     var maximumHeight: CGFloat = 700
     var onSizeChange: ((CGSize) -> Void)?
     @State var section: QuickPanelSection = .overview
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        let _ = RenderProbe.hit("QuickPanel." + section.rawValue)
         QuickPanelViewport(maximumHeight: maximumHeight) { content }
         .frame(width: QuickPanelMetrics.width)
         .environment(\.locale, L10n.locale)
@@ -68,9 +69,7 @@ struct QuickPanel: View {
         VStack(alignment: .leading, spacing: studioPresentation.spacing(14)) {
             HStack {
                 StudioText(AppIdentity.displayName, id: "quick.brand").font(.headline).layoutPriority(1)
-                QuickUpdatePill(service: model.updates) {
-                    model.selectedSettingsPage = .updates; model.selectedSection = .settings; model.openDetails?()
-                }
+                QuickUpdatePill(service: model.updates) { model.navigation.open(.settings(.updates)) }
                 if model.isDemo { Text(L10n.text("Simulation")).font(.caption).foregroundStyle(.secondary) }
                 settingsMenu
             }
@@ -98,8 +97,7 @@ struct QuickPanel: View {
             }
             Divider()
             Button {
-                model.selectedSection = section == .awake ? .sleep : .history
-                model.openDetails?()
+                model.navigation.open(.section(section == .awake ? .sleep : .history))
             } label: {
                 HStack {
                     Label(L10n.text(section == .awake ? "Open Sleep & drain…" : "History & reports…"), systemImage: section == .awake ? "moon" : "chart.bar.xaxis")
@@ -112,23 +110,19 @@ struct QuickPanel: View {
     }
 
     private var contextualNotice: String? {
-        guard let notice = model.notice else { return nil }
-        // The native charge status is the Charge page's own business (QuickNativeChargePanel prints it); it must neither
-        // repeat there nor leak onto the Sleep and other tabs.
-        if model.noticeIsNativeChargeStatus { return nil }
+        // The native charge page prints its own lines (QuickNativeChargePanel), and the native status copy belongs to it:
+        // it must neither repeat there nor leak onto the Sleep and other tabs. The simulation's confirmation stays out of
+        // the quick menu (its header already says Simulation).
         if section == .charge, model.usesNativeCharge { return nil }
-        if model.isDemo, notice == L10n.text("Simulation only — your Mac settings are unchanged.") { return nil }
-        return notice
+        return model.notices.current(excluding: model.isDemo ? [.chargeStatus, .simulation] : [.chargeStatus])?.text
     }
 
     private var overview: some View {
         VStack(alignment: .leading, spacing: 12) {
             OverviewHero(model: model, openCharge: { section = .charge })
             Divider()
-            if model.sleepTimer.isActive { SleepTimerActiveRow(model: model, open: { section = .awake }); Divider() }
-            // The Keep Awake block carries its own running session; the stop row only stands in while that block is hidden.
-            if model.keepAwake.hasOwnedAssertion, model.overviewPreferences.hidden.contains(.keepAwake) { KeepAwakeActivePanel(service: model.keepAwake).id(model.language) }
-            OverviewMetricsPanel(model: model, allowsAwakeActions: true, openSleep: { model.selectedSleepPage = .awake; section = .awake })
+            QuickOverviewSessionRows(model: model, openSleep: { section = .awake })
+            OverviewMetricsPanel(model: model, allowsAwakeActions: true, openSleep: { model.navigation.sleepPage = .awake; section = .awake })
         }
     }
 
@@ -142,8 +136,8 @@ struct QuickPanel: View {
         VStack(alignment: .leading, spacing: 12) {
             ChargeLimitControl(model: model, isQuickPanel: true)
             if model.canShowChargeControls {
-                if model.canChargeToFullOnce || model.isOneShotDemo {
-                    StudioActionButton(L10n.text(model.isOneShotDemo ? "Cancel one-time charge" : "Charge to 100% once"), id: "charge.once") { model.toggleOneShotDemo() }
+                if model.isDemo {   // the simulation's one-shot; the live one is in QuickNativeChargePanel
+                    StudioActionButton(L10n.text(model.isFullChargeOnceRequested ? "Cancel one-time charge" : "Charge to 100% once"), id: "charge.once") { model.toggleSimulatedFullChargeOnce() }
                         .disabled(model.isApplying)
                 }
                 StudioActionButton(L10n.text("Return to system control"), id: "action.return-to-system-control") { model.releaseControl() }
@@ -156,17 +150,30 @@ struct QuickPanel: View {
 
     private var settingsMenu: some View {
         Menu {
-            StudioActionButton(L10n.text("Settings"), id: "action.settings") { model.selectedSection = .settings; model.openDetails?() }
-            StudioActionButton(L10n.text("Customize quick panel…"), id: "action.customize-quick-panel") { model.selectedSettingsPage = .quickPanel; model.selectedSection = .settings; model.openDetails?() }
-            StudioActionButton(L10n.text("Keep Mac Awake…"), id: "action.keep-mac-awake") { model.selectedSleepPage = .awake; model.selectedSection = .sleep; model.openDetails?() }
-            Picker(L10n.text("Menu bar"), selection: $model.displayStyle) {
-                ForEach(MenuBarDisplayStyle.allCases) { style in Text(style.title).tag(style) }
+            StudioActionButton(L10n.text("Settings"), id: "action.settings") { model.navigation.open(.section(.settings)) }
+            StudioActionButton(L10n.text("Customize quick panel…"), id: "action.customize-quick-panel") { model.navigation.open(.settings(.quickPanel)) }
+            StudioActionButton(L10n.text("Keep Mac Awake…"), id: "action.keep-mac-awake") { model.navigation.open(.sleep(.awake)) }
+            Picker(L10n.text("Menu bar"), selection: $model.shownDisplayStyle) {
+                ForEach(MenuBarDisplayStyle.available(for: model.menuBarBatteryAppearance)) { style in Text(style.title).tag(style) }
             }
             Divider()
             StudioActionButton(L10n.text("Quit Tilvero"), id: "action.quit-tilvero") { NSApplication.shared.terminate(nil) }
         } label: { Image(systemName: "gearshape") }
         .menuStyle(.borderlessButton).fixedSize().accessibilityLabel(L10n.text("Settings"))
         .studioElement("quick.settings", label: "Quick menu settings")
+    }
+}
+
+/// The running sleep timer and Keep Awake rows of the quick Overview. Its own view, so a timer or Keep Awake change
+/// re-renders these rows, not the whole panel (they read the services; the panel root does not).
+private struct QuickOverviewSessionRows: View {
+    var model: TilveroModel
+    let openSleep: @MainActor () -> Void
+    var body: some View {
+        let _ = RenderProbe.hit("QuickOverviewSessionRows")
+        if model.sleepTimer.isActive { SleepTimerActiveRow(model: model, open: openSleep); Divider() }
+        // The Keep Awake block carries its own running session; the stop row only stands in while that block is hidden.
+        if model.keepAwake.hasOwnedAssertion, model.overviewPreferences.hidden.contains(.keepAwake) { KeepAwakeActivePanel(service: model.keepAwake).id(model.language) }
     }
 }
 
@@ -200,7 +207,7 @@ struct QuickUpdatePill: View {
 
 @MainActor
 struct ChargeLimitControl: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     var isQuickPanel = false
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
@@ -239,7 +246,7 @@ struct ChargeLimitControl: View {
                         StudioActionButton("\(target)%", id: "charge.preset.\(target)") { model.setDraft(target) }.disabled(!model.canEdit || !model.acceptedTargets.contains(target))
                     }
                     Spacer()
-                    StudioActionButton(L10n.text(model.isApplying ? "Applying…" : "Apply"), id: "charge.apply") { model.applyDemoTarget() }
+                    StudioActionButton(L10n.text(model.isApplying ? "Applying…" : "Apply"), id: "charge.apply") { model.applyDraftTarget() }
                         .buttonStyle(.borderedProminent).disabled(!model.canApply)
                         .accessibilityIdentifier("charge.apply")
                 }
@@ -247,7 +254,7 @@ struct ChargeLimitControl: View {
                 if !model.usesNativeCharge { StudioText(model.effectiveLimitText, id: "charge.effective").font(.subheadline).foregroundStyle(.secondary) }
                 if model.usesNativeCharge { NativeChargeStatusPanel(model: model, compact: isQuickPanel) }
                 if model.pendingTarget != nil {
-                    StudioActionButton(L10n.text("Cancel pending target"), id: "action.cancel-pending-target") { model.cancelPendingDemo() }
+                    StudioActionButton(L10n.text("Cancel pending target"), id: "action.cancel-pending-target") { model.cancelPendingTarget() }
                         .help(L10n.text("Reconnecting early may charge to the effective limit while a lower target is pending."))
                     if !isQuickPanel {
                         Text(L10n.text("Reconnecting early may charge to the effective limit while a lower target is pending."))
@@ -262,8 +269,7 @@ struct ChargeLimitControl: View {
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 if isQuickPanel {
                     StudioActionButton(L10n.text("Control availability…"), id: "action.control-availability") {
-                        model.selectedSection = .diagnostics
-                        model.openDetails?()
+                        model.navigation.open(.section(.diagnostics))
                     }
                 }
             }

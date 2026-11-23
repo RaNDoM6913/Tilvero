@@ -9,9 +9,9 @@ import PowerCore
 @MainActor
 final class AppFlowTests: XCTestCase {
     func testDraftChangesNeverApplyUntilExplicitActionAndDismissDiscards() async throws {
-        let suite = "TilveroTests.\(UUID().uuidString)"
-        let preferences = UserDefaults(suiteName: suite)!
-        defer { preferences.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name()
+        let preferences = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         let model = TilveroModel(isDemo: true, preferences: preferences)
         await model.refresh()
         let before = model.control!.charge
@@ -23,7 +23,7 @@ final class AppFlowTests: XCTestCase {
         model.demoPercent = 98
         await model.refresh()
         model.setDraft(80)
-        model.applyDemoTarget()
+        model.applyDraftTarget()
         // Await the app's bounded asynchronous action, not a physical backend.
         for _ in 0..<100 where model.isApplying { await Task.yield() }
         XCTAssertEqual(model.control?.charge.pendingTarget, 80)
@@ -31,20 +31,81 @@ final class AppFlowTests: XCTestCase {
         XCTAssertEqual(model.snapshot.chargePercent.value, 98)
     }
 
+    func testSimulatedFullChargeOnceWorksInSimulationAndNeverTouchesALiveModel() async throws {
+        let demo = TilveroModel(isDemo: true, preferences: makeTestDefaults("FullOnceDemo").defaults)
+        defer { demo.stop() }
+        await demo.refresh()
+        XCTAssertFalse(demo.isFullChargeOnceRequested)
+        demo.toggleSimulatedFullChargeOnce()
+        for _ in 0..<100 where demo.isApplying { await Task.yield() }
+        XCTAssertTrue(demo.isFullChargeOnceRequested, "The simulation keeps its one-shot")
+        demo.toggleSimulatedFullChargeOnce()
+        for _ in 0..<100 where demo.isApplying { await Task.yield() }
+        XCTAssertFalse(demo.isFullChargeOnceRequested)
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let live = TilveroModel(isDemo: false, preferences: makeTestDefaults("FullOnceLive").defaults,
+                                historyURL: directory.appendingPathComponent("History.sqlite"),
+                                snapshotProvider: { .unavailable(reason: "fixture") })
+        defer { live.stop() }
+        live.toggleSimulatedFullChargeOnce()
+        XCTAssertFalse(live.isApplying, "A live model never starts the fixture one-shot")
+    }
+
+    func testSavedScheduleFiresOnlyWhereDevelopmentFeaturesAreOn() async throws {
+        func model(development: Bool) throws -> TilveroModel {
+            let preferences = makeTestDefaults("Schedule").defaults
+            let rule = try ScheduleRule(fireDate: Date().addingTimeInterval(-1), profile: PowerProfile(name: "At desk", chargeTarget: 80), missedPolicy: .skip)
+            preferences.set(try JSONEncoder().encode(rule), forKey: "demoSchedule")
+            return TilveroModel(isDemo: true, preferences: preferences, developmentFeatures: development)
+        }
+        let release = try model(development: false)
+        defer { release.stop() }
+        XCTAssertNotNil(release.schedule, "The saved schedule is still read")
+        await release.refresh()
+        XCTAssertNil(release.notice, "A release never runs a saved schedule (its panel is hidden)")
+        let development = try model(development: true)
+        defer { development.stop() }
+        await development.refresh()
+        XCTAssertNotNil(development.notice, "Debug and laboratory builds still run it")
+    }
+
+    func testPowerModeLabelFollowsLowPowerModeChanges() async throws {
+        final class Flag: @unchecked Sendable {
+            private let lock = NSLock(); private var value = false
+            var isOn: Bool { get { lock.withLock { value } } set { lock.withLock { value = newValue } } }
+        }
+        let flag = Flag()
+        let model = TilveroModel(isDemo: true, preferences: makeTestDefaults("LowPower").defaults, lowPowerMode: { flag.isOn })
+        defer { model.stop() }
+        XCTAssertFalse(model.isLowPowerModeEnabled)
+        flag.isOn = true
+        NotificationCenter.default.post(name: .NSProcessInfoPowerStateDidChange, object: nil)
+        for _ in 0..<50 where !model.isLowPowerModeEnabled { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertTrue(model.isLowPowerModeEnabled, "The published value follows the system notification")
+        flag.isOn = false
+        NotificationCenter.default.post(name: .NSProcessInfoPowerStateDidChange, object: nil)
+        for _ in 0..<50 where model.isLowPowerModeEnabled { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertFalse(model.isLowPowerModeEnabled)
+    }
+
     func testLiveRefreshPersistsReadingsAcrossStoreReopenWithoutSimulatorOrControl() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let url = directory.appendingPathComponent("History.sqlite")
-        let suite = "TilveroTests.\(UUID().uuidString)"; let preferences = UserDefaults(suiteName: suite)!
-        defer { preferences.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: directory) }
+        let suite = TestDefaults.name(); let preferences = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: directory) }
         let first = TilveroModel(isDemo: false, preferences: preferences, historyURL: url, snapshotProvider: {
             BatterySnapshot(chargePercent: .init(value: 73, source: "fixture", freshness: .fresh), isExternalPower: .init(value: false, source: "fixture"))
         })
         await first.refresh()
+        await first.waitForHistoryWork()   // history is recorded off the refresh, by the store queue
         XCTAssertNil(first.control)
         XCTAssertFalse(first.canEdit)
         XCTAssertEqual(first.history.last?.chargePercent, 73)
         first.stop()
         let second = TilveroModel(isDemo: false, preferences: preferences, historyURL: url)
+        XCTAssertTrue(second.history.isEmpty, "The store opens off the main actor; nothing is shown before it is read.")
+        await second.waitForHistoryWork()
         XCTAssertEqual(second.history.last?.chargePercent, 73)
         XCTAssertNil(second.control)
         second.stop()
@@ -54,9 +115,9 @@ final class AppFlowTests: XCTestCase {
 @MainActor
 final class QuickPanelDraftLifecycleTests: XCTestCase {
     func testDismissDiscardsDraftUnlessAnotherVisibleChargingEditorOwnsIt() async throws {
-        let suite = "TilveroTests.\(UUID().uuidString)"
-        let preferences = UserDefaults(suiteName: suite)!
-        defer { preferences.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name()
+        let preferences = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         let model = TilveroModel(isDemo: true, preferences: preferences)
         await model.refresh()
         let original = model.control!.charge
@@ -76,9 +137,9 @@ final class QuickPanelDraftLifecycleTests: XCTestCase {
 @MainActor
 final class MenuBarSizingPreferenceTests: XCTestCase {
     func testSizingPersistsAndInvalidScaleCannotMutateMeasurementsOrPolicy() async throws {
-        let suite = "TilveroTests.\(UUID().uuidString)"
-        let preferences = UserDefaults(suiteName: suite)!
-        defer { preferences.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name()
+        let preferences = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         let model = TilveroModel(isDemo: true, preferences: preferences)
         await model.refresh()
         let reading = model.snapshot.chargePercent
@@ -112,9 +173,9 @@ final class MenuBarBatteryAppearancePreferenceTests: XCTestCase {
     }
 
     func testChangingAndRestoringAppearancePreservesPlacementSizingMeasurementsAndPolicy() async throws {
-        let suite = "TilveroTests.\(UUID().uuidString)"
-        let preferences = UserDefaults(suiteName: suite)!
-        defer { preferences.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name()
+        let preferences = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         preferences.set(MenuBarBatteryAppearance.macOS26.rawValue, forKey: "menuBarBatteryAppearance")
         preferences.set(MenuBarDisplayStyle.beside.rawValue, forKey: "menuBarDisplayStyle")
         preferences.set(MenuBarTextSize.larger.rawValue, forKey: "menuBarTextSize")
@@ -138,11 +199,34 @@ final class MenuBarBatteryAppearancePreferenceTests: XCTestCase {
         XCTAssertEqual(preferences.string(forKey: "menuBarDisplayStyle"), MenuBarDisplayStyle.beside.rawValue)
     }
 
+    /// The macOS 26 battery offers no percentage inside; a stored «inside» shows as «beside» there and comes back with
+    /// the macOS 27 battery.
+    func testMacOS26BatteryHasNoPercentageInside() {
+        XCTAssertEqual(MenuBarDisplayStyle.available(for: .macOS26), [.beside, .iconOnly])
+        XCTAssertEqual(MenuBarDisplayStyle.available(for: .macOS27), MenuBarDisplayStyle.allCases)
+        let suite = TestDefaults.name()
+        let preferences = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
+        preferences.set(MenuBarBatteryAppearance.macOS27.rawValue, forKey: "menuBarBatteryAppearance")
+        preferences.set(MenuBarDisplayStyle.inside.rawValue, forKey: "menuBarDisplayStyle")
+        let model = TilveroModel(isDemo: true, preferences: preferences)
+        XCTAssertEqual(model.shownDisplayStyle, .inside)
+        model.menuBarBatteryAppearance = .macOS26
+        XCTAssertEqual(model.shownDisplayStyle, .beside)
+        XCTAssertEqual(preferences.string(forKey: "menuBarDisplayStyle"), MenuBarDisplayStyle.inside.rawValue, "the stored choice stays")
+        model.menuBarBatteryAppearance = .macOS27
+        XCTAssertEqual(model.shownDisplayStyle, .inside)
+        model.menuBarBatteryAppearance = .macOS26
+        model.shownDisplayStyle = .iconOnly
+        XCTAssertEqual(model.displayStyle, .iconOnly)
+        XCTAssertEqual(MenuBarDisplayStyle.iconOnly.effective(for: .macOS26), .iconOnly)
+    }
+
     func testMissingPlacementUsesAppearanceDefaultWhileAnExplicitPlacementSurvives() {
         for appearance in MenuBarBatteryAppearance.allCases {
-            let suite = "TilveroTests.\(UUID().uuidString)"
-            let preferences = UserDefaults(suiteName: suite)!
-            defer { preferences.removePersistentDomain(forName: suite) }
+            let suite = TestDefaults.name()
+            let preferences = TestDefaults.defaults(suite)
+            defer { TestDefaults.remove(suite) }
             preferences.set(appearance.rawValue, forKey: "menuBarBatteryAppearance")
             XCTAssertEqual(TilveroModel(isDemo: true, preferences: preferences).displayStyle, appearance.defaultDisplayStyle)
             preferences.set(MenuBarDisplayStyle.iconOnly.rawValue, forKey: "menuBarDisplayStyle")

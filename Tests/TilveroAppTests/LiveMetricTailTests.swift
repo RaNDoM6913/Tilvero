@@ -7,8 +7,8 @@ import PowerTelemetry
 
 final class LiveMetricTailTests: XCTestCase {
     private let t0 = Date(timeIntervalSince1970: 1_800_000_000)
-    private func sample(_ offset: TimeInterval, system: Double? = 7, adapter: Double? = 7.5, temperature: Double? = 33) -> LivePowerSample {
-        LivePowerSample(collectedAt: t0.addingTimeInterval(offset), systemWatts: system, adapterWatts: adapter, temperatureCelsius: temperature)
+    private func sample(_ offset: TimeInterval, system: Double? = 7, adapter: Double? = 7.5, temperature: Double? = 33, battery: Double? = nil) -> LivePowerSample {
+        LivePowerSample(collectedAt: t0.addingTimeInterval(offset), systemWatts: system, adapterWatts: adapter, temperatureCelsius: temperature, batteryWatts: battery)
     }
     private func point(_ offset: TimeInterval, _ value: Double, _ series: String) -> HistoryChartPoint {
         HistoryChartPoint(id: UUID(), date: t0.addingTimeInterval(offset), value: value, series: series)
@@ -17,13 +17,15 @@ final class LiveMetricTailTests: XCTestCase {
         tail.append(s, boundary: boundary, adapterConnected: adapter, joinsRecorded: joins)
     }
 
-    func testTailFeedsTheThreeLiveMetricsFromOneSampleAndNeverBatteryPower() {
+    func testTailFeedsTheLiveMetricsFromOneSample() {
         var tail = LiveMetricTail()
         append(&tail, sample(0))
         XCTAssertEqual(tail.points(id: "043").first?.value, 7)
         XCTAssertEqual(tail.points(id: "054").first?.value, 7.5)
         XCTAssertEqual(tail.points(id: "039").first?.value, 33)
-        XCTAssertTrue(tail.points(id: "038").isEmpty, "Battery power keeps its recorded readings.")
+        XCTAssertTrue(tail.points(id: "038").isEmpty, "No B0AP reading: battery power keeps its recorded readings.")
+        append(&tail, sample(1, battery: -2.8), adapter: false)
+        XCTAssertEqual(tail.points(id: "038").last?.value, -2.8, "Battery power is live on battery too (the adapter rule is 054 only).")
     }
     func testMissingChannelsLeaveNoPointNeverAZero() {
         var tail = LiveMetricTail()

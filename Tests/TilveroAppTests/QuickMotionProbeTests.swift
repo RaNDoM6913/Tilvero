@@ -11,9 +11,9 @@ import QuartzCore
 @MainActor final class QuickMotionProbeTests: XCTestCase {
     func testProbePageSwitchFrameTimes() async throws {
         guard let outPath = ProcessInfo.processInfo.environment["TILVERO_MOTION_PROBE"] else { throw XCTSkip("probe is opt-in") }
-        let suite = "Probe-\(UUID())", prefs = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let suite = TestDefaults.name("Probe"), prefs = TestDefaults.defaults(suite)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("Probe-\(UUID())")
-        defer { prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         prefs.set(false, forKey: "historyEnabled")
         let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"),
                                  snapshotProvider: { .unavailable(reason: "fixture") })
@@ -65,9 +65,9 @@ import QuartzCore
     /// through many monotonic window sizes (one shared spring), never in a single step, and must end exactly on
     /// the new page's natural height.
     func testPageSwitchResizesThePopoverThroughManyMonotonicSteps() async throws {
-        let suite = "MotionSteps-\(UUID())", prefs = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let suite = TestDefaults.name("MotionSteps"), prefs = TestDefaults.defaults(suite)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("MotionSteps-\(UUID())")
-        defer { prefs.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root) }
+        defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         prefs.set(false, forKey: "historyEnabled")
         let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"),
                                  snapshotProvider: { .unavailable(reason: "fixture") })

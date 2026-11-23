@@ -51,8 +51,8 @@ private final class InertClamshell: LidComfortClamshell, @unchecked Sendable {
     }
 
     func testExpandedRowIsTallerThanTheCollapsedOneInBothLanguagesAndThemes() throws {
-        let suite = "LidComfortRender-\(UUID())", prefs = UserDefaults(suiteName: suite)!
-        defer { prefs.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name("LidComfortRender"), prefs = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         let m = model(prefs: prefs); defer { m.stop() }
         for language in ["ru", "en"] {
             let saved = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
@@ -68,8 +68,8 @@ private final class InertClamshell: LidComfortClamshell, @unchecked Sendable {
     }
 
     func testRowIsHiddenWhenTheServiceIsUnavailable() throws {
-        let suite = "LidComfortHidden-\(UUID())", prefs = UserDefaults(suiteName: suite)!
-        defer { prefs.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name("LidComfortHidden"), prefs = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let m = TilveroModel(isDemo: true, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"))
         defer { m.stop() }

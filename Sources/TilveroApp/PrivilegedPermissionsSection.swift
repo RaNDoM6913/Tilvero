@@ -37,6 +37,8 @@ import SwiftUI
     var removalBlocker: String? {
         guard let model else { return nil }
         if model.lidSleep.isOn { return "setup.permissions.blocked.lid" }
+        // A possibly set override (failed restore) still needs the passwordless path, and so does its watchdog.
+        if model.lidSleep.needsRecovery { return "setup.permissions.blocked.lidRecovery" }
         if model.chargeBy.wakeConfirmed { return "setup.permissions.blocked.wake" }
         return nil
     }
@@ -78,7 +80,7 @@ import SwiftUI
             // Nothing could start meanwhile (see `PrivilegedRuleInstaller.removalInProgress`), but say so if it did.
             if case .succeeded = outcome, operation.isRemoval, let blocker = self.removalBlocker { self.message = blocker }
             else { self.message = Self.message(outcome, operation: operation, route: route) }
-            self.model?.objectWillChange.send()
+            self.model?.notifyExternalChange()
             await self.refresh()
         }
     }

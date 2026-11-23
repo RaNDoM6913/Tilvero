@@ -6,7 +6,8 @@ import Foundation
 
 /// Battery geometry is independent of percentage placement and sizing. Resolve
 /// only a missing/invalid preference from the OS; an explicit choice survives an
-/// OS upgrade and changing this choice never rewrites the other preferences.
+/// OS upgrade and changing this choice never rewrites the other preferences (the macOS 26 battery shows a stored
+/// «inside» as «beside», see `MenuBarDisplayStyle.effective`).
 enum MenuBarBatteryAppearance: String, CaseIterable, Identifiable, Sendable {
     case macOS27, macOS26
 

@@ -4,7 +4,7 @@
 import SwiftUI
 
 @MainActor struct ModeEditorPanel: View {
-    @ObservedObject var model: TilveroModel
+    @Bindable var model: TilveroModel
     let compact: Bool
     @State private var draft: ModePlan
     @State private var message: String?
@@ -108,7 +108,7 @@ import SwiftUI
 
 /// Quick-panel mode selection reads the saved plan. Editing stays in Details.
 @MainActor struct SavedModePanel: View {
-    @ObservedObject var model: TilveroModel
+    @Bindable var model: TilveroModel
     private var plan: ModePlan { model.modeLibrary.plan(model.selectedMode) }
     private var preview: [ModeActionRow] { model.modePreview(plan) }
     var body: some View {
@@ -133,7 +133,7 @@ import SwiftUI
                 }
             }
             HStack {
-                StudioActionButton(L10n.text("Edit modes…"), id: "action.edit-modes") { model.selectedSection = .charging; model.openDetails?() }
+                StudioActionButton(L10n.text("Edit modes…"), id: "action.edit-modes") { model.navigation.open(.section(.charging)) }
                 Spacer()
                 StudioActionButton(L10n.text("Apply"), id: "action.apply") { Task { await model.applyMode(model.selectedMode) } }
                     .buttonStyle(.borderedProminent)

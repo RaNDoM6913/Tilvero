@@ -75,6 +75,7 @@ import KeyboardBackends
     }
 
     var body: some View {
+        let _ = RenderProbe.hit("KeyboardBacklightQuickRow")
         Group {
             if service.isAvailable, let observation = service.observation {
                 VStack(alignment: .leading, spacing: 6) {

@@ -352,7 +352,7 @@ import PowerPrivileged
         let hardware = ControllerFixtureHardware(clock: clock)
         let controller = PrivilegedController(hardware: hardware, journal: journal, bootID: "fixture")
         let transport = ControllerFixtureTransport(controller: controller, clock: clock)
-        let preferences = UserDefaults(suiteName: "TilveroControllerTests.\(UUID())")!
+        let preferences = makeTestDefaults("ControllerTests").defaults
         let registration = FixtureHelperRegistration(state: .enabled)
         let service = LiveControlService(preferences: preferences, trustVerified: true, registration: registration,
             makeTransport: { transport }, discovery: { LiveControlDiscovery(capabilities: await hardware.capabilities(), fanObservation: try? await hardware.fanObservation()) },
@@ -370,7 +370,7 @@ import PowerPrivileged
     private func makeFixture(monitoringOnly: Bool = false, trusted: Bool = true, registrationState: HelperInstallationState = .enabled,
                              chargeQualified: Bool = true, energyQualified: Bool = false, fansQualified: Bool = false,
                              owned: [OwnedResource] = [], savedIntent: ChargeIntent? = nil) -> Fixture {
-        let preferences = UserDefaults(suiteName: "TilveroLiveTests.\(UUID().uuidString)")!
+        let preferences = makeTestDefaults("LiveTests").defaults
         if let savedIntent { preferences.set(try! JSONEncoder().encode(savedIntent), forKey: "liveRequestedChargeIntent") }
         let capabilities = [ControlCapability(backend: "native-powerui", readiness: chargeQualified ? .available : .unverified,
             reason: "Fixture only", acceptedTargets: chargeQualified ? Array(80...100) : [], validationReference: "fixture-only"),

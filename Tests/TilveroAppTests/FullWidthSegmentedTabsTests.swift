@@ -111,12 +111,12 @@ import XCTest
     }
 
     @MainActor private struct Fixture {
-        let suite = "TilveroTabs-\(UUID().uuidString)"
+        let suite = TestDefaults.name("Tabs")
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let preferences: UserDefaults
         let model: TilveroModel
         init() throws {
-            preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
+            preferences = TestDefaults.defaults(suite)
             preferences.set(false, forKey: "historyEnabled")
             model = TilveroModel(isDemo: true, preferences: preferences,
                 historyURL: directory.appendingPathComponent("History.sqlite"),
@@ -124,7 +124,7 @@ import XCTest
         }
         func cleanUp() {
             model.stop()
-            preferences.removePersistentDomain(forName: suite)
+            TestDefaults.remove(suite)
             try? FileManager.default.removeItem(at: directory)
         }
     }

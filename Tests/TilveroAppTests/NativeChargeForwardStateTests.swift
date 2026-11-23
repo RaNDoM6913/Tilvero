@@ -36,9 +36,9 @@ import PowerCore
     /// quick panel (twice) although the limit was already applied.
     func testPendingNoticeDoesNotOutliveTheLimitThatDischargeApplied() async throws {
         let f = ForwardFixture(); defer { f.cleanup() }
-        let suite = "PendingNotice-\(UUID())", preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let suite = TestDefaults.name("PendingNotice"), preferences = TestDefaults.defaults(suite)
         preferences.set(false, forKey: "historyEnabled")
-        defer { preferences.removePersistentDomain(forName: suite) }
+        defer { TestDefaults.remove(suite) }
         await f.service.refresh()
         try await f.service.apply(90, batteryPercent: 60, batteryFresh: true)
         let model = TilveroModel(isDemo: false, preferences: preferences,
@@ -48,7 +48,7 @@ import PowerCore
             nativeCharge: f.service)
         defer { model.stop() }
         await model.refresh()
-        model.setDraft(85); model.applyDemoTarget()
+        model.setDraft(85); model.applyDraftTarget()
         for _ in 0..<200 where model.isApplying { try await Task.sleep(for: .milliseconds(10)) }
         XCTAssertEqual(f.service.pendingTarget, 85)
         XCTAssertNotNil(model.notice, "The pending explanation is visible while the target is waiting")
@@ -60,9 +60,9 @@ import PowerCore
 
     func testLeavingThePageDropsItsActionNotice() async throws {
         let f = ForwardFixture(); defer { f.cleanup() }
-        let suite = "NoticeDismiss-\(UUID())", preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let suite = TestDefaults.name("NoticeDismiss"), preferences = TestDefaults.defaults(suite)
         preferences.set(false, forKey: "historyEnabled")
-        defer { preferences.removePersistentDomain(forName: suite) }
+        defer { TestDefaults.remove(suite) }
         await f.service.refresh()
         try await f.service.apply(90, batteryPercent: 60, batteryFresh: true)
         let model = TilveroModel(isDemo: false, preferences: preferences,
@@ -72,7 +72,7 @@ import PowerCore
             nativeCharge: f.service)
         defer { model.stop() }
         await model.refresh()
-        model.setDraft(85); model.applyDemoTarget()
+        model.setDraft(85); model.applyDraftTarget()
         for _ in 0..<200 where model.isApplying { try await Task.sleep(for: .milliseconds(10)) }
         XCTAssertNotNil(model.notice)
         model.dismissActionNotice()

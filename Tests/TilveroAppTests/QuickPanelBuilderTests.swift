@@ -55,8 +55,8 @@ import SwiftUI
         lifetime.end()
     }
     func testPassivePreviewAndBuilderPersistWithoutApplyingActions() async throws {
-        let suite = "TilveroBuilder-\(UUID())", preferences = UserDefaults(suiteName: suite)!
-        defer { preferences.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name("Builder"), preferences = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         let model = TilveroModel(isDemo: true, preferences: preferences)
         await model.refresh()
         let original = model.control?.charge
@@ -74,8 +74,8 @@ import SwiftUI
         let saved = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
         UserDefaults.standard.setVolatileDomain(saved.merging(["language": "ru"]) { _, value in value }, forName: UserDefaults.argumentDomain)
         defer { UserDefaults.standard.setVolatileDomain(saved, forName: UserDefaults.argumentDomain) }
-        let suite = "TilveroBuilderStyle-\(UUID())", preferences = UserDefaults(suiteName: suite)!
-        defer { preferences.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name("BuilderStyle"), preferences = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         let model = TilveroModel(isDemo: true, preferences: preferences)
         // The new blocks are rows of the existing ForEach and carry a title and a symbol.
         for block in [OverviewMetric.powerTiles, .powerCombined] {
@@ -87,8 +87,8 @@ import SwiftUI
     }
 
     func testRestoreLayoutDefaultsResetsOrderAndVisibility() {
-        let suite = "TilveroBuilderReset-\(UUID())", preferences = UserDefaults(suiteName: suite)!
-        defer { preferences.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name("BuilderReset"), preferences = TestDefaults.defaults(suite)
+        defer { TestDefaults.remove(suite) }
         let model = TilveroModel(isDemo: true, preferences: preferences)
         model.overviewPreferences.move(.history, by: -1)
         model.overviewPreferences.hidden.remove(.powerTiles)

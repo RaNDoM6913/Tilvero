@@ -6,7 +6,7 @@ import ChargeBackends
 
 /// A read-only view of system policy. Changing it is an explicit action in Apple's UI.
 @MainActor struct SystemChargeLimitPanel: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
             if let observation = model.systemChargeLimit, observation.isFresh(), let limits = observation.limits {
@@ -32,11 +32,11 @@ import ChargeBackends
             HStack {
                 Button(L10n.text("Change in macOS…")) { model.openBatterySettings() }
                     .buttonStyle(.borderedProminent)
-                Button(L10n.text("Refresh")) { Task { await model.refreshSystemChargeLimit() } }
+                Button(L10n.text("Refresh")) { Task { await model.refreshSystemChargeLimit(reusingRecent: false) } }
                     .disabled(model.isReadingSystemChargeLimit)
             }
             Text(L10n.text("Registered requests do not prove an exact cutoff. macOS may occasionally charge to 100% for calibration."))
                 .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-        }.task { await model.refreshSystemChargeLimit() }
+        }.task { await model.refreshSystemChargeLimit(reusingRecent: false) }   // the page opening is an explicit read too
     }
 }

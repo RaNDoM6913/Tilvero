@@ -35,19 +35,20 @@ final class SnapshotBox: @unchecked Sendable {
     static func make(minutesOfHistory: Int = 55, adapterConnected: Bool = true) async throws -> SeriesFixture {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        let suite = "TilveroSeries-\(UUID())", defaults = UserDefaults(suiteName: suite)!
+        let suite = TestDefaults.name("Series"), defaults = TestDefaults.defaults(suite)
         let url = root.appendingPathComponent("history.sqlite")
         let now = Date()
         let store = try BatteryHistoryStore(url: url)
         for minute in stride(from: Double(minutesOfHistory), to: 0, by: -1) {
-            try store.record(snapshot(at: now.addingTimeInterval(-minute * 60), minutesAgo: minute, adapterConnected: adapterConnected))
+            try await store.record(snapshot(at: now.addingTimeInterval(-minute * 60), minutesAgo: minute, adapterConnected: adapterConnected))
         }
-        try store.close()
+        try await store.close()
         let box = SnapshotBox(snapshot(at: now, minutesAgo: 0, adapterConnected: adapterConnected))
         let model = TilveroModel(isDemo: false, preferences: defaults, historyURL: url, snapshotProvider: { box.value })
         await model.refresh()
+        await model.waitForHistoryWork()   // history is recorded off the refresh, by the store queue
         return SeriesFixture(model: model, box: box, base: now, cleanup: {
-            model.stop(); defaults.removePersistentDomain(forName: suite); try? FileManager.default.removeItem(at: root)
+            model.stop(); TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root)
         })
     }
 }
@@ -80,6 +81,7 @@ final class SnapshotBox: @unchecked Sendable {
         // A new snapshot (and the sample the refresh records) invalidates every id.
         fixture.box.value = SeriesFixture.snapshot(at: fixture.base.addingTimeInterval(60), minutesAgo: -1, adapterConnected: true)
         await model.refresh()
+        await model.waitForHistoryWork()   // history is recorded off the refresh, by the store queue
         counter = model.metricSeriesComputations
         _ = model.metricSeries(id: "038"); _ = model.metricSeries(id: "038")
         _ = model.metricSeries(id: "054"); _ = model.metricSeries(id: "054")

@@ -8,7 +8,7 @@ import PowerTelemetry
 /// Historical endpoints and current assertions are deliberately separate evidence.
 @MainActor
 struct SleepReportPanel: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     @State private var selectedID: UUID?
     @State private var observationDetailsExpanded = false
     @State private var observationInfoShown = false

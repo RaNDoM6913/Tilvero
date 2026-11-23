@@ -6,7 +6,7 @@ import Combine
 import SwiftUI
 
 @MainActor struct FirstSetupPanel: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     @State private var readiness: SetupReadiness?
     @State private var busy = false
     @State private var issue: String?
@@ -75,7 +75,7 @@ import SwiftUI
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityIdentifier("setup.checklist")
         .task { await refresh() }
-        .onReceive(model.objectWillChange.debounce(for: .milliseconds(250), scheduler: RunLoop.main)) { _ in
+        .onReceive(model.changes.debounce(for: .milliseconds(250), scheduler: RunLoop.main)) { _ in
             Task { await refresh() }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
@@ -92,7 +92,7 @@ import SwiftUI
     private var continueButton: some View {
         Button(L10n.text("Continue monitoring")) {
             model.markSetupReviewed()
-            model.selectedSection = .overview
+            model.navigation.navigate(to: .section(.overview))
         }
         .buttonStyle(.borderedProminent)
         .accessibilityIdentifier("setup.continue")

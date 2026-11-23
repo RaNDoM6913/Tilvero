@@ -19,8 +19,9 @@ import XCTest
         let saved = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
         UserDefaults.standard.setVolatileDomain(saved.merging(["language": "ru"]) { _, v in v }, forName: UserDefaults.argumentDomain)
         defer { UserDefaults.standard.setVolatileDomain(saved, forName: UserDefaults.argumentDomain) }
-        let suite = "QL-\(UUID())", prefs = UserDefaults(suiteName: suite)!
+        let prefs = makeTestDefaults("QL").defaults
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
         let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"), sleepTimerTransport: CapsuleSleepDriver())
         let out = ProcessInfo.processInfo.environment["TILVERO_LOOK_DIR"] ?? NSTemporaryDirectory() + "TilveroCapsuleRender"
         try? FileManager.default.createDirectory(atPath: out, withIntermediateDirectories: true)

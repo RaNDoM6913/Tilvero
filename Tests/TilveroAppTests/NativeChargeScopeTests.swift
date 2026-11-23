@@ -11,10 +11,10 @@ import PowerCore
         let f = ScopeFixture(); defer { f.cleanup() }
         await f.service.refresh()
         try await f.service.qualify()
-        let suite = "ScopeModePreview-\(UUID())"
-        let preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let suite = TestDefaults.name("ScopeModePreview")
+        let preferences = TestDefaults.defaults(suite)
         preferences.set(false, forKey: "historyEnabled")
-        defer { preferences.removePersistentDomain(forName: suite) }
+        defer { TestDefaults.remove(suite) }
         let model = TilveroModel(isDemo: false, launchPolicy: .resolve(metadata: [:]), preferences: preferences,
             historyURL: f.root.appendingPathComponent("preview.sqlite"),
             snapshotProvider: { .unavailable(reason: "Scoped mode preview fixture") }, nativeCharge: f.service)

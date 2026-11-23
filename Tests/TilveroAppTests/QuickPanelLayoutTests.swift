@@ -28,7 +28,7 @@ final class QuickPanelLayoutTests: XCTestCase {
         let fixture = try Fixture(isDemo: true); defer { fixture.cleanUp() }
         fixture.model.demoPercent = 98
         await fixture.model.refresh()
-        fixture.model.setDraft(80); fixture.model.applyDemoTarget()
+        fixture.model.setDraft(80); fixture.model.applyDraftTarget()
         for _ in 0..<100 where fixture.model.isApplying { await Task.yield() }
         let host = NSHostingController(rootView: QuickPanel(model: fixture.model, maximumHeight: 1000, section: .charge))
         let size = host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 1200))
@@ -44,7 +44,7 @@ final class QuickPanelLayoutTests: XCTestCase {
         fixture.model.demoPercent = 98
         await fixture.model.refresh()
         fixture.model.setDraft(80)
-        fixture.model.applyDemoTarget()
+        fixture.model.applyDraftTarget()
         for _ in 0..<100 where fixture.model.isApplying { await Task.yield() }
         XCTAssertEqual(fixture.model.pendingTarget, 80)
         let host = NSHostingController(rootView: QuickPanel(model: fixture.model, maximumHeight: 240, section: .charge))
@@ -78,7 +78,7 @@ final class QuickPanelLayoutTests: XCTestCase {
             window.setContentSize(size)
         }
         fixture.model.setDraft(80)
-        fixture.model.applyDemoTarget()
+        fixture.model.applyDraftTarget()
         for _ in 0..<100 where fixture.model.isApplying { await Task.yield() }
         try await settle(host)
         XCTAssertGreaterThan(host.preferredContentSize.height, initialHeight,
@@ -177,6 +177,28 @@ final class QuickPanelLayoutTests: XCTestCase {
         XCTAssertFalse(openedDetails, "A segment switch must keep the owner in the quick panel.")
     }
 
+    func testClosedPopoverNeverMeasuresOnModelChangesAndShowingMeasuresOnce() async throws {
+        let fixture = try Fixture(isDemo: true)
+        defer { fixture.cleanUp() }
+        let host = QuickPanelHostingController(model: fixture.model, maximumHeight: 900)
+        host.didClose()
+        let closed = host.measurementCount   // a fit queued before closing bails out on its own
+        for _ in 0..<5 {
+            fixture.model.notifyExternalChange()
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        await fixture.model.refresh()
+        try await Task.sleep(for: .milliseconds(700))
+        XCTAssertEqual(host.measurementCount, closed, "A closed popover is never measured on model changes")
+        host.willShow(maximumHeight: 800)
+        XCTAssertEqual(host.measurementCount, closed + 1, "Showing measures once, for the new height")
+        XCTAssertTrue(host.isPresented)
+        fixture.model.notifyExternalChange()
+        let deadline = Date().addingTimeInterval(5)   // the fit waits for 0.5 s of geometry quiet
+        while host.measurementCount <= closed + 1, Date() < deadline { try await Task.sleep(for: .milliseconds(20)) }
+        XCTAssertGreaterThan(host.measurementCount, closed + 1, "While shown, the safety-net fit runs again")
+    }
+
     /// The page area changes height on a spring (about a third of a second); wait until the reported size is stable.
     private func settle(_ host: QuickPanelHostingController) async throws {
         var previous: CGFloat = -1, stable = 0
@@ -201,8 +223,8 @@ final class QuickPanelLayoutTests: XCTestCase {
         let suite: String
         let directory: URL
         init(isDemo: Bool) throws {
-            suite = "TilveroPanelLayoutTests.\(UUID().uuidString)"
-            preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
+            suite = TestDefaults.name("PanelLayoutTests")
+            preferences = TestDefaults.defaults(suite)
             preferences.set(false, forKey: "historyEnabled")
             directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
             model = TilveroModel(isDemo: isDemo, preferences: preferences,
@@ -211,7 +233,7 @@ final class QuickPanelLayoutTests: XCTestCase {
         }
         func cleanUp() {
             model.stop()
-            preferences.removePersistentDomain(forName: suite)
+            TestDefaults.remove(suite)
             try? FileManager.default.removeItem(at: directory)
         }
     }

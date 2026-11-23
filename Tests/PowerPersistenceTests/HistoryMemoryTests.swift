@@ -31,7 +31,7 @@ import Darwin
             collectedAt: date, catalog: fields, monotonicTime: uptime, batteryIdentityToken: "memory-fixture")
     }
 
-    func testReadingALongHistoryAtLaunchKeepsTheHeapSmall() throws {
+    func testReadingALongHistoryAtLaunchKeepsTheHeapSmall() async throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: folder) }
         let url = folder.appendingPathComponent("history.sqlite")
@@ -39,15 +39,15 @@ import Darwin
         do {
             let writer = try BatteryHistoryStore(url: url)
             for index in 0..<4000 {
-                try writer.record(snapshot(at: start.addingTimeInterval(Double(index) * 60), uptime: Double(index) * 60, charge: 50 + Double(index % 40)))
+                try await writer.record(snapshot(at: start.addingTimeInterval(Double(index) * 60), uptime: Double(index) * 60, charge: 50 + Double(index % 40)))
             }
-            try writer.close()
+            try await writer.close()
         }
         let store = try BatteryHistoryStore(url: url)
         let before = footprintMB()
-        let week = try store.samples(since: Date().addingTimeInterval(-7 * 86400), readingsSince: Date().addingTimeInterval(-3 * 3600))
-        let summary = try store.summary()
-        _ = try store.catalogReadings(at: Date(), summaryMaxAge: 600)
+        let week = try await store.samples(since: Date().addingTimeInterval(-7 * 86400), readingsSince: Date().addingTimeInterval(-3 * 3600))
+        let summary = try await store.summary()
+        _ = try await store.catalogReadings(at: Date(), summaryMaxAge: 600)
         let grown = footprintMB() - before
         XCTAssertEqual(week.count, 4000)
         XCTAssertEqual(summary.sampleCount, 4000)

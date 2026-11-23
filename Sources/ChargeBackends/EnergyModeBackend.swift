@@ -2,7 +2,6 @@
 // Copyright (c) 2026 RaNDoM6913
 
 import Foundation
-import Darwin
 import PowerCore
 
 public enum EnergyModeParser {
@@ -35,16 +34,10 @@ public actor EnergyModeBackend {
     public func apply(source: PowerProfileSource, mode: EnergyMode) throws {
         try HardwareQualification.current.require(source == .battery ? .batteryEnergyMode : .adapterEnergyMode)
         let arguments = try Self.arguments(source: source, mode: mode)
-        let process = Process(); process.executableURL = URL(fileURLWithPath: "/usr/bin/pmset"); process.arguments = arguments
-        process.standardOutput = FileHandle.nullDevice; process.standardError = FileHandle.nullDevice
-        try process.run()
-        let deadline = Date().addingTimeInterval(3)
-        while process.isRunning && Date() < deadline { Thread.sleep(forTimeInterval: 0.01) }
-        if process.isRunning {
-            process.terminate()
-            if process.isRunning { kill(process.processIdentifier, SIGKILL) }
-            process.waitUntilExit(); throw PolicyError.readbackMismatch
+        // Qualified above and built only from typed values by `arguments(source:mode:)`.
+        guard let result = try BoundedProcess.run(executable: "/usr/bin/pmset", arguments: arguments, timeout: 3, captureOutput: false) else {
+            throw PolicyError.readbackMismatch
         }
-        guard process.terminationStatus == 0, try read()[source] == mode else { throw PolicyError.readbackMismatch }
+        guard result.status == 0, try read()[source] == mode else { throw PolicyError.readbackMismatch }
     }
 }

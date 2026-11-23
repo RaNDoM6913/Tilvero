@@ -15,18 +15,24 @@ enum SettingsPage: String, CaseIterable, Identifiable {
 }
 
 @MainActor struct QuickPanelBuilder: View {
-    @ObservedObject var model: TilveroModel
+    @Bindable var model: TilveroModel
     @State private var drag = OverviewDragState()
     @State private var dropTarget: OverviewMetric?
+    @State private var wide = true
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 24) {
-                ProductSurface(studioID: "quick.builder") { controls }.frame(minWidth: 300, idealWidth: 340, maxWidth: .infinity)
-                preview.frame(width: QuickPanelMetrics.width)
-            }
-            VStack(alignment: .leading, spacing: 20) { ProductSurface(studioID: "quick.builder") { controls }; preview.frame(width: QuickPanelMetrics.width) }
+        // One layout switched by width (not ViewThatFits): the preview of real quick-menu views is built once, not
+        // measured twice on every frame of a window resize or sidebar animation.
+        let layout = wide ? AnyLayout(HStackLayout(alignment: .top, spacing: 24))
+                          : AnyLayout(VStackLayout(alignment: .leading, spacing: 20))
+        layout {
+            ProductSurface(studioID: "quick.builder") { controls }.frame(minWidth: 300, idealWidth: 340, maxWidth: .infinity, alignment: .leading)
+            preview.frame(width: QuickPanelMetrics.width)
         }
+        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+        .onGeometryChange(for: Bool.self) { $0.size.width >= Self.wideWidth } action: { wide = $0 }
     }
+    /// Controls minimum (300) + gap (24) + preview.
+    static var wideWidth: CGFloat { 300 + 24 + QuickPanelMetrics.width }
     /// Order and visibility return to their defaults.
     static func restoreLayoutDefaults(_ model: TilveroModel) { model.overviewPreferences = OverviewPreferences() }
     private var controls: some View {
@@ -91,7 +97,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
 /// mode or Awake controls (some of those perform work in task/onChange handlers).
 /// Only local preview-tab selection can mutate state here.
 @MainActor struct PassiveQuickPanelPreview: View {
-    @ObservedObject var model: TilveroModel
+    var model: TilveroModel
     @State var section: QuickPanelSection = .overview
     @State private var sleepPage: SleepPage = .timer
     var body: some View {
@@ -173,8 +179,8 @@ enum SettingsPage: String, CaseIterable, Identifiable {
             }
             else { KeepAwakeSummary(service: model.keepAwake) }
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 4), spacing: 6) {
-                ForEach(KeepAwakeDuration.allCases) { duration in
-                    passiveChoice(duration.rawValue < 60 ? "\(duration.rawValue) " + L10n.text("min") : "\(duration.rawValue / 60) " + L10n.text("h"), option: duration.rawValue)
+                ForEach(model.quickPresets.presets.keepAwake, id: \.self) { minutes in
+                    passiveChoice(PresetLabel.duration(minutes), option: minutes)
                 }
                 passiveChoice(L10n.text("Custom…"), option: -1)
                 passiveChoice(L10n.text("Until…"), option: -2)
@@ -219,7 +225,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
             Text(model.effectiveLimitText).font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Text(model.chargingStateText).font(.caption).foregroundStyle(.secondary)
             if model.canShowChargeControls {
-                if model.canChargeToFullOnce || model.isOneShotDemo { inactiveButton(model.isOneShotDemo ? "Cancel one-time charge" : "Charge to 100% once") }
+                if model.isDemo { inactiveButton(model.isFullChargeOnceRequested ? "Cancel one-time charge" : "Charge to 100% once") }
                 inactiveButton("Return to system control")
             }
         }

@@ -296,10 +296,10 @@ actor LostLidReplyFixture: ClosedLidClientTransport {
 /// Injected model fixture: only temporary fixture journals and memory control ports.
 @MainActor private final class ClosedLidModelFixture {
     let model: TilveroModel
-    private let suite = "ClosedLidModelFixture-" + UUID().uuidString
+    private let suite = TestDefaults.name("ClosedLidModelFixture")
     private let preferences: UserDefaults
     init(service: ClosedLidService? = nil) {
-        preferences = UserDefaults(suiteName: suite)!
+        preferences = TestDefaults.defaults(suite)
         model = TilveroModel(isDemo: true, preferences: preferences,
             keepAwakeService: KeepAwakeService(driver: AwakeFixture()),
             closedLidService: service ?? ClosedLidService(mode: .fixtureMemory),
@@ -307,5 +307,5 @@ actor LostLidReplyFixture: ClosedLidClientTransport {
                 openBatterySettings: {}, rawCatalog: { [] }))
     }
     func stop() async { _ = await model.closedLid.prepareForTermination(); cleanup() }
-    func cleanup() { model.stop(); preferences.removePersistentDomain(forName: suite) }
+    func cleanup() { model.stop(); TestDefaults.remove(suite) }
 }

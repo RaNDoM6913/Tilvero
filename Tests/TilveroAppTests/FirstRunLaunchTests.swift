@@ -23,8 +23,8 @@ import XCTest
 @MainActor final class FirstRunLaunchTests: XCTestCase {
     private var suite = "", defaults: UserDefaults!
     private var requests = 0
-    override func setUp() async throws { suite = "Launch-\(UUID())"; defaults = UserDefaults(suiteName: suite); requests = 0 }
-    override func tearDown() async throws { defaults.removePersistentDomain(forName: suite) }
+    override func setUp() async throws { suite = TestDefaults.name("Launch"); defaults = TestDefaults.defaults(suite); requests = 0 }
+    override func tearDown() async throws { TestDefaults.remove(suite) }
 
     private func make(frame: NSRect? = NSRect(x: 1200, y: 900, width: 40, height: 24), permission: @escaping () async -> PrivilegedOutcome = { .succeeded([]) })
         -> (FirstRunCoordinator, LaunchHost) {

@@ -5,7 +5,7 @@ import XCTest
 @testable import TilveroApp
 
 @MainActor final class UpdateCheckServiceTests: XCTestCase {
-    private func defaults() -> UserDefaults { UserDefaults(suiteName: "TilveroUpdateTests-\(UUID())")! }
+    private func defaults() -> UserDefaults { makeTestDefaults("UpdateTests").defaults }
 
     private func release(_ version: String, build: String?, kind: UpdateReleaseKind = .sourcePreview) -> UpdateRelease {
         UpdateRelease(tag: "v" + version, name: "", version: version, build: build, notes: "",

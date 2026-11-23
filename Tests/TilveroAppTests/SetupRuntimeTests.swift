@@ -121,8 +121,8 @@ import KeyboardBackends
 
     private final class Fixture: LiveHelperRegistrationDriving {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("TilveroSetup-\(UUID())")
-        let suite = "TilveroSetup-\(UUID())"
-        lazy var preferences = UserDefaults(suiteName: suite)!
+        let suite = TestDefaults.name("Setup")
+        lazy var preferences = TestDefaults.defaults(suite)
         let appBundle: Bundle
         var login: SetupRegistrationState = .notRegistered
         var statusReads = 0
@@ -154,7 +154,7 @@ import KeyboardBackends
         }
 
         func cleanUp() {
-            preferences.removePersistentDomain(forName: suite)
+            TestDefaults.remove(suite)
             try? FileManager.default.removeItem(at: root)
         }
 

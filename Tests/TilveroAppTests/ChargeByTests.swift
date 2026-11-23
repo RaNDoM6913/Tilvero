@@ -63,10 +63,11 @@ import PowerCore
         func apply(limit: Int) async -> Bool { applied.append(limit); if succeed { obs.observedLimit = limit }; return succeed }
     }
     @MainActor final class Wake: WakeScheduling {
-        var permitted = true; var scheduled: [Date] = []; var cancelled: [Date] = []; var scheduleOK = true
+        var permitted = true; var scheduled: [Date] = []; var cancelled: [Date] = []; var cancelledStamps: [String?] = []; var scheduleOK = true
         var isPermitted: Bool { permitted }
-        func schedule(_ date: Date) async -> Bool { guard scheduleOK else { return false }; scheduled.append(date); return true }
-        func cancel(_ date: Date) async -> Bool { cancelled.append(date); return true }
+        static func stamp(_ date: Date) -> String { NativeWakeScheduler.pmsetDate(date, timeZone: TimeZone(identifier: "UTC")!) }
+        func schedule(_ date: Date) async -> String? { guard scheduleOK else { return nil }; scheduled.append(date); return Self.stamp(date) }
+        func cancel(_ date: Date, stamp: String?) async -> Bool { cancelled.append(date); cancelledStamps.append(stamp); return true }
         func installPermission() async -> Bool { permitted = true; return true }
     }
     @MainActor final class Holder: ActivityHolding {
@@ -75,8 +76,8 @@ import PowerCore
         func end(_ token: AnyObject) { ended += 1 }
     }
     private func makeService(env: Env, wake: Wake = Wake(), clock: @escaping @MainActor () -> Date) -> (ChargeByService, UserDefaults, Holder) {
-        let suite = "TilveroChargeBy-\(UUID())"; let defaults = UserDefaults(suiteName: suite)!
-        addTeardownBlock { defaults.removePersistentDomain(forName: suite) }
+        let suite = TestDefaults.name("ChargeBy"); let defaults = TestDefaults.defaults(suite)
+        addTeardownBlock { TestDefaults.remove(suite) }
         let holder = Holder()
         let service = ChargeByService(defaults: defaults, wake: wake, holder: holder, now: clock)
         service.environment = env
@@ -120,6 +121,7 @@ import PowerCore
         XCTAssertEqual(wake.scheduled.count, 1)
         XCTAssertEqual(wake.scheduled[0], armed.startAt.addingTimeInterval(-ChargeByRule.wakeLead))
         XCTAssertEqual(armed.wakeAt, wake.scheduled[0], "Only a read-back wake is recorded.")
+        XCTAssertEqual(armed.wakeStamp, Wake.stamp(wake.scheduled[0]), "The exact string the wake was made with is kept")
         XCTAssertTrue(env.applied.isEmpty, "Nothing is written before the planned start.")
         clock = clock.addingTimeInterval(1)
         let reopened = ChargeByService(defaults: defaults, wake: wake)
@@ -186,15 +188,145 @@ import PowerCore
         XCTAssertFalse(armed147)
         XCTAssertNil(service.state)
     }
+    func testTickerRunsTheTimerOnlyWhileAPlanExists() async throws {
+        let env = Env(), wake = Wake()
+        let (service, defaults, _) = makeService(env: env, wake: wake) { self.now }
+        let ticker = ChargeByTicker(service: service)
+        ticker.start()
+        XCTAssertFalse(ticker.isTimerRunning, "No plan, no periodic tick")
+        let armed = await service.arm(deadline: now.addingTimeInterval(8 * 3600), target: 100)
+        XCTAssertTrue(armed)
+        XCTAssertTrue(ticker.isTimerRunning, "Arming starts the tick")
+        await service.cancel()
+        XCTAssertNil(service.state)
+        XCTAssertFalse(ticker.isTimerRunning, "Cancelling stops it")
+        let rearmed = await service.arm(deadline: now.addingTimeInterval(8 * 3600), target: 100)
+        XCTAssertTrue(rearmed)
+        ticker.stop()
+        XCTAssertFalse(ticker.isTimerRunning)
+        // A plan saved by an earlier run: the timer starts with the ticker, and the launch tick acts on a due plan.
+        let restored = ChargeByService(defaults: defaults, wake: wake, holder: Holder(), now: { self.now.addingTimeInterval(9 * 3600) })
+        restored.environment = env
+        XCTAssertNotNil(restored.state)
+        let relaunched = ChargeByTicker(service: restored)
+        relaunched.start()
+        XCTAssertTrue(relaunched.isTimerRunning)
+        for _ in 0..<50 where restored.state != nil { await Task.yield() }
+        XCTAssertNil(restored.state, "The launch tick ran: past the deadline and the hold, the plan was dropped")
+        XCTAssertFalse(relaunched.isTimerRunning, "A finished plan stops the tick")
+        relaunched.stop()
+    }
     func testWakeCommandsAreExactlyScheduleAndCancelOfOneWake() {
         let utc = TimeZone(identifier: "UTC")!
         let date = Date(timeIntervalSince1970: 1_800_000_000)
-        XCTAssertEqual(NativeWakeScheduler.pmsetDate(date, timeZone: utc), "01/15/2027 08:00:00")
-        XCTAssertEqual(NativeWakeScheduler.scheduleArguments(date, timeZone: utc), ["-n", "/usr/bin/pmset", "schedule", "wake", "01/15/2027 08:00:00", "Tilvero"])
-        XCTAssertEqual(NativeWakeScheduler.cancelArguments(date, timeZone: utc), ["-n", "/usr/bin/pmset", "schedule", "cancel", "wake", "01/15/2027 08:00:00", "Tilvero"])
+        let stamp = NativeWakeScheduler.pmsetDate(date, timeZone: utc)
+        XCTAssertEqual(stamp, "01/15/2027 08:00:00")
+        XCTAssertEqual(NativeWakeScheduler.scheduleArguments(stamp: stamp), ["-n", "/usr/bin/pmset", "schedule", "wake", "01/15/2027 08:00:00", "Tilvero"])
+        XCTAssertEqual(NativeWakeScheduler.cancelArguments(stamp: stamp), ["-n", "/usr/bin/pmset", "schedule", "cancel", "wake", "01/15/2027 08:00:00", "Tilvero"])
         XCTAssertEqual(NativeWakeScheduler.rule(uid: 501), "#501 ALL=(root) NOPASSWD: /usr/bin/pmset schedule wake *, /usr/bin/pmset schedule cancel wake *")
         let listing = "Scheduled power events:\n [0]  wake at 01/15/2027 08:00:00 by 'Tilvero'\n [1]  wake at 01/15/2027 09:00:00 by 'other'"
-        XCTAssertTrue(NativeWakeScheduler.schedulePresent(listing, date: date, timeZone: utc))
-        XCTAssertFalse(NativeWakeScheduler.schedulePresent(listing, date: date.addingTimeInterval(3600), timeZone: utc), "Another owner's wake does not count.")
+        XCTAssertTrue(NativeWakeScheduler.schedulePresent(listing, stamp: stamp))
+        XCTAssertFalse(NativeWakeScheduler.schedulePresent(listing, stamp: "01/15/2027 09:00:00"), "Another owner's wake does not count.")
+        XCTAssertTrue(NativeWakeScheduler.schedulePresent(" [0]  wakeorpoweron at 01/15/2027 08:00:00 by 'Tilvero'", stamp: stamp),
+                      "Any remaining Tilvero wake entry with that string counts as not cancelled")
+    }
+
+    func testCancelAfterATimeZoneChangeRemovesTheWakeThatWasScheduled() async throws {
+        let pmset = FakeWakeSchedule()
+        var zone = TimeZone(identifier: "Europe/Berlin")!
+        let scheduler = NativeWakeScheduler(run: { path, arguments in await pmset.run(path, arguments) }, timeZone: { zone }, permitted: { true })
+        let date = Date(timeIntervalSince1970: 1_800_000_000)
+        let scheduled = await scheduler.schedule(date)
+        let stamp = try XCTUnwrap(scheduled)
+        XCTAssertEqual(stamp, "01/15/2027 09:00:00", "Scheduled in the zone of the moment")
+        let listedAfterSchedule = await pmset.entries
+        XCTAssertEqual(listedAfterSchedule, [stamp])
+        zone = TimeZone(identifier: "America/New_York")!   // travel (or a DST switch) before the plan ends
+        let cancelled = await scheduler.cancel(date, stamp: stamp)
+        XCTAssertTrue(cancelled)
+        let remaining = await pmset.entries
+        XCTAssertTrue(remaining.isEmpty, "The cancel names the entry by the string it was made with")
+        let commands = await pmset.commands
+        XCTAssertEqual(commands.filter { $0.first == "-n" }.last, ["-n", "/usr/bin/pmset", "schedule", "cancel", "wake", stamp, "Tilvero"])
+    }
+
+    func testAWakeThatSurvivesItsCancelIsReportedAsNotCancelled() async throws {
+        let pmset = FakeWakeSchedule(); await pmset.ignoreCancels()
+        let utc = TimeZone(identifier: "UTC")!
+        let scheduler = NativeWakeScheduler(run: { path, arguments in await pmset.run(path, arguments) }, timeZone: { utc }, permitted: { true })
+        let date = Date(timeIntervalSince1970: 1_800_000_000)
+        let scheduled = await scheduler.schedule(date)
+        let stamp = try XCTUnwrap(scheduled)
+        let cancelled = await scheduler.cancel(date, stamp: stamp)
+        XCTAssertFalse(cancelled, "A Tilvero wake still listed with the saved string is not cancelled")
+        let legacy = await scheduler.cancel(date, stamp: nil)
+        XCTAssertFalse(legacy, "A plan saved before stamps were kept formats the date in the current zone")
+        let denied = NativeWakeScheduler(run: { path, arguments in await pmset.run(path, arguments) }, timeZone: { utc }, permitted: { false })
+        let deniedStamp = await denied.schedule(date)
+        XCTAssertNil(deniedStamp, "No permission, no command")
+    }
+
+    func testAStoredStampMustHaveTheExactPmsetShapeBeforeItIsUsed() async throws {
+        for valid in ["01/15/2027 08:00:00", "12/31/2026 23:59:59"] { XCTAssertTrue(NativeWakeScheduler.isValidStamp(valid), valid) }
+        for invalid in ["", "1/15/2027 08:00:00", "01/15/2027 08:00:00 ", "01/15/2027 08:00:00; reboot", "13/15/2027 08:00:00",
+                        "02/30/2027 08:00:00", "01/15/2027 24:00:00", "01-15-2027 08:00:00", "０1/15/2027 08:00:00", "01/15/2027T08:00:00"] {
+            XCTAssertFalse(NativeWakeScheduler.isValidStamp(invalid), invalid)
+        }
+        let defaults = makeTestDefaults("ChargeByStamp").defaults
+        func load(_ stamp: String) throws -> ChargeByPlanState? {
+            let json = #"{"deadline":1000,"target":100,"previousLimit":80,"phase":"armed","startAt":500,"wakeAt":440,"wakeStamp":"\#(stamp)"}"#
+            defaults.set(Data(json.utf8), forKey: "chargeByPlan.v1")
+            return ChargeByService(defaults: defaults, wake: Wake()).state
+        }
+        XCTAssertEqual(try load("01/15/2027 08:00:00")?.wakeStamp, "01/15/2027 08:00:00")
+        let tampered = try XCTUnwrap(try load("01/15/2027 08:00:00 -a"))
+        XCTAssertNil(tampered.wakeStamp, "A malformed stamp never reaches sudo")
+        XCTAssertNotNil(tampered.wakeAt, "The wake itself is kept; its cancel falls back to the formatted date")
+        let pmset = FakeWakeSchedule(), utc = TimeZone(identifier: "UTC")!
+        let scheduler = NativeWakeScheduler(run: { path, arguments in await pmset.run(path, arguments) }, timeZone: { utc }, permitted: { true })
+        let date = Date(timeIntervalSince1970: 1_800_000_000)
+        _ = await scheduler.cancel(date, stamp: "01/15/2027 08:00:00 -a")
+        let commands = await pmset.commands
+        XCTAssertEqual(commands.first, ["-n", "/usr/bin/pmset", "schedule", "cancel", "wake", "01/15/2027 08:00:00", "Tilvero"])
+    }
+
+    func testArmedPlanKeepsTheStampAndEveryCancelUsesIt() async throws {
+        let env = Env(), wake = Wake(); var clock = now
+        let (service, _, _) = makeService(env: env, wake: wake) { clock }
+        let armed = await service.arm(deadline: now.addingTimeInterval(8 * 3600), target: 100)
+        XCTAssertTrue(armed)
+        let first = try XCTUnwrap(service.state)
+        await service.setDeadline(now.addingTimeInterval(10 * 3600))   // replans: the old wake goes, a new one is made
+        XCTAssertEqual(wake.cancelledStamps.first, first.wakeStamp)
+        let second = try XCTUnwrap(service.state)
+        XCTAssertNotEqual(second.wakeStamp, first.wakeStamp)
+        clock = second.startAt.addingTimeInterval(-ChargeByRule.wakeLead)
+        await service.systemDidWake()   // lifts and removes the wake it no longer needs
+        XCTAssertEqual(wake.cancelledStamps.last, second.wakeStamp)
+        XCTAssertNil(service.state?.wakeStamp)
+        let saved = try JSONDecoder().decode(ChargeByPlanState.self, from: Data(#"{"deadline":0,"target":100,"previousLimit":80,"phase":"armed","startAt":0,"wakeAt":0}"#.utf8))
+        XCTAssertNil(saved.wakeStamp, "A plan saved before stamps were kept still loads")
+    }
+}
+
+/// `sudo -n pmset schedule …` and `pmset -g sched` against an in-memory schedule; nothing is run.
+private actor FakeWakeSchedule {
+    private(set) var entries: [String] = []
+    private(set) var commands: [[String]] = []
+    private var cancelsWork = true
+    func ignoreCancels() { cancelsWork = false }
+    func run(_ path: String, _ arguments: [String]) -> (status: Int32, output: String) {
+        commands.append(arguments)
+        if path == "/usr/bin/sudo", arguments.count == 6, Array(arguments.prefix(4)) == ["-n", "/usr/bin/pmset", "schedule", "wake"], arguments[5] == "Tilvero" {
+            entries.append(arguments[4]); return (0, "")
+        }
+        if path == "/usr/bin/sudo", arguments.count == 7, Array(arguments.prefix(5)) == ["-n", "/usr/bin/pmset", "schedule", "cancel", "wake"], arguments[6] == "Tilvero" {
+            if cancelsWork { entries.removeAll { $0 == arguments[5] } }
+            return (0, "")
+        }
+        if path == "/usr/bin/pmset", arguments == ["-g", "sched"] {
+            return (0, "Scheduled power events:\n" + entries.enumerated().map { " [\($0.offset)]  wake at \($0.element) by 'Tilvero'" }.joined(separator: "\n"))
+        }
+        return (1, "unexpected command")
     }
 }
