@@ -268,6 +268,10 @@ enum ChargingComposition {
             }
             Spacer(minLength: 0)
         }
+        if !model.isDemo, model.canShowChargeControls, model.optimizedCharging.isAvailable {
+            Divider()
+            OptimizedChargingRow(service: model.optimizedCharging, showsHold: true)
+        }
         if !model.isDemo { ChargeByBlock(model: model, service: model.chargeBy) }
     }
 

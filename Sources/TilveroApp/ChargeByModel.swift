@@ -26,6 +26,8 @@ import PowerCore
         catalog("034") ?? ChargeByPlanner.estimatedFullEnergyWh(fullCapacityMAh: catalog("030"), packVolts: catalog("035")) ?? catalog("033")
     }
 
+    func pauseOptimizedCharging() async { _ = await model?.optimizedCharging.pauseForPlannedCharge() }
+
     func apply(limit: Int) async -> Bool {
         guard let model, !model.isApplying else { return false }
         let percent = model.snapshot.chargePercent.value

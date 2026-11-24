@@ -20928,6 +20928,102 @@
           }
         }
       }
+    },
+    "The same switch as in System Settings › Battery. macOS learns your routine and may hold the battery at 80 % until shortly before you usually unplug.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The same switch as in System Settings › Battery. macOS learns your routine and may hold the battery at 80 % until shortly before you usually unplug."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тот же переключатель, что в Системных настройках › Аккумулятор. macOS изучает ваш распорядок и может держать заряд на 80 % почти до того времени, когда вы обычно отключаете зарядку."
+          }
+        }
+      }
+    },
+    "Charge by time pauses it until tomorrow, so the battery is full by the time you set. macOS turns it back on by itself.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charge by time pauses it until tomorrow, so the battery is full by the time you set. macOS turns it back on by itself."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "«Зарядить к времени» выключает её до завтра, чтобы батарея была полной к выбранному времени. Потом macOS включит её сама."
+          }
+        }
+      }
+    },
+    "macOS is holding the charge": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS is holding the charge"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS придерживает заряд"
+          }
+        }
+      }
+    },
+    "full by": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "full by"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "полная к"
+          }
+        }
+      }
+    },
+    "Optimized charging pauses until morning": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Optimized charging pauses until morning"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оптимизированная зарядка выключится до утра"
+          }
+        }
+      }
+    },
+    "macOS did not change Optimized Battery Charging.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS did not change Optimized Battery Charging."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS не изменила оптимизированную зарядку."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -58,8 +58,9 @@ import PowerCore
     // MARK: service with fakes
     @MainActor final class Env: ChargeByEnvironment {
         var obs = ChargeByObservation(observedLimit: 80, percent: 80, isCharging: false, externalPower: true, adapterWatts: 67, fullEnergyWh: 70, systemWatts: 3)
-        var applied: [Int] = []; var succeed = true
+        var applied: [Int] = []; var succeed = true; var pauses = 0
         func observation() -> ChargeByObservation { obs }
+        func pauseOptimizedCharging() async { pauses += 1 }
         func apply(limit: Int) async -> Bool { applied.append(limit); if succeed { obs.observedLimit = limit }; return succeed }
     }
     @MainActor final class Wake: WakeScheduling {
@@ -138,6 +139,7 @@ import PowerCore
         clock = start.addingTimeInterval(-ChargeByRule.wakeLead)
         await service.systemDidWake()
         XCTAssertEqual(env.applied, [100])
+        XCTAssertEqual(env.pauses, 1, "macOS Optimized Charging is paused right after the lift, so it cannot hold at 80 %")
         XCTAssertEqual(service.state?.phase, .charging)
         XCTAssertEqual(holder.begun, 1); XCTAssertEqual(holder.ended, 1)
         // Unplugged: the user's limit returns and the plan ends.

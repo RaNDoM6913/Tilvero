@@ -18,6 +18,11 @@
 - (BOOL)setMCLLimit:(uint8_t)target error:(NSError **)error;
 - (BOOL)enableMCL:(NSError **)error;
 - (BOOL)disableMCL:(NSError **)error;
+- (BOOL)enableSmartCharging:(NSError **)error;
+- (BOOL)disableSmartCharging:(NSError **)error;
+- (BOOL)temporarilyDisableSmartCharging:(NSError **)error;
+- (id)fullChargeDeadline:(NSError **)error;
+- (BOOL)isOBCEngaged:(BOOL *)engaged chargeLimit:(NSUInteger *)limit chargingOverrideAllowed:(BOOL *)allowed withError:(NSError **)error;
 @end
 
 static BOOL TVFail(NSError **error, NSInteger code, NSString *message) {
@@ -135,3 +140,69 @@ BOOL TVNativeChargeSetEnabled(BOOL enabled,NSError **error) {
         return enabled ? [client enableMCL:error] : [client disableMCL:error];
     } @catch (NSException *exception) { return TVFail(error,6,@"The native charging operation failed; readback is required."); }
 }
+
+// MARK: Optimized Battery Charging
+// A separate signature set: an OS change here fails these calls closed without touching the charge-limit client above.
+static id TVSmartClient(NSError **error) {
+    static void *handle;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ handle = dlopen("/System/Library/PrivateFrameworks/PowerUI.framework/Versions/A/PowerUI", RTLD_LAZY | RTLD_LOCAL); });
+    Class cls = NSClassFromString(@"PowerUISmartChargeClient");
+    NSDictionary *signatures = @{
+        @"initWithClientName:":@"@24@0:8@16", @"isSmartChargingCurrentlyEnabled:":@"Q24@0:8^@16",
+        @"enableSmartCharging:":@"B24@0:8^@16", @"disableSmartCharging:":@"B24@0:8^@16",
+        @"temporarilyDisableSmartCharging:":@"B24@0:8^@16", @"fullChargeDeadline:":@"@24@0:8^@16",
+        @"isOBCEngaged:chargeLimit:chargingOverrideAllowed:withError:":@"B48@0:8^B16^Q24^B32^@40"
+    };
+    if (!handle || !cls) { TVFail(error,11,@"macOS Optimized Battery Charging is unavailable."); return nil; }
+    for (NSString *name in signatures) {
+        Method method = class_getInstanceMethod(cls,NSSelectorFromString(name));
+        const char *encoding = method ? method_getTypeEncoding(method) : NULL;
+        if (!encoding || ![signatures[name] isEqualToString:[NSString stringWithUTF8String:encoding]]) {
+            TVFail(error,12,@"The macOS Optimized Battery Charging interface changed. No setting was written."); return nil;
+        }
+    }
+    id client = [[cls alloc] initWithClientName:@"Tilvero"];
+#if !__has_feature(objc_arc)
+    [client autorelease];
+#endif
+    if (!client) TVFail(error,13,@"The macOS Optimized Battery Charging connection could not be created.");
+    return client;
+}
+
+NSDictionary<NSString *,id> *TVOptimizedChargingRead(NSError **error) {
+    @try {
+        id client = TVSmartClient(error); if (!client) return nil;
+        NSError *failure = nil;
+        NSUInteger enabled = [client isSmartChargingCurrentlyEnabled:&failure]; if (failure) { if(error)*error=failure; return nil; }
+        if (enabled > 1) { TVFail(error,14,@"Optimized Battery Charging readback is invalid."); return nil; }
+        BOOL engaged = NO, overrideAllowed = NO; NSUInteger limit = 0;
+        BOOL readHold = [client isOBCEngaged:&engaged chargeLimit:&limit chargingOverrideAllowed:&overrideAllowed withError:&failure];
+        NSMutableDictionary *result = [@{@"enabled":@(enabled==1), @"holding":@(readHold && !failure && engaged)} mutableCopy];
+        failure = nil;
+        id deadline = [client fullChargeDeadline:&failure];
+        // macOS answers "year 1" when it has no plan; only a real, near date is kept.
+        if (!failure && [deadline isKindOfClass:NSDate.class]) {
+            NSTimeInterval ahead = [(NSDate *)deadline timeIntervalSinceNow];
+            if (ahead > -3600 && ahead < 3 * 86400) result[@"deadline"] = deadline;
+        }
+        NSDictionary *value = [[NSDictionary alloc] initWithDictionary:result];
+#if !__has_feature(objc_arc)
+        [result release];
+#endif
+        return value;
+    } @catch (NSException *exception) { TVFail(error,15,@"The Optimized Battery Charging interface failed."); return nil; }
+}
+BOOL TVOptimizedChargingSetEnabled(BOOL enabled, NSError **error) {
+    @try {
+        id client = TVSmartClient(error); if (!client) return NO;
+        return enabled ? [client enableSmartCharging:error] : [client disableSmartCharging:error];
+    } @catch (NSException *exception) { return TVFail(error,15,@"The Optimized Battery Charging operation failed; readback is required."); }
+}
+BOOL TVOptimizedChargingPauseUntilTomorrow(NSError **error) {
+    @try {
+        id client = TVSmartClient(error); if (!client) return NO;
+        return [client temporarilyDisableSmartCharging:error];
+    } @catch (NSException *exception) { return TVFail(error,15,@"The Optimized Battery Charging operation failed; readback is required."); }
+}
+

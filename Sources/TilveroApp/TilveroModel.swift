@@ -514,6 +514,7 @@ final class TilveroModel {
     @ObservationIgnored private var chargeByTicker: ChargeByTicker?
     @ObservationIgnored private var chargeByEnvironment: ModelChargeByEnvironment?
     let keyboardBacklight: KeyboardBacklightService
+    let optimizedCharging: OptimizedChargingService
     @ObservationIgnored private var nativeSubscription: AnyCancellable?
     @ObservationIgnored private var nativeMessageSubscription: AnyCancellable?
     var liveControl: LiveControlService { _ = liveControlChanges; return liveControlStorage }
@@ -611,6 +612,7 @@ final class TilveroModel {
          keepAwakeService: KeepAwakeService? = nil,
          processActivityProvider: (@Sendable () async -> ProcessResourceCollection)? = nil,
          keyboardBacklight: KeyboardBacklightService? = nil,
+         optimizedCharging: OptimizedChargingService? = nil,
          sleepTimerTransport: (any SleepTimerTransport)? = nil,
          sleepTimerService: SleepTimerService? = nil,
          closedLidService: ClosedLidService? = nil,
@@ -667,6 +669,10 @@ final class TilveroModel {
         let hardwarePolicy = launchPolicy.ordinaryHardwarePolicy
         self.keyboardBacklight = keyboardBacklight ?? KeyboardBacklightService(
             storage: UserDefaultsKeyboardBacklightStorage(defaults: preferences), allowed: !isDemo && !hardwarePolicy.monitoringOnly)
+        // The live PowerUI client only inside the app bundle: a test runner never reaches the system setting.
+        self.optimizedCharging = optimizedCharging ?? OptimizedChargingService(
+            transport: Bundle.main.bundleURL.pathExtension == "app" ? PowerUIOptimizedChargingClient() : UnavailableOptimizedChargingTransport(),
+            allowed: !isDemo && !monitoring)
         keepAwakeStorage = keepAwakeService ?? KeepAwakeService(driver: keepAwakeTransport ?? NativeKeepAwakeTransport(), allowed: !isDemo && !monitoring)
         let sleepTransport = sleepTimerTransport ?? NativeSleepTimerTransport()
         sleepTimerStorage = sleepTimerService ?? SleepTimerService(driver: sleepTransport, allowed: !isDemo && !monitoring)
@@ -1427,6 +1433,7 @@ final class TilveroModel {
         guard !isDemo, !sleeping else { return }
         lastNativeChargeRead = Date()
         await nativeCharge.refresh()
+        await optimizedCharging.refresh()
         if !draftDirty { discardDraft() }
     }
     func qualifyNativeCharge() { runNative { try await $0.qualify() } }

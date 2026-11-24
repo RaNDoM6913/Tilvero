@@ -155,6 +155,7 @@ import PowerCore
             Label { Text(line.text).fixedSize(horizontal: false, vertical: true) } icon: { Image(systemName: line.symbol) }
                 .font(.system(size: 13, weight: .medium)).foregroundStyle(line.warning ? Color.orange : Color.primary)
         }
+        if service.isArmed { OptimizedChargingPlanNote(service: model.optimizedCharging) }
         if service.isArmed, service.message == nil, model.chargeByObservation.externalPower != false, let later = service.suggestedDeadline {
             Button { Task { await service.setDeadline(later) } } label: {
                 Text(Self.fill("Move to {time}", ["time": Self.clock(later)])).font(.subheadline.weight(.medium))
