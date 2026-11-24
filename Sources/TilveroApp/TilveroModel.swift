@@ -957,7 +957,8 @@ final class TilveroModel {
         return DischargeForecast.estimate(history.map {
             .init(date: $0.collectedAt, percent: $0.chargePercent, segment: $0.segmentID.uuidString,
                   externalPower: $0.isExternalPower, charging: $0.isCharging, monotonic: $0.monotonicTime, aggregate: $0.isAggregate)
-        }, currentPercent: current.percent, currentFresh: current.fresh, onBattery: current.onBattery, now: snapshot.collectedAt)
+        }, currentPercent: current.percent, currentFresh: current.fresh, onBattery: current.onBattery, now: snapshot.collectedAt,
+           launches: (historySummary?.gaps ?? []).filter { $0.reason == .launch }.map { .init(start: $0.start, end: $0.end) })
     }
     var chargeText: String {
         guard snapshot.chargePercent.availability == .available || snapshot.chargePercent.freshness == .stale else { return "—" }

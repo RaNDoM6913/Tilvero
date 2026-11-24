@@ -228,18 +228,20 @@ import SwiftUI
             // (c) With every chart block hidden no series-coloured pixel is drawn: the hue counts measure the charts, not the chrome.
             let none = try renderPreview(model, layout: layout(showing: []), scheme: scheme)
             XCTAssertEqual(none.orange, 0, "No battery-coloured pixels without charts \(tag).")
-            XCTAssertEqual(none.blue, 0, "No adapter-coloured pixels without charts \(tag).")
+            // The preview's header uses the real quick-menu tabs, whose selected capsule is blue: that chrome is the baseline.
+            let chrome = none.blue
+            XCTAssertGreaterThan(chrome, 0, "The selected tab capsule is drawn \(tag).")
             // Variant A: the power and adapter cards are full charts and draw both lines.
             let chart = try renderPreview(model, layout: layout(showing: [.power, .adapter]), scheme: scheme)
             XCTAssertGreaterThan(chart.orange, 20, "Battery chart line \(tag).")
-            XCTAssertGreaterThan(chart.blue, 20, "Adapter chart line \(tag).")
+            XCTAssertGreaterThan(chart.blue - chrome, 20, "Adapter chart line \(tag).")
             // Variants B and C, each alone, draw both series (the tiles' two charts, the combined chart's two lines).
             let tiles = try renderPreview(model, layout: layout(showing: [.powerTiles]), scheme: scheme)
             XCTAssertGreaterThan(tiles.orange, 20, "Tiles battery line \(tag).")
-            XCTAssertGreaterThan(tiles.blue, 20, "Tiles adapter line \(tag).")
+            XCTAssertGreaterThan(tiles.blue - chrome, 20, "Tiles adapter line \(tag).")
             let combined = try renderPreview(model, layout: layout(showing: [.powerCombined]), scheme: scheme)
             XCTAssertGreaterThan(combined.orange, 20, "Combined battery line \(tag).")
-            XCTAssertGreaterThan(combined.blue, 20, "Combined adapter line \(tag).")
+            XCTAssertGreaterThan(combined.blue - chrome, 20, "Combined adapter line \(tag).")
             // (a) All variants on at once differ from the layout without tiles and combined.
             let all = try renderPreview(model, layout: layout(showing: everything), scheme: scheme)
             let plain = try renderPreview(model, layout: layout(showing: everything.subtracting([.powerTiles, .powerCombined])), scheme: scheme)

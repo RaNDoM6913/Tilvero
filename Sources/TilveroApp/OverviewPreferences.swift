@@ -81,6 +81,8 @@ extension OverviewMetric {
         default: false
         }
     }
+    /// Blocks with their own settings in the builder (chart height, or the forecast's look).
+    var hasSettings: Bool { hasChartSize || self == .forecast }
     /// The block that shows a catalog metric's chart (`PowerMetricCard` knows only its catalog id).
     static func block(forChartID id: String) -> OverviewMetric? {
         switch id {
@@ -109,6 +111,8 @@ struct OverviewPreferences: Codable, Equatable {
     var chartSizes: [OverviewMetric: MetricChartSize] = [:]
     /// The user's own layout, kept when a ready-made layout replaced it, so «Своё» brings it back.
     var customLayout: OverviewLayoutSnapshot?
+    /// How the «Time to 20%» block looks: one line (default) or the discharge with its extrapolation.
+    var forecastStyle: OverviewForecastStyle = .row
     init() {}
     func chartSize(for metric: OverviewMetric) -> MetricChartSize { chartSizes[metric] ?? chartSize }
     /// The blocks shown in the quick menu, in order.
@@ -126,7 +130,7 @@ struct OverviewPreferences: Codable, Equatable {
         value.chartSize = .strip
         return value
     }()
-    private enum CodingKeys: String, CodingKey { case order, hidden, chartSize, chartSizes, customLayout }
+    private enum CodingKeys: String, CodingKey { case order, hidden, chartSize, chartSizes, customLayout, forecastStyle }
     /// Metrics that can draw a chart always do (the sparkline option is gone); a saved `chartStyles` key is ignored.
     func chartStyle(for metric: OverviewMetric) -> MetricChartStyle { metric.supportsChartStyle ? .chart : .sparkline }
     init(from decoder: any Decoder) throws {
@@ -146,6 +150,7 @@ struct OverviewPreferences: Codable, Equatable {
             if let metric = OverviewMetric(rawValue: key), metric.hasChartSize, let size = MetricChartSize(rawValue: value) { chartSizes[metric] = size }
         }
         customLayout = (try? values.decodeIfPresent(OverviewLayoutSnapshot.self, forKey: .customLayout)) ?? nil
+        forecastStyle = ((try? values.decodeIfPresent(String.self, forKey: .forecastStyle)) ?? nil).flatMap(OverviewForecastStyle.init(rawValue:)) ?? .row
     }
     func encode(to encoder: any Encoder) throws {
         var values = encoder.container(keyedBy: CodingKeys.self)
@@ -156,6 +161,7 @@ struct OverviewPreferences: Codable, Equatable {
             try values.encode(Dictionary(uniqueKeysWithValues: chartSizes.map { ($0.key.rawValue, $0.value.rawValue) }), forKey: .chartSizes)
         }
         try values.encodeIfPresent(customLayout, forKey: .customLayout)
+        if forecastStyle != .row { try values.encode(forecastStyle.rawValue, forKey: .forecastStyle) }
     }
     static func load(_ data: Data?) -> Self {
         guard let data, let value = try? JSONDecoder().decode(Self.self, from: data) else { return .init() }
@@ -256,5 +262,11 @@ enum OverviewLayoutPreset: String, CaseIterable, Identifiable {
     func matches(_ shown: [OverviewMetric]) -> Bool {
         self == .everything ? Set(shown) == Set(blocks) : shown == blocks
     }
+}
+
+/// The look of the «Time to 20%» block.
+enum OverviewForecastStyle: String, CaseIterable, Codable, Sendable {
+    case row, chart
+    var title: String { self == .row ? "Line (forecast)" : "Chart (forecast)" }
 }
 

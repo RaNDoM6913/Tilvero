@@ -37,11 +37,31 @@ struct WindowPageTabs<Value: Hashable & Identifiable>: View {
     let values: [Value]
     let title: (Value) -> String
 
+    /// The segment the control already shows while its slide plays; the page follows after `settle`.
+    @State private var shown: Value?
+    @State private var commit: Task<Void, Never>?
+    /// Building a heavy page (Settings › Quick menu ≈ 110–140 ms, Battery ≈ 60–90 ms, debug, 2026-11-23) on the main
+    /// thread froze the segmented control's slide mid-way. The control moves first; the page is swapped once the slide
+    /// is over. A later click cancels the pending swap, so only the last choice builds.
+    static var settle: Duration { .milliseconds(180) }
+
     var body: some View {
-        Picker(label, selection: $selection) {
+        Picker(label, selection: Binding(get: { shown ?? selection }, set: { value in
+            shown = value
+            commit?.cancel()
+            commit = Task { @MainActor in
+                try? await Task.sleep(for: Self.settle)
+                guard !Task.isCancelled else { return }
+                selection = value
+                commit = nil
+            }
+        })) {
             ForEach(values) { Text(title($0)).tag($0) }
         }
         .pickerStyle(.segmented).fixedSize().labelsHidden()
+        // A page changed from elsewhere (a link, a route) or the committed swap: the control shows the page again.
+        .onChange(of: selection) { _, _ in if commit == nil { shown = nil } }
+        .onDisappear { commit?.cancel(); commit = nil }
     }
 }
 

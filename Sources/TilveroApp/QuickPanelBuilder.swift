@@ -112,17 +112,14 @@ enum SettingsPage: String, CaseIterable, Identifiable {
                 Text(AppIdentity.displayName).font(.headline)
                 Spacer()
                 if model.isDemo { Text(L10n.text("Simulation")).font(.caption).foregroundStyle(.secondary) }
-                Image(systemName: "gearshape").foregroundStyle(.secondary)
+                HStack(spacing: 3) {   // the real header's borderless gear menu: gear + small chevron
+                    Image(systemName: "gearshape")
+                    Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
+                }.foregroundStyle(.secondary)
             }
-            Picker(L10n.text("Battery menu"), selection: $section) {
-                ForEach(QuickPanelSection.visible) { Text($0.title).tag($0) }
-            }.pickerStyle(.segmented).labelsHidden()
-            if section == .awake {
-                Picker(L10n.text("Sleep"), selection: $sleepPage) {
-                    Text(L10n.text("Sleep timer")).tag(SleepPage.timer)
-                    Text(L10n.text("Keep Awake")).tag(SleepPage.awake)
-                }.pickerStyle(.segmented).labelsHidden()
-            }
+            // The real quick menu's tabs (full-width capsules), as in the Sleep presets preview.
+            QuickPanelTabs(selection: $section).frame(maxWidth: .infinity)
+            if section == .awake { CompactSleepTabs(selection: $sleepPage) }
             VStack(alignment: .leading, spacing: 12) {
                 switch section {
                 case .overview:
@@ -131,11 +128,13 @@ enum SettingsPage: String, CaseIterable, Identifiable {
                     if model.sleepTimer.isActive { SleepTimerActiveRow(model: model).disabled(true) }
                     if model.keepAwake.hasOwnedAssertion, model.overviewPreferences.hidden.contains(.keepAwake) { passiveSession }
                     OverviewMetricsPanel(model: model)
-                case .charge: charge
+                case .charge:
+                    // The real charge page (it only reads on appearance; nothing here can be pressed, so it never applies).
+                    if !model.isDemo && model.usesNativeCharge { QuickNativeChargePanel(model: model) } else { charge }
                 case .modes: modes
                 case .awake:
-                    if sleepPage == .timer { SleepTimerPanel(model: model, compact: true).disabled(true) }
-                    else { awake }
+                    // The real Sleep pages, as in the quick menu and the Sleep presets preview.
+                    if sleepPage == .timer { SleepTimerPillsPanel(model: model) } else { KeepAwakePillsPanel(model: model) }
                 }
             }.allowsHitTesting(false)
             Divider()
@@ -363,7 +362,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
                     .accessibilityHidden(true)
                 Text(title).lineLimit(1)
                 Spacer(minLength: 8)
-                if item.hasChartSize {
+                if item.hasSettings {
                     Button(action: toggleSettings) {
                         Image(systemName: expanded ? "chevron.up" : "slider.horizontal.3").font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(expanded ? WindowTheme.accent : Color.secondary).frame(width: 24, height: 24)
@@ -375,7 +374,18 @@ enum SettingsPage: String, CaseIterable, Identifiable {
                 }
                 .help(L10n.text("Remove from the menu")).accessibilityLabel(L10n.text("Remove from the menu") + ": " + title)
             }
-            if expanded {
+            if expanded, item == .forecast {
+                HStack(spacing: 8) {
+                    Text(L10n.text("Look (block)")).foregroundStyle(.secondary)
+                    Spacer(minLength: 8)
+                    Picker(L10n.text("Look (block)"), selection: $model.overviewPreferences.forecastStyle) {
+                        ForEach(OverviewForecastStyle.allCases, id: \.self) { Text(L10n.text($0.title)).tag($0) }
+                    }
+                    .pickerStyle(.segmented).labelsHidden().frame(maxWidth: 220)
+                }
+                .padding(.leading, 54)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            } else if expanded {
                 HStack(spacing: 8) {
                     Text(L10n.text("Chart")).foregroundStyle(.secondary)
                     Spacer(minLength: 8)
