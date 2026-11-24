@@ -1,8 +1,7 @@
 # Compatibility and current support
 
-Tilvero is a source preview for Apple silicon Macs running **macOS 26.0+**.
-Its first public binary scope is the planned read-only **Monitoring Preview**.
-A source prerelease and a trusted Mac download are separate deliverables.
+Tilvero runs on Apple silicon Macs with **macOS 26.0+** and installs from source with
+`scripts/install.sh`. A signed, notarized Mac download is a separate deliverable in preparation.
 
 ## System requirements
 
@@ -94,5 +93,5 @@ Local machine snapshots and owner telemetry are not public qualification data.
 README gallery captures, when supplied, use injected fixture data and do
 not certify a release binary or physical hardware controls.
 
-[Build and run](../README.md#build-and-run) · [Installation](INSTALL.md) ·
+[Install](../README.md#install) · [Installation](INSTALL.md) ·
 [Release preparation](RELEASING.md) · [Roadmap](../ROADMAP.md)
