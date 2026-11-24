@@ -7,7 +7,7 @@
 ### Available now: source preview
 
 Tilvero is available as source for **Apple silicon, macOS 26.0+**. Use the
-[v0.8.0 source release](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.8.0)
+[v0.8.1 source release](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.8.1)
 and follow [Build and run](../README.md#build-and-run).
 A source archive requires a full Xcode installation; it is not an installable app.
 
@@ -23,7 +23,7 @@ Awake. Monitoring, history and diagnostics need no administrator approval.
 
 ### Verify a source release
 
-The release supplies `Tilvero-0.8.0-source.zip`,
+The release supplies `Tilvero-0.8.1-source.zip`,
 `source-release.json` and `SHA256SUMS`. Download all three from the same explicit
 release, then run `shasum -a 256 -c SHA256SUMS` in their folder. Every entry must
 match. The source manifest identifies the tag, exact commit and source ZIP hash;
@@ -33,7 +33,7 @@ use the build commands below, starting with `bash scripts/test.sh`.
 ### Source-build essentials
 
 ```sh
-git clone --branch v0.8.0 https://github.com/RaNDoM6913/Tilvero.git
+git clone --branch v0.8.1 https://github.com/RaNDoM6913/Tilvero.git
 cd Tilvero
 bash scripts/test.sh
 bash scripts/build-local-app.sh
@@ -99,7 +99,7 @@ before sharing them. No automatic updater is enabled.
 ### Сейчас доступны исходники
 
 Tilvero доступен в исходниках для **Apple silicon, macOS 26.0+**. Скачайте
-[исходники v0.8.0](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.8.0)
+[исходники v0.8.1](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.8.1)
 и следуйте инструкции [«Сборка и запуск»](../README.ru.md#сборка-и-запуск).
 Архив исходников требует полной установки Xcode; это не готовое приложение.
 
@@ -116,7 +116,7 @@ DMG **Monitoring Preview** не будет содержать помощника
 
 ### Проверка выпуска исходников
 
-Выпуск содержит `Tilvero-0.8.0-source.zip`,
+Выпуск содержит `Tilvero-0.8.1-source.zip`,
 `source-release.json` и `SHA256SUMS`. Скачайте все три файла из одного конкретного
 выпуска и выполните в их папке `shasum -a 256 -c SHA256SUMS`; все записи должны
 совпасть. Манифест исходников указывает тег, точный коммит и сумму ZIP, но не
@@ -126,7 +126,7 @@ DMG **Monitoring Preview** не будет содержать помощника
 ### Сборка из исходников
 
 ```sh
-git clone --branch v0.8.0 https://github.com/RaNDoM6913/Tilvero.git
+git clone --branch v0.8.1 https://github.com/RaNDoM6913/Tilvero.git
 cd Tilvero
 bash scripts/test.sh
 bash scripts/build-local-app.sh

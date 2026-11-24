@@ -21,7 +21,8 @@ establish hardware support or qualify a release binary.</sub>
 
 - **Overview:** the battery level and state, the macOS charge limit at a glance, Keep Awake in one tap, and live
   charts for power (adapter and battery in one chart) and temperature, and a capacity-retention card (cycles, wear and capacities) below.
-  Blocks, order and chart size are yours to arrange; the duration and level buttons of the sleep controls are editable in Settings > Quick menu.
+  Pick a ready-made layout (Minimum, Energy, Everything) or arrange your own in Settings > Quick menu: add, hide and reorder blocks, and set each chart block's size.
+  A Time to 20 % block shows the estimated time on battery. The duration and level buttons of the sleep controls are editable in the same place.
 - **Sleep:** a sleep timer you can extend by 5 minutes, 15 minutes or an hour; Keep Awake for a set time or until you stop it,
   with an optional **With lid closed** switch that also turns the screen down and caps the volume while the lid is shut; and
   sleep or keep awake when the charge falls to a level you choose.
@@ -31,43 +32,37 @@ establish hardware support or qualify a release binary.</sub>
 - **First run:** a brand-new install opens one setup window (launch at login, history, the closed-lid option and charge by time).
   Existing installs never see it.
 
-**Latest: [0.8.0](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.8.0) for developers.**
-[Get the source](https://github.com/RaNDoM6913/Tilvero/releases/download/v0.8.0/Tilvero-0.8.0-source.zip)
-· [Release notes and checksums](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.8.0)
+**Latest: [0.8.1](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.8.1) for developers.**
+[Get the source](https://github.com/RaNDoM6913/Tilvero/releases/download/v0.8.1/Tilvero-0.8.1-source.zip)
+· [Release notes and checksums](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.8.1)
 · [Build and run](#build-and-run) · [Roadmap](ROADMAP.md)
-· Earlier: [0.7.1](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.7.1),
-[0.7.0](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.7.0)
+· Earlier: [0.8.0](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.8.0),
+[0.7.1](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.7.1)
 
 A signed, notarized Mac download is still in preparation. The planned
 **Monitoring Preview** DMG will be read-only; this repository also contains
 separately gated development controls. [Availability and installation](docs/INSTALL.md).
 
-## What's new in 0.8.0
+## What's new in 0.8.1
 
-A redesigned main window, a safer **With lid closed** and an upgraded, faster history store.
+A rebuilt **quick menu builder**, a redesigned **Time to 20%** block and one dark-mode fix.
 
 **New**
-- **A redesigned main window.** A glass sidebar column lists Overview, Battery, Charging, Sleep & drain, Cooling, History, Apps, Diagnostics and Settings; it narrows to an icon rail with **⌃⌘S** (the choice is remembered). Pages with several views (Battery, Sleep & drain, Settings) keep their tabs in the toolbar. The Charging page puts the charge limit, the one-time full charge and charge by time beside the power chart and adapter readings. The Apps page lists process activity, and Diagnostics is tidier.
-- **Editable quick-menu presets.** Settings > Quick menu lets you change the duration and level buttons of the sleep timer, Keep Awake, Sleep at charge and Keep awake until charge.
-- **A watchdog for With lid closed.** The switch changes a system-wide sleep setting that outlives the app. Each session now starts a small helper process (a second copy of the app) and records a marker on disk. If Tilvero crashes, is force-quit or is killed, the helper puts normal sleep back, but only while the marker is still its own. It can restore sleep but cannot disable it.
-- **A one-time cleanup of an old leftover.** Up to 0.7.1 a run that ended without restoring could leave sleep disabled. At the first launch of 0.8.0 Tilvero clears it only when a With lid closed switch is on and Tilvero's own passwordless rule is installed, with no prompt. Without that evidence it touches nothing and the usual warning shows.
-- **Live battery power once a second** while a live chart is on screen (read from the SMC), instead of the once-a-minute registry value.
-- **A new app icon and banner.**
+- **A rebuilt quick menu builder** (Settings > Quick menu). Pick a ready-made layout (**Minimum**, **Energy**, **Everything**) or **Your own**; your own layout is kept when you apply a ready-made one and comes back with Your own. **In the menu** lists only the shown blocks: drag a whole block to reorder it, (−) hides it. **Can be added** holds the hidden blocks as chips; tap one to add it. Each chart block has its own chart size (Strip, Compact or Regular) in the block's settings, so the shared chart-size picker is gone. The block you edit or hover is outlined in the preview, and a menu-height meter (≈) compares the preview's height with your screen. The preview now uses the real quick menu tabs and the real Sleep and Charge pages.
+- **A redesigned Time to 20% block.** One line by default: a clock icon, the estimated time (≈), the clock time it lands on (by ≈ 05:05) and the current level. In the block's settings you can switch it to a small chart of the observed discharge with a dashed extrapolation to 20 %. Without a forecast it says "Collecting data" instead of a dash.
 
 **Changed**
-- **The capacity-retention card shows cycles and wear on one line**, with the capacities small beside them.
-- **The power chart legend uses coloured icons** and the readings in the normal text colour.
-- **History store upgraded to schema 3:** faster to load and no longer on the main thread, with a size budget (512 MB, shown in Settings > History). Before an older store is upgraded Tilvero writes a private backup, `History.pre-v3.sqlite` (kept 30 days); if the copy cannot be made the upgrade waits for the next launch. `scripts/restore-history-backup.sh` restores it for a rollback ([details](docs/INSTALL.md)).
-- **Lower background work:** process activity is scanned about every two minutes while no panel shows it, the charge-by-time timer runs only while a plan exists, the charge limit is read once per poll, and a closed quick menu measures nothing.
+- **The forecast survives an app relaunch.** It used to start over every time Tilvero relaunched. It now continues across a short relaunch gap when nothing was missed; sleep, a battery replacement and a clock change still start it over.
+- **Toolbar page tabs** (Settings, Battery, Sleep & drain) slide smoothly: the page swaps after the control's slide instead of freezing it.
 
 **Fixed**
-- Helper messages are translated (the Russian page showed English), history errors read as sentences, and "Restore sleep" no longer sits under "Tilvero will not change it".
+- Settings > Quick menu > Overview blocks was a blank white box in dark mode with invisible labels. It now follows the window theme.
 
-**Known limits.** The new window has been seen on macOS 27.2 only, not yet on macOS 26. The lid watchdog was checked on a real Mac with a signed build: after `kill -9` normal sleep was back within a second. Not yet verified on a real Mac: the sign of the live battery power while charging on AC and waking a sleeping Mac for charge by time.
+**Known limits.** Not yet verified on a real Mac: the sign of the live battery power while charging on AC, waking a sleeping Mac for charge by time, and the new window on macOS 26 (seen on macOS 27.2 only).
 
-## What was new in 0.7.1
+## What was new in 0.8.0
 
-A polish release: a clearer battery-health card and a quiet update notice.
+A redesigned main window with a collapsible sidebar and nine pages, a watchdog for **With lid closed** (checked on a real Mac: after `kill -9` normal sleep was back within a second), live battery power once a second, an upgraded and faster history store (schema 3, with a private backup before the upgrade) and a new app icon. Details are in the [CHANGELOG](CHANGELOG.md).
 
 Full history: [CHANGELOG](CHANGELOG.md).
 
@@ -108,7 +103,7 @@ You need **Apple silicon, macOS 26.0+ and a full Xcode installation** with a
 compatible macOS SDK and Swift 6. Command Line Tools alone are not the validated route.
 
 ```sh
-git clone --branch v0.8.0 https://github.com/RaNDoM6913/Tilvero.git
+git clone --branch v0.8.1 https://github.com/RaNDoM6913/Tilvero.git
 cd Tilvero
 bash scripts/test.sh
 bash scripts/build-local-app.sh
