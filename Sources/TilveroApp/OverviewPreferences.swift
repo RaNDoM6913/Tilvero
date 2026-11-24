@@ -39,34 +39,23 @@ enum OverviewMetric: String, CaseIterable, Codable, Identifiable, Sendable {
         }
     }
 }
-struct OverviewDragSession: Sendable {
-    let source: OverviewMetric
-    private let token = UUID()
-    var payload: String { "tilvero-overview:\(token.uuidString):\(source.rawValue)" }
-    init(source: OverviewMetric) { self.source = source }
-}
-/// Native source-end invalidates active authorization; an already accepted drop
-/// may finish its provider read asynchronously, once, until a new drag begins.
-struct OverviewDragState {
-    private(set) var active: OverviewDragSession?
-    private var pending: OverviewDragSession?
-    mutating func begin(_ source: OverviewMetric) -> OverviewDragSession {
-        let session = OverviewDragSession(source: source)
-        active = session; pending = nil
-        return session
+/// In-place reordering of the Overview block list: the dragged row follows the pointer, its slot moves by whole rows
+/// and the rows it passes shift one row the other way (pure, so the motion is testable without a view tree).
+enum OverviewBlockReorder {
+    /// The slot under the dragged row: the start plus whole rows of travel (half a row rounds), clamped to the list.
+    static func target(from: Int, translation: CGFloat, pitch: CGFloat, count: Int) -> Int {
+        guard count > 0, pitch > 0 else { return from }
+        return min(max(from + Int((translation / pitch).rounded()), 0), count - 1)
     }
-    mutating func end() { active = nil }
-    mutating func prepareDrop() -> OverviewDragSession? {
-        guard let session = active else { return nil }
-        pending = session; active = nil
-        return session
-    }
-    mutating func completeDrop(_ payload: String, session: OverviewDragSession, onto target: OverviewMetric, preferences: inout OverviewPreferences) -> Bool {
-        guard pending?.payload == session.payload else { return false }
-        pending = nil
-        return preferences.acceptDrop(payload, session: session, onto: target)
+    /// How far a resting row moves aside while another row is dragged from `from` to `to`.
+    static func shift(index: Int, from: Int?, to: Int?, pitch: CGFloat) -> CGFloat {
+        guard let from, let to, index != from else { return 0 }
+        if from < to, index > from, index <= to { return -pitch }
+        if from > to, index >= to, index < from { return pitch }
+        return 0
     }
 }
+
 /// How a metric card draws its last hour: the compact sparkline (non-chart metrics) or the
 /// full zebra chart with a value axis.
 enum MetricChartStyle: String, Codable, Sendable { case sparkline, chart }
@@ -141,11 +130,12 @@ struct OverviewPreferences: Codable, Equatable {
         guard let current = order.firstIndex(of: metric), order.indices.contains(current + amount) else { return }
         order.swapAt(current, current + amount)
     }
-    @discardableResult mutating func acceptDrop(_ payload: String, session: OverviewDragSession, onto target: OverviewMetric) -> Bool {
-        guard payload == session.payload, session.source != target,
-              let sourceIndex = order.firstIndex(of: session.source), let targetIndex = order.firstIndex(of: target) else { return false }
-        order.remove(at: sourceIndex)
-        order.insert(session.source, at: min(targetIndex, order.count))
-        return true
+    /// Moves a block to a slot in one step (a finished drag); visibility is untouched, the index is clamped.
+    mutating func move(_ metric: OverviewMetric, to index: Int) {
+        guard let current = order.firstIndex(of: metric) else { return }
+        let target = min(max(index, 0), order.count - 1)
+        guard target != current else { return }
+        order.remove(at: current)
+        order.insert(metric, at: target)
     }
 }

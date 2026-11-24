@@ -4,7 +4,6 @@
 import SwiftUI
 import AppKit
 import PowerCore
-import UniformTypeIdentifiers
 
 enum SettingsPage: String, CaseIterable, Identifiable {
     case general, quickPanel, history, updates, setup
@@ -16,8 +15,6 @@ enum SettingsPage: String, CaseIterable, Identifiable {
 
 @MainActor struct QuickPanelBuilder: View {
     @Bindable var model: TilveroModel
-    @State private var drag = OverviewDragState()
-    @State private var dropTarget: OverviewMetric?
     @State private var wide = true
     var body: some View {
         // One layout switched by width (not ViewThatFits): the preview of real quick-menu views is built once, not
@@ -25,7 +22,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         let layout = wide ? AnyLayout(HStackLayout(alignment: .top, spacing: 24))
                           : AnyLayout(VStackLayout(alignment: .leading, spacing: 20))
         layout {
-            ProductSurface(studioID: "quick.builder") { controls }.frame(minWidth: 300, idealWidth: 340, maxWidth: .infinity, alignment: .leading)
+            WindowTile { controls }.frame(minWidth: 300, idealWidth: 340, maxWidth: .infinity, alignment: .leading)
             preview.frame(width: QuickPanelMetrics.width)
         }
         .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
@@ -36,45 +33,25 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     /// Order and visibility return to their defaults.
     static func restoreLayoutDefaults(_ model: TilveroModel) { model.overviewPreferences = OverviewPreferences() }
     private var controls: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            StudioText(L10n.text("Quick panel builder"), id: "builder.title").font(.title3).bold().fixedSize(horizontal: false, vertical: true)
-            StudioText(L10n.text("Drag blocks to reorder. Switch off the ones you do not need."), id: "builder.subtitle")
-                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(L10n.text("Quick panel builder")).font(.system(size: 15, weight: .semibold))
+                Text(L10n.text("Drag blocks to reorder. Switch off the ones you do not need."))
+                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
             HStack {
-                Text(L10n.text("Chart size")).font(.subheadline)
+                Text(L10n.text("Chart size"))
                 Spacer(minLength: 8)
                 Picker(L10n.text("Chart size"), selection: $model.overviewPreferences.chartSize) {
                     ForEach(MetricChartSize.allCases, id: \.self) { Text(L10n.text($0.title)).tag($0) }
-                }.pickerStyle(.segmented).labelsHidden().controlSize(.small).frame(maxWidth: 230)
+                }.pickerStyle(.segmented).labelsHidden().frame(maxWidth: 260)
                     .studioElement("builder.chartSize", label: "Chart size")
             }
-            VStack(spacing: 6) {
-                ForEach(model.overviewPreferences.order) { item in
-                    HStack(spacing: 10) {
-                        OverviewDragHandle(title: L10n.text(item.title), begin: { drag.begin(item).payload }, end: {
-                            drag.end(); dropTarget = nil
-                        }).frame(width: 20, height: 30)
-                        VStack(alignment: .leading, spacing: 5) {
-                            Label { StudioText(L10n.text(item.title), id: "builder.block." + item.rawValue + ".title") } icon: { Image(systemName: item.symbol) }
-                        }
-                        Spacer(minLength: 8)
-                        Button { model.overviewPreferences.move(item, by: -1) } label: { Image(systemName: "chevron.up") }
-                            .accessibilityLabel(L10n.text("Move up") + ": " + L10n.text(item.title)).studioElement("builder.block." + item.rawValue + ".up", label: "Move up: " + item.title)
-                            .disabled(model.overviewPreferences.order.first == item)
-                        Button { model.overviewPreferences.move(item, by: 1) } label: { Image(systemName: "chevron.down") }
-                            .accessibilityLabel(L10n.text("Move down") + ": " + L10n.text(item.title)).studioElement("builder.block." + item.rawValue + ".down", label: "Move down: " + item.title)
-                            .disabled(model.overviewPreferences.order.last == item)
-                        Toggle(L10n.text(item.title), isOn: Binding(get: { !model.overviewPreferences.hidden.contains(item) }, set: {
-                            if $0 { model.overviewPreferences.hidden.remove(item) } else { model.overviewPreferences.hidden.insert(item) }
-                        })).labelsHidden().toggleStyle(.switch).controlSize(.small).studioElement("builder.block." + item.rawValue + ".enabled", label: "Show block: " + item.title)
-                    }.buttonStyle(.borderless).padding(.horizontal, 10).padding(.vertical, 5)
-                        .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(dropTarget == item ? 0.12 : 0.04)))
-                        .contentShape(Rectangle())
-                        .studioElement("builder.block." + item.rawValue + ".row", kind: "container", label: item.title)
-                        .onDrop(of: [UTType.text], delegate: OverviewBlockDropDelegate(model: model, target: item, drag: $drag, dropTarget: $dropTarget))
-                }
+            OverviewBlockList(model: model)
+            Button(L10n.text("Restore layout defaults")) {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { Self.restoreLayoutDefaults(model) }
             }
-            StudioActionButton(L10n.text("Restore layout defaults"), id: "builder.reset") { Self.restoreLayoutDefaults(model) }
+            .studioElement("builder.reset", label: "Restore layout defaults")
         }
     }
     private var preview: some View {
@@ -109,7 +86,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
                 Image(systemName: "gearshape").foregroundStyle(.secondary)
             }
             Picker(L10n.text("Battery menu"), selection: $section) {
-                ForEach(QuickPanelSection.allCases) { Text($0.title).tag($0) }
+                ForEach(QuickPanelSection.visible) { Text($0.title).tag($0) }
             }.pickerStyle(.segmented).labelsHidden()
             if section == .awake {
                 Picker(L10n.text("Sleep"), selection: $sleepPage) {
@@ -259,67 +236,113 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     }
 }
 
-@MainActor private struct OverviewBlockDropDelegate: DropDelegate {
-    let model: TilveroModel
-    let target: OverviewMetric
-    @Binding var drag: OverviewDragState
-    @Binding var dropTarget: OverviewMetric?
-    func validateDrop(info: DropInfo) -> Bool {
-        return drag.active != nil && info.hasItemsConforming(to: [UTType.text])
+/// The Overview blocks as a list that reorders in place: a block is dragged whole (lifted, tinted, with a shadow), the
+/// blocks it passes slide aside, and on release it settles into its new slot. The arrows and the switch stay for
+/// keyboard and VoiceOver; a switched-off block is dimmed.
+@MainActor struct OverviewBlockList: View {
+    @Bindable var model: TilveroModel
+    @State private var dragging: OverviewMetric?
+    @State private var translation: CGFloat = 0
+    /// `frozenDrag`: a drag caught mid-way (render tests); nil in the app.
+    init(model: TilveroModel, frozenDrag: (OverviewMetric, CGFloat)? = nil) {
+        self.model = model
+        _dragging = State(initialValue: frozenDrag?.0)
+        _translation = State(initialValue: frozenDrag?.1 ?? 0)
     }
-    func dropEntered(info: DropInfo) { if drag.active != nil { dropTarget = target } }
-    func dropExited(info: DropInfo) { if dropTarget == target { dropTarget = nil } }
-    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
-    func performDrop(info: DropInfo) -> Bool {
-        guard let provider = info.itemProviders(for: [UTType.text]).first, let session = drag.prepareDrop() else { return false }
-        dropTarget = nil
-        _ = provider.loadObject(ofClass: NSString.self) { value, _ in
-            let payload = value as? String ?? ""
-            Task { @MainActor in
-                _ = drag.completeDrop(payload, session: session, onto: target, preferences: &model.overviewPreferences)
+    static let rowHeight: CGFloat = 46
+    static let spacing: CGFloat = 6
+    static var pitch: CGFloat { rowHeight + spacing }
+    static let settle = Animation.spring(response: 0.32, dampingFraction: 0.84)
+
+    var body: some View {
+        let order = model.overviewPreferences.order
+        let from = dragging.flatMap { order.firstIndex(of: $0) }
+        let target = from.map { OverviewBlockReorder.target(from: $0, translation: translation, pitch: Self.pitch, count: order.count) }
+        VStack(spacing: Self.spacing) {
+            ForEach(Array(order.enumerated()), id: \.element) { index, item in
+                let lifted = item == dragging
+                OverviewBlockRow(model: model, item: item, lifted: lifted,
+                                 first: index == 0, last: index == order.count - 1)
+                    .frame(height: Self.rowHeight)
+                    .offset(y: lifted ? translation : OverviewBlockReorder.shift(index: index, from: from, to: target, pitch: Self.pitch))
+                    .zIndex(lifted ? 1 : 0)
+                    .animation(lifted ? nil : Self.settle, value: target)
+                    .gesture(dragGesture(for: item))
             }
         }
-        return true
+    }
+
+    private func dragGesture(for item: OverviewMetric) -> some Gesture {
+        DragGesture(minimumDistance: 4)
+            .onChanged { value in
+                if dragging == nil { withAnimation(.easeOut(duration: 0.15)) { dragging = item } }
+                if dragging == item { translation = value.translation.height }
+            }
+            .onEnded { value in
+                guard dragging == item, let start = model.overviewPreferences.order.firstIndex(of: item) else { return }
+                let slot = OverviewBlockReorder.target(from: start, translation: value.translation.height, pitch: Self.pitch,
+                                                       count: model.overviewPreferences.order.count)
+                withAnimation(Self.settle) {
+                    model.overviewPreferences.move(item, to: slot)
+                    dragging = nil
+                    translation = 0
+                }
+            }
     }
 }
 
-/// AppKit supplies the drag-end callback missing from SwiftUI's onDrag API.
-/// Only the dedicated handle starts a local move; buttons/toggles keep their input.
-@MainActor private struct OverviewDragHandle: NSViewRepresentable {
-    let title: String
-    let begin: () -> String
-    let end: () -> Void
-    func makeNSView(context: Context) -> Handle { Handle() }
-    func updateNSView(_ view: Handle, context: Context) {
-        view.begin = begin; view.end = end
-        view.toolTip = L10n.text("Drag to reorder")
-        view.setAccessibilityElement(true)
-        view.setAccessibilityLabel(L10n.text("Drag to reorder") + ": " + title)
-        view.setAccessibilityRole(.image)
-    }
-    final class Handle: NSView, NSDraggingSource {
-        var begin: (() -> String)?
-        var end: (() -> Void)?
-        private var handleImage: NSImage? {
-            NSImage(systemSymbolName: "line.3.horizontal", accessibilityDescription: nil)?
-                .withSymbolConfiguration(.init(paletteColors: [.secondaryLabelColor]))
+/// One block row: grab handle, tinted icon, title, arrows, switch.
+@MainActor private struct OverviewBlockRow: View {
+    @Bindable var model: TilveroModel
+    let item: OverviewMetric
+    let lifted: Bool
+    let first: Bool
+    let last: Bool
+    @Environment(\.windowTheme) private var theme
+
+    var body: some View {
+        let shown = !model.overviewPreferences.hidden.contains(item)
+        let title = L10n.text(item.title)
+        let shape = RoundedRectangle(cornerRadius: 11, style: .continuous)
+        HStack(spacing: 10) {
+            Image(systemName: "line.3.horizontal").font(.system(size: 12, weight: .semibold)).foregroundStyle(.tertiary)
+                .frame(width: 16).accessibilityHidden(true)
+            Image(systemName: item.symbol).font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(shown ? WindowTheme.accent : Color.secondary)
+                .frame(width: 28, height: 28)
+                .background(RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill((shown ? WindowTheme.accent : Color.secondary).opacity(0.14)))
+                .accessibilityHidden(true)
+            Text(title).foregroundStyle(shown ? .primary : .secondary).lineLimit(1)
+            Spacer(minLength: 8)
+            Button { withAnimation(OverviewBlockList.settle) { model.overviewPreferences.move(item, by: -1) } } label: {
+                Image(systemName: "chevron.up").font(.system(size: 11, weight: .semibold))
+            }
+            .accessibilityLabel(L10n.text("Move up") + ": " + title).disabled(first)
+            Button { withAnimation(OverviewBlockList.settle) { model.overviewPreferences.move(item, by: 1) } } label: {
+                Image(systemName: "chevron.down").font(.system(size: 11, weight: .semibold))
+            }
+            .accessibilityLabel(L10n.text("Move down") + ": " + title).disabled(last)
+            Toggle(title, isOn: Binding(get: { shown }, set: { on in
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    if on { model.overviewPreferences.hidden.remove(item) } else { model.overviewPreferences.hidden.insert(item) }
+                }
+            }))
+            .labelsHidden().toggleStyle(.switch).controlSize(.small).tint(WindowTheme.accent)
         }
-        override func draw(_ dirtyRect: NSRect) {
-            handleImage?.draw(in: NSRect(x: (bounds.width - 14) / 2, y: (bounds.height - 12) / 2, width: 14, height: 12))
-        }
-        override func resetCursorRects() { addCursorRect(bounds, cursor: .openHand) }
-        override func mouseDown(with event: NSEvent) {
-            guard let payload = begin?() else { return }
-            let pasteboard = NSPasteboardItem()
-            pasteboard.setString(payload, forType: .string)
-            let item = NSDraggingItem(pasteboardWriter: pasteboard)
-            let image = handleImage ?? NSImage(size: bounds.size)
-            item.setDraggingFrame(bounds, contents: image)
-            beginDraggingSession(with: [item], event: event, source: self)
-        }
-        func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
-            context == .withinApplication ? .move : []
-        }
-        func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) { end?() }
+        .buttonStyle(.borderless)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 12)
+        .frame(maxHeight: .infinity)
+        .background(shape.fill(lifted ? WindowTheme.accent.opacity(0.20) : Color.primary.opacity(0.05)))
+        .overlay(shape.strokeBorder(lifted ? WindowTheme.accent.opacity(0.55) : Color.primary.opacity(0.06), lineWidth: lifted ? 1 : 0.5))
+        .background(shape.fill(theme.tileFill.color).opacity(lifted ? 1 : 0))   // opaque under the tint while it floats
+        .shadow(color: .black.opacity(lifted ? 0.28 : 0), radius: lifted ? 12 : 0, y: lifted ? 6 : 0)
+        .scaleEffect(lifted ? 1.02 : 1)
+        .contentShape(shape)
+        .pointerStyle(lifted ? .grabActive : .grabIdle)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(title)
+        .studioElement("builder.block." + item.rawValue + ".row", kind: "container", label: item.title)
     }
 }

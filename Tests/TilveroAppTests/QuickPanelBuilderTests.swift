@@ -19,40 +19,60 @@ import SwiftUI
         XCTAssertEqual(value.order.map(\.rawValue), ["temperature","history","power","forecast","keepAwake","systemPower","adapter","batteryHealth","applications","keyboardBacklight","powerTiles","powerCombined"])
         XCTAssertEqual(value.hidden, [.power,.keepAwake,.systemPower,.adapter,.batteryHealth,.applications,.keyboardBacklight,.powerTiles,.powerCombined])
     }
-    func testAcceptedLocalDropMovesHiddenRowsBothDirectionsAndRejectsForeignPayload() {
+    /// A block dropped at another place moves there in one step, hidden or not, both directions; out-of-range clamps.
+    func testMoveToAnIndexKeepsEveryBlockOnce() {
         var value = OverviewPreferences()
         value.hidden.insert(.power)
-        let first = OverviewDragSession(source: .forecast)
-        XCTAssertFalse(value.acceptDrop("forecast", session: first, onto: .history))
-        XCTAssertEqual(value.order.first, .forecast)
-        XCTAssertTrue(value.acceptDrop(first.payload, session: first, onto: .history))
-        XCTAssertEqual(Array(value.order.prefix(4)), [.power,.temperature,.history,.forecast])
-        let second = OverviewDragSession(source: .forecast)
-        XCTAssertFalse(value.acceptDrop(first.payload, session: second, onto: .power))
-        XCTAssertTrue(value.acceptDrop(second.payload, session: second, onto: .power))
-        XCTAssertEqual(Array(value.order.prefix(4)), [.forecast,.power,.temperature,.history])
-        XCTAssertFalse(value.acceptDrop(second.payload, session: second, onto: .forecast))
-        XCTAssertTrue(value.hidden.contains(.power))
+        let first = value.order[0]
+        value.move(first, to: 3)
+        XCTAssertEqual(value.order[3], first)
+        value.move(first, to: 0)
+        XCTAssertEqual(value.order[0], first)
+        value.move(.power, to: 99)
+        XCTAssertEqual(value.order.last, .power)
+        XCTAssertTrue(value.hidden.contains(.power), "moving never changes visibility")
+        XCTAssertEqual(Set(value.order).count, value.order.count)
+        XCTAssertEqual(value.order.count, OverviewMetric.allCases.count)
     }
-    func testCancelledOrCompletedSourceCannotAuthorizeAReplayedExternalDrop() {
-        var lifetime = OverviewDragState(), preferences = OverviewPreferences()
-        let original = preferences
-        let cancelled = lifetime.begin(.forecast)
-        lifetime.end()
-        XCTAssertNil(lifetime.prepareDrop())
-        XCTAssertFalse(lifetime.completeDrop(cancelled.payload, session: cancelled, onto: .history, preferences: &preferences))
-        XCTAssertEqual(preferences, original)
-        let accepted = lifetime.begin(.forecast)
-        XCTAssertEqual(lifetime.prepareDrop()?.payload, accepted.payload)
-        lifetime.end() // Native source-end precedes asynchronous provider completion.
-        XCTAssertTrue(lifetime.completeDrop(accepted.payload, session: accepted, onto: .history, preferences: &preferences))
-        XCTAssertEqual(preferences.order.first, .power)
-        XCTAssertFalse(lifetime.completeDrop(accepted.payload, session: accepted, onto: .power, preferences: &preferences))
-        let stale = lifetime.begin(.power)
-        _ = lifetime.prepareDrop()
-        _ = lifetime.begin(.history) // A new source invalidates an old pending callback.
-        XCTAssertFalse(lifetime.completeDrop(stale.payload, session: stale, onto: .forecast, preferences: &preferences))
-        lifetime.end()
+
+    /// The dragged block's slot follows the pointer by whole rows; the blocks it passes shift one row the other way.
+    func testDragReorderTargetsAndShifts() {
+        let pitch: CGFloat = 50
+        XCTAssertEqual(OverviewBlockReorder.target(from: 2, translation: 0, pitch: pitch, count: 6), 2)
+        XCTAssertEqual(OverviewBlockReorder.target(from: 2, translation: 24, pitch: pitch, count: 6), 2, "less than half a row stays")
+        XCTAssertEqual(OverviewBlockReorder.target(from: 2, translation: 26, pitch: pitch, count: 6), 3)
+        XCTAssertEqual(OverviewBlockReorder.target(from: 2, translation: -130, pitch: pitch, count: 6), 0, "clamped at the top")
+        XCTAssertEqual(OverviewBlockReorder.target(from: 2, translation: 900, pitch: pitch, count: 6), 5, "clamped at the bottom")
+        // Dragging row 1 down to 3: rows 2 and 3 move up one row, others stay.
+        XCTAssertEqual((0..<6).map { OverviewBlockReorder.shift(index: $0, from: 1, to: 3, pitch: pitch) }, [0, 0, -50, -50, 0, 0])
+        // Dragging row 4 up to 1: rows 1…3 move down one row.
+        XCTAssertEqual((0..<6).map { OverviewBlockReorder.shift(index: $0, from: 4, to: 1, pitch: pitch) }, [0, 50, 50, 50, 0, 0])
+        XCTAssertEqual((0..<3).map { OverviewBlockReorder.shift(index: $0, from: nil, to: nil, pitch: pitch) }, [0, 0, 0])
+    }
+
+    /// The laboratory's `ProductSurface` paints a hard white card (its baseline theme expects a forced light scheme), so
+    /// in the dark window it hid white text on white: no window page or Settings pane may use it.
+    func testWindowPagesNeverUseTheLaboratorySurface() throws {
+        let sources = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("Sources/TilveroApp")
+        let names = try FileManager.default.contentsOfDirectory(atPath: sources.path).filter {
+            $0.hasSuffix("Page.swift") || ($0.hasPrefix("Settings") && $0.hasSuffix("Pane.swift"))
+                || ["MainWindowView.swift", "WindowKit.swift", "QuickMenuEditor.swift", "QuickPanelBuilder.swift"].contains($0)
+        }
+        XCTAssertGreaterThan(names.count, 12)
+        for name in names {
+            let text = try String(contentsOf: sources.appendingPathComponent(name), encoding: .utf8)
+            XCTAssertFalse(text.contains("ProductSurface("), name)
+        }
+    }
+
+    /// The preview offers exactly the tabs of the real quick menu (no Modes in a release).
+    func testPreviewTabsMatchTheQuickMenu() {
+        XCTAssertFalse(QuickPanelSection.visibleSections(development: false).contains(.modes))
+        let source = try! String(contentsOf: URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("Sources/TilveroApp/QuickPanelBuilder.swift"), encoding: .utf8)
+        XCTAssertFalse(source.contains("QuickPanelSection.allCases"), "the preview uses QuickPanelSection.visible")
+        XCTAssertFalse(source.contains("ProductSurface"), "no hard-white laboratory surface in the window")
     }
     func testPassivePreviewAndBuilderPersistWithoutApplyingActions() async throws {
         let suite = TestDefaults.name("Builder"), preferences = TestDefaults.defaults(suite)
