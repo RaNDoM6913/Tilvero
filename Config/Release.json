@@ -1,7 +1,7 @@
 {
-  "tag": "v0.8.0",
-  "version": "0.8.0",
-  "build": "100",
+  "tag": "v0.8.1",
+  "version": "0.8.1",
+  "build": "104",
   "channel": "stable",
   "bundleID": "io.github.random6913.tilvero",
   "helperID": "io.github.random6913.tilvero.helper",

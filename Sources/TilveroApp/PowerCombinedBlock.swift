@@ -141,7 +141,7 @@ import PowerCore
                     scale: Self.combinedScale(battery: battery, adapter: adapter),
                     window: model.overviewChartWindow,
                     unit: unit,
-                    density: model.overviewPreferences.chartSize.density,
+                    density: model.overviewPreferences.chartSize(for: .powerCombined).density,
                     emptyMessage: L10n.text("No recorded measurements yet"),
                     fillsSingleSeries: false)
             }.help(liveNote)
