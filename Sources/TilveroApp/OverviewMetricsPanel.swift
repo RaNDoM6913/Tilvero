@@ -7,6 +7,7 @@ import PowerCore
 
 @MainActor struct OverviewMetricsPanel: View {
     @Environment(\.studioPresentation) private var studioPresentation
+    @Environment(\.overviewHighlightedBlock) private var highlighted
     var model: TilveroModel
     var allowsAwakeActions = false
     /// Opens the Sleep page from the Keep Awake block; `nil` in the passive preview.
@@ -15,6 +16,7 @@ import PowerCore
         let _ = RenderProbe.hit("OverviewMetricsPanel")
         VStack(alignment: .leading, spacing: 12) {
             ForEach(model.visibleOverviewMetrics) { item in
+                Group {
                 switch item {
                 case .forecast:
                     HStack(alignment: .firstTextBaseline) {
@@ -56,6 +58,16 @@ import PowerCore
                         }
                     }
                 }
+                }
+                .overlay {
+                    // The builder's preview outlines the block being edited or hovered (nil everywhere else).
+                    if highlighted == item {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .strokeBorder(WindowTheme.accent, lineWidth: 2).padding(-5)
+                            .transition(.opacity).allowsHitTesting(false)
+                    }
+                }
+                .animation(.easeInOut(duration: 0.18), value: highlighted)
             }
         }
     }
@@ -69,3 +81,13 @@ import PowerCore
         return "≈ " + text(value.lowerSeconds) + "–" + text(value.upperSeconds)
     }
 }
+
+private struct OverviewHighlightedBlockKey: EnvironmentKey { static let defaultValue: OverviewMetric? = nil }
+extension EnvironmentValues {
+    /// The block the quick-menu builder is editing or hovering, outlined in its preview.
+    var overviewHighlightedBlock: OverviewMetric? {
+        get { self[OverviewHighlightedBlockKey.self] }
+        set { self[OverviewHighlightedBlockKey.self] = newValue }
+    }
+}
+

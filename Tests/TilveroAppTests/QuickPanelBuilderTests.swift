@@ -35,6 +35,62 @@ import SwiftUI
         XCTAssertEqual(value.order.count, OverviewMetric.allCases.count)
     }
 
+    /// «Можно добавить» puts a block at the end of the shown ones; (−) hides it; dragging reorders the shown ones only.
+    func testAddRemoveAndMoveAmongShownBlocks() {
+        var value = OverviewPreferences()
+        let shown = value.visible
+        value.add(.adapter)
+        XCTAssertEqual(value.visible, shown + [.adapter])
+        value.remove(.power)
+        XCTAssertFalse(value.visible.contains(.power))
+        XCTAssertTrue(value.available.contains(.power))
+        value.moveVisible(.adapter, to: 0)
+        XCTAssertEqual(value.visible.first, .adapter)
+        XCTAssertEqual(Set(value.order).count, OverviewMetric.allCases.count)
+        value.add(.adapter)   // already shown: nothing changes
+        XCTAssertEqual(value.visible.first, .adapter)
+    }
+
+    /// Ready-made layouts set the shown blocks; leaving the user's own layout keeps it for «Своё», which brings it back.
+    func testLayoutPresetsAndTheCustomLayout() {
+        var value = OverviewPreferences()
+        value.add(.adapter); value.moveVisible(.adapter, to: 0)
+        let own = value.visible
+        XCTAssertNil(value.layoutPreset)
+        value.apply(.minimum)
+        XCTAssertEqual(value.visible, OverviewLayoutPreset.minimum.blocks)
+        XCTAssertEqual(value.layoutPreset, .minimum)
+        value.apply(.energy)   // from a preset: the own layout is not overwritten
+        XCTAssertEqual(value.layoutPreset, .energy)
+        value.restoreCustomLayout()
+        XCTAssertEqual(value.visible, own)
+        value.apply(.everything)
+        XCTAssertEqual(Set(value.visible), Set(OverviewMetric.allCases))
+        value.moveVisible(.history, to: 0)
+        XCTAssertEqual(value.layoutPreset, .everything, "everything matches in any order")
+    }
+
+    /// A block's own chart size wins over the shared one; only chart blocks take one; it survives a save.
+    func testPerBlockChartSizeRoundTrips() throws {
+        var value = OverviewPreferences()
+        value.setChartSize(.regular, for: .power)
+        value.setChartSize(.strip, for: .forecast)   // no chart: ignored
+        XCTAssertEqual(value.chartSize(for: .power), .regular)
+        XCTAssertEqual(value.chartSize(for: .temperature), value.chartSize)
+        XCTAssertNil(value.chartSizes[.forecast])
+        value.setChartSize(value.chartSize, for: .temperature)
+        XCTAssertNil(value.chartSizes[.temperature], "the shared size is not stored as an override")
+        value.apply(.minimum)
+        let decoded = OverviewPreferences.load(try JSONEncoder().encode(value))
+        XCTAssertEqual(decoded, value)
+        XCTAssertEqual(OverviewMetric.block(forChartID: "039"), .temperature)
+        // Old saved preferences without the new keys still load unchanged.
+        let old = OverviewPreferences.load(Data(#"{"order":["power","forecast"],"hidden":["forecast"],"chartSize":"strip"}"#.utf8))
+        XCTAssertTrue(old.chartSizes.isEmpty)
+        XCTAssertNil(old.customLayout)
+        XCTAssertEqual(old.chartSize, .strip)
+    }
+
     /// The dragged block's slot follows the pointer by whole rows; the blocks it passes shift one row the other way.
     func testDragReorderTargetsAndShifts() {
         let pitch: CGFloat = 50

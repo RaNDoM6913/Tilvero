@@ -129,7 +129,7 @@ extension PowerMetricCard {
             scale: MetricChartScale.scale(forMetric: id, values: series.points.map(\.value)),
             window: model.overviewChartWindow,
             unit: Self.chartUnit(id: id, readingUnit: reading?.unit, fahrenheit: fahrenheit),
-            density: model.overviewPreferences.chartSize.density,
+            density: OverviewMetric.block(forChartID: id).map(model.overviewPreferences.chartSize(for:))?.density ?? model.overviewPreferences.chartSize.density,
             emptyMessage: Self.chartEmptyMessage(id: id, adapterConnected: adapterConnected))
     }
 }

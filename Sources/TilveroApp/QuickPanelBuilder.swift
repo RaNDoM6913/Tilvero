@@ -16,6 +16,15 @@ enum SettingsPage: String, CaseIterable, Identifiable {
 @MainActor struct QuickPanelBuilder: View {
     @Bindable var model: TilveroModel
     @State private var wide = true
+    /// The block whose settings are open, and the block under the pointer: both are outlined in the preview.
+    @State private var expanded: OverviewMetric?
+    @State private var hovered: OverviewMetric?
+    @State private var previewHeight: CGFloat = 0
+    @Namespace private var blocks
+    init(model: TilveroModel, expanded: OverviewMetric? = nil) {
+        self.model = model
+        _expanded = State(initialValue: expanded)
+    }
     var body: some View {
         // One layout switched by width (not ViewThatFits): the preview of real quick-menu views is built once, not
         // measured twice on every frame of a window resize or sidebar animation.
@@ -33,23 +42,41 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     /// Order and visibility return to their defaults.
     static func restoreLayoutDefaults(_ model: TilveroModel) { model.overviewPreferences = OverviewPreferences() }
     private var controls: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(L10n.text("Quick panel builder")).font(.system(size: 15, weight: .semibold))
-                Text(L10n.text("Drag blocks to reorder. Switch off the ones you do not need."))
-                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        let prefs = model.overviewPreferences
+        let spring = OverviewBlockList.settle
+        return VStack(alignment: .leading, spacing: 14) {
+            Text(L10n.text("Quick panel builder")).font(.system(size: 15, weight: .semibold))
+            HStack(spacing: 8) {
+                ForEach(OverviewLayoutPreset.allCases) { preset in
+                    OverviewPresetCapsule(title: L10n.text(preset.title), symbol: preset.symbol, selected: prefs.layoutPreset == preset) {
+                        withAnimation(spring) { expanded = nil; model.overviewPreferences.apply(preset) }
+                    }
+                }
+                OverviewPresetCapsule(title: L10n.text("Your own (layout)"), symbol: "slider.horizontal.3", selected: prefs.layoutPreset == nil) {
+                    withAnimation(spring) { expanded = nil; model.overviewPreferences.restoreCustomLayout() }
+                }
+                .disabled(prefs.layoutPreset != nil && prefs.customLayout == nil)
             }
-            HStack {
-                Text(L10n.text("Chart size"))
-                Spacer(minLength: 8)
-                Picker(L10n.text("Chart size"), selection: $model.overviewPreferences.chartSize) {
-                    ForEach(MetricChartSize.allCases, id: \.self) { Text(L10n.text($0.title)).tag($0) }
-                }.pickerStyle(.segmented).labelsHidden().frame(maxWidth: 260)
-                    .studioElement("builder.chartSize", label: "Chart size")
+            Text(L10n.text("In the menu")).font(.system(size: 13, weight: .semibold)).padding(.top, 2)
+            if prefs.visible.isEmpty {
+                Text(L10n.text("No blocks in the menu. Add one below.")).font(.callout).foregroundStyle(.secondary)
+            } else {
+                OverviewBlockList(model: model, expanded: $expanded, hovered: $hovered, namespace: blocks)
             }
-            OverviewBlockList(model: model)
+            Text(L10n.text("Can be added")).font(.system(size: 13, weight: .semibold)).padding(.top, 2)
+            if prefs.available.isEmpty {
+                Text(L10n.text("Every block is in the menu.")).font(.callout).foregroundStyle(.secondary)
+            } else {
+                QuickPresetFlow(spacing: 8) {
+                    ForEach(prefs.available) { item in
+                        OverviewAddChip(item: item) { withAnimation(spring) { model.overviewPreferences.add(item) } }
+                            .matchedGeometryEffect(id: item, in: blocks)
+                    }
+                }
+            }
+            OverviewHeightMeter(height: previewHeight)
             Button(L10n.text("Restore layout defaults")) {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { Self.restoreLayoutDefaults(model) }
+                withAnimation(spring) { expanded = nil; Self.restoreLayoutDefaults(model) }
             }
             .studioElement("builder.reset", label: "Restore layout defaults")
         }
@@ -62,6 +89,8 @@ enum SettingsPage: String, CaseIterable, Identifiable {
                 Text(L10n.text("Preview only")).font(.caption).foregroundStyle(.secondary)
             }
             PassiveQuickPanelPreview(model: model)
+                .environment(\.overviewHighlightedBlock, expanded ?? hovered)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { previewHeight = $0 }
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
                 .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.separator.opacity(0.5)))
             Text(L10n.text("Preview uses your current readings and saved layout. Controls are inactive."))
@@ -236,16 +265,20 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     }
 }
 
-/// The Overview blocks as a list that reorders in place: a block is dragged whole (lifted, tinted, with a shadow), the
-/// blocks it passes slide aside, and on release it settles into its new slot. The arrows and the switch stay for
-/// keyboard and VoiceOver; a switched-off block is dimmed.
+/// «В меню»: the shown blocks as a list that reorders in place. A block is dragged whole (lifted, tinted, with a
+/// shadow), the blocks it passes slide aside, and on release it settles into its slot. (−) hides a block; a chart
+/// block opens its own settings. VoiceOver gets Move up / Move down actions.
 @MainActor struct OverviewBlockList: View {
     @Bindable var model: TilveroModel
+    @Binding var expanded: OverviewMetric?
+    @Binding var hovered: OverviewMetric?
+    let namespace: Namespace.ID
     @State private var dragging: OverviewMetric?
     @State private var translation: CGFloat = 0
     /// `frozenDrag`: a drag caught mid-way (render tests); nil in the app.
-    init(model: TilveroModel, frozenDrag: (OverviewMetric, CGFloat)? = nil) {
-        self.model = model
+    init(model: TilveroModel, expanded: Binding<OverviewMetric?>, hovered: Binding<OverviewMetric?>, namespace: Namespace.ID,
+         frozenDrag: (OverviewMetric, CGFloat)? = nil) {
+        self.model = model; _expanded = expanded; _hovered = hovered; self.namespace = namespace
         _dragging = State(initialValue: frozenDrag?.0)
         _translation = State(initialValue: frozenDrag?.1 ?? 0)
     }
@@ -255,19 +288,31 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     static let settle = Animation.spring(response: 0.32, dampingFraction: 0.84)
 
     var body: some View {
-        let order = model.overviewPreferences.order
+        let order = model.overviewPreferences.visible
         let from = dragging.flatMap { order.firstIndex(of: $0) }
         let target = from.map { OverviewBlockReorder.target(from: $0, translation: translation, pitch: Self.pitch, count: order.count) }
         VStack(spacing: Self.spacing) {
             ForEach(Array(order.enumerated()), id: \.element) { index, item in
                 let lifted = item == dragging
-                OverviewBlockRow(model: model, item: item, lifted: lifted,
-                                 first: index == 0, last: index == order.count - 1)
-                    .frame(height: Self.rowHeight)
+                OverviewBlockRow(model: model, item: item, lifted: lifted, expanded: expanded == item,
+                                 toggleSettings: { withAnimation(Self.settle) { expanded = expanded == item ? nil : item } },
+                                 remove: { withAnimation(Self.settle) {
+                                     if expanded == item { expanded = nil }
+                                     model.overviewPreferences.remove(item)
+                                 } })
+                    .frame(minHeight: Self.rowHeight)
+                    .matchedGeometryEffect(id: item, in: namespace)
                     .offset(y: lifted ? translation : OverviewBlockReorder.shift(index: index, from: from, to: target, pitch: Self.pitch))
                     .zIndex(lifted ? 1 : 0)
                     .animation(lifted ? nil : Self.settle, value: target)
                     .gesture(dragGesture(for: item))
+                    .onHover { inside in if inside { hovered = item } else if hovered == item { hovered = nil } }
+                    .accessibilityAction(named: L10n.text("Move up")) {
+                        withAnimation(Self.settle) { model.overviewPreferences.moveVisible(item, to: index - 1) }
+                    }
+                    .accessibilityAction(named: L10n.text("Move down")) {
+                        withAnimation(Self.settle) { model.overviewPreferences.moveVisible(item, to: index + 1) }
+                    }
             }
         }
     }
@@ -275,15 +320,18 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     private func dragGesture(for item: OverviewMetric) -> some Gesture {
         DragGesture(minimumDistance: 4)
             .onChanged { value in
-                if dragging == nil { withAnimation(.easeOut(duration: 0.15)) { dragging = item } }
+                if dragging == nil {
+                    expanded = nil   // equal row heights while a row travels
+                    withAnimation(.easeOut(duration: 0.15)) { dragging = item }
+                }
                 if dragging == item { translation = value.translation.height }
             }
             .onEnded { value in
-                guard dragging == item, let start = model.overviewPreferences.order.firstIndex(of: item) else { return }
+                guard dragging == item, let start = model.overviewPreferences.visible.firstIndex(of: item) else { return }
                 let slot = OverviewBlockReorder.target(from: start, translation: value.translation.height, pitch: Self.pitch,
-                                                       count: model.overviewPreferences.order.count)
+                                                       count: model.overviewPreferences.visible.count)
                 withAnimation(Self.settle) {
-                    model.overviewPreferences.move(item, to: slot)
+                    model.overviewPreferences.moveVisible(item, to: slot)
                     dragging = nil
                     translation = 0
                 }
@@ -291,51 +339,61 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     }
 }
 
-/// One block row: grab handle, tinted icon, title, arrows, switch.
+/// One shown block: grab handle, accent icon, title, settings (chart blocks), (−); open, its chart height.
 @MainActor private struct OverviewBlockRow: View {
     @Bindable var model: TilveroModel
     let item: OverviewMetric
     let lifted: Bool
-    let first: Bool
-    let last: Bool
+    let expanded: Bool
+    let toggleSettings: () -> Void
+    let remove: () -> Void
     @Environment(\.windowTheme) private var theme
 
     var body: some View {
-        let shown = !model.overviewPreferences.hidden.contains(item)
         let title = L10n.text(item.title)
         let shape = RoundedRectangle(cornerRadius: 11, style: .continuous)
-        HStack(spacing: 10) {
-            Image(systemName: "line.3.horizontal").font(.system(size: 12, weight: .semibold)).foregroundStyle(.tertiary)
-                .frame(width: 16).accessibilityHidden(true)
-            Image(systemName: item.symbol).font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(shown ? WindowTheme.accent : Color.secondary)
-                .frame(width: 28, height: 28)
-                .background(RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill((shown ? WindowTheme.accent : Color.secondary).opacity(0.14)))
-                .accessibilityHidden(true)
-            Text(title).foregroundStyle(shown ? .primary : .secondary).lineLimit(1)
-            Spacer(minLength: 8)
-            Button { withAnimation(OverviewBlockList.settle) { model.overviewPreferences.move(item, by: -1) } } label: {
-                Image(systemName: "chevron.up").font(.system(size: 11, weight: .semibold))
-            }
-            .accessibilityLabel(L10n.text("Move up") + ": " + title).disabled(first)
-            Button { withAnimation(OverviewBlockList.settle) { model.overviewPreferences.move(item, by: 1) } } label: {
-                Image(systemName: "chevron.down").font(.system(size: 11, weight: .semibold))
-            }
-            .accessibilityLabel(L10n.text("Move down") + ": " + title).disabled(last)
-            Toggle(title, isOn: Binding(get: { shown }, set: { on in
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    if on { model.overviewPreferences.hidden.remove(item) } else { model.overviewPreferences.hidden.insert(item) }
+        let tinted = lifted || expanded
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Image(systemName: "line.3.horizontal").font(.system(size: 12, weight: .semibold)).foregroundStyle(.tertiary)
+                    .frame(width: 16).accessibilityHidden(true)
+                Image(systemName: item.symbol).font(.system(size: 13, weight: .semibold)).foregroundStyle(WindowTheme.accent)
+                    .frame(width: 28, height: 28)
+                    .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(WindowTheme.accent.opacity(0.14)))
+                    .accessibilityHidden(true)
+                Text(title).lineLimit(1)
+                Spacer(minLength: 8)
+                if item.hasChartSize {
+                    Button(action: toggleSettings) {
+                        Image(systemName: expanded ? "chevron.up" : "slider.horizontal.3").font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(expanded ? WindowTheme.accent : Color.secondary).frame(width: 24, height: 24)
+                    }
+                    .help(L10n.text("Block settings")).accessibilityLabel(L10n.text("Block settings") + ": " + title)
                 }
-            }))
-            .labelsHidden().toggleStyle(.switch).controlSize(.small).tint(WindowTheme.accent)
+                Button(action: remove) {
+                    Image(systemName: "minus.circle.fill").font(.system(size: 16)).foregroundStyle(.secondary).frame(width: 24, height: 24)
+                }
+                .help(L10n.text("Remove from the menu")).accessibilityLabel(L10n.text("Remove from the menu") + ": " + title)
+            }
+            if expanded {
+                HStack(spacing: 8) {
+                    Text(L10n.text("Chart")).foregroundStyle(.secondary)
+                    Spacer(minLength: 8)
+                    Picker(L10n.text("Chart size"), selection: Binding(get: { model.overviewPreferences.chartSize(for: item) },
+                                                                      set: { model.overviewPreferences.setChartSize($0, for: item) })) {
+                        ForEach(MetricChartSize.allCases, id: \.self) { Text(L10n.text($0.title)).tag($0) }
+                    }
+                    .pickerStyle(.segmented).labelsHidden().frame(maxWidth: 280)
+                }
+                .padding(.leading, 54)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
         }
         .buttonStyle(.borderless)
-        .foregroundStyle(.secondary)
-        .padding(.horizontal, 12)
-        .frame(maxHeight: .infinity)
-        .background(shape.fill(lifted ? WindowTheme.accent.opacity(0.20) : Color.primary.opacity(0.05)))
-        .overlay(shape.strokeBorder(lifted ? WindowTheme.accent.opacity(0.55) : Color.primary.opacity(0.06), lineWidth: lifted ? 1 : 0.5))
+        .padding(.horizontal, 12).padding(.vertical, 9)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(shape.fill(tinted ? WindowTheme.accent.opacity(0.18) : Color.primary.opacity(0.05)))
+        .overlay(shape.strokeBorder(tinted ? WindowTheme.accent.opacity(0.55) : Color.primary.opacity(0.06), lineWidth: tinted ? 1 : 0.5))
         .background(shape.fill(theme.tileFill.color).opacity(lifted ? 1 : 0))   // opaque under the tint while it floats
         .shadow(color: .black.opacity(lifted ? 0.28 : 0), radius: lifted ? 12 : 0, y: lifted ? 6 : 0)
         .scaleEffect(lifted ? 1.02 : 1)
@@ -344,5 +402,79 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         .accessibilityElement(children: .contain)
         .accessibilityLabel(title)
         .studioElement("builder.block." + item.rawValue + ".row", kind: "container", label: item.title)
+    }
+}
+
+/// «Можно добавить»: a hidden block as a dashed chip; a click adds it to the end of the menu.
+@MainActor private struct OverviewAddChip: View {
+    let item: OverviewMetric
+    let add: () -> Void
+    var body: some View {
+        Button(action: add) {
+            HStack(spacing: 6) {
+                Image(systemName: "plus").font(.system(size: 11, weight: .bold)).foregroundStyle(WindowTheme.accent)
+                Image(systemName: item.symbol).foregroundStyle(.secondary)
+                Text(L10n.text(item.title)).foregroundStyle(.primary)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 7)
+            .background(Capsule().fill(Color.primary.opacity(0.06)))
+            .overlay(Capsule().strokeBorder(Color.primary.opacity(0.12), style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(L10n.text("Add to the menu") + ": " + L10n.text(item.title))
+    }
+}
+
+/// A ready-made layout: accent fill when the shown blocks match it.
+@MainActor private struct OverviewPresetCapsule: View {
+    let title: String
+    let symbol: String
+    let selected: Bool
+    let action: () -> Void
+    @Environment(\.isEnabled) private var enabled
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) { Image(systemName: symbol); Text(title) }
+                .font(.system(size: 13, weight: .medium))
+                .padding(.horizontal, 14).padding(.vertical, 8)
+                .foregroundStyle(selected ? Color.white : Color.primary)
+                .background(Capsule().fill(selected ? WindowTheme.accent : Color.primary.opacity(0.07)))
+                .opacity(enabled || selected ? 1 : 0.45)
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+/// How tall the quick menu gets against the screen it opens on (the preview's height, so ≈); orange when it would not fit.
+@MainActor private struct OverviewHeightMeter: View {
+    let height: CGFloat
+    var body: some View {
+        let screen = (NSScreen.main?.visibleFrame.height ?? 0) - 40   // the popover's arrow and margin
+        let fits = height <= screen
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(L10n.text("Menu height")).font(.system(size: 13, weight: .semibold))
+                Spacer()
+                Text(height > 0 && screen > 0 ? "≈ \(Int(height.rounded())) / \(Int(screen.rounded())) pt" : "—")
+                    .monospacedDigit().foregroundStyle(fits ? Color.secondary : Color.orange)
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.primary.opacity(0.08))
+                    Capsule().fill(fits ? WindowTheme.accent : Color.orange)
+                        .frame(width: screen > 0 ? geo.size.width * min(1, height / screen) : 0)
+                        .animation(.easeInOut(duration: 0.25), value: height)
+                }
+            }
+            .frame(height: 8)
+            if !fits {
+                Text(L10n.text("The menu is taller than the screen. Remove a block or make a chart smaller."))
+                    .font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.top, 4)
     }
 }
