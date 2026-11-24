@@ -203,7 +203,8 @@ struct OverviewPreferences: Codable, Equatable {
     }
     /// Brings back the user's own layout kept by `apply(_:)`.
     mutating func restoreCustomLayout() {
-        guard let customLayout else { return }
+        // Already the user's own layout: nothing to bring back (it would replace the current one with an older snapshot).
+        guard layoutPreset != nil, let customLayout else { return }
         order = customLayout.order; hidden = customLayout.hidden
     }
 
@@ -258,10 +259,9 @@ enum OverviewLayoutPreset: String, CaseIterable, Identifiable {
         case .everything: OverviewMetric.allCases
         }
     }
-    /// "Everything" matches any order; the others match their exact list.
-    func matches(_ shown: [OverviewMetric]) -> Bool {
-        self == .everything ? Set(shown) == Set(blocks) : shown == blocks
-    }
+    /// The exact list, order included: every block in the user's own order is the user's own layout, so applying a
+    /// ready-made one keeps it for «Своё».
+    func matches(_ shown: [OverviewMetric]) -> Bool { shown == blocks }
 }
 
 /// The look of the «Time to 20%» block.

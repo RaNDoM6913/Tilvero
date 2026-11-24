@@ -67,7 +67,16 @@ import SwiftUI
         value.apply(.everything)
         XCTAssertEqual(Set(value.visible), Set(OverviewMetric.allCases))
         value.moveVisible(.history, to: 0)
-        XCTAssertEqual(value.layoutPreset, .everything, "everything matches in any order")
+        XCTAssertNil(value.layoutPreset, "every block in the user's own order is the user's own layout")
+        let ownOrder = value.visible
+        value.apply(.minimum)
+        value.restoreCustomLayout()
+        XCTAssertEqual(value.visible, ownOrder, "the own order survives a ready-made layout")
+        // «Своё» while already the own layout changes nothing (it used to bring back an older snapshot).
+        value.add(.keepAwake)
+        let current = value.visible
+        value.restoreCustomLayout()
+        XCTAssertEqual(value.visible, current)
     }
 
     /// A block's own chart size wins over the shared one; only chart blocks take one; it survives a save.

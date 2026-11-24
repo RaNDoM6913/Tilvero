@@ -60,8 +60,11 @@ struct WindowPageTabs<Value: Hashable & Identifiable>: View {
         }
         .pickerStyle(.segmented).fixedSize().labelsHidden()
         // A page changed from elsewhere (a link, a route) or the committed swap: the control shows the page again.
-        .onChange(of: selection) { _, _ in if commit == nil { shown = nil } }
-        .onDisappear { commit?.cancel(); commit = nil }
+        .onChange(of: selection) { _, new in
+            // A change that is not the pending click (a link, a route) wins: the pending swap is dropped.
+            if commit == nil || new != shown { commit?.cancel(); commit = nil; shown = nil }
+        }
+        .onDisappear { commit?.cancel(); commit = nil; shown = nil }
     }
 }
 

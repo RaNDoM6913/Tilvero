@@ -99,9 +99,9 @@ enum SettingsPage: String, CaseIterable, Identifiable {
     }
 }
 
-/// A separate read-only rendering boundary: it never instantiates live charge,
-/// mode or Awake controls (some of those perform work in task/onChange handlers).
-/// Only local preview-tab selection can mutate state here.
+/// A read-only rendering of the quick menu. Its Sleep and Charge pages are the real panels (their appearance tasks
+/// only read), kept unreachable: hit testing off, disabled and hidden from accessibility, so nothing can apply.
+/// Only the local preview-tab selection can change here.
 @MainActor struct PassiveQuickPanelPreview: View {
     var model: TilveroModel
     @State var section: QuickPanelSection = .overview
@@ -136,7 +136,9 @@ enum SettingsPage: String, CaseIterable, Identifiable {
                     // The real Sleep pages, as in the quick menu and the Sleep presets preview.
                     if sleepPage == .timer { SleepTimerPillsPanel(model: model) } else { KeepAwakePillsPanel(model: model) }
                 }
-            }.allowsHitTesting(false)
+            }
+            // The live panels are shown for their look only: no mouse, no keyboard focus, no VoiceOver press can reach them.
+            .allowsHitTesting(false).disabled(true).accessibilityHidden(true)
             Divider()
             HStack {
                 Label(L10n.text("History & reports…"), systemImage: "chart.bar.xaxis")
@@ -314,6 +316,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
                     }
             }
         }
+        .onDisappear { dragging = nil; translation = 0 }
     }
 
     private func dragGesture(for item: OverviewMetric) -> some Gesture {
@@ -326,7 +329,10 @@ enum SettingsPage: String, CaseIterable, Identifiable {
                 if dragging == item { translation = value.translation.height }
             }
             .onEnded { value in
-                guard dragging == item, let start = model.overviewPreferences.visible.firstIndex(of: item) else { return }
+                guard dragging == item, let start = model.overviewPreferences.visible.firstIndex(of: item) else {
+                    dragging = nil; translation = 0   // never left lifted (a block hidden mid-drag)
+                    return
+                }
                 let slot = OverviewBlockReorder.target(from: start, translation: value.translation.height, pitch: Self.pitch,
                                                        count: model.overviewPreferences.visible.count)
                 withAnimation(Self.settle) {
