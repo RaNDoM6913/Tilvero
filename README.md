@@ -74,8 +74,8 @@ fan, power or sleep settings. Those change only when the user turns a control on
   with an optional **With lid closed** switch that also turns the screen down and caps the volume while the lid is shut; and
   sleep or keep awake when the charge falls to a level you choose.
 - **Charge:** the macOS charge limit (80–100 %), a one-time charge to 100 %, and **charge by time**: pick a time and a level
-  and Tilvero lifts the limit just in time, waking a sleeping Mac on schedule (one optional administrator permission;
-  waking with the lid closed is still being verified on real hardware).
+  and Tilvero lifts the limit just in time, waking a sleeping Mac on schedule, even with the lid closed (one optional administrator permission).
+  If macOS Optimized Battery Charging is on, macOS may still hold the charge at 80 % for a while.
 - **First run:** a brand-new install opens one setup window (launch at login, history, the closed-lid option and charge by time).
   Existing installs never see it.
 
@@ -134,7 +134,7 @@ A rebuilt **quick menu builder**, a redesigned **Time to 20%** block and one dar
 **Fixed**
 - Settings > Quick menu > Overview blocks was a blank white box in dark mode with invisible labels. It now follows the window theme.
 
-**Known limits.** Not yet verified on a real Mac: the sign of the live battery power while charging on AC, waking a sleeping Mac for charge by time, and the new window on macOS 26 (seen on macOS 27.2 only).
+**Known limits.** Not yet verified on a real Mac: the sign of the live battery power while charging on AC and the new window on macOS 26 (seen on macOS 27.2 only).
 
 ## What was new in 0.8.0
 
@@ -169,8 +169,8 @@ the same app on your Mac in one step.
 **Application power is a CPU estimate.** It does not measure an app’s total electrical consumption across CPU, GPU and
 other devices. **Sleep reports start with observed events**: Tilvero does not reconstruct past nights from gaps.
 
-**Not yet verified on a real Mac:** waking a sleeping Mac for charge by time (also with the lid closed) and the sign of
-live battery power while charging on AC. Privileged charging, power-mode and fan writes stay off.
+**Verified on a real Mac:** waking a sleeping Mac with the lid closed for charge by time (2026-11-24).
+**Not yet verified:** the sign of live battery power while charging on AC. Privileged charging, power-mode and fan writes stay off.
 Simulation is marked **DEMO** and stays out of history. Details: [compatibility](docs/COMPATIBILITY.md),
 [control architecture](Helper/README.md), [roadmap](ROADMAP.md).
 
