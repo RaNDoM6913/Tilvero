@@ -19,40 +19,125 @@ import SwiftUI
         XCTAssertEqual(value.order.map(\.rawValue), ["temperature","history","power","forecast","keepAwake","systemPower","adapter","batteryHealth","applications","keyboardBacklight","powerTiles","powerCombined"])
         XCTAssertEqual(value.hidden, [.power,.keepAwake,.systemPower,.adapter,.batteryHealth,.applications,.keyboardBacklight,.powerTiles,.powerCombined])
     }
-    func testAcceptedLocalDropMovesHiddenRowsBothDirectionsAndRejectsForeignPayload() {
+    /// A block dropped at another place moves there in one step, hidden or not, both directions; out-of-range clamps.
+    func testMoveToAnIndexKeepsEveryBlockOnce() {
         var value = OverviewPreferences()
         value.hidden.insert(.power)
-        let first = OverviewDragSession(source: .forecast)
-        XCTAssertFalse(value.acceptDrop("forecast", session: first, onto: .history))
-        XCTAssertEqual(value.order.first, .forecast)
-        XCTAssertTrue(value.acceptDrop(first.payload, session: first, onto: .history))
-        XCTAssertEqual(Array(value.order.prefix(4)), [.power,.temperature,.history,.forecast])
-        let second = OverviewDragSession(source: .forecast)
-        XCTAssertFalse(value.acceptDrop(first.payload, session: second, onto: .power))
-        XCTAssertTrue(value.acceptDrop(second.payload, session: second, onto: .power))
-        XCTAssertEqual(Array(value.order.prefix(4)), [.forecast,.power,.temperature,.history])
-        XCTAssertFalse(value.acceptDrop(second.payload, session: second, onto: .forecast))
-        XCTAssertTrue(value.hidden.contains(.power))
+        let first = value.order[0]
+        value.move(first, to: 3)
+        XCTAssertEqual(value.order[3], first)
+        value.move(first, to: 0)
+        XCTAssertEqual(value.order[0], first)
+        value.move(.power, to: 99)
+        XCTAssertEqual(value.order.last, .power)
+        XCTAssertTrue(value.hidden.contains(.power), "moving never changes visibility")
+        XCTAssertEqual(Set(value.order).count, value.order.count)
+        XCTAssertEqual(value.order.count, OverviewMetric.allCases.count)
     }
-    func testCancelledOrCompletedSourceCannotAuthorizeAReplayedExternalDrop() {
-        var lifetime = OverviewDragState(), preferences = OverviewPreferences()
-        let original = preferences
-        let cancelled = lifetime.begin(.forecast)
-        lifetime.end()
-        XCTAssertNil(lifetime.prepareDrop())
-        XCTAssertFalse(lifetime.completeDrop(cancelled.payload, session: cancelled, onto: .history, preferences: &preferences))
-        XCTAssertEqual(preferences, original)
-        let accepted = lifetime.begin(.forecast)
-        XCTAssertEqual(lifetime.prepareDrop()?.payload, accepted.payload)
-        lifetime.end() // Native source-end precedes asynchronous provider completion.
-        XCTAssertTrue(lifetime.completeDrop(accepted.payload, session: accepted, onto: .history, preferences: &preferences))
-        XCTAssertEqual(preferences.order.first, .power)
-        XCTAssertFalse(lifetime.completeDrop(accepted.payload, session: accepted, onto: .power, preferences: &preferences))
-        let stale = lifetime.begin(.power)
-        _ = lifetime.prepareDrop()
-        _ = lifetime.begin(.history) // A new source invalidates an old pending callback.
-        XCTAssertFalse(lifetime.completeDrop(stale.payload, session: stale, onto: .forecast, preferences: &preferences))
-        lifetime.end()
+
+    /// «Можно добавить» puts a block at the end of the shown ones; (−) hides it; dragging reorders the shown ones only.
+    func testAddRemoveAndMoveAmongShownBlocks() {
+        var value = OverviewPreferences()
+        let shown = value.visible
+        value.add(.adapter)
+        XCTAssertEqual(value.visible, shown + [.adapter])
+        value.remove(.power)
+        XCTAssertFalse(value.visible.contains(.power))
+        XCTAssertTrue(value.available.contains(.power))
+        value.moveVisible(.adapter, to: 0)
+        XCTAssertEqual(value.visible.first, .adapter)
+        XCTAssertEqual(Set(value.order).count, OverviewMetric.allCases.count)
+        value.add(.adapter)   // already shown: nothing changes
+        XCTAssertEqual(value.visible.first, .adapter)
+    }
+
+    /// Ready-made layouts set the shown blocks; leaving the user's own layout keeps it for «Своё», which brings it back.
+    func testLayoutPresetsAndTheCustomLayout() {
+        var value = OverviewPreferences()
+        value.add(.adapter); value.moveVisible(.adapter, to: 0)
+        let own = value.visible
+        XCTAssertNil(value.layoutPreset)
+        value.apply(.minimum)
+        XCTAssertEqual(value.visible, OverviewLayoutPreset.minimum.blocks)
+        XCTAssertEqual(value.layoutPreset, .minimum)
+        value.apply(.energy)   // from a preset: the own layout is not overwritten
+        XCTAssertEqual(value.layoutPreset, .energy)
+        value.restoreCustomLayout()
+        XCTAssertEqual(value.visible, own)
+        value.apply(.everything)
+        XCTAssertEqual(Set(value.visible), Set(OverviewMetric.allCases))
+        value.moveVisible(.history, to: 0)
+        XCTAssertNil(value.layoutPreset, "every block in the user's own order is the user's own layout")
+        let ownOrder = value.visible
+        value.apply(.minimum)
+        value.restoreCustomLayout()
+        XCTAssertEqual(value.visible, ownOrder, "the own order survives a ready-made layout")
+        // «Своё» while already the own layout changes nothing (it used to bring back an older snapshot).
+        value.add(.keepAwake)
+        let current = value.visible
+        value.restoreCustomLayout()
+        XCTAssertEqual(value.visible, current)
+    }
+
+    /// A block's own chart size wins over the shared one; only chart blocks take one; it survives a save.
+    func testPerBlockChartSizeRoundTrips() throws {
+        var value = OverviewPreferences()
+        value.setChartSize(.regular, for: .power)
+        value.setChartSize(.strip, for: .forecast)   // no chart: ignored
+        XCTAssertEqual(value.chartSize(for: .power), .regular)
+        XCTAssertEqual(value.chartSize(for: .temperature), value.chartSize)
+        XCTAssertNil(value.chartSizes[.forecast])
+        value.setChartSize(value.chartSize, for: .temperature)
+        XCTAssertNil(value.chartSizes[.temperature], "the shared size is not stored as an override")
+        value.apply(.minimum)
+        let decoded = OverviewPreferences.load(try JSONEncoder().encode(value))
+        XCTAssertEqual(decoded, value)
+        XCTAssertEqual(OverviewMetric.block(forChartID: "039"), .temperature)
+        // Old saved preferences without the new keys still load unchanged.
+        let old = OverviewPreferences.load(Data(#"{"order":["power","forecast"],"hidden":["forecast"],"chartSize":"strip"}"#.utf8))
+        XCTAssertTrue(old.chartSizes.isEmpty)
+        XCTAssertNil(old.customLayout)
+        XCTAssertEqual(old.chartSize, .strip)
+    }
+
+    /// The dragged block's slot follows the pointer by whole rows; the blocks it passes shift one row the other way.
+    func testDragReorderTargetsAndShifts() {
+        let pitch: CGFloat = 50
+        XCTAssertEqual(OverviewBlockReorder.target(from: 2, translation: 0, pitch: pitch, count: 6), 2)
+        XCTAssertEqual(OverviewBlockReorder.target(from: 2, translation: 24, pitch: pitch, count: 6), 2, "less than half a row stays")
+        XCTAssertEqual(OverviewBlockReorder.target(from: 2, translation: 26, pitch: pitch, count: 6), 3)
+        XCTAssertEqual(OverviewBlockReorder.target(from: 2, translation: -130, pitch: pitch, count: 6), 0, "clamped at the top")
+        XCTAssertEqual(OverviewBlockReorder.target(from: 2, translation: 900, pitch: pitch, count: 6), 5, "clamped at the bottom")
+        // Dragging row 1 down to 3: rows 2 and 3 move up one row, others stay.
+        XCTAssertEqual((0..<6).map { OverviewBlockReorder.shift(index: $0, from: 1, to: 3, pitch: pitch) }, [0, 0, -50, -50, 0, 0])
+        // Dragging row 4 up to 1: rows 1…3 move down one row.
+        XCTAssertEqual((0..<6).map { OverviewBlockReorder.shift(index: $0, from: 4, to: 1, pitch: pitch) }, [0, 50, 50, 50, 0, 0])
+        XCTAssertEqual((0..<3).map { OverviewBlockReorder.shift(index: $0, from: nil, to: nil, pitch: pitch) }, [0, 0, 0])
+    }
+
+    /// The laboratory's `ProductSurface` paints a hard white card (its baseline theme expects a forced light scheme), so
+    /// in the dark window it hid white text on white: no window page or Settings pane may use it.
+    func testWindowPagesNeverUseTheLaboratorySurface() throws {
+        let sources = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("Sources/TilveroApp")
+        let names = try FileManager.default.contentsOfDirectory(atPath: sources.path).filter {
+            $0.hasSuffix("Page.swift") || ($0.hasPrefix("Settings") && $0.hasSuffix("Pane.swift"))
+                || ["MainWindowView.swift", "WindowKit.swift", "QuickMenuEditor.swift", "QuickPanelBuilder.swift"].contains($0)
+        }
+        XCTAssertGreaterThan(names.count, 12)
+        for name in names {
+            let text = try String(contentsOf: sources.appendingPathComponent(name), encoding: .utf8)
+            XCTAssertFalse(text.contains("ProductSurface("), name)
+        }
+    }
+
+    /// The preview offers exactly the tabs of the real quick menu (no Modes in a release).
+    func testPreviewTabsMatchTheQuickMenu() {
+        XCTAssertFalse(QuickPanelSection.visibleSections(development: false).contains(.modes))
+        let source = try! String(contentsOf: URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("Sources/TilveroApp/QuickPanelBuilder.swift"), encoding: .utf8)
+        XCTAssertFalse(source.contains("QuickPanelSection.allCases"), "the preview uses QuickPanelSection.visible")
+        XCTAssertFalse(source.contains("ProductSurface"), "no hard-white laboratory surface in the window")
     }
     func testPassivePreviewAndBuilderPersistWithoutApplyingActions() async throws {
         let suite = TestDefaults.name("Builder"), preferences = TestDefaults.defaults(suite)
@@ -152,18 +237,20 @@ import SwiftUI
             // (c) With every chart block hidden no series-coloured pixel is drawn: the hue counts measure the charts, not the chrome.
             let none = try renderPreview(model, layout: layout(showing: []), scheme: scheme)
             XCTAssertEqual(none.orange, 0, "No battery-coloured pixels without charts \(tag).")
-            XCTAssertEqual(none.blue, 0, "No adapter-coloured pixels without charts \(tag).")
+            // The preview's header uses the real quick-menu tabs, whose selected capsule is blue: that chrome is the baseline.
+            let chrome = none.blue
+            XCTAssertGreaterThan(chrome, 0, "The selected tab capsule is drawn \(tag).")
             // Variant A: the power and adapter cards are full charts and draw both lines.
             let chart = try renderPreview(model, layout: layout(showing: [.power, .adapter]), scheme: scheme)
             XCTAssertGreaterThan(chart.orange, 20, "Battery chart line \(tag).")
-            XCTAssertGreaterThan(chart.blue, 20, "Adapter chart line \(tag).")
+            XCTAssertGreaterThan(chart.blue - chrome, 20, "Adapter chart line \(tag).")
             // Variants B and C, each alone, draw both series (the tiles' two charts, the combined chart's two lines).
             let tiles = try renderPreview(model, layout: layout(showing: [.powerTiles]), scheme: scheme)
             XCTAssertGreaterThan(tiles.orange, 20, "Tiles battery line \(tag).")
-            XCTAssertGreaterThan(tiles.blue, 20, "Tiles adapter line \(tag).")
+            XCTAssertGreaterThan(tiles.blue - chrome, 20, "Tiles adapter line \(tag).")
             let combined = try renderPreview(model, layout: layout(showing: [.powerCombined]), scheme: scheme)
             XCTAssertGreaterThan(combined.orange, 20, "Combined battery line \(tag).")
-            XCTAssertGreaterThan(combined.blue, 20, "Combined adapter line \(tag).")
+            XCTAssertGreaterThan(combined.blue - chrome, 20, "Combined adapter line \(tag).")
             // (a) All variants on at once differ from the layout without tiles and combined.
             let all = try renderPreview(model, layout: layout(showing: everything), scheme: scheme)
             let plain = try renderPreview(model, layout: layout(showing: everything.subtracting([.powerTiles, .powerCombined])), scheme: scheme)

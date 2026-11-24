@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.8.1 — Quick Menu Builder Source Preview — 2026-11-24
+
+A rebuilt quick menu builder, a redesigned "Time to 20%" block and a dark-mode fix.
+
+**Added**
+- The quick menu builder (Settings > Quick menu) is rebuilt. Ready-made layouts Minimum, Energy and Everything, plus Your own: the user's own layout
+  is kept when a ready-made one is applied and comes back with Your own. "In the menu" lists only the shown blocks, dragged whole to reorder, and (-)
+  hides one; "Can be added" shows the hidden blocks as chips that add them back. Chart blocks have their own chart size (Strip, Compact or Regular)
+  in the block's settings, and the shared chart-size picker is gone. The block being edited or hovered is outlined in the preview, a menu-height
+  meter (approximate) compares the preview's height with the screen, and the preview now uses the real quick menu tabs and the real Sleep and Charge pages.
+- The "Time to 20%" block is redesigned: one line (a clock icon, the estimated duration, "by ~ 05:05" and the current level) or, chosen in the block's
+  settings, a small chart of the observed discharge with a dashed extrapolation to 20 %. Without a forecast it says "Collecting data" instead of a dash.
+
+**Changed**
+- The discharge forecast no longer starts over on every app relaunch: it continues across a short relaunch gap when nothing was missed (the two
+  history segments must meet the recorded launch gap within two seconds). Sleep, a battery replacement and a clock change still start it over.
+- Toolbar page tabs (Settings, Battery, Sleep & drain) slide smoothly: the page is swapped after the control's slide instead of freezing it.
+
+**Fixed**
+- Settings > Quick menu > Overview blocks was a blank white box in dark mode with invisible labels; it now uses the window theme.
+
+Source for Apple silicon with macOS 26.0+ and full Xcode; no app or DMG. Not yet verified on a real Mac: the sign of the live battery power
+while charging on AC and waking a sleeping Mac on schedule for charge by time. The new window has been seen on macOS 27.2 only, not on macOS 26.
+The lid watchdog (0.8.0) was checked on a real Mac with a signed build: after `kill -9` normal sleep was back within a second.
+
 ## 0.8.0 — New Window Source Preview — 2026-11-23
 
 A redesigned main window, a safer "With lid closed" and an upgraded, faster history store.

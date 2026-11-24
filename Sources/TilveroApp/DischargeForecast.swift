@@ -19,6 +19,20 @@ enum DischargeForecast {
         let lowerSeconds: Double
         let upperSeconds: Double
         let observedSeconds: Double
+        /// The straight extrapolation of the observed rate (between the bounds).
+        var seconds: Double = 0
+        /// The observed discharge, oldest first (the chart draws it before the dashed extrapolation).
+        var points: [(date: Date, percent: Double)] = []
+    }
+    /// An app relaunch inside a discharge: the history starts a new segment, but nothing was missed when the gap was
+    /// this short and the clocks agree, so the forecast may continue across it. Other boundaries (sleep, battery
+    /// replacement, clock change, offline) always end the observed discharge.
+    struct LaunchBoundary: Sendable {
+        let start: Date
+        let end: Date
+        func joins(older: Date, newer: Date) -> Bool {
+            abs(start.timeIntervalSince(older)) < 2 && abs(end.timeIntervalSince(newer)) < 2
+        }
     }
     /// Current-reading gates for `estimate`. IOPowerSources rows with unknown source freshness count
     /// when the app collected them just now (`CurrentObservation`); retained or stale values never do.
@@ -30,15 +44,21 @@ enum DischargeForecast {
                 snapshot.chargePercent.isCurrentObservation(catalogID: "011", at: at),
                 snapshot.isExternalPower.isCurrentObservation(catalogID: "015", at: at) && snapshot.isExternalPower.value == false)
     }
-    static func estimate(_ samples: [Sample], currentPercent: Int?, currentFresh: Bool, onBattery: Bool, now: Date = Date()) -> Estimate? {
+    static func estimate(_ samples: [Sample], currentPercent: Int?, currentFresh: Bool, onBattery: Bool, now: Date = Date(),
+                         launches: [LaunchBoundary] = []) -> Estimate? {
         guard currentFresh, onBattery, let current = currentPercent, (0...100).contains(current),
               let latest = samples.last, let latestPercent = latest.percent,
               now.timeIntervalSince(latest.date) >= -5, now.timeIntervalSince(latest.date) <= 120,
               abs(Double(current) - latestPercent) <= 1.5 else { return nil }
         if current <= 20 { return .init(lowerSeconds: 0, upperSeconds: 0, observedSeconds: 0) }
         var segment: [Sample] = []
+        var currentSegment = latest.segment
         for value in samples.reversed() {
-            guard !value.aggregate, value.segment == latest.segment, value.externalPower == false, value.charging == false,
+            if value.segment != currentSegment {
+                guard let newer = segment.last, launches.contains(where: { $0.joins(older: value.date, newer: newer.date) }) else { break }
+                currentSegment = value.segment
+            }
+            guard !value.aggregate, value.externalPower == false, value.charging == false,
                   let percent = value.percent, percent.isFinite, (0...100).contains(percent),
                   latest.date.timeIntervalSince(value.date) <= 7200 else { break }
             if let newer = segment.last {
@@ -58,6 +78,8 @@ enum DischargeForecast {
         let lower = max(0, Double(current - 20) - 0.5) * duration / (loss + 1)
         let upper = (Double(current - 20) + 0.5) * duration / (loss - 1)
         guard lower.isFinite, upper.isFinite, upper <= 172800 else { return nil }
-        return .init(lowerSeconds: lower, upperSeconds: upper, observedSeconds: duration)
+        let center = min(max(Double(current - 20) * duration / loss, lower), upper)
+        let points = segment.reversed().compactMap { sample in sample.percent.map { (date: sample.date, percent: $0) } }
+        return .init(lowerSeconds: lower, upperSeconds: upper, observedSeconds: duration, seconds: center, points: points)
     }
 }

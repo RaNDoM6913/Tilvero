@@ -65,4 +65,30 @@ final class OverviewForecastTests: XCTestCase {
             XCTAssertNil(DischargeForecast.estimate(samples, currentPercent: 75, currentFresh: true, onBattery: true, now: now))
         }
     }
+
+    /// An app relaunch in the middle of a discharge no longer resets the forecast: the two segments join when a launch
+    /// boundary matches the gap exactly; without it (sleep, battery replacement) the new segment alone is too short.
+    func testALaunchBoundaryJoinsTheDischargeAcrossARelaunch() throws {
+        let now = Date()
+        var samples: [DischargeForecast.Sample] = []
+        for index in 0...20 {
+            samples.append(.init(date: now.addingTimeInterval(Double(index - 20) * 60), percent: 90 - Double(index) * 0.5,
+                                 segment: index > 16 ? "after" : "before", externalPower: false, charging: false,
+                                 monotonic: Double(index) * 60))
+        }
+        XCTAssertNil(DischargeForecast.estimate(samples, currentPercent: 80, currentFresh: true, onBattery: true, now: now),
+                     "a new segment without a launch boundary stays a break")
+        let launch = DischargeForecast.LaunchBoundary(start: samples[16].date, end: samples[17].date)
+        let value = try XCTUnwrap(DischargeForecast.estimate(samples, currentPercent: 80, currentFresh: true, onBattery: true,
+                                                             now: now, launches: [launch]))
+        XCTAssertEqual(value.observedSeconds, 1200, accuracy: 1)
+        XCTAssertGreaterThanOrEqual(value.seconds, value.lowerSeconds)
+        XCTAssertLessThanOrEqual(value.seconds, value.upperSeconds)
+        XCTAssertEqual(value.points.count, 21)
+        XCTAssertEqual(value.points.first?.percent, 90)
+        XCTAssertLessThan(value.points.first!.date, value.points.last!.date, "oldest first")
+        // A boundary somewhere else does not join.
+        let elsewhere = DischargeForecast.LaunchBoundary(start: samples[10].date, end: samples[11].date)
+        XCTAssertNil(DischargeForecast.estimate(samples, currentPercent: 80, currentFresh: true, onBattery: true, now: now, launches: [elsewhere]))
+    }
 }
