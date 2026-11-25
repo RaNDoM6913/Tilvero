@@ -26,14 +26,17 @@ public struct NativeChargeSnapshot: Codable, Equatable, Sendable {
     /// False when the Mac ran on battery power at the read: macOS then lists no manual limit in `pmset -g battlimit`
     /// even though the setting is stored (measured on macOS 27.2), so an absent registration is expected, not a fault.
     public let registrationExpected: Bool
+    /// `pmset -g battlimit` listed two different manual limits (seen after the macOS 27.2.1 update: a second, ownerless
+    /// row kept the old value while PowerUI's own row took the new one). No write can then be confirmed.
+    public let registryConflict: Bool
     public init(configuration: NativeChargeConfiguration, supportedTargets: [Int], registeredManualLimit: Int?, policyReadbackAvailable: Bool = true,
-                collectedAt: Date = Date(), registrationExpected: Bool = true) {
+                collectedAt: Date = Date(), registrationExpected: Bool = true, registryConflict: Bool = false) {
         self.configuration = configuration; self.supportedTargets = supportedTargets
         self.registeredManualLimit = registeredManualLimit; self.policyReadbackAvailable = policyReadbackAvailable; self.collectedAt = collectedAt
-        self.registrationExpected = registrationExpected
+        self.registrationExpected = registrationExpected; self.registryConflict = registryConflict
     }
     private enum CodingKeys: String, CodingKey {
-        case configuration, supportedTargets, registeredManualLimit, policyReadbackAvailable, collectedAt, registrationExpected
+        case configuration, supportedTargets, registeredManualLimit, policyReadbackAvailable, collectedAt, registrationExpected, registryConflict
     }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -43,6 +46,7 @@ public struct NativeChargeSnapshot: Codable, Equatable, Sendable {
         policyReadbackAvailable = try c.decode(Bool.self, forKey: .policyReadbackAvailable)
         collectedAt = try c.decode(Date.self, forKey: .collectedAt)
         registrationExpected = try c.decodeIfPresent(Bool.self, forKey: .registrationExpected) ?? true
+        registryConflict = try c.decodeIfPresent(Bool.self, forKey: .registryConflict) ?? false
     }
     public var isFresh: Bool { let age = Date().timeIntervalSince(collectedAt); return age >= -5 && age <= 65 }
     /// The registry agrees with the stored setting, or (on battery power only) lists nothing at all.
@@ -154,7 +158,7 @@ public actor PowerUIChargeClient: NativeChargeTransport {
         return .init(configuration: .init(enabled: enabled, target: target, optimizedCharging: optimized), supportedTargets: targets,
                      registeredManualLimit: limits?.manualLimit,
                      policyReadbackAvailable: limits != nil && limits?.manualLimitIsConflicting == false,
-                     registrationExpected: Self.runsOnExternalPower())
+                     registrationExpected: Self.runsOnExternalPower(), registryConflict: limits?.manualLimitIsConflicting == true)
     }
     /// The registry readback of every native read: always a fresh `pmset -g battlimit` run, never the shared answer (this
     /// read is also every readback around a native write). The answer is recorded for the read-only observation of the

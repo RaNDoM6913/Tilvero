@@ -113,7 +113,10 @@ import ChargeBackends
     func statusText(_ state: NativeChargePresentation) -> String? {
         switch state.attention {
         case .sessionReview: "Saved charging session needs review."
-        case .mutationUnresolved: "A dispatched native setting still has an unconfirmed outcome."
+        case .mutationUnresolved:
+            model.nativeCharge.nativeSetting?.registryConflict == true
+                ? "macOS lists two different charge limits. Set the limit once in System Settings › Battery to bring them together."
+                : "A dispatched native setting still has an unconfirmed outcome."
         case .journalIntegrity: "The native session journal needs review before further changes."
         case .operationPending:
             if state.pendingPurpose == .read {

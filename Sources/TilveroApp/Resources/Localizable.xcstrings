@@ -21024,6 +21024,22 @@
           }
         }
       }
+    },
+    "macOS lists two different charge limits. Set the limit once in System Settings › Battery to bring them together.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS lists two different charge limits. Set the limit once in System Settings › Battery to bring them together."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS показывает два разных лимита зарядки. Задайте лимит один раз в Системных настройках › Аккумулятор, чтобы они совпали."
+          }
+        }
+      }
     }
   },
   "version": "1.0"
