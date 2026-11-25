@@ -60,13 +60,16 @@ struct NativeChargeAdmission: Codable {
 
     /// A complete persistent state at `target`. By default a missing registry entry on battery power is accepted
     /// (`policyMatches`); validation evidence passes `strict: true` and then needs the registry to agree.
+    /// Optimized Battery Charging is its own macOS setting (the user, System Settings or Tilvero's own switch may flip it at
+    /// any time); only validation evidence (`strict`) also pins it, to prove a limit write leaves it untouched.
     static func isPersistent(_ value: NativeChargeSnapshot, target: Int, optimizedCharging: Bool, strict: Bool = false) -> Bool {
         let registryOK = strict ? value.registryAgrees : value.policyMatches
+        let obcOK = !strict || value.configuration.optimizedCharging == optimizedCharging
         if target == unlimitedTarget {
-            return value.configuration == .init(enabled: false, target: unlimitedTarget, optimizedCharging: optimizedCharging)
+            return value.configuration.matchesManual(.init(enabled: false, target: unlimitedTarget, optimizedCharging: optimizedCharging)) && obcOK
                 && registryOK && value.registeredManualLimit == nil && validOfferedTargets(value.supportedTargets)
         }
-        return value.configuration == .init(enabled: true, target: target, optimizedCharging: optimizedCharging)
+        return value.configuration.matchesManual(.init(enabled: true, target: target, optimizedCharging: optimizedCharging)) && obcOK
             && registryOK && (value.registeredManualLimit == target || (!strict && value.registeredManualLimit == nil && !value.registrationExpected))
             && validOfferedTargets(value.supportedTargets)
     }

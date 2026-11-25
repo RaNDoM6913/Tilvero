@@ -29,7 +29,7 @@ import ChargeBackends
         XCTAssertTrue(FileManager.default.fileExists(atPath: f.journal.path))
     }
     func testTrustedFixtureUnconfirmedOrDifferentRecallCannotStartFollowUpOrCreateProof() async throws {
-        for invalid in ["target", "obc", "policy", "throw"] {
+        for invalid in ["target", "policy", "throw"] {   // OBC is its own setting: a flipped OBC is not a different limit
             let f = Fixture(invalid: invalid); defer { f.cleanup() }
             try await f.service.apply(100, batteryPercent: 68, batteryFresh: true)
             do { _ = try await f.service.restore(batteryPercent: 68, batteryFresh: true); XCTFail("Must reject recall: \(invalid)") } catch {}

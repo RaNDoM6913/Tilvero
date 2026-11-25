@@ -177,8 +177,8 @@ import PowerCore
         XCTAssertFalse(FileManager.default.fileExists(atPath: f.admission.path))
     }
 
-    func testScopedRestoreCannotWriteFromDisabledOutOfPairOrChangedOBCState() async throws {
-        for mode in ["disabled", "baseline100", "baseline85", "obc", "unknown"] {
+    func testScopedRestoreCannotWriteFromDisabledOrOutOfPairState() async throws {
+        for mode in ["disabled", "baseline100", "baseline85", "unknown"] {
             let f = ScopeFixture(mode: "postUnknown"); defer { f.cleanup() }
             do { try await f.service.qualify(); XCTFail("Expected interruption") } catch {}
             let bytes = try Data(contentsOf: f.journal)
@@ -220,11 +220,39 @@ import PowerCore
         }
     }
 
+    /// Optimized Battery Charging is its own macOS setting: flipping it (System Settings or Tilvero's own switch) never
+    /// locks the limit slider or blocks a restore of the limit.
+    func testFlippedOptimizedChargingKeepsTheLimitWorkingAndRestorable() async throws {
+        let f = ScopeFixture(); defer { f.cleanup() }
+        try await f.service.qualify()
+        let scope = try XCTUnwrap(NativeChargeAdmission.loadScope(from: f.admission, environment: "scope-fixture"))
+        await f.client.setMode("obc")
+        let service = f.makeService(scope: scope)
+        await service.refresh()
+        XCTAssertTrue(service.canApplyTarget(95))
+        try await service.apply(95, batteryPercent: 50, batteryFresh: true)
+        XCTAssertEqual(service.observed?.configuration, .init(enabled: true, target: 95, optimizedCharging: false))
+        XCTAssertFalse(service.recoveryRequired)
+        await f.client.setMode("")   // OBC flipped back while the limit stays
+        await service.refresh()
+        XCTAssertTrue(service.canApplyTarget(90))
+        XCTAssertFalse(service.recoveryRequired)
+
+        let g = ScopeFixture(mode: "postUnknown"); defer { g.cleanup() }
+        do { try await g.service.qualify(); XCTFail("Expected interruption") } catch {}
+        await g.client.setMode("obc")
+        let reopened = g.makeService()
+        let restored = try await reopened.restore(batteryPercent: 50, batteryFresh: true)
+        XCTAssertTrue(restored)
+        await g.assertWrites(["limit80", "limit90"])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: g.journal.path))
+    }
+
     func testScopedAdmissionDoesNotOwnAnUnverifiedBaseline() async throws {
         let f = ScopeFixture(); defer { f.cleanup() }
         try await f.service.qualify()
         let scope = try XCTUnwrap(NativeChargeAdmission.loadScope(from: f.admission, environment: "scope-fixture"))
-        for mode in ["disabled", "baseline100", "obc", "unknown"] {   // 85 is a verified persistent target now
+        for mode in ["disabled", "baseline100", "unknown"] {   // 85 is a verified persistent target now
             await f.client.setMode(mode)
             let scoped = f.makeService(scope: scope)
             await scoped.refresh()

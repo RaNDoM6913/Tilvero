@@ -35,10 +35,8 @@ struct NativeChargeJournal: Codable, Sendable {
               NativeChargeAdmission.persistentTargets.contains(baseline.target),
               NativeChargeAdmission.isPersistent(baselineSnapshot, target: baseline.target, optimizedCharging: baseline.optimizedCharging),
               NativeChargeAdmission.isValidState(lastVerified),
-              lastVerified.optimizedCharging == baseline.optimizedCharging,
               plannedTarget.map(NativeChargeAdmission.persistentTargets.contains) ?? true,
-              expectedMutation.map({ NativeChargeAdmission.isValidState($0)
-                  && $0.optimizedCharging == baseline.optimizedCharging }) ?? true,
+              expectedMutation.map(NativeChargeAdmission.isValidState) ?? true,
               !oneShot, oneShotPreviousManagedTarget == nil else { return false }
         return true
     }
@@ -505,7 +503,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
                (!NativeChargeAdmission.isPersistent(value, target: value.configuration.target, optimizedCharging: journal.baseline.optimizedCharging)
                 || !NativeChargeAdmission.persistentTargets.contains(value.configuration.target)
                 || value.supportedTargets != journal.baselineSnapshot?.supportedTargets
-                || (journal.expectedMutation == nil && value.configuration != journal.lastVerified)) {
+                || (journal.expectedMutation == nil && !value.configuration.matchesManual(journal.lastVerified))) {
                 if !journal.hasWritten {
                     // Nothing was written: a target was only waiting, and the limit has since been changed elsewhere.
                     // There is nothing to recover, so the waiting target is dropped and the new setting is simply observed.
@@ -557,7 +555,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
             guard admissionScope?.authorizedPersistentTargets.contains(target) == true else { throw NativeChargeServiceError.unqualifiedTarget }
             guard isAuthorizedPersistentState(current) else { throw NativeChargeServiceError.readbackMismatch }
         }
-        if let journal, !(journal.version == 2 ? current.configuration == journal.lastVerified : current.configuration.matchesManual(journal.lastVerified)) {
+        if let journal, !current.configuration.matchesManual(journal.lastVerified) {
             try relinquish(); throw NativeChargeServiceError.recoveryRequired
         }
         if current.configuration.target == target && current.configuration.enabled == (target != NativeChargeAdmission.unlimitedTarget || !scopedAuthority) {
@@ -709,7 +707,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
                 }
             }
             let value = try await verify(target: saved.baseline.target, enabled: saved.baseline.enabled)
-            guard !restoringFromDisabled100 || value.configuration == saved.baseline else { throw NativeChargeServiceError.readbackMismatch }
+            guard !restoringFromDisabled100 || value.configuration.matchesManual(saved.baseline) else { throw NativeChargeServiceError.readbackMismatch }
             observed = value; try relinquish()
             message = "The original macOS charge setting was verified as restored."
             return true
@@ -737,17 +735,17 @@ enum NativeChargeServiceError: Error, LocalizedError {
               current.supportedTargets == saved.baselineSnapshot?.supportedTargets,
               NativeChargeAdmission.isPersistent(current, target: current.configuration.target, optimizedCharging: saved.baseline.optimizedCharging)
         else { throw NativeChargeServiceError.readbackMismatch }
-        if saved.hasWritten, current.configuration == saved.baseline,
+        if saved.hasWritten, current.configuration.matchesManual(saved.baseline),
            (saved.expectedMutation != nil || [.indeterminate, .preparing, .restoring].contains(saved.phase)),
            !Self.closesUnresolvedJournal(saved, value: current, age: journalAge(), admitted: admitted) {
             recoveryRequired = true
             message = "An unconfirmed native operation may still take effect. The recovery journal was preserved; no follow-up write was started."
             return false
         }
-        if current.configuration == saved.baseline {
+        if current.configuration.matchesManual(saved.baseline) {
             try relinquish(); message = "The verified persistent baseline is confirmed."; return true
         }
-        guard current.configuration == saved.lastVerified || current.configuration == saved.expectedMutation else {
+        guard current.configuration.matchesManual(saved.lastVerified) || saved.expectedMutation.map(current.configuration.matchesManual) == true else {
             throw NativeChargeServiceError.recoveryRequired
         }
         let battery = await batteryProvider?()
@@ -768,7 +766,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
                 try await self.setNativeLimit(saved.baseline.target, transaction: transaction)
             }
             let restored = try await verify(target: saved.baseline.target, enabled: saved.baseline.enabled)
-            guard restored.configuration == saved.baseline else { throw NativeChargeServiceError.readbackMismatch }
+            guard restored.configuration.matchesManual(saved.baseline) else { throw NativeChargeServiceError.readbackMismatch }
             observed = restored; try relinquish()
             message = "The original persistent macOS charge setting was verified as restored."
             return true
@@ -820,7 +818,6 @@ enum NativeChargeServiceError: Error, LocalizedError {
             guard saved.hasPersistentScope(environment: environment), before.supportedTargets == saved.baselineSnapshot?.supportedTargets,
                   NativeChargeAdmission.isPersistent(before, target: before.configuration.target, optimizedCharging: saved.baseline.optimizedCharging),
                   NativeChargeAdmission.isValidState(before.configuration), NativeChargeAdmission.isValidState(expected),
-                  expected.optimizedCharging == saved.baseline.optimizedCharging,
                   !permitDisabled100, !allowRestoredBaseline else { throw NativeChargeServiceError.readbackMismatch }
             if isQualifying {
                 guard let baseline = qualificationBaseline,
@@ -833,7 +830,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
                       isAuthorizedPersistentState(before) else { throw NativeChargeServiceError.unqualifiedTarget }
             }
         }
-        guard scoped ? before.configuration == saved.lastVerified : before.configuration.matchesManual(saved.lastVerified) else {
+        guard before.configuration.matchesManual(saved.lastVerified) else {
             try relinquish()
             message = "An external charge change was preserved before the next operation."
             throw NativeChargeServiceError.recoveryRequired
@@ -859,7 +856,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
         try await operation()
         transaction.mutation = .returnedAwaitingConfiguration(expected)
         let after = try await readNative(); observed = after
-        let baselineWasRecalled = recalledBaseline.map { after.configuration == $0 && after.policyMatches } ?? false
+        let baselineWasRecalled = recalledBaseline.map { after.configuration.matchesManual($0) && after.policyMatches } ?? false
         guard after.isFresh && (after.configuration.matchesManual(expected) || (permitDisabled100 && after.configuration.target == 100) || baselineWasRecalled) else {
             throw NativeChargeServiceError.readbackMismatch
         }
@@ -1012,12 +1009,12 @@ enum NativeChargeServiceError: Error, LocalizedError {
               journal.phase == .indeterminate || journal.expectedMutation != nil,
               value.isFresh, value.registryAgrees, !value.registryConflict,
               let age, age >= unresolvedSettleSeconds else { return false }
-        if value.configuration == journal.baseline { return true }
+        if value.configuration.matchesManual(journal.baseline) { return true }
         // A restore the user asked for (it targets the baseline, or waits for discharge to reach it) is still owed.
-        let restoreOwed = journal.expectedMutation == journal.baseline
+        let restoreOwed = journal.expectedMutation.map(journal.baseline.matchesManual) == true
             || journal.phase == .restoring || journal.phase == .restorationPending
         guard !restoreOwed, journal.qualification == false || (journal.qualification == nil && admitted) else { return false }
-        return value.configuration == journal.lastVerified || value.configuration == journal.expectedMutation
+        return value.configuration.matchesManual(journal.lastVerified) || journal.expectedMutation.map(value.configuration.matchesManual) == true
     }
     private func journalAge() -> TimeInterval? {
         guard let date = (try? FileManager.default.attributesOfItem(atPath: journalURL.path))?[.modificationDate] as? Date else { return nil }
