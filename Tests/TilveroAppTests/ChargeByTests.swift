@@ -160,7 +160,12 @@ import PowerCore
         XCTAssertEqual(env.phaseAtPause, .charging, "a relaunch during the pause already knows the limit is raised")
         XCTAssertNil(service.state?.wakeAt, "the wake is gone before the pause")
         XCTAssertEqual(service.state?.phase, .charging, "a failed pause never stops the plan")
-        XCTAssertEqual(service.message, "Optimized charging could not be paused. macOS may hold the battery at 80 %.")
+        XCTAssertTrue(service.optimizedPauseFailed)
+        XCTAssertNil(service.message, "the charging status stays visible")
+        env.obs.externalPower = false   // unplugged: the plan ends and so does its warning
+        await service.tick()
+        XCTAssertNil(service.state)
+        XCTAssertFalse(service.optimizedPauseFailed)
     }
     func testNoPermissionFallsBackToLiftingWhenTheMacGoesToSleep() async {
         let env = Env(), wake = Wake(); wake.permitted = false

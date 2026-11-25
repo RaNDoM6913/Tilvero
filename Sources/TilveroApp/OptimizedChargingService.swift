@@ -50,20 +50,24 @@ import ChargeBackends
     enum PauseResult: Equatable { case notNeeded, paused, failed }
     /// For a planned charge: macOS's own «until tomorrow» pause, only when Optimized Charging is on (it turns itself back on).
     /// Decided on a fresh read (never a cached one); nothing happens when it is off or unreadable. Never shows a prompt.
+    /// A setting last known to be on that cannot be paused now (busy, unreadable, refused) is a failure, never "not needed".
     @discardableResult func pauseForPlannedCharge() async -> PauseResult {
-        guard allowed, !isBusy else { return .notNeeded }
+        guard allowed else { return .notNeeded }
+        let knownOn = (requested ?? state?.enabled) == true
+        guard !isBusy else { return knownOn ? .failed : .notNeeded }
         isBusy = true; defer { isBusy = false }
-        guard let fresh = try? await transport.read() else { return .notNeeded }
+        guard let fresh = try? await transport.read() else { return knownOn ? .failed : .notNeeded }
         state = fresh
         guard fresh.enabled else { return .notNeeded }
-        try? await transport.pauseUntilTomorrow()
-        let after = try? await transport.read()
-        state = after ?? state
-        guard after?.holding == false else {
-            failure = "Optimized charging could not be paused. macOS may hold the battery at 80 %."
+        do { try await transport.pauseUntilTomorrow() } catch {
+            state = (try? await transport.read()) ?? state
             return .failed
         }
-        return .paused
+        let after = try? await transport.read()
+        state = after ?? state
+        // Not proof the pause holds until tomorrow (PowerUI reports no such state): only that macOS accepted it and is not
+        // holding the charge right now. An unknown hold counts as failed.
+        return after?.holding == false ? .paused : .failed
     }
 }
 
@@ -74,6 +78,8 @@ import SwiftUI
 @MainActor struct OptimizedChargingRow: View {
     @ObservedObject var service: OptimizedChargingService
     var showsHold: Bool
+    /// While the charge-limit validation runs, the switch waits (its writes would make the validation fail).
+    var locked = false
 
     var body: some View {
         if service.isAvailable {
@@ -85,7 +91,7 @@ import SwiftUI
                     Spacer(minLength: 8)
                     Toggle(L10n.text("Optimized charging"), isOn: Binding(get: { service.shownEnabled },
                                                                           set: { value in Task { await service.setEnabled(value) } }))
-                        .toggleStyle(.switch).labelsHidden().disabled(service.isBusy)
+                        .toggleStyle(.switch).labelsHidden().disabled(service.isBusy || locked)
                         .accessibilityIdentifier("optimized-charging-switch")
                 }
                 if showsHold, let state = service.state, let line = OptimizedChargingText.holdLine(state) {
@@ -118,7 +124,7 @@ enum OptimizedChargingText {
     ]
     /// «macOS придерживает заряд · полная к ≈ 11:19» while macOS holds the charge; nil otherwise. The time is macOS's own plan.
     static func holdLine(_ state: OptimizedChargingState) -> String? {
-        guard state.enabled, state.holding else { return nil }
+        guard state.enabled, state.holding == true else { return nil }
         guard let by = state.fullChargeBy, by.timeIntervalSince(state.collectedAt) > 0 else { return L10n.text("macOS is holding the charge") }
         return L10n.text("macOS is holding the charge · full by ≈ %@")
             .replacingOccurrences(of: "%@", with: by.formatted(.dateTime.hour().minute().locale(L10n.locale)))

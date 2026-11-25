@@ -270,7 +270,7 @@ enum ChargingComposition {
         }
         if !model.isDemo, model.canShowChargeControls, model.optimizedCharging.isAvailable {
             Divider()
-            OptimizedChargingRow(service: model.optimizedCharging, showsHold: true)
+            OptimizedChargingRow(service: model.optimizedCharging, showsHold: true, locked: model.nativeCharge.isQualifying)
         }
         if !model.isDemo { ChargeByBlock(model: model, service: model.chargeBy) }
     }

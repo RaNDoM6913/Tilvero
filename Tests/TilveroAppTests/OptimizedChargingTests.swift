@@ -10,12 +10,12 @@ import PowerCore
 final class FakeOptimizedCharging: OptimizedChargingTransport, @unchecked Sendable {
     private let lock = NSLock()
     var enabled = true, holding = false, deadline: Date? = nil
-    var readable = true, writesApply = true
+    var readable = true, writesApply = true, pauseThrows = false, holdUnknown = false
     private(set) var calls: [String] = []
     func read() async throws -> OptimizedChargingState {
         lock.withLock { calls.append("read") }
         guard readable else { throw PolicyError.unavailable }
-        return OptimizedChargingState(enabled: enabled, holding: enabled && holding, fullChargeBy: deadline)
+        return OptimizedChargingState(enabled: enabled, holding: enabled ? (holdUnknown ? nil : holding) : false, fullChargeBy: deadline)
     }
     func setEnabled(_ value: Bool) async throws {
         lock.withLock { calls.append("set \(value)") }
@@ -23,6 +23,7 @@ final class FakeOptimizedCharging: OptimizedChargingTransport, @unchecked Sendab
     }
     func pauseUntilTomorrow() async throws {
         lock.withLock { calls.append("pause") }
+        if pauseThrows { throw PolicyError.unavailable }
         if writesApply { holding = false }
     }
 }
@@ -73,12 +74,31 @@ final class FakeOptimizedCharging: OptimizedChargingTransport, @unchecked Sendab
         XCTAssertEqual(fresh, .paused); XCTAssertTrue(offFake.calls.contains("pause"))
     }
 
-    func testFailedPauseIsShownAndClearedByTheNextRead() async {
-        let fake = FakeOptimizedCharging(); fake.holding = true; fake.writesApply = false
+    func testPauseFailsClosed() async {
+        let refused = FakeOptimizedCharging(); refused.holding = true; refused.writesApply = false
+        let a = await OptimizedChargingService(transport: refused, allowed: true).pauseForPlannedCharge()
+        XCTAssertEqual(a, .failed, "still holding after the pause")
+        let thrown = FakeOptimizedCharging(); thrown.pauseThrows = true   // not holding before: the error alone decides
+        let b = await OptimizedChargingService(transport: thrown, allowed: true).pauseForPlannedCharge()
+        XCTAssertEqual(b, .failed, "a refused pause is never counted as done")
+        let unknown = FakeOptimizedCharging(); unknown.holdUnknown = true
+        let c = await OptimizedChargingService(transport: unknown, allowed: true).pauseForPlannedCharge()
+        XCTAssertEqual(c, .failed, "an unknown hold is not proof")
+        let flaky = FakeOptimizedCharging()
+        let service = OptimizedChargingService(transport: flaky, allowed: true)
+        await service.refresh()
+        flaky.readable = false
+        let d = await service.pauseForPlannedCharge()
+        XCTAssertEqual(d, .failed, "known on but unreadable now: failed, not skipped")
+        XCTAssertFalse(flaky.calls.contains("pause"))
+    }
+
+    func testSwitchFailureClearsOnTheNextRead() async {
+        let fake = FakeOptimizedCharging(); fake.writesApply = false
         let service = OptimizedChargingService(transport: fake, allowed: true)
-        let result = await service.pauseForPlannedCharge()
-        XCTAssertEqual(result, .failed)
-        XCTAssertEqual(service.failure, "Optimized charging could not be paused. macOS may hold the battery at 80 %.")
+        await service.refresh()
+        _ = await service.setEnabled(false)
+        XCTAssertNotNil(service.failure)
         await service.refresh()
         XCTAssertNil(service.failure)
     }

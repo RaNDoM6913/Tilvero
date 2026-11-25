@@ -8,12 +8,12 @@ import PowerCore
 /// macOS Optimized Battery Charging as the System Settings switch shows it, plus whether it holds the charge right now.
 public struct OptimizedChargingState: Equatable, Sendable {
     public let enabled: Bool
-    /// macOS is holding the battery (usually at 80 %) and plans to finish later.
-    public let holding: Bool
+    /// macOS is holding the battery (usually at 80 %) and plans to finish later; nil when macOS did not answer.
+    public let holding: Bool?
     /// When macOS plans to have the battery full, if it has a plan.
     public let fullChargeBy: Date?
     public let collectedAt: Date
-    public init(enabled: Bool, holding: Bool, fullChargeBy: Date?, collectedAt: Date = Date()) {
+    public init(enabled: Bool, holding: Bool?, fullChargeBy: Date?, collectedAt: Date = Date()) {
         self.enabled = enabled; self.holding = holding; self.fullChargeBy = fullChargeBy; self.collectedAt = collectedAt
     }
 }
@@ -35,8 +35,8 @@ public actor PowerUIOptimizedChargingClient: OptimizedChargingTransport {
             if let error { throw error }
             return value
         }
-        guard let raw, let enabled = raw["enabled"] as? Bool, let holding = raw["holding"] as? Bool else { throw PolicyError.readbackMismatch }
-        return OptimizedChargingState(enabled: enabled, holding: enabled && holding, fullChargeBy: raw["deadline"] as? Date)
+        guard let raw, let enabled = raw["enabled"] as? Bool else { throw PolicyError.readbackMismatch }
+        return OptimizedChargingState(enabled: enabled, holding: enabled ? raw["holding"] as? Bool : false, fullChargeBy: raw["deadline"] as? Date)
     }
     public func setEnabled(_ enabled: Bool) async throws {
         try autoreleasepool {

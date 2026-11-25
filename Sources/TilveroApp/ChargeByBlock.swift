@@ -155,7 +155,13 @@ import PowerCore
             Label { Text(line.text).fixedSize(horizontal: false, vertical: true) } icon: { Image(systemName: line.symbol) }
                 .font(.system(size: 13, weight: .medium)).foregroundStyle(line.warning ? Color.orange : Color.primary)
         }
-        if service.isArmed { OptimizedChargingPlanNote(service: model.optimizedCharging) }
+        // The note promises the pause, so only before the lift; afterwards only a failed pause is said.
+        if service.isArmed, service.state?.phase == .armed { OptimizedChargingPlanNote(service: model.optimizedCharging) }
+        if service.optimizedPauseFailed {
+            Label { Text(L10n.text("Optimized charging could not be paused. macOS may hold the battery at 80 %.")).fixedSize(horizontal: false, vertical: true) }
+                icon: { Image(systemName: "exclamationmark.triangle") }
+                .font(.system(size: 13, weight: .medium)).foregroundStyle(Color.orange)
+        }
         if service.isArmed, service.message == nil, model.chargeByObservation.externalPower != false, let later = service.suggestedDeadline {
             Button { Task { await service.setDeadline(later) } } label: {
                 Text(Self.fill("Move to {time}", ["time": Self.clock(later)])).font(.subheadline.weight(.medium))

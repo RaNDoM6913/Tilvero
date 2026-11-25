@@ -178,7 +178,9 @@ NSDictionary<NSString *,id> *TVOptimizedChargingRead(NSError **error) {
         if (enabled > 1) { TVFail(error,14,@"Optimized Battery Charging readback is invalid."); return nil; }
         BOOL engaged = NO, overrideAllowed = NO; NSUInteger limit = 0;
         BOOL readHold = [client isOBCEngaged:&engaged chargeLimit:&limit chargingOverrideAllowed:&overrideAllowed withError:&failure];
-        NSMutableDictionary *result = [@{@"enabled":@(enabled==1), @"holding":@(readHold && !failure && engaged)} mutableCopy];
+        // "holding" only when macOS answered: a failed hold read is unknown, never "not holding".
+        NSMutableDictionary *result = [@{@"enabled":@(enabled==1)} mutableCopy];
+        if (readHold && !failure) result[@"holding"] = @(engaged);
         failure = nil;
         id deadline = [client fullChargeDeadline:&failure];
         // macOS answers "year 1" when it has no plan; only a real, near date is kept.

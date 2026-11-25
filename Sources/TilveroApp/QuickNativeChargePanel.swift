@@ -24,7 +24,7 @@ import ChargeBackends
             footer(state)
             if model.canShowChargeControls, model.optimizedCharging.isAvailable {
                 Divider()
-                OptimizedChargingRow(service: model.optimizedCharging, showsHold: false)
+                OptimizedChargingRow(service: model.optimizedCharging, showsHold: false, locked: model.nativeCharge.isQualifying)
             }
             ChargeByBlock(model: model, service: model.chargeBy)
         }

@@ -112,6 +112,8 @@ extension ChargeByEnvironment { func pauseOptimizedCharging() async -> Bool { tr
     @Published private(set) var state: ChargeByPlanState?
     @Published private(set) var plan: ChargeByPlanner.Plan?
     @Published var message: String?
+    /// The planned charge could not pause Optimized Charging; its own line, so the charging status stays visible.
+    @Published private(set) var optimizedPauseFailed = false
     @Published private(set) var isWorking = false
     /// Drafted level while no plan is armed (the strip's selection).
     @Published var draftTarget = 100
@@ -257,9 +259,7 @@ extension ChargeByEnvironment { func pauseOptimizedCharging() async -> Bool { tr
             var updated = current; updated.phase = .charging; state = updated; message = nil; save()
             if let wakeAt = current.wakeAt { _ = await wake.cancel(wakeAt, stamp: current.wakeStamp) }
             var charging = updated; charging.wakeAt = nil; charging.wakeStamp = nil; state = charging; save()
-            if !(await environment.pauseOptimizedCharging()) {
-                message = "Optimized charging could not be paused. macOS may hold the battery at 80 %."
-            }
+            optimizedPauseFailed = !(await environment.pauseOptimizedCharging())
             return true
         case .restore(let limit):
             isWorking = true
@@ -272,7 +272,7 @@ extension ChargeByEnvironment { func pauseOptimizedCharging() async -> Bool { tr
 
     private func finish(removeWake: Bool) async {
         if removeWake, let wakeAt = state?.wakeAt { _ = await wake.cancel(wakeAt, stamp: state?.wakeStamp) }
-        state = nil; plan = nil; defaults.removeObject(forKey: Self.key)
+        state = nil; plan = nil; optimizedPauseFailed = false; defaults.removeObject(forKey: Self.key)
     }
     private func save() {
         if let state, let data = try? JSONEncoder().encode(state) { defaults.set(data, forKey: Self.key) }
