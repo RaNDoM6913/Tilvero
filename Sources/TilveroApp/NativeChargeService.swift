@@ -817,8 +817,9 @@ enum NativeChargeServiceError: Error, LocalizedError {
         if scoped {
             guard saved.hasPersistentScope(environment: environment), before.supportedTargets == saved.baselineSnapshot?.supportedTargets,
                   NativeChargeAdmission.isPersistent(before, target: before.configuration.target, optimizedCharging: saved.baseline.optimizedCharging),
-                  // Validation pins OBC (its evidence is strict): a changed OBC stops the run before the next write.
-                  !isQualifying || before.configuration.optimizedCharging == saved.baseline.optimizedCharging,
+                  // Validation pins OBC (its evidence is strict): a changed OBC stops the run before the next stage write;
+                  // the final restore of the user's own limit still goes ahead (no proof is recorded then).
+                  !isQualifying || saved.phase == .restoring || before.configuration.optimizedCharging == saved.baseline.optimizedCharging,
                   NativeChargeAdmission.isValidState(before.configuration), NativeChargeAdmission.isValidState(expected),
                   !permitDisabled100, !allowRestoredBaseline else { throw NativeChargeServiceError.readbackMismatch }
             if isQualifying {
