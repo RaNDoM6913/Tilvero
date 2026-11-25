@@ -265,8 +265,8 @@ struct PowerHeadlineReading {
                 StudioText(limitText ?? L10n.text("Unavailable"), id: "power.nativeLimit.value").font(.headline)
                     .foregroundStyle(limitText == nil ? Color.secondary : studioPresentation.accent)
             }
-            if let setting = model.nativeCharge.nativeSetting, setting.isFresh {
-                Text(L10n.text(setting.configuration.optimizedCharging ? "Optimized charging enabled" : "Optimized charging disabled"))
+            if let optimized = model.optimizedChargingEnabled {
+                Text(L10n.text(optimized ? "Optimized charging enabled" : "Optimized charging disabled"))
                     .font(.caption).foregroundStyle(.secondary)
             }
         }.frame(maxWidth: .infinity, alignment: .leading)

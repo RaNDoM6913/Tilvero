@@ -28,6 +28,8 @@ import ChargeBackends
     func refresh() async {
         guard allowed, !isBusy else { return }
         state = try? await transport.read()
+        // A failure stays only until macOS reports the setting again.
+        if state != nil { failure = nil }
     }
 
     /// The switch. True only when macOS reads back the asked value.
@@ -45,16 +47,23 @@ import ChargeBackends
         return true
     }
 
+    enum PauseResult: Equatable { case notNeeded, paused, failed }
     /// For a planned charge: macOS's own «until tomorrow» pause, only when Optimized Charging is on (it turns itself back on).
-    /// Nothing happens when it is off or unreadable. Never shows a prompt.
-    @discardableResult func pauseForPlannedCharge() async -> Bool {
-        guard allowed, !isBusy else { return false }
-        if state == nil { state = try? await transport.read() }
-        guard state?.enabled == true else { return false }
+    /// Decided on a fresh read (never a cached one); nothing happens when it is off or unreadable. Never shows a prompt.
+    @discardableResult func pauseForPlannedCharge() async -> PauseResult {
+        guard allowed, !isBusy else { return .notNeeded }
         isBusy = true; defer { isBusy = false }
+        guard let fresh = try? await transport.read() else { return .notNeeded }
+        state = fresh
+        guard fresh.enabled else { return .notNeeded }
         try? await transport.pauseUntilTomorrow()
-        state = (try? await transport.read()) ?? state
-        return state?.holding == false
+        let after = try? await transport.read()
+        state = after ?? state
+        guard after?.holding == false else {
+            failure = "Optimized charging could not be paused. macOS may hold the battery at 80 %."
+            return .failed
+        }
+        return .paused
     }
 }
 
@@ -90,12 +99,12 @@ import SwiftUI
     }
 }
 
-/// «Оптимизированная зарядка выключится до утра» under an armed charge-by plan, only while it is on.
+/// «Оптимизированная зарядка отключится до завтра» under an armed charge-by plan (the caller shows it only then), only while it is on.
 @MainActor struct OptimizedChargingPlanNote: View {
     @ObservedObject var service: OptimizedChargingService
     var body: some View {
         if service.state?.enabled == true {
-            Label(L10n.text("Optimized charging pauses until morning"), systemImage: "bolt.badge.clock")
+            Label(L10n.text("Optimized charging pauses until tomorrow"), systemImage: "bolt.badge.clock")
                 .font(.callout).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.9)
         }
     }
@@ -104,14 +113,14 @@ import SwiftUI
 /// Texts of the optimized charging row (pure, testable).
 enum OptimizedChargingText {
     static let infoKeys = [
-        "The same switch as in System Settings › Battery. macOS learns your routine and may hold the battery at 80 % until shortly before you usually unplug.",
-        "Charge by time pauses it until tomorrow, so the battery is full by the time you set. macOS turns it back on by itself.",
+        "The System Settings › Battery switch. macOS may hold the battery at 80 % until shortly before you usually unplug.",
+        "Charge by time pauses it until tomorrow so the battery is full on time; macOS turns it back on.",
     ]
     /// «macOS придерживает заряд · полная к ≈ 11:19» while macOS holds the charge; nil otherwise. The time is macOS's own plan.
     static func holdLine(_ state: OptimizedChargingState) -> String? {
         guard state.enabled, state.holding else { return nil }
-        let base = L10n.text("macOS is holding the charge")
-        guard let by = state.fullChargeBy, by.timeIntervalSince(state.collectedAt) > 0 else { return base }
-        return base + " · " + L10n.text("full by") + " ≈ " + by.formatted(.dateTime.hour().minute().locale(L10n.locale))
+        guard let by = state.fullChargeBy, by.timeIntervalSince(state.collectedAt) > 0 else { return L10n.text("macOS is holding the charge") }
+        return L10n.text("macOS is holding the charge · full by ≈ %@")
+            .replacingOccurrences(of: "%@", with: by.formatted(.dateTime.hour().minute().locale(L10n.locale)))
     }
 }

@@ -58,9 +58,10 @@ import PowerCore
     // MARK: service with fakes
     @MainActor final class Env: ChargeByEnvironment {
         var obs = ChargeByObservation(observedLimit: 80, percent: 80, isCharging: false, externalPower: true, adapterWatts: 67, fullEnergyWh: 70, systemWatts: 3)
-        var applied: [Int] = []; var succeed = true; var pauses = 0
+        var applied: [Int] = []; var succeed = true; var pauses = 0; var pauseOK = true
+        var phaseAtPause: ChargeByPlanState.Phase?; weak var service: ChargeByService?
         func observation() -> ChargeByObservation { obs }
-        func pauseOptimizedCharging() async { pauses += 1 }
+        func pauseOptimizedCharging() async -> Bool { pauses += 1; phaseAtPause = service?.state?.phase; return pauseOK }
         func apply(limit: Int) async -> Bool { applied.append(limit); if succeed { obs.observedLimit = limit }; return succeed }
     }
     @MainActor final class Wake: WakeScheduling {
@@ -141,11 +142,25 @@ import PowerCore
         XCTAssertEqual(env.applied, [100])
         XCTAssertEqual(env.pauses, 1, "macOS Optimized Charging is paused right after the lift, so it cannot hold at 80 %")
         XCTAssertEqual(service.state?.phase, .charging)
+        XCTAssertNil(service.message)
         XCTAssertEqual(holder.begun, 1); XCTAssertEqual(holder.ended, 1)
         // Unplugged: the user's limit returns and the plan ends.
         env.obs.externalPower = false
         await service.tick()
         XCTAssertEqual(env.applied, [100, 80]); XCTAssertNil(service.state)
+    }
+    func testLiftIsRecordedBeforeTheOptimizedChargingPauseAndAFailedPauseIsShown() async throws {
+        let env = Env(), wake = Wake(); var clock = now
+        let (service, _, _) = makeService(env: env, wake: wake) { clock }
+        env.service = service; env.pauseOK = false
+        let armed = await service.arm(deadline: now.addingTimeInterval(8 * 3600), target: 100)
+        XCTAssertTrue(armed)
+        clock = try XCTUnwrap(service.state).startAt.addingTimeInterval(-ChargeByRule.wakeLead)
+        await service.systemDidWake()
+        XCTAssertEqual(env.phaseAtPause, .charging, "a relaunch during the pause already knows the limit is raised")
+        XCTAssertNil(service.state?.wakeAt, "the wake is gone before the pause")
+        XCTAssertEqual(service.state?.phase, .charging, "a failed pause never stops the plan")
+        XCTAssertEqual(service.message, "Optimized charging could not be paused. macOS may hold the battery at 80 %.")
     }
     func testNoPermissionFallsBackToLiftingWhenTheMacGoesToSleep() async {
         let env = Env(), wake = Wake(); wake.permitted = false

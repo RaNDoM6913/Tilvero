@@ -203,7 +203,7 @@ final class TilveroModel {
         \.sleepTimerUsesCustom, \.keepAwakeDraft, \.keepAwakeUsesCustomDuration, \.keepAwakeCustomMinutes,
         \.privilegedPermissions, \.isReading, \.sleeping, \.externalChanges, \.keepAwakeChanges, \.sleepTimerChanges,
         \.sleepAtChargeChanges, \.keepAwakeUntilChargeChanges, \.lidSleepChanges, \.lidComfortChanges,
-        \.nativeChargeChanges, \.chargeOnceChanges, \.chargeByChanges, \.liveControlChanges,
+        \.nativeChargeChanges, \.chargeOnceChanges, \.chargeByChanges, \.liveControlChanges, \.optimizedChargingChanges,
         \.sleepAtChargeChoice, \.keepAwakeUntilChargeChoice
     ]
     /// Armed at the end of `init` and re-armed on a fresh main-actor turn, never inside the change that fired it: a
@@ -514,7 +514,14 @@ final class TilveroModel {
     @ObservationIgnored private var chargeByTicker: ChargeByTicker?
     @ObservationIgnored private var chargeByEnvironment: ModelChargeByEnvironment?
     let keyboardBacklight: KeyboardBacklightService
-    let optimizedCharging: OptimizedChargingService
+    var optimizedCharging: OptimizedChargingService { _ = optimizedChargingChanges; return optimizedChargingStorage }
+    @ObservationIgnored private let optimizedChargingStorage: OptimizedChargingService
+    private var optimizedChargingChanges: UInt64 = 0
+    @ObservationIgnored private var optimizedChargingSubscription: AnyCancellable?
+    /// Optimized Battery Charging as one value for every read-only place: the switch's own read, else the native limit read.
+    var optimizedChargingEnabled: Bool? {
+        optimizedCharging.state?.enabled ?? nativeCharge.nativeSetting.flatMap { $0.isFresh ? $0.configuration.optimizedCharging : nil }
+    }
     @ObservationIgnored private var nativeSubscription: AnyCancellable?
     @ObservationIgnored private var nativeMessageSubscription: AnyCancellable?
     var liveControl: LiveControlService { _ = liveControlChanges; return liveControlStorage }
@@ -669,10 +676,14 @@ final class TilveroModel {
         let hardwarePolicy = launchPolicy.ordinaryHardwarePolicy
         self.keyboardBacklight = keyboardBacklight ?? KeyboardBacklightService(
             storage: UserDefaultsKeyboardBacklightStorage(defaults: preferences), allowed: !isDemo && !hardwarePolicy.monitoringOnly)
-        // The live PowerUI client only inside the app bundle: a test runner never reaches the system setting.
-        self.optimizedCharging = optimizedCharging ?? OptimizedChargingService(
-            transport: Bundle.main.bundleURL.pathExtension == "app" ? PowerUIOptimizedChargingClient() : UnavailableOptimizedChargingTransport(),
-            allowed: !isDemo && !monitoring)
+        // The live PowerUI client only inside the shipping app bundle: a test runner or the Lab Studio never reaches it.
+        #if TILVERO_LAB_STUDIO
+        let optimizedTransport: any OptimizedChargingTransport = UnavailableOptimizedChargingTransport()
+        #else
+        let optimizedTransport: any OptimizedChargingTransport = Bundle.main.bundleURL.pathExtension == "app"
+            ? PowerUIOptimizedChargingClient() : UnavailableOptimizedChargingTransport()
+        #endif
+        self.optimizedChargingStorage = optimizedCharging ?? OptimizedChargingService(transport: optimizedTransport, allowed: !isDemo && !monitoring)
         keepAwakeStorage = keepAwakeService ?? KeepAwakeService(driver: keepAwakeTransport ?? NativeKeepAwakeTransport(), allowed: !isDemo && !monitoring)
         let sleepTransport = sleepTimerTransport ?? NativeSleepTimerTransport()
         sleepTimerStorage = sleepTimerService ?? SleepTimerService(driver: sleepTransport, allowed: !isDemo && !monitoring)
@@ -806,6 +817,7 @@ final class TilveroModel {
             else { self.notices.clear(.keepAwake) }
         }
         nativeSubscription = nativeChargeStorage.objectWillChange.sink { [weak self] in self?.nativeChargeChanges &+= 1 }
+        optimizedChargingSubscription = optimizedChargingStorage.objectWillChange.sink { [weak self] in self?.optimizedChargingChanges &+= 1 }
         chargeOnceSubscription = chargeOnceStorage.objectWillChange.sink { [weak self] in self?.chargeOnceChanges &+= 1 }
         chargeBySubscription = chargeByStorage.objectWillChange.sink { [weak self] in self?.chargeByChanges &+= 1 }
         nativeMessageSubscription = self.nativeCharge.$message.dropFirst().sink { [weak self] _ in

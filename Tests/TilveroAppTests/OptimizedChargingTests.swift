@@ -49,7 +49,7 @@ final class FakeOptimizedCharging: OptimizedChargingTransport, @unchecked Sendab
         await hidden.refresh()
         XCTAssertFalse(hidden.isAvailable)
         let paused = await hidden.pauseForPlannedCharge()
-        XCTAssertFalse(paused)
+        XCTAssertEqual(paused, .notNeeded)
         XCTAssertFalse(fake.calls.contains { $0 != "read" }, "unreadable: nothing is written")
         let demo = FakeOptimizedCharging()
         let off = OptimizedChargingService(transport: demo, allowed: false)
@@ -61,12 +61,26 @@ final class FakeOptimizedCharging: OptimizedChargingTransport, @unchecked Sendab
         let on = FakeOptimizedCharging(); on.holding = true
         let service = OptimizedChargingService(transport: on, allowed: true)
         let paused = await service.pauseForPlannedCharge()
-        XCTAssertTrue(paused); XCTAssertTrue(on.calls.contains("pause"))
+        XCTAssertEqual(paused, .paused); XCTAssertTrue(on.calls.contains("pause"))
         XCTAssertFalse(on.calls.contains { $0.hasPrefix("set") }, "the user's switch is never changed by a plan")
         let offFake = FakeOptimizedCharging(); offFake.enabled = false
         let offService = OptimizedChargingService(transport: offFake, allowed: true)
         let none = await offService.pauseForPlannedCharge()
-        XCTAssertFalse(none); XCTAssertFalse(offFake.calls.contains("pause"))
+        XCTAssertEqual(none, .notNeeded); XCTAssertFalse(offFake.calls.contains("pause"))
+        // Decided on a fresh read: a cached «off» does not skip a pause once the user turned it on in System Settings.
+        offFake.enabled = true; offFake.holding = true
+        let fresh = await offService.pauseForPlannedCharge()
+        XCTAssertEqual(fresh, .paused); XCTAssertTrue(offFake.calls.contains("pause"))
+    }
+
+    func testFailedPauseIsShownAndClearedByTheNextRead() async {
+        let fake = FakeOptimizedCharging(); fake.holding = true; fake.writesApply = false
+        let service = OptimizedChargingService(transport: fake, allowed: true)
+        let result = await service.pauseForPlannedCharge()
+        XCTAssertEqual(result, .failed)
+        XCTAssertEqual(service.failure, "Optimized charging could not be paused. macOS may hold the battery at 80 %.")
+        await service.refresh()
+        XCTAssertNil(service.failure)
     }
 
     func testHoldLineUsesOnlyWhatMacOSReports() {
@@ -77,5 +91,6 @@ final class FakeOptimizedCharging: OptimizedChargingTransport, @unchecked Sendab
                        L10n.text("macOS is holding the charge"), "no plan time: no time shown")
         let line = OptimizedChargingText.holdLine(.init(enabled: true, holding: true, fullChargeBy: now.addingTimeInterval(7200), collectedAt: now))
         XCTAssertTrue(line?.contains("≈") == true)
+        XCTAssertFalse(line?.contains("%@") == true, "one localized line with the time filled in")
     }
 }

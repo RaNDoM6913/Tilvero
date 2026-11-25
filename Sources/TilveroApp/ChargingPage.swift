@@ -435,13 +435,14 @@ enum ChargingComposition {
     var model: TilveroModel
 
     var body: some View {
-        let optimized: Bool? = model.isDemo ? nil
-            : model.nativeCharge.nativeSetting.flatMap { $0.isFresh ? $0.configuration.optimizedCharging : nil }
+        let optimized: Bool? = model.isDemo ? nil : model.optimizedChargingEnabled
         let optimizedText = ChargingComposition.onOff(optimized)
+        // With its own switch row on this page, Optimized charging is not repeated here as a read-only line.
+        let switchShown = !model.isDemo && model.canShowChargeControls && model.optimizedCharging.isAvailable
         VStack(alignment: .leading, spacing: WindowTheme.tileGap) {
             BatterySectionHeading(title: L10n.text("System"))
-            WindowRowsTile(rows: [
-                WindowRow(id: "optimized", label: L10n.text("Optimized charging"), value: optimizedText, dim: optimizedText == "—"),
+            WindowRowsTile(rows: (switchShown ? [] : [
+                WindowRow(id: "optimized", label: L10n.text("Optimized charging"), value: optimizedText, dim: optimizedText == "—")]) + [
                 // Read-only: Low Power Mode is a macOS setting.
                 WindowRow(id: "lowPower", label: L10n.text("Low Power Mode"), value: ChargingComposition.onOff(model.isLowPowerModeEnabled)),
                 WindowRow(id: "settings", label: L10n.text("macOS Settings…"), value: "", action: { model.openBatterySettings() }),

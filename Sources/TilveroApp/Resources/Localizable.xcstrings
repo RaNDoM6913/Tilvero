@@ -20929,38 +20929,6 @@
         }
       }
     },
-    "The same switch as in System Settings › Battery. macOS learns your routine and may hold the battery at 80 % until shortly before you usually unplug.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The same switch as in System Settings › Battery. macOS learns your routine and may hold the battery at 80 % until shortly before you usually unplug."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Тот же переключатель, что в Системных настройках › Аккумулятор. macOS изучает ваш распорядок и может держать заряд на 80 % почти до того времени, когда вы обычно отключаете зарядку."
-          }
-        }
-      }
-    },
-    "Charge by time pauses it until tomorrow, so the battery is full by the time you set. macOS turns it back on by itself.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Charge by time pauses it until tomorrow, so the battery is full by the time you set. macOS turns it back on by itself."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "«Зарядить к времени» выключает её до завтра, чтобы батарея была полной к выбранному времени. Потом macOS включит её сама."
-          }
-        }
-      }
-    },
     "macOS is holding the charge": {
       "localizations": {
         "en": {
@@ -20973,38 +20941,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "macOS придерживает заряд"
-          }
-        }
-      }
-    },
-    "full by": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "full by"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "полная к"
-          }
-        }
-      }
-    },
-    "Optimized charging pauses until morning": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Optimized charging pauses until morning"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Оптимизированная зарядка выключится до утра"
           }
         }
       }
@@ -21037,6 +20973,86 @@
           "stringUnit": {
             "state": "translated",
             "value": "macOS показывает два разных лимита зарядки. Задайте лимит один раз в Системных настройках › Аккумулятор, чтобы они совпали."
+          }
+        }
+      }
+    },
+    "Optimized charging pauses until tomorrow": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Optimized charging pauses until tomorrow"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оптимизированная зарядка отключится до завтра"
+          }
+        }
+      }
+    },
+    "The System Settings › Battery switch. macOS may hold the battery at 80 % until shortly before you usually unplug.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The System Settings › Battery switch. macOS may hold the battery at 80 % until shortly before you usually unplug."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тот же переключатель, что в Системных настройках › Аккумулятор. macOS может держать заряд на 80 % почти до момента, когда вы обычно отключаете зарядку."
+          }
+        }
+      }
+    },
+    "Charge by time pauses it until tomorrow so the battery is full on time; macOS turns it back on.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charge by time pauses it until tomorrow so the battery is full on time; macOS turns it back on."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "«Зарядить к времени» отключает её до завтра, чтобы аккумулятор был полным вовремя; macOS включит её сама."
+          }
+        }
+      }
+    },
+    "macOS is holding the charge · full by ≈ %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS is holding the charge · full by ≈ %@"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS придерживает заряд · полная к ≈ %@"
+          }
+        }
+      }
+    },
+    "Optimized charging could not be paused. macOS may hold the battery at 80 %.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Optimized charging could not be paused. macOS may hold the battery at 80 %."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось отключить оптимизированную зарядку. macOS может держать заряд на 80 %."
           }
         }
       }

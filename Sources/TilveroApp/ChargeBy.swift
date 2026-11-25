@@ -90,9 +90,10 @@ struct ChargeByObservation: Equatable {
     func apply(limit: Int) async -> Bool
     /// macOS Optimized Charging would hold the battery at 80 % until its own guess of the morning: paused until tomorrow
     /// when the limit is lifted (no-op when it is off).
-    func pauseOptimizedCharging() async
+    /// false only when Optimized Charging was on and the pause did not read back.
+    func pauseOptimizedCharging() async -> Bool
 }
-extension ChargeByEnvironment { func pauseOptimizedCharging() async {} }
+extension ChargeByEnvironment { func pauseOptimizedCharging() async -> Bool { true } }
 
 /// Keeps the Mac from idle sleep for the few seconds an apply needs (a dark wake can end quickly).
 @MainActor protocol ActivityHolding: AnyObject {
@@ -252,10 +253,13 @@ extension ChargeByEnvironment { func pauseOptimizedCharging() async {} }
             let token = holder.begin(reason: "Tilvero is lifting the charge limit for a planned charge")
             defer { holder.end(token); isWorking = false }
             guard await environment.apply(limit: level) else { message = "The charge limit could not be raised. Tilvero will try again."; return false }
-            await environment.pauseOptimizedCharging()
+            // The lift is recorded first (a relaunch during the pause must know the limit is raised), then the wake goes.
             var updated = current; updated.phase = .charging; state = updated; message = nil; save()
             if let wakeAt = current.wakeAt { _ = await wake.cancel(wakeAt, stamp: current.wakeStamp) }
             var charging = updated; charging.wakeAt = nil; charging.wakeStamp = nil; state = charging; save()
+            if !(await environment.pauseOptimizedCharging()) {
+                message = "Optimized charging could not be paused. macOS may hold the battery at 80 %."
+            }
             return true
         case .restore(let limit):
             isWorking = true
