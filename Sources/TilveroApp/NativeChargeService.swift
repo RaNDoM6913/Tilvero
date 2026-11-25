@@ -23,6 +23,9 @@ struct NativeChargeJournal: Codable, Sendable {
     var semanticContract: String?
     var persistentTargets: [Int]?
     var baselineSnapshot: NativeChargeSnapshot?
+    /// true: written by a validation run (its stage values are not the user's choice); false: a user apply; nil: a
+    /// journal from a build before 0.8.2 that did not record it.
+    var qualification: Bool?
 
     func hasPersistentScope(environment: String) -> Bool {
         guard version == 2, self.environment == environment,
@@ -345,7 +348,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
         let transaction = makeTransaction()
         var stagesComplete = false
         do {
-            journal = makeScopedJournal(baseline: baseline, plannedTarget: stageTargets[0])
+            journal = makeScopedJournal(baseline: baseline, plannedTarget: stageTargets[0], qualification: true)
             transaction.sessionID = journal?.sessionID
             try saveJournal()
             var stages: [NativeChargeSnapshot] = []
@@ -475,11 +478,12 @@ enum NativeChargeServiceError: Error, LocalizedError {
         guard renameat(root, stagedName, root, liveName) == 0 else { throw failure }
     }
 
-    private func makeScopedJournal(baseline: NativeChargeSnapshot, plannedTarget: Int) -> NativeChargeJournal {
+    private func makeScopedJournal(baseline: NativeChargeSnapshot, plannedTarget: Int, qualification: Bool) -> NativeChargeJournal {
         var saved = NativeChargeJournal(sessionID: UUID(), environment: environment, baseline: baseline.configuration,
             lastVerified: baseline.configuration, plannedTarget: plannedTarget, phase: .preparing)
         saved.version = 2; saved.semanticContract = NativeChargeAdmission.semanticContract
         saved.persistentTargets = NativeChargeAdmission.persistentTargets; saved.baselineSnapshot = baseline
+        saved.qualification = qualification
         return saved
     }
 
@@ -491,7 +495,9 @@ enum NativeChargeServiceError: Error, LocalizedError {
             rememberNativeSetting(value)
             guard value.isFresh && value.policyMatches else {
                 observed = nil
-                message = "The native policy readback is unavailable or inconsistent. The ownership journal was preserved."
+                message = value.registryConflict
+                    ? "macOS lists two different charge limits. Set the limit once in System Settings › Battery to bring them together."
+                    : "The native policy readback is unavailable or inconsistent. The ownership journal was preserved."
                 return
             }
             observed = value
@@ -508,6 +514,15 @@ enum NativeChargeServiceError: Error, LocalizedError {
                 }
                 recoveryRequired = true
                 message = "The current macOS state is outside the verified persistent session. Its recovery journal was preserved without a write."
+                return
+            }
+            // An unconfirmed write of an earlier run (a readback that never agreed, e.g. the two-row registry after a macOS
+            // update) left the journal waiting with no way out. Once macOS reads one clear limit again and it is the
+            // original limit (or, for a user's own change, the confirmed or requested one), the journal is closed without
+            // any write: the macOS setting stays as it is and is the user's setting, as after every confirmed apply.
+            if !monitoringOnly, let journal, Self.closesUnresolvedJournal(journal, value: value, age: journalAge(), admitted: admitted) {
+                try relinquish()
+                message = nil
                 return
             }
             if !monitoringOnly, let journal, journal.version != 2, journal.phase != .preparing && journal.phase != .restoring && journal.phase != .indeterminate,
@@ -557,7 +572,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
                 if trustedFixtureAuthority {
                     journal = .init(sessionID: UUID(), environment: environment, baseline: current.configuration,
                                     lastVerified: current.configuration, plannedTarget: target, phase: .preparing)
-                } else { journal = makeScopedJournal(baseline: current, plannedTarget: target) }
+                } else { journal = makeScopedJournal(baseline: current, plannedTarget: target, qualification: false) }
             }
             transaction.sessionID = journal?.sessionID
             journal?.plannedTarget = target
@@ -723,7 +738,8 @@ enum NativeChargeServiceError: Error, LocalizedError {
               NativeChargeAdmission.isPersistent(current, target: current.configuration.target, optimizedCharging: saved.baseline.optimizedCharging)
         else { throw NativeChargeServiceError.readbackMismatch }
         if saved.hasWritten, current.configuration == saved.baseline,
-           (saved.expectedMutation != nil || [.indeterminate, .preparing, .restoring].contains(saved.phase)) {
+           (saved.expectedMutation != nil || [.indeterminate, .preparing, .restoring].contains(saved.phase)),
+           !Self.closesUnresolvedJournal(saved, value: current, age: journalAge(), admitted: admitted) {
             recoveryRequired = true
             message = "An unconfirmed native operation may still take effect. The recovery journal was preserved; no follow-up write was started."
             return false
@@ -982,6 +998,30 @@ enum NativeChargeServiceError: Error, LocalizedError {
             try JSONEncoder().encode(journal).write(to: journalURL, options: .atomic)
             try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: journalURL.path)
         } catch { throw JournalPersistenceFailure(underlying: error) }
+    }
+    /// How long an unresolved journal waits before a clear read may close it (a write of the same run is never in
+    /// flight then: refresh skips while one is pending; the delay only covers a dispatch from a run that just ended).
+    static let unresolvedSettleSeconds: TimeInterval = 60
+    /// Pure, testable: an unresolved v2 journal closes only when the registry agrees and the read is the original
+    /// limit. A user's own change may also close on its confirmed or requested value; a validation run's stage values
+    /// never do (the original limit is still owed). A journal from an older build counts as a user change only while
+    /// validation is complete, since the Validate action is offered only before that.
+    static func closesUnresolvedJournal(_ journal: NativeChargeJournal, value: NativeChargeSnapshot, age: TimeInterval?,
+                                        admitted: Bool) -> Bool {
+        guard journal.version == 2, journal.hasWritten,
+              journal.phase == .indeterminate || journal.expectedMutation != nil,
+              value.isFresh, value.registryAgrees, !value.registryConflict,
+              let age, age >= unresolvedSettleSeconds else { return false }
+        if value.configuration == journal.baseline { return true }
+        // A restore the user asked for (it targets the baseline, or waits for discharge to reach it) is still owed.
+        let restoreOwed = journal.expectedMutation == journal.baseline
+            || journal.phase == .restoring || journal.phase == .restorationPending
+        guard !restoreOwed, journal.qualification == false || (journal.qualification == nil && admitted) else { return false }
+        return value.configuration == journal.lastVerified || value.configuration == journal.expectedMutation
+    }
+    private func journalAge() -> TimeInterval? {
+        guard let date = (try? FileManager.default.attributesOfItem(atPath: journalURL.path))?[.modificationDate] as? Date else { return nil }
+        return Date().timeIntervalSince(date)
     }
     private func relinquish() throws {
         if FileManager.default.fileExists(atPath: journalURL.path) { try FileManager.default.removeItem(at: journalURL) }
