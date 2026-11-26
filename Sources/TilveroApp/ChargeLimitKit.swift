@@ -88,7 +88,7 @@ enum ChargeLimitKit {
 
     static let infoParagraphKeys = [
         "The same limit as macOS Battery settings: charging stops at the chosen level. Letting go of the slider applies it.",
-        "A level below the current charge takes effect when the battery discharges to it.",
+        "A level below the current charge is set at once, as in System Settings: charging stops until the battery is below it.",
         "100% means no limit. Verified levels: 80%, 85%, 90%, 95% and 100%.",
         "Charge to 100% once lifts the limit until the battery is full or the adapter is unplugged, then your previous limit returns. Tap the button again to cancel.",
     ]

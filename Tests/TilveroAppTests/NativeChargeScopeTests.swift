@@ -293,9 +293,9 @@ import PowerCore
         await service.refresh()
         try await service.apply(95, batteryPercent: nil, batteryFresh: false)
         await f.client.setMode("battery91")
-        try await service.apply(90, batteryPercent: 50, batteryFresh: true)
-        XCTAssertEqual(service.pendingTarget, 90)
-        await f.assertWrites(["limit80", "limit85", "limit95", "limit100", "limit90", "limit95"])
+        try await service.apply(90, batteryPercent: 50, batteryFresh: true)   // below the 91 % charge: written at once
+        XCTAssertNil(service.pendingTarget)
+        await f.assertWrites(["limit80", "limit85", "limit95", "limit100", "limit90", "limit95", "limit90"])
         await f.client.setMode("")
         await service.observeBattery(percent: nil, fresh: false)
         XCTAssertNil(service.pendingTarget)
@@ -330,7 +330,8 @@ import PowerCore
         XCTAssertTrue(reopened.needsApply(target: 90), "The slider keeps working from the adopted setting")
     }
 
-    func testPendingLowerLimitIsDroppedOnQuitWithoutWritingAnything() async throws {
+    /// Owner decision 2026-11-26: the slider does what System Settings does: 85 at a 91 % charge is written at once.
+    func testLowerLimitThanTheChargeIsWrittenAtOnceLikeSystemSettings() async throws {
         let f = ScopeFixture(); defer { f.cleanup() }
         try await f.service.qualify()
         let scope = try XCTUnwrap(NativeChargeAdmission.loadScope(from: f.admission, environment: "scope-fixture"))
@@ -338,13 +339,13 @@ import PowerCore
         await service.refresh()
         await f.client.setMode("battery91")
         try await service.apply(85, batteryPercent: 91, batteryFresh: true)
-        XCTAssertEqual(service.pendingTarget, 85)
-        let quit = try await service.restore(batteryPercent: 91, batteryFresh: true)
-        XCTAssertTrue(quit, "Quitting must not be refused because a lower limit is waiting")
         XCTAssertNil(service.pendingTarget)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: f.journal.path))
-        XCTAssertEqual(service.observed?.configuration.target, 90, "Nothing was written: macOS keeps the previous limit")
-        await f.assertWrites(["limit80", "limit85", "limit95", "limit100", "limit90"])
+        XCTAssertEqual(service.observed?.configuration.target, 85)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: f.journal.path), "a confirmed limit is the user's macOS setting")
+        let quit = try await service.restore(batteryPercent: 91, batteryFresh: true)
+        XCTAssertTrue(quit)
+        XCTAssertEqual(service.observed?.configuration.target, 85, "quitting keeps it")
+        await f.assertWrites(["limit80", "limit85", "limit95", "limit100", "limit90", "limit85"])
     }
 
     /// Owner report 2026-11-13: at 80 % charge, choosing the 80 % limit was refused with "waiting for discharge" (macOS accepts it).
@@ -362,7 +363,8 @@ import PowerCore
         XCTAssertFalse(FileManager.default.fileExists(atPath: f.journal.path))
         await f.client.setMode("battery91")
         try await service.apply(85, batteryPercent: 91, batteryFresh: true)
-        XCTAssertEqual(service.pendingTarget, 85, "A limit below the charge level still waits for natural discharge")
+        XCTAssertNil(service.pendingTarget, "a limit below the charge level is written at once, as System Settings does")
+        XCTAssertEqual(service.observed?.configuration.target, 85)
     }
 
     /// Owner report 2026-11-13: a waiting target (nothing written) plus a limit changed in System Settings left the panel
@@ -371,25 +373,12 @@ import PowerCore
         let f = ScopeFixture(initialTarget: 85); defer { f.cleanup() }
         try await f.service.qualify()
         let scope = try XCTUnwrap(NativeChargeAdmission.loadScope(from: f.admission, environment: "scope-fixture"))
-        let service = f.makeService(scope: scope)
-        await service.refresh()
-        await f.client.setMode("battery91")
-        try await service.apply(80, batteryPercent: 91, batteryFresh: true)
-        XCTAssertEqual(service.pendingTarget, 80)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: f.journal.path))
-        // The next launch: nothing was written, so there is nothing to review.
+        try f.writeWaitingJournal(environment: "scope-fixture")   // only older builds left a waiting target
         let reopened = f.makeService(scope: scope)
-        XCTAssertFalse(reopened.recoveryRequired)
+        XCTAssertFalse(reopened.recoveryRequired, "nothing was written, so there is nothing to review")
         XCTAssertFalse(FileManager.default.fileExists(atPath: f.journal.path))
-        // The user changes the limit in System Settings while a target waits.
-        try await service.apply(80, batteryPercent: 91, batteryFresh: true)
-        await f.client.external(target: 80)
-        await service.refresh()
-        XCTAssertFalse(service.recoveryRequired)
-        XCTAssertNil(service.pendingTarget)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: f.journal.path))
-        XCTAssertEqual(service.observed?.configuration.target, 80)
-        XCTAssertTrue(service.canApplyTarget(90) || service.needsApply(target: 90), "New limits are accepted again")
+        await reopened.refresh()
+        XCTAssertTrue(reopened.canApplyTarget(90), "new limits are accepted")
     }
 
     func testQualificationFromAnotherPersistentBaselineRestoresThatBaseline() async throws {
@@ -580,9 +569,10 @@ import PowerCore
         XCTAssertEqual(service.observed?.configuration.target, 95)
         try await service.apply(100, batteryPercent: 89, batteryFresh: true)  // limit off
         XCTAssertEqual(service.observed?.configuration.enabled, false)
-        try await service.apply(85, batteryPercent: 89, batteryFresh: true)   // below the charge: waits, as System Settings would hold it
-        XCTAssertEqual(service.pendingTarget, 85)
-        await f.assertWrites(["limit95", "limit100"])
+        try await service.apply(85, batteryPercent: 89, batteryFresh: true)   // below the charge: written at once, as System Settings does
+        XCTAssertNil(service.pendingTarget)
+        XCTAssertEqual(service.observed?.configuration.target, 85)
+        await f.assertWrites(["limit95", "limit100", "limit85"])
         XCTAssertFalse(FileManager.default.fileExists(atPath: f.admission.path), "no proof file is invented")
         XCTAssertFalse(service.recoveryRequired)
     }
@@ -636,14 +626,8 @@ import PowerCore
         let f = ScopeFixture(); defer { f.cleanup() }
         try await f.service.qualify()
         let scope = try XCTUnwrap(NativeChargeAdmission.loadScope(from: f.admission, environment: "scope-fixture"))
-        let service = f.makeService(scope: scope)
-        await service.refresh()
-        await f.client.setMode("battery89")
-        try await service.apply(80, batteryPercent: 89, batteryFresh: true)   // below the charge: a waiting target, nothing written
-        XCTAssertEqual(service.pendingTarget, 80)
-        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: f.journal)) as? [String: Any])
-        json["environment"] = "an older macOS"
-        try JSONSerialization.data(withJSONObject: json).write(to: f.journal)
+        _ = scope
+        try f.writeWaitingJournal(environment: "an older macOS")
         let reopened = f.makeService(implicit: true)
         XCTAssertFalse(reopened.recoveryRequired)
         XCTAssertFalse(FileManager.default.fileExists(atPath: f.journal.path))
@@ -698,6 +682,15 @@ import PowerCore
         XCTAssertEqual(writes, expected, message, file: file, line: line)
     }
     func cleanup() { try? FileManager.default.removeItem(at: root) }
+    /// A v2 waiting target with nothing written, as builds before 0.8.2 left it (a limit below the charge level).
+    func writeWaitingJournal(environment: String) throws {
+        let config = NativeChargeConfiguration(enabled: true, target: 85, optimizedCharging: true)
+        var saved = NativeChargeJournal(sessionID: UUID(), environment: environment, baseline: config, lastVerified: config,
+                                        plannedTarget: 80, phase: .pendingTarget)
+        saved.version = 2
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try JSONEncoder().encode(saved).write(to: journal)
+    }
 }
 
 private actor ScopeTransport: NativeChargeTransport {

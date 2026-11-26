@@ -589,11 +589,11 @@ enum NativeChargeServiceError: Error, LocalizedError {
             }
             transaction.sessionID = journal?.sessionID
             journal?.plannedTarget = target
-            // Only a limit below the charge level waits for natural discharge (it could make macOS drain the battery). A limit
-            // equal to the level is applied at once, as System Settings does: the battery simply stops there. An already-active
-            // limit is handled above, without reasserting any hardware setting.
+            // Owner decision 2026-11-26: the slider does exactly what System Settings does, so a limit below the charge level
+            // is written at once too (macOS then stops charging there, as it does for its own slider). Only the legacy
+            // fixture path still waits for natural discharge. An already-active limit is handled above, without a write.
             let safeFloor = current.configuration.enabled ? target : min(target, current.configuration.target)
-            if percent > safeFloor {
+            if trustedFixtureAuthority, percent > safeFloor {
                 journal?.phase = .pendingTarget; try saveJournal()
                 pendingTarget = target
                 message = "Waiting for natural discharge before applying the lower native limit. The current system setting remains active."
@@ -610,7 +610,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
             let scoped = journal?.version == 2
             let toUnlimited = scoped && target == NativeChargeAdmission.unlimitedTarget
             try await mutate(transaction: transaction, expected: .init(enabled: !toUnlimited, target: target, optimizedCharging: current.configuration.optimizedCharging),
-                             permitDisabled100: target == 100 && !scoped) {
+                             permitDisabled100: target == 100 && !scoped, allowBelowCharge: !trustedFixtureAuthority) {
                 try await self.setNativeLimit(target, transaction: transaction)
             }
             let verified = try await verify(target: target, enabled: toUnlimited ? false : nil)
@@ -822,7 +822,8 @@ enum NativeChargeServiceError: Error, LocalizedError {
     }
 
     private func mutate(transaction: Transaction, expected: NativeChargeConfiguration, permitDisabled100: Bool = false,
-                        allowRestoredBaseline: Bool = false, operation: @MainActor () async throws -> Void) async throws {
+                        allowRestoredBaseline: Bool = false, allowBelowCharge: Bool = false,
+                        operation: @MainActor () async throws -> Void) async throws {
         guard let saved = journal else { throw NativeChargeServiceError.recoveryRequired }
         let before = try await readNative(); observed = before
         // policyMatches needs a clean registry on AC; on battery power the registry is not evidence (see policyMatches).
@@ -858,11 +859,14 @@ enum NativeChargeServiceError: Error, LocalizedError {
         let fresh = battery?.fresh ?? batteryFresh
         let percent = battery != nil ? battery!.percent : batteryPercent
         guard fresh, let percent else { throw NativeChargeServiceError.staleBattery }
-        if expected.enabled && expected.target != before.configuration.target && percent > expected.target {
-            throw NativeChargeServiceError.unsafeEnable
-        }
-        if expected.enabled && !before.configuration.enabled && percent > before.configuration.target {
-            throw NativeChargeServiceError.unsafeEnable
+        // A user's own limit may sit below the charge, as in System Settings; validation and restores keep the guard.
+        if !allowBelowCharge || isQualifying {
+            if expected.enabled && expected.target != before.configuration.target && percent > expected.target {
+                throw NativeChargeServiceError.unsafeEnable
+            }
+            if expected.enabled && !before.configuration.enabled && percent > before.configuration.target {
+                throw NativeChargeServiceError.unsafeEnable
+            }
         }
         let recalledBaseline = allowRestoredBaseline && saved.phase == .restoring && !before.configuration.enabled
             && before.configuration.target == 100 && saved.baseline.enabled ? saved.baseline : nil

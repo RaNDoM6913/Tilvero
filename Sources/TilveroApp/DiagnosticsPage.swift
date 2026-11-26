@@ -218,7 +218,7 @@ private struct DiagnosticsHeading: View {
 enum DiagnosticsChargeRows {
     static let infoKeys = [
         "Validation writes each of the other verified limits in turn and restores your setting, after a confirmed persistent baseline and a battery level below 80%.",
-        "Lower targets wait for natural discharge.",
+        "A level below the current charge is set at once, as in System Settings: charging stops until the battery is below it.",
         "Registered requests do not prove an exact cutoff. macOS may occasionally charge to 100% for calibration.",
     ]
 
