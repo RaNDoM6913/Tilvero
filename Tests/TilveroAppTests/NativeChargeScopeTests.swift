@@ -171,9 +171,15 @@ import PowerCore
         XCTAssertTrue(reopened.authorizedPersistentTargets.isEmpty)
         XCTAssertFalse(reopened.canApplyTarget(90))
         do { try await reopened.apply(90, batteryPercent: 50, batteryFresh: true); XCTFail("Recovery is not normal admission") } catch {}
+        // Nothing is owed to the baseline: Restore (and Quit) write nothing and never refuse.
         let restored = try await reopened.restore(batteryPercent: 50, batteryFresh: true)
         XCTAssertTrue(restored)
-        await f.assertWrites(["limit80", "limit90"])
+        XCTAssertTrue(f.journalExists, "a young journal stays until a settled clear read")
+        try f.settle()
+        await reopened.refresh()
+        XCTAssertFalse(f.journalExists, "the first settled clear read closes it")
+        XCTAssertFalse(reopened.hasUnresolvedSession)
+        await f.assertWrites(["limit80"])
         XCTAssertFalse(FileManager.default.fileExists(atPath: f.admission.path))
     }
 
@@ -243,8 +249,10 @@ import PowerCore
         await g.client.setMode("obc")
         let reopened = g.makeService()
         let restored = try await reopened.restore(batteryPercent: 50, batteryFresh: true)
-        XCTAssertTrue(restored)
-        await g.assertWrites(["limit80", "limit90"])
+        XCTAssertTrue(restored, "nothing is owed: no write, no refusal")
+        try g.settle()
+        await reopened.refresh()   // a flipped OBC is no obstacle: the clear read closes the session
+        await g.assertWrites(["limit80"])
         XCTAssertFalse(FileManager.default.fileExists(atPath: g.journal.path))
     }
 
@@ -319,7 +327,9 @@ import PowerCore
         XCTAssertFalse(service.hasOwnedSettings, "A confirmed choice is the user's own macOS setting, not an app session")
         XCTAssertFalse(FileManager.default.fileExists(atPath: f.journal.path), "No journal outlives the confirmed apply")
         XCTAssertFalse(service.recoveryRequired)
-        let quit = try await service.restore(batteryPercent: 50, batteryFresh: true)   // what Quit calls
+        let (model, suite) = f.makeModel(service)
+        defer { model.stop(); TestDefaults.remove(suite) }
+        let quit = await model.prepareForTermination()
         XCTAssertTrue(quit)
         XCTAssertEqual(service.observed?.configuration.target, 85)
         await f.assertWrites(["limit80", "limit85", "limit95", "limit100", "limit90", "limit85"])
@@ -455,15 +465,19 @@ import PowerCore
             await service.refresh()
             await f.client.failReadsAfterNextWrite()
             do { try await service.apply(85, batteryPercent: 50, batteryFresh: true); XCTFail("\(label): unknown readback must stop") } catch {}
-            XCTAssertTrue(service.recoveryRequired, label)
+            XCTAssertFalse(service.recoveryRequired, "\(label): an unconfirmed write blocks nothing")
+            XCTAssertEqual(service.presentation().attention, .mutationUnresolved, label)
+            XCTAssertFalse(service.presentation().requiresGlobalAttention, "\(label): a status line, not a banner")
             let saved = try JSONDecoder().decode(NativeChargeJournal.self, from: Data(contentsOf: f.journal))
             XCTAssertEqual(saved.qualification, false, label)
+            XCTAssertEqual(saved.phase, .indeterminate, label)
             await f.client.clearReadFailure()
             await f.client.external(target: settled)
             let young = f.makeService(scope: scope)
             await young.refresh()
-            XCTAssertTrue(young.recoveryRequired, "\(label): a just-written journal is not closed at once")
-            try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(-120)], ofItemAtPath: f.journal.path)
+            XCTAssertTrue(f.journalExists, "\(label): a just-written journal is not closed at once")
+            XCTAssertFalse(young.recoveryRequired, label)
+            try f.settle()
             let reopened = f.makeService(scope: scope)
             await reopened.refresh()
             XCTAssertFalse(reopened.recoveryRequired, label)
@@ -475,68 +489,135 @@ import PowerCore
         }
     }
 
-    /// A failed validation run still owes the original limit: its stage values never close the journal, the original does.
-    func testUnresolvedValidationJournalClosesOnlyOnTheOriginalLimit() async throws {
+    /// Owner contract 2026-11-26: even a failed validation run owes nothing (a confirmed limit is the user's own): its stage
+    /// value 80 closes the journal at the first settled clear read, with no write.
+    func testUnresolvedValidationJournalClosesOnAnyClearLimit() async throws {
         let f = ScopeFixture(mode: "postUnknown"); defer { f.cleanup() }
         do { try await f.service.qualify(); XCTFail("Unknown postwrite must stop") } catch {}
         let saved = try JSONDecoder().decode(NativeChargeJournal.self, from: Data(contentsOf: f.journal))
         XCTAssertEqual(saved.qualification, true)
         await f.client.setMode("")
-        try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(-120)], ofItemAtPath: f.journal.path)
+        try f.settle()
         let stage = f.makeService()
+        XCTAssertFalse(stage.recoveryRequired)
         await stage.refresh()   // reads 80, the requested stage value
-        XCTAssertTrue(stage.recoveryRequired)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: f.journal.path))
-        await f.client.external(target: 90)
-        let original = f.makeService()
-        await original.refresh()
-        XCTAssertFalse(original.recoveryRequired)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: f.journal.path))
+        XCTAssertFalse(stage.recoveryRequired)
+        XCTAssertFalse(f.journalExists)
         await f.assertWrites(["limit80"])
     }
 
-    /// A journal from a build before 0.8.2 has no origin: before validation completed it can only be a validation run.
-    func testLegacyUnresolvedJournalWithoutOriginIsTreatedAsValidationUntilAdmitted() {
-        var journal = NativeChargeJournal(sessionID: UUID(), environment: "scope-fixture", baseline: .init(enabled: true, target: 90, optimizedCharging: true),
-                                          lastVerified: .init(enabled: true, target: 90, optimizedCharging: true), plannedTarget: 80, phase: .indeterminate)
-        journal.version = 2; journal.hasWritten = true; journal.expectedMutation = .init(enabled: true, target: 80, optimizedCharging: true)
-        let read80 = NativeChargeSnapshot(configuration: .init(enabled: true, target: 80, optimizedCharging: true), supportedTargets: [80,85,90,95,100], registeredManualLimit: 80)
-        XCTAssertFalse(NativeChargeService.closesUnresolvedJournal(journal, value: read80, age: 120, admitted: false))
-        XCTAssertTrue(NativeChargeService.closesUnresolvedJournal(journal, value: read80, age: 120, admitted: true))
-        XCTAssertFalse(NativeChargeService.closesUnresolvedJournal(journal, value: read80, age: 10, admitted: true))
-        var restore = journal   // the user's own Restore to 90 from a confirmed 80: only the original closes it
-        restore.qualification = false; restore.lastVerified = read80.configuration; restore.expectedMutation = restore.baseline
-        XCTAssertFalse(NativeChargeService.closesUnresolvedJournal(restore, value: read80, age: 120, admitted: true))
-        restore.expectedMutation = nil; restore.phase = .restorationPending
-        XCTAssertFalse(NativeChargeService.closesUnresolvedJournal(restore, value: read80, age: 120, admitted: true))
-        let read90 = NativeChargeSnapshot(configuration: .init(enabled: true, target: 90, optimizedCharging: true), supportedTargets: [80,85,90,95,100], registeredManualLimit: 90)
-        restore.expectedMutation = restore.baseline; restore.phase = .indeterminate
-        XCTAssertTrue(NativeChargeService.closesUnresolvedJournal(restore, value: read90, age: 120, admitted: true))
-        let conflict = NativeChargeSnapshot(configuration: .init(enabled: true, target: 90, optimizedCharging: true), supportedTargets: [80,85,90,95,100],
-                                            registeredManualLimit: nil, policyReadbackAvailable: false, registryConflict: true)
-        XCTAssertFalse(NativeChargeService.closesUnresolvedJournal(journal, value: conflict, age: 120, admitted: true))
+    /// The one close rule (D1): a settled (60 s), clear read closes any session journal without a write, whatever it holds.
+    func testSessionClosesOnTheFirstSettledClearRead() throws {
+        func read(_ target: Int, enabled: Bool? = nil, registered: Int?? = .none, available: Bool = true, ac: Bool = true,
+                  conflict: Bool = false, collected: Date = Date()) -> NativeChargeSnapshot {
+            let on = enabled ?? (target != 100)
+            let row: Int? = registered ?? (on ? target : nil)
+            return .init(configuration: .init(enabled: on, target: target, optimizedCharging: true), supportedTargets: [80, 85, 90, 95, 100],
+                         registeredManualLimit: row, policyReadbackAvailable: available, collectedAt: collected,
+                         registrationExpected: ac, registryConflict: conflict)
+        }
+        for target in [80, 85, 90, 100] {
+            XCTAssertTrue(NativeChargeService.closesSession(value: read(target), age: 120), "AC agree at \(target)")
+        }
+        XCTAssertFalse(NativeChargeService.closesSession(value: read(85), age: 10), "a young journal waits")
+        XCTAssertFalse(NativeChargeService.closesSession(value: read(85), age: nil), "no file age, no close")
+        XCTAssertFalse(NativeChargeService.closesSession(value: read(90, registered: .some(nil), available: false, conflict: true), age: 120), "AC conflict")
+        XCTAssertFalse(NativeChargeService.closesSession(value: read(90, registered: .some(80), ac: false, conflict: true), age: 120), "battery conflict")
+        XCTAssertFalse(NativeChargeService.closesSession(value: read(90, available: false), age: 120), "AC without a policy readback")
+        XCTAssertTrue(NativeChargeService.closesSession(value: read(85, registered: .some(nil), ac: false), age: 120), "battery: no row")
+        XCTAssertTrue(NativeChargeService.closesSession(value: read(85, registered: .some(90), ac: false), age: 120), "battery: a stale 90 row")
+        XCTAssertFalse(NativeChargeService.closesSession(value: read(85, collected: Date().addingTimeInterval(-100)), age: 120), "stale read")
+        XCTAssertFalse(NativeChargeService.closesSession(value: read(80, enabled: false, registered: .some(nil)), age: 120), "disabled+80 is not a valid state")
         let old = Data(#"{"configuration":{"enabled":true,"target":90,"optimizedCharging":true},"supportedTargets":[90],"registeredManualLimit":90,"policyReadbackAvailable":true,"collectedAt":0}"#.utf8)
         XCTAssertEqual(try JSONDecoder().decode(NativeChargeSnapshot.self, from: old).registryConflict, false)
     }
 
+    /// A conflict keeps the session (status line only) and the slider; a third value set in System Settings closes it.
     func testUnresolvedJournalStaysWhileTheRegistryConflictsOrTheLimitIsUnknown() async throws {
         let f = ScopeFixture(mode: "postUnknown"); defer { f.cleanup() }
         do { try await f.service.qualify(); XCTFail("Unknown postwrite must stop") } catch {}
-        try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(-120)], ofItemAtPath: f.journal.path)
+        try f.settle()
         await f.client.setMode("conflict")
-        let conflicted = f.makeService()
+        let conflicted = f.makeService(implicit: true)
         await conflicted.refresh()
-        XCTAssertTrue(conflicted.recoveryRequired)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: f.journal.path))
+        XCTAssertFalse(conflicted.recoveryRequired)
+        XCTAssertTrue(f.journalExists)
+        XCTAssertEqual(conflicted.presentation().attention, .mutationUnresolved)
+        XCTAssertTrue(conflicted.canApplyTarget(85), "an unresolved session never blocks the slider")
         XCTAssertEqual(conflicted.nativeSetting?.registryConflict, true)
         XCTAssertEqual(conflicted.message, "macOS lists two different charge limits. Set the limit once in System Settings › Battery to bring them together.")
         await f.client.setMode("")
-        await f.client.external(target: 85)   // neither before, confirmed nor requested
-        let foreign = f.makeService()
-        await foreign.refresh()
-        XCTAssertTrue(foreign.recoveryRequired)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: f.journal.path))
+        await f.client.external(target: 85)   // neither before, confirmed nor requested: still the user's own clear setting
+        await conflicted.refresh()
+        XCTAssertFalse(f.journalExists)
+        XCTAssertFalse(conflicted.hasUnresolvedSession)
+        XCTAssertEqual(conflicted.presentation().attention, .none)
         await f.assertWrites(["limit80"])
+    }
+
+    /// Leftovers of every scoped phase and origin load without blocking anything and close at the first settled clear
+    /// read with no write; a journal that never dispatched a write is deleted at launch.
+    func testLeftoverSessionsOfEveryPhaseAndOriginCloseWithoutAWrite() async throws {
+        let phases: [(NativeChargeJournal.Phase, Int?)] = [(.owned, nil), (.preparing, 85), (.restorationPending, nil), (.restoring, 90), (.indeterminate, 85)]
+        for (phase, expected) in phases {
+            for qualification in [true, false, nil] as [Bool?] {
+                let label = "\(phase) \(String(describing: qualification))"
+                let f = ScopeFixture(); defer { f.cleanup() }
+                try f.writeSessionJournal(phase: phase, qualification: qualification, expected: expected)
+                let reopened = f.makeService(implicit: true)
+                XCTAssertFalse(reopened.recoveryRequired, label)
+                XCTAssertFalse(reopened.restorationPending, label)
+                XCTAssertTrue(reopened.hasUnresolvedSession, label)
+                await reopened.refresh()
+                XCTAssertTrue(f.journalExists, "\(label): young")
+                XCTAssertTrue(reopened.offersTarget(85), label)
+                XCTAssertTrue(reopened.canApplyTarget(85), label)
+                XCTAssertFalse(reopened.hasOwnedSettings, "\(label): a scoped session owns nothing")
+                let owed = try await reopened.restore(batteryPercent: 50, batteryFresh: true)
+                XCTAssertTrue(owed, "\(label): nothing is owed")
+                try f.settle()
+                await reopened.refresh()
+                XCTAssertFalse(f.journalExists, label)
+                XCTAssertFalse(reopened.hasUnresolvedSession, label)
+                await f.assertWrites([], label)
+
+                let g = ScopeFixture(); defer { g.cleanup() }
+                try g.writeSessionJournal(phase: phase, hasWritten: false, qualification: qualification, expected: expected)
+                let fresh = g.makeService(implicit: true)
+                XCTAssertFalse(g.journalExists, "\(label): nothing was dispatched, nothing to review")
+                XCTAssertFalse(fresh.hasUnresolvedSession, label)
+            }
+        }
+    }
+
+    func testOnBatteryALeftoverClosesButConflictingRowsWait() async throws {
+        let f = ScopeFixture(mode: "battery"); defer { f.cleanup() }
+        try f.writeSessionJournal(phase: .indeterminate, age: 120)
+        let unplugged = f.makeService(implicit: true)
+        await unplugged.refresh()
+        XCTAssertFalse(f.journalExists, "the stored setting is the evidence on battery power")
+        let g = ScopeFixture(mode: "batteryConflict"); defer { g.cleanup() }
+        try g.writeSessionJournal(phase: .indeterminate, age: 120)
+        let conflicted = g.makeService(implicit: true)
+        await conflicted.refresh()
+        XCTAssertTrue(g.journalExists, "two different rows wait until they age out")
+        XCTAssertTrue(conflicted.canApplyTarget(85))
+        await f.assertWrites([]); await g.assertWrites([])
+    }
+
+    /// A macOS update that changes the offered list is no reason to keep a session: it closes, and the slider writes.
+    func testAChangedOfferedListClosesTheSessionAndTheSliderKeepsWorking() async throws {
+        let f = ScopeFixture(mode: "offeredAll"); defer { f.cleanup() }
+        try f.writeSessionJournal(phase: .indeterminate, age: 120)
+        let service = f.makeService(implicit: true)
+        await service.refresh()
+        XCTAssertFalse(f.journalExists)
+        await f.client.external(target: 85)
+        await service.refresh()
+        try await service.apply(90, batteryPercent: nil, batteryFresh: false)
+        XCTAssertEqual(service.reportedLimit, 90)
+        XCTAssertFalse(f.journalExists)
+        await f.assertWrites(["limit90"])
     }
 
     func testRestoreClosesAnOldUnresolvedJournalThatReadsItsBaseline() async throws {
@@ -547,9 +628,10 @@ import PowerCore
         try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(-120)], ofItemAtPath: f.journal.path)
         let reopened = f.makeService()
         let restored = try await reopened.restore(batteryPercent: 50, batteryFresh: true)
-        XCTAssertTrue(restored)
+        XCTAssertTrue(restored, "nothing is owed: no write, no refusal")
         XCTAssertFalse(reopened.recoveryRequired)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: f.journal.path))
+        await reopened.refresh()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: f.journal.path), "a later clear refresh closes it")
         await f.assertWrites(["limit80"])
     }
 
@@ -590,7 +672,7 @@ import PowerCore
         await f.assertWrites(["limit95", "limit100"])
     }
 
-    func testOnBatteryEvenConflictingStaleRowsAreNotEvidenceButOnACTheyStopTheSlider() async throws {
+    func testOnBatteryConflictingStaleRowsAreNotEvidenceAndOnACTheSliderStillWrites() async throws {
         let f = ScopeFixture(mode: "batteryConflict"); defer { f.cleanup() }
         let service = f.makeService(implicit: true)
         await service.refresh()
@@ -598,11 +680,15 @@ import PowerCore
         try await service.apply(95, batteryPercent: 60, batteryFresh: true)
         XCTAssertEqual(service.observed?.configuration.target, 95)
         XCTAssertFalse(service.recoveryRequired)
-        await f.client.setMode("conflict")   // on AC two different rows: no write can be confirmed, the hint shows
+        await f.client.setMode("conflict")   // on AC two different rows: the hint shows, the slider still writes
         await service.refresh()
-        XCTAssertFalse(service.canApplyTarget(90))
         XCTAssertEqual(service.message, "macOS lists two different charge limits. Set the limit once in System Settings › Battery to bring them together.")
-        await f.assertWrites(["limit95"])
+        XCTAssertTrue(service.canApplyTarget(90), "the write is what clears a two-row conflict; the readback decides")
+        XCTAssertEqual(service.reportedLimit, 95, "what macOS stores is shown")
+        do { try await service.apply(90, batteryPercent: 60, batteryFresh: true); XCTFail("a conflict that stays is not confirmed") } catch {}
+        XCTAssertTrue(f.journalExists, "an unconfirmed write leaves a session that closes itself")
+        XCTAssertTrue(service.canApplyTarget(85))
+        await f.assertWrites(["limit95", "limit90"])
     }
 
     /// A macOS update changes only the middle of "model / OS / contract": a session journal stays reviewable.
@@ -647,20 +733,174 @@ import PowerCore
         await f.assertWrites([]); await g.assertWrites([])
     }
 
-    func testProductionScopeRejectsLegacyJournalAndPreservesItsBytes() async throws {
+    /// An unusable session file (v1, garbage, another contract, another Mac) is never acted on and never blocks: it stays
+    /// in place until a settled clear read, then is set aside under a new name with its bytes and 0600 mode.
+    func testProductionScopeSetsAsideUnreadableJournal() async throws {
+        let legacy = NativeChargeJournal(sessionID: UUID(), environment: "scope-fixture", baseline: .init(enabled: true, target: 80, optimizedCharging: true), lastVerified: .init(enabled: true, target: 95, optimizedCharging: true), plannedTarget: nil, phase: .owned, hasWritten: true)
+        for label in ["v1", "garbage", "contract", "otherMac"] {
+            let f = ScopeFixture(); defer { f.cleanup() }
+            let bytes: Data
+            switch label {
+            case "v1": try FileManager.default.createDirectory(at: f.root, withIntermediateDirectories: true); bytes = try JSONEncoder().encode(legacy); try bytes.write(to: f.journal)
+            case "garbage": try FileManager.default.createDirectory(at: f.root, withIntermediateDirectories: true); bytes = Data("x".utf8); try bytes.write(to: f.journal)
+            case "contract": bytes = try f.writeSessionJournal(phase: .indeterminate, contract: "PowerUI-v3-old")
+            default: bytes = try f.writeSessionJournal(phase: .indeterminate, environment: "another-mac")
+            }
+            let service = f.makeService(implicit: true)
+            XCTAssertTrue(service.unreadableJournal, label)
+            XCTAssertFalse(service.recoveryRequired, label)
+            let restored = try await service.restore(batteryPercent: 50, batteryFresh: true)
+            XCTAssertTrue(restored, "\(label): never acted on, never refuses")
+            XCTAssertEqual(try Data(contentsOf: f.journal), bytes, "\(label): untouched before a clear read")
+            try f.settle()
+            await service.refresh()
+            XCTAssertFalse(f.journalExists, label)
+            XCTAssertFalse(service.unreadableJournal, label)
+            let aside = try f.setAside()
+            XCTAssertEqual(aside.count, 1, label)
+            XCTAssertEqual(try Data(contentsOf: XCTUnwrap(aside.first)), bytes, label)
+            let mode = try FileManager.default.attributesOfItem(atPath: XCTUnwrap(aside.first).path)[.posixPermissions] as? NSNumber
+            XCTAssertEqual(mode?.intValue, 0o600, label)
+            XCTAssertTrue(service.canApplyTarget(85), label)
+            await f.assertWrites([], label)
+        }
+    }
+
+    /// The next apply supersedes an unusable file too: it is set aside (never deleted) and the write goes ahead.
+    func testApplySetsAsideAnUnreadableJournalAndWrites() async throws {
         let f = ScopeFixture(); defer { f.cleanup() }
         try FileManager.default.createDirectory(at: f.root, withIntermediateDirectories: true)
-        let legacy = NativeChargeJournal(sessionID: UUID(), environment: "scope-fixture", baseline: .init(enabled: true, target: 80, optimizedCharging: true), lastVerified: .init(enabled: true, target: 95, optimizedCharging: true), plannedTarget: nil, phase: .owned, hasWritten: true)
-        let bytes = try JSONEncoder().encode(legacy); try bytes.write(to: f.journal)
-        let service = f.makeService()
-        _ = try? await service.restore(batteryPercent: 50, batteryFresh: true)
-        XCTAssertTrue(service.recoveryRequired)
-        XCTAssertEqual(try Data(contentsOf: f.journal), bytes)
+        try Data("x".utf8).write(to: f.journal)
+        let service = f.makeService(implicit: true)
+        await service.refresh()   // young: stays
+        XCTAssertTrue(service.unreadableJournal)
+        try await service.apply(85, batteryPercent: nil, batteryFresh: false)
+        XCTAssertFalse(service.unreadableJournal)
+        XCTAssertEqual(try f.setAside().count, 1)
+        XCTAssertFalse(f.journalExists)
+        await f.assertWrites(["limit85"])
+    }
+
+    // MARK: The one apply path (A2)
+
+    func testAFailedFirstReadAfterTheWriteIsRetriedAndTheNextConfirms() async throws {
+        let f = ScopeFixture(mode: "failFirstReadAfterWrite"); defer { f.cleanup() }
+        let service = f.makeService(implicit: true, verificationAttempts: 2)
+        await service.refresh()
+        try await service.apply(85, batteryPercent: nil, batteryFresh: false)
+        XCTAssertEqual(service.reportedLimit, 85)
+        XCTAssertFalse(f.journalExists, "confirmed: the user's own setting, no journal left")
+        XCTAssertFalse(service.hasUnresolvedSession)
+        await f.assertWrites(["limit85"])
+    }
+
+    func testAnACRegistryConflictWritesOnceAndTheReadbackDecides() async throws {
+        // The write rewrites both rows: confirmed, nothing left.
+        let f = ScopeFixture(mode: "conflictUntilWrite"); defer { f.cleanup() }
+        let service = f.makeService(implicit: true)
+        await service.refresh()
+        XCTAssertNil(service.presentation().activePolicy, "a conflict is not a confirmed policy")
+        XCTAssertEqual(service.reportedLimit, 90, "but what macOS stores is shown")
+        XCTAssertTrue(service.canApplyTarget(85))
+        try await service.apply(85, batteryPercent: nil, batteryFresh: false)
+        XCTAssertFalse(f.journalExists)
+        XCTAssertEqual(service.presentation().activePolicy?.target, 85)
+        await f.assertWrites(["limit85"])
+
+        // The conflict stays: an indeterminate session that blocks nothing and closes itself later with no extra write.
+        let g = ScopeFixture(mode: "conflict"); defer { g.cleanup() }
+        let stuck = g.makeService(implicit: true)
+        await stuck.refresh()
+        do { try await stuck.apply(85, batteryPercent: nil, batteryFresh: false); XCTFail("not confirmed while two rows differ") }
+        catch NativeChargeServiceError.readbackMismatch {} catch { XCTFail("Wrong error: \(error)") }
+        let saved = try JSONDecoder().decode(NativeChargeJournal.self, from: Data(contentsOf: g.journal))
+        XCTAssertEqual(saved.phase, .indeterminate)
+        XCTAssertFalse(stuck.recoveryRequired)
+        XCTAssertTrue(stuck.canApplyTarget(90))
+        await g.client.setMode("")
+        try g.settle()
+        await stuck.refresh()
+        XCTAssertFalse(g.journalExists)
+        await g.assertWrites(["limit85"])
+    }
+
+    func testASingleStaleACRowDoesNotStopAWrite() async throws {
+        let f = ScopeFixture(mode: "staleRow"); defer { f.cleanup() }
+        let service = f.makeService(implicit: true)
+        await service.refresh()
+        XCTAssertTrue(service.canApplyTarget(95))
+        try await service.apply(95, batteryPercent: nil, batteryFresh: false)
+        XCTAssertFalse(f.journalExists)
+        XCTAssertEqual(service.presentation().activePolicy?.target, 95)
+        await f.assertWrites(["limit95"])
+    }
+
+    func testAnInSessionLeftoverAndAnExternalChangeNeverFailTheNextApply() async throws {
+        let f = ScopeFixture(mode: "conflict"); defer { f.cleanup() }
+        let service = f.makeService(implicit: true)
+        await service.refresh()
+        do { try await service.apply(85, batteryPercent: nil, batteryFresh: false); XCTFail("unconfirmed") } catch {}
+        XCTAssertTrue(service.hasUnresolvedSession)
+        await f.client.setMode("")
+        await f.client.external(target: 80)   // System Settings
+        try await service.apply(95, batteryPercent: nil, batteryFresh: false)
+        XCTAssertEqual(service.reportedLimit, 95)
+        XCTAssertFalse(f.journalExists)
+        XCTAssertFalse(service.hasUnresolvedSession)
+        await f.assertWrites(["limit85", "limit95"])
+    }
+
+    func testAUserApplyNeedsNoBatteryReading() async throws {
+        let f = ScopeFixture(mode: "batteryStale"); defer { f.cleanup() }
+        let service = f.makeService(implicit: true)
+        await service.refresh()
+        try await service.apply(80, batteryPercent: nil, batteryFresh: false)
+        XCTAssertEqual(service.reportedLimit, 80)
+        XCTAssertFalse(f.journalExists)
+        await f.assertWrites(["limit80"])
+    }
+
+    func testAnExpectedCurrentMismatchWritesNothing() async throws {
+        let f = ScopeFixture(); defer { f.cleanup() }
+        let service = f.makeService(implicit: true)
+        await service.refresh()
+        do { try await service.apply(100, batteryPercent: nil, batteryFresh: false, expectedCurrent: 80); XCTFail("changed elsewhere") }
+        catch NativeChargeServiceError.changedElsewhere {} catch { XCTFail("Wrong error: \(error)") }
+        XCTAssertFalse(f.journalExists)
+        XCTAssertEqual(NativeChargeServiceError.changedElsewhere.localizedDescription, "The charge limit was changed in System Settings. Nothing was written.")
+        try await service.apply(100, batteryPercent: nil, batteryFresh: false, expectedCurrent: 90)
+        await f.assertWrites(["limit100"])
+    }
+
+    func testMonitoringOnlyNeverWrites() async throws {
+        let f = ScopeFixture(); defer { f.cleanup() }
+        let monitor = f.makeService(implicit: true, monitoringOnly: true)
+        await monitor.refresh()
+        do { try await monitor.apply(85, batteryPercent: 50, batteryFresh: true); XCTFail("monitoring never writes") } catch {}
+        let restored = try await monitor.restore(batteryPercent: 50, batteryFresh: true)
+        XCTAssertTrue(restored)
         await f.assertWrites([])
+    }
+
+    /// A journal save failure before the dispatch writes nothing and leaves nothing behind (no review, slider usable).
+    func testAWriteAheadFailureBeforeDispatchLeavesNothingBehind() async throws {
+        let f = ScopeFixture(); defer { f.cleanup() }
+        let service = f.makeService(implicit: true)
+        await service.refresh()
+        try FileManager.default.createDirectory(at: f.journal, withIntermediateDirectories: true)   // the journal path is blocked
+        do { try await service.apply(85, batteryPercent: nil, batteryFresh: false); XCTFail("the journal must be saved first") } catch {}
+        await f.assertWrites([])
+        XCTAssertFalse(service.recoveryRequired)
+        XCTAssertNotEqual(service.presentation().attention, .journalIntegrity)
+        XCTAssertFalse(f.journalExists, "nothing is left on disk")
+        try? FileManager.default.removeItem(at: f.journal)
+        await service.refresh()
+        try await service.apply(85, batteryPercent: nil, batteryFresh: false)
+        await f.assertWrites(["limit85"])
     }
 }
 
-@MainActor private struct ScopeFixture {
+@MainActor struct ScopeFixture {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("TilveroScope-\(UUID())")
     let client: ScopeTransport
     let service: NativeChargeService
@@ -672,10 +912,58 @@ import PowerCore
         service = NativeChargeService(client: transport, journalURL: root.appendingPathComponent("session.json"), verificationAttempts: 1,
             environment: "scope-fixture", batteryProvider: { await transport.battery() }, admissionURL: root.appendingPathComponent("admission.json"))
     }
-    func makeService(scope: NativeChargeAdmission.Scope? = nil, implicit: Bool = false, monitoringOnly: Bool = false) -> NativeChargeService {
+    func makeService(scope: NativeChargeAdmission.Scope? = nil, implicit: Bool = false, monitoringOnly: Bool = false,
+                     verificationAttempts: Int = 1, operationTimeout: Duration = .seconds(15)) -> NativeChargeService {
         let transport = client
-        return NativeChargeService(client: client, journalURL: journal, admissionScope: scope, monitoringOnly: monitoringOnly, verificationAttempts: 1,
-            environment: "scope-fixture", batteryProvider: { await transport.battery() }, admissionURL: admission, implicitAdmission: implicit)
+        return NativeChargeService(client: client, journalURL: journal, admissionScope: scope, monitoringOnly: monitoringOnly,
+            verificationAttempts: verificationAttempts, environment: "scope-fixture", batteryProvider: { await transport.battery() },
+            admissionURL: admission, operationTimeout: operationTimeout, implicitAdmission: implicit)
+    }
+    /// A scoped (v2) session journal as `makeScopedJournal` writes it: baseline 90, requested 85.
+    @discardableResult
+    func writeSessionJournal(phase: NativeChargeJournal.Phase, hasWritten: Bool = true, qualification: Bool? = false,
+                             expected: Int? = 85, lastVerified: Int = 90, environment: String = "scope-fixture",
+                             contract: String = NativeChargeAdmission.semanticContract, age: TimeInterval = 0) throws -> Data {
+        let baseline = NativeChargeConfiguration(enabled: true, target: 90, optimizedCharging: true)
+        var saved = NativeChargeJournal(sessionID: UUID(), environment: environment, baseline: baseline,
+            lastVerified: .init(enabled: lastVerified != 100, target: lastVerified, optimizedCharging: true), plannedTarget: expected, phase: phase)
+        saved.version = 2; saved.semanticContract = contract; saved.persistentTargets = NativeChargeAdmission.persistentTargets
+        saved.baselineSnapshot = .init(configuration: baseline, supportedTargets: [80, 85, 90, 95, 100], registeredManualLimit: 90)
+        saved.hasWritten = hasWritten; saved.qualification = qualification
+        saved.expectedMutation = expected.map { .init(enabled: $0 != 100, target: $0, optimizedCharging: true) }
+        let bytes = try JSONEncoder().encode(saved)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try bytes.write(to: journal)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: journal.path)
+        if age != 0 { try settle(age) }
+        return bytes
+    }
+    /// Ages the session file (the close rule waits until it is at least 60 s old).
+    func settle(_ age: TimeInterval = 120) throws {
+        try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(-age)], ofItemAtPath: journal.path)
+    }
+    var journalExists: Bool { FileManager.default.fileExists(atPath: journal.path) }
+    /// A real model around `service` (the caller removes the preference suite and stops the model).
+    func makeModel(_ service: NativeChargeService, percent: Int? = nil, charging: Bool? = nil, externalPower: Bool? = nil) -> (TilveroModel, String) {
+        let suite = TestDefaults.name("ScopeModel")
+        let preferences = TestDefaults.defaults(suite)
+        preferences.set(false, forKey: "historyEnabled")
+        let model = TilveroModel(isDemo: false, launchPolicy: .resolve(metadata: [:]), preferences: preferences,
+            historyURL: root.appendingPathComponent("model.sqlite"),
+            snapshotProvider: { ScopeFixture.snapshot(percent: percent, charging: charging, externalPower: externalPower) }, nativeCharge: service)
+        return (model, suite)
+    }
+    nonisolated static func snapshot(percent: Int?, charging: Bool?, externalPower: Bool?) -> BatterySnapshot {
+        guard percent != nil || charging != nil || externalPower != nil else { return .unavailable(reason: "Scope fixture") }
+        let reason = "Scope fixture"
+        return BatterySnapshot(chargePercent: percent.map { .init(value: $0, source: "fixture", freshness: .fresh) } ?? .unavailable(reason: reason),
+                               isCharging: charging.map { .init(value: $0, source: "fixture", freshness: .fresh) } ?? .unavailable(reason: reason),
+                               isExternalPower: externalPower.map { .init(value: $0, source: "fixture", freshness: .fresh) } ?? .unavailable(reason: reason))
+    }
+    /// Files set aside as `session.invalid-*.json`.
+    func setAside() throws -> [URL] {
+        try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)
+            .filter { $0.lastPathComponent.hasPrefix("session.invalid-") && $0.pathExtension == "json" }
     }
     func assertWrites(_ expected: [String], _ message: String = "", file: StaticString = #filePath, line: UInt = #line) async {
         let writes = await client.writes
@@ -693,7 +981,7 @@ import PowerCore
     }
 }
 
-private actor ScopeTransport: NativeChargeTransport {
+actor ScopeTransport: NativeChargeTransport {
     var writes: [String] = []
     private var mode: String
     private var target: Int
@@ -710,24 +998,51 @@ private actor ScopeTransport: NativeChargeTransport {
         return .init(percent: mode == "risingBefore95" && batteryReads >= 2 ? 89 : mode == "battery91" ? 91 : mode == "batteryMissing" ? nil : mode == "battery89" ? 89 : mode == "battery80" ? 80 : mode == "battery100" ? 100 : 60,
               externalPower: true, fresh: mode != "batteryStale")
     }
+    private var failedReadAfterWrite = false
+    /// A write held inside the transport until `releaseWrite()` (a quit in the middle of a write).
+    private var holdNextWrite = false
+    private var heldWrite: CheckedContinuation<Void, Never>?
+    var isHoldingWrite: Bool { heldWrite != nil }
+    func holdWrites() { holdNextWrite = true }
+    func releaseWrite() { heldWrite?.resume(); heldWrite = nil }
     func read() throws -> NativeChargeSnapshot {
         reads += 1
         if mode == "unknown" || (mode == "postUnknown" && !writes.isEmpty) || failAfterWrites.map({ writes.count > $0 }) == true
             || (mode == "unknownBefore95" && reads >= 2) || (mode == "restoreUnknown" && writes.count >= 5) {
             throw NativeChargeReadFailure(supportedTargets: [80,85,90,95,100], currentTarget: 100, rawManualState: 3, diagnosticStoredTarget: 90)!
         }
+        // "failFirstReadAfterWrite": the first read after a write fails once (an unrecognized state), the next one is clean.
+        if mode == "failFirstReadAfterWrite", !writes.isEmpty, !failedReadAfterWrite {
+            failedReadAfterWrite = true
+            throw NativeChargeReadFailure(supportedTargets: [80,85,90,95,100], currentTarget: target, rawManualState: 3)!
+        }
+        // "conflictUntilWrite": the two-row AC registry after a macOS update; a write rewrites both rows.
+        // "staleRow": one AC row with an old 80 until a write. "offeredAll": macOS offers every level 80…100.
+        let conflicted = mode == "conflict" || mode == "batteryConflict" || (mode == "conflictUntilWrite" && writes.isEmpty)
+        if mode == "staleRow" && writes.isEmpty {
+            return .init(configuration: .init(enabled: target != 100, target: target, optimizedCharging: true),
+                         supportedTargets: [80,85,90,95,100], registeredManualLimit: 80)
+        }
+        if conflicted && mode == "conflictUntilWrite" {
+            return .init(configuration: .init(enabled: target != 100, target: target, optimizedCharging: true), supportedTargets: [80,85,90,95,100],
+                         registeredManualLimit: nil, policyReadbackAvailable: false, registryConflict: true)
+        }
         let target = mode == "baseline100" ? 100 : mode == "baseline85" || (mode == "externalBefore95" && reads >= 2) ? 85 : target
         // macOS stores 100 as "limit off": disabled, no registered manual limit (mode "baseline100" is an inconsistent enabled 100).
         let battery = mode == "battery" || mode == "batteryStaleRows" || mode == "batteryConflict"   // on battery power: the setting is stored, nothing is registered
         let off = target == 100 && mode != "baseline100"
         return .init(configuration: .init(enabled: mode != "disabled" && !off, target: target, optimizedCharging: mode != "obc"),
-              supportedTargets: mode == "offered" ? [80,85,90,100] : [80,85,90,95,100],
+              supportedTargets: mode == "offered" ? [80,85,90,100] : mode == "offeredAll" ? Array(80...100) : [80,85,90,95,100],
               // "batteryStaleRows": just unplugged, macOS still lists the old 90 rows for a few minutes.
               registeredManualLimit: mode == "batteryStaleRows" ? 90 : mode == "disabled" || mode == "policy" || off || battery ? nil : target,
               policyReadbackAvailable: mode != "conflict" && mode != "batteryConflict",
               collectedAt: mode == "stale" ? Date().addingTimeInterval(-100) : Date(), registrationExpected: !battery,
               registryConflict: mode == "conflict" || mode == "batteryConflict")
     }
-    func setLimit(_ target: Int) { writes.append("limit\(target)"); self.target = target }
+    func setLimit(_ target: Int) async {
+        writes.append("limit\(target)")
+        if holdNextWrite { holdNextWrite = false; await withCheckedContinuation { heldWrite = $0 } }
+        self.target = target
+    }
     func setEnabled(_ enabled: Bool) { writes.append(enabled ? "enable" : "disable") }
 }

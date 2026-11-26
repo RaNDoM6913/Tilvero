@@ -25,7 +25,8 @@ struct UpdateRecoverySnapshot {
         var result: [String] = []
         if operationInFlight { result.append("Finish the current operation before installing.") }
         if sleepTransition { result.append("Wait until sleep preparation or wake recovery has finished.") }
-        if nativeOwnership || nativeRecovery { result.append("Review app-owned charging settings in Diagnostics.") }
+        if nativeOwnership { result.append("Review app-owned charging settings in Diagnostics.") }
+        if nativeRecovery && !nativeOwnership { result.append("Wait until macOS confirms the last charge-limit change.") }
         if helperOwnership || helperRecovery { result.append("Review app-owned helper settings in Diagnostics.") }
         if lidOwnership || lidRecovery { result.append("Review the closed-lid session in Diagnostics.") }
         if persistentEvidence { result.append("Saved control evidence needs manual review in Diagnostics.") }

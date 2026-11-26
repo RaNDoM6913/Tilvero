@@ -21,6 +21,8 @@ import Foundation
     }
     private(set) var pendingPurpose: Purpose?
     var pending: Bool { pendingPurpose != nil }
+    /// The pending call passed its deadline and has not returned yet (reset when it returns and at every new call).
+    private(set) var timedOut = false
     var onTimeout: ((Purpose) -> Void)?
     var onLateCompletion: ((Purpose) -> Void)?
     let timeout: Duration
@@ -35,7 +37,7 @@ import Foundation
     func call<T: Sendable>(purpose: Purpose, onDispatch: (@MainActor () -> Void)? = nil,
                            operation: @escaping @Sendable () async throws -> T) async throws -> T {
         guard !pending else { throw Failure.busy }
-        pendingPurpose = purpose
+        pendingPurpose = purpose; timedOut = false
         return try await withCheckedThrowingContinuation { continuation in
             let reply = Reply(continuation)
             var deadline: Task<Void, Never>?
@@ -43,13 +45,14 @@ import Foundation
                 let result: Result<T, any Error>
                 if purpose.isMutation { onDispatch?() }
                 do { result = .success(try await operation()) } catch { result = .failure(error) }
-                pendingPurpose = nil; deadline?.cancel()
+                pendingPurpose = nil; timedOut = false; deadline?.cancel()
                 if reply.continuation != nil { reply.finish(result) }
                 else { onLateCompletion?(purpose) }
             }
             deadline = Task { @MainActor in
                 do { try await Task.sleep(for: timeout) } catch { return }
                 guard reply.continuation != nil else { return }
+                timedOut = true
                 onTimeout?(purpose)
                 reply.finish(.failure(Failure.timedOut))
             }

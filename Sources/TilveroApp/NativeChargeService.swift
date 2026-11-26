@@ -33,7 +33,8 @@ struct NativeChargeJournal: Codable, Sendable {
               persistentTargets == NativeChargeAdmission.persistentTargets,
               let baselineSnapshot, baselineSnapshot.configuration == baseline,
               NativeChargeAdmission.persistentTargets.contains(baseline.target),
-              NativeChargeAdmission.isPersistent(baselineSnapshot, target: baseline.target, optimizedCharging: baseline.optimizedCharging),
+              // A journal written from a two-row AC read must still load (nothing is ever written from it).
+              NativeChargeAdmission.isValidState(baseline), NativeChargeAdmission.validOfferedTargets(baselineSnapshot.supportedTargets),
               NativeChargeAdmission.isValidState(lastVerified),
               plannedTarget.map(NativeChargeAdmission.persistentTargets.contains) ?? true,
               expectedMutation.map(NativeChargeAdmission.isValidState) ?? true,
@@ -63,6 +64,8 @@ struct NativeChargePresentation {
     let attention: Attention
     let hasRecordedMutation: Bool
     let hasSavedAction: Bool
+    /// The pending operation has passed its deadline (its XPC call has not returned yet): only then does it get a line.
+    var pendingTimedOut = false
     var showsAttentionBanner: Bool {
         guard requiresGlobalAttention else { return false }
         guard attention == .sessionReview else { return true }
@@ -73,7 +76,9 @@ struct NativeChargePresentation {
     }
     var requiresGlobalAttention: Bool {
         switch attention {
-        case .sessionReview, .mutationUnresolved, .journalIntegrity, .restorationPending, .lowerTargetPending: true
+        case .sessionReview, .journalIntegrity, .restorationPending, .lowerTargetPending: true
+        // A self-resolving scoped session owns nothing: a local status line, not a banner (fixture sessions still own).
+        case .mutationUnresolved: hasOwnership
         case .policyUnconfirmed: hasOwnership
         case .operationPending: pendingTarget != nil || restorationTarget != nil
         case .none: false
@@ -83,16 +88,19 @@ struct NativeChargePresentation {
 
 enum NativeChargeServiceError: Error, LocalizedError {
     case unavailable, busy, unsupportedTarget, unqualifiedTarget, staleBattery, recoveryRequired, readbackMismatch, unsafeEnable
+    /// The limit read just before the write was not the one the caller expected (System Settings changed it): nothing written.
+    case changedElsewhere
     var errorDescription: String? {
         switch self {
-        case .unavailable: "Native charging control has not completed its local validation."
+        case .unavailable: "macOS has not reported the charge limit yet. Nothing was changed."
         case .busy: "A native charging operation is still in progress."
         case .unsupportedTarget: "Choose a charge target offered by this Mac."
-        case .unqualifiedTarget: "This charge target has not completed local validation. Only the verified persistent 80%, 85%, 90%, 95% and 100% targets are authorized."
+        case .unqualifiedTarget: "This charge limit is not offered by macOS on this Mac."
         case .staleBattery: "A fresh battery reading is required before changing charging."
-        case .recoveryRequired: "Reconcile the previous native charging session before applying another target."
-        case .readbackMismatch: "macOS has not independently confirmed the requested charge setting."
+        case .recoveryRequired: "The previous charging session needs review before the limit can change."
+        case .readbackMismatch: "macOS reported an unclear charge limit, so nothing new was confirmed. Try again in a moment."
         case .unsafeEnable: "Enabling the previous system target could discharge the battery. Waiting for natural discharge."
+        case .changedElsewhere: "The charge limit was changed in System Settings. Nothing was written."
         }
     }
 }
@@ -100,17 +108,26 @@ enum NativeChargeServiceError: Error, LocalizedError {
 /// A managed session over the normal-user Apple client. It never registers a
 /// helper, changes OBC, guesses a root qualification, or fights external edits.
 @MainActor final class NativeChargeService: ObservableObject {
-    @Published private(set) var observed: NativeChargeSnapshot? {
-        didSet { if let observed { rememberNativeSetting(observed) } }
-    }
+    /// The last read whose policy matched (or the readback of a write); presentation confirms it only while it matches.
+    @Published private(set) var observed: NativeChargeSnapshot?
     /// The native preference can exist while macOS registers no active charging
     /// policy on battery. Keep discovery separate from independent confirmation.
+    /// Every successful fresh read lands here (`readNative`), whether or not the registry agrees.
     @Published private(set) var nativeSetting: NativeChargeSnapshot?
     @Published private(set) var incompleteObservation: NativeChargeReadFailure?
     var currentReportedTarget: Int? {
         if let setting = nativeSetting, setting.isFresh { return setting.configuration.target }
         guard let incompleteObservation, incompleteObservation.isFresh(at: Date()) else { return nil }
         return incompleteObservation.currentTarget
+    }
+    /// The limit macOS reports right now from a fresh stored setting (100 when the limit is off), nil when unknown.
+    var reportedLimit: Int? {
+        guard let setting = nativeSetting, setting.isFresh else { return nil }
+        return Self.limit(setting.configuration)
+    }
+    /// The limit a configuration means: an enabled target, or 100 when the limit is off.
+    static func limit(_ configuration: NativeChargeConfiguration) -> Int {
+        configuration.enabled ? configuration.target : NativeChargeAdmission.unlimitedTarget
     }
     /// Reader age can be checked; the diagnostic source's own freshness is unknown.
     var diagnosticStoredTarget: Int? {
@@ -157,9 +174,18 @@ enum NativeChargeServiceError: Error, LocalizedError {
     private var qualificationBaseline: NativeChargeSnapshot?
     private let verificationAttempts: Int
     private let verificationDelay: Duration
+    private let operationTimeout: Duration
     private let environment: String
     private var journal: NativeChargeJournal?
-    private var journalInvalid = false
+    /// A session file that cannot be used (unreadable, v1, another contract or Mac). It is never acted on: kept in place
+    /// until a settled clear read or the next apply, then set aside under a new name with its bytes intact.
+    @Published private(set) var unreadableJournal = false
+    /// A write whose outcome is unknown (or an unusable session file) is on disk. It blocks nothing and closes itself.
+    var hasUnresolvedSession: Bool { journal != nil || unreadableJournal }
+    /// The background refresh's own read: it never counts as a pending operation in the presentation (no flicker).
+    private var isRefreshing = false
+    /// The longest a native apply can take (gate deadline plus the readback budget), for the model's waits.
+    var maximumOperationDuration: Duration { operationTimeout + verificationDelay * verificationAttempts + .seconds(2) }
     private var batteryPercent: Int?
     private var batteryFresh = false
     private var reviewReason: NativeChargePresentation.Attention?
@@ -196,12 +222,15 @@ enum NativeChargeServiceError: Error, LocalizedError {
 
     func presentation(at date: Date = Date()) -> NativeChargePresentation {
         let preference = nativeSetting.flatMap { $0.isFresh(at: date) ? $0.configuration : nil }
+        // The background refresh's own read keeps the last reading and the state it showed: no status line or height
+        // change on every poll. Writes, validation, the reads inside an apply and a read past its deadline still count.
+        let backgroundRead = isRefreshing && operationGate.pendingPurpose == .read && !operationGate.timedOut
         let policy = observed.flatMap { $0.isFresh(at: date) && $0.policyMatches && !recoveryRequired
-            && !operationGate.pending ? $0.configuration : nil }
+            && (!operationGate.pending || backgroundRead) ? $0.configuration : nil }
         let attention: NativeChargePresentation.Attention
         if let reviewReason { attention = reviewReason }
-        else if recoveryRequired || journalInvalid { attention = .sessionReview }
-        else if operationGate.pending || isBusy || isQualifying { attention = .operationPending }
+        else if recoveryRequired { attention = .sessionReview }
+        else if (operationGate.pending && !backgroundRead) || (isBusy && !isRefreshing) || isQualifying { attention = .operationPending }
         else if restorationPending { attention = .restorationPending }
         else if pendingTarget != nil { attention = .lowerTargetPending }
         else if policy == nil { attention = .policyUnconfirmed }
@@ -210,25 +239,35 @@ enum NativeChargeServiceError: Error, LocalizedError {
                      hasOwnership: hasOwnedSettings, pendingTarget: pendingTarget,
                      restorationTarget: restorationPending ? journal?.baseline.target : nil, attention: attention,
                      hasRecordedMutation: journal?.expectedMutation != nil,
-                     hasSavedAction: journal.map { [.pendingTarget, .preparing, .restoring, .restorationPending].contains($0.phase) } ?? false)
+                     hasSavedAction: journal.map { [.pendingTarget, .preparing, .restoring, .restorationPending].contains($0.phase) } ?? false,
+                     pendingTimedOut: operationGate.pending && operationGate.timedOut)
     }
 
     var isMonitoringOnly: Bool { monitoringOnly }
-    var hasOwnedSettings: Bool { journal?.hasWritten == true }
+    /// A scoped (v2) session owns nothing: a confirmed limit is the user's macOS setting and an unconfirmed one closes itself.
+    /// Only the legacy fixture session still owns what it wrote.
+    var hasOwnedSettings: Bool { journal?.hasWritten == true && journal?.version != 2 }
     private var scopedAuthority: Bool { !trustedFixtureAuthority }
     var authorizedPersistentTargets: [Int] {
         guard !monitoringOnly else { return [] }
         return trustedFixtureAuthority ? acceptedTargets : admissionScope?.authorizedPersistentTargets ?? []
     }
+    /// A stored state a user write may start from: an authorized target, a valid state and the offered list. The registry
+    /// is deliberately not required (on AC both rows follow a write, so the write is what clears a two-row conflict).
     private func isAuthorizedPersistentState(_ value: NativeChargeSnapshot) -> Bool {
         guard let scope = admissionScope, scope.environment == environment,
               scope.authorizedPersistentTargets.contains(value.configuration.target) else { return false }
-        return NativeChargeAdmission.isPersistent(value, target: value.configuration.target, optimizedCharging: scope.optimizedCharging)
+        return NativeChargeAdmission.isValidState(value.configuration) && NativeChargeAdmission.validOfferedTargets(value.supportedTargets)
     }
     var isAvailable: Bool {
-        guard !operationGate.pending, admitted, !monitoringOnly, !journalInvalid,
-              let observed, observed.isFresh, observed.policyMatches else { return false }
-        return trustedFixtureAuthority || isAuthorizedPersistentState(observed)
+        guard !operationGate.pending, admitted, !monitoringOnly else { return false }
+        if trustedFixtureAuthority {
+            guard !unreadableJournal, let observed, observed.isFresh, observed.policyMatches else { return false }
+            return true
+        }
+        // The slider works from what macOS stores (as System Settings does); the readback after a write decides.
+        guard let setting = nativeSetting, setting.isFresh else { return false }
+        return NativeChargeAdmission.isValidState(setting.configuration) && NativeChargeAdmission.validOfferedTargets(setting.supportedTargets)
     }
     var canApply: Bool { isAvailable && !isBusy && !isQualifying && !recoveryRequired && !restorationPending }
     func canApplyTarget(_ target: Int) -> Bool { canApply && acceptedTargets.contains(target) && authorizedPersistentTargets.contains(target) }
@@ -236,14 +275,14 @@ enum NativeChargeServiceError: Error, LocalizedError {
     /// lapsed freshness window). Controls take their look from this so they never blink while a limit is being applied; the
     /// tap itself is still gated by `canApplyTarget`.
     func offersTarget(_ target: Int) -> Bool {
-        admitted && !monitoringOnly && !journalInvalid && !recoveryRequired && !restorationPending
+        admitted && !monitoringOnly && !recoveryRequired && !restorationPending
             && acceptedTargets.contains(target) && authorizedPersistentTargets.contains(target)
     }
     /// Cached state readiness only. qualify() obtains its own fresh battery and
     /// native preflight before granting the two finite transitions.
     var canRequestQualification: Bool {
         guard !monitoringOnly, !isBusy, !operationGate.pending, !isQualifying,
-              journal == nil, !journalInvalid, !recoveryRequired, !restorationPending, pendingTarget == nil,
+              journal == nil, !unreadableJournal, !recoveryRequired, !restorationPending, pendingTarget == nil,
               admissionURL != nil, environment != "unavailable", batteryProvider != nil,
               let value = observed, value.isFresh else { return false }
         return NativeChargeAdmission.persistentTargets.contains(value.configuration.target)
@@ -253,20 +292,24 @@ enum NativeChargeServiceError: Error, LocalizedError {
         guard canApplyTarget(target) else { return false }
         // An explicit lower pending intent still has a distinct cancellation path.
         if pendingTarget != nil { return requestedIntent != .ceiling(target) }
+        // The scoped path compares with what macOS reports (100 is "limit off").
+        if !trustedFixtureAuthority { return reportedLimit.map { $0 != target } ?? true }
         guard let observed else { return true }
         // 100 is "limit off"; every other verified target is an enabled limit.
         return observed.configuration.target != target || observed.configuration.enabled != (target != NativeChargeAdmission.unlimitedTarget)
     }
     var canChargeToFullOnce: Bool { canApplyTarget(100) && fullOnceQualified && trustedFixtureAuthority }
     var isOneShot: Bool { journal?.oneShot == true }
+    /// Fixture-only intents (a waiting target, a one-shot, a legacy owned session). A scoped session journal's last value
+    /// is never shown as an intent: the surfaces show what macOS reports.
     var requestedIntent: ChargeIntent? {
         if isOneShot { return .fullOnce }
         if let pendingTarget { return .ceiling(pendingTarget) }
-        if journal?.hasWritten == true, let target = journal?.lastVerified.target { return .ceiling(target) }
+        if journal?.version == 1, journal?.hasWritten == true, let target = journal?.lastVerified.target { return .ceiling(target) }
         return nil
     }
     var acceptedTargets: [Int] { knownTargets }
-    var interfaceWasDiscovered: Bool { !knownTargets.isEmpty || admitted || journal != nil || journalInvalid }
+    var interfaceWasDiscovered: Bool { !knownTargets.isEmpty || admitted || journal != nil || unreadableJournal }
     var baselineTarget: Int? { journal?.baseline.target }
 
     init(client: any NativeChargeTransport, journalURL: URL, admitted: Bool = false, admissionScope: NativeChargeAdmission.Scope? = nil, monitoringOnly: Bool = false,
@@ -282,31 +325,37 @@ enum NativeChargeServiceError: Error, LocalizedError {
         self.implicitAdmission = implicitAdmission; hasProof = self.admissionScope != nil
         self.batteryProvider = batteryProvider; self.admissionURL = admissionURL
         self.verificationAttempts = max(1, verificationAttempts); self.verificationDelay = verificationDelay; self.environment = environment
+        self.operationTimeout = operationTimeout
         if !monitoringOnly && FileManager.default.fileExists(atPath: journalURL.path) {
             do {
                 let saved = try JSONDecoder().decode(NativeChargeJournal.self, from: Data(contentsOf: journalURL))
                 let trustedLegacy = trustedFixtureAuthority && saved.version == 1 && saved.environment == environment
                     && (80...100).contains(saved.baseline.target) && (80...100).contains(saved.lastVerified.target)
                     && (saved.plannedTarget.map({ (80...100).contains($0) }) ?? true)
-                // A waiting target that never wrote anything leaves nothing to review: the user's macOS setting is untouched
-                // (whatever macOS version wrote the journal).
-                if saved.version == 2, !saved.hasWritten, saved.phase == .pendingTarget {
+                if saved.version == 2, !saved.hasWritten {
+                    // Nothing was dispatched (a waiting target, or a crash before the write-ahead): the user's macOS setting
+                    // is untouched, whatever phase or macOS version wrote the journal. Nothing to review.
                     try FileManager.default.removeItem(at: journalURL)
-                } else {
-                guard trustedLegacy || saved.hasPersistentScope(environment: environment) else { throw NativeChargeServiceError.recoveryRequired }
-                journal = saved; recoveryRequired = true; reviewReason = .sessionReview
-                restorationPending = saved.phase == .restorationPending
-                message = "A previous native charge session needs review. Saved intent was not reapplied."
-                }
+                } else if saved.version == 2, saved.hasPersistentScope(environment: environment) {
+                    // A dispatched write whose outcome is unknown, of any phase or origin. Nothing is owed to its baseline
+                    // (a confirmed limit is the user's own): it blocks nothing and closes at the first settled clear read.
+                    journal = saved; reviewReason = .mutationUnresolved
+                } else if trustedLegacy {
+                    journal = saved; recoveryRequired = true; reviewReason = .sessionReview
+                    restorationPending = saved.phase == .restorationPending
+                    message = "A previous native charge session needs review. Saved intent was not reapplied."
+                } else { throw NativeChargeServiceError.recoveryRequired }
             } catch {
-                journalInvalid = true; recoveryRequired = true; reviewReason = .sessionReview
-                message = "The saved native charge session cannot be read safely. It was preserved."
+                // Unreadable, v1, another contract or another Mac: never acted on, kept in place for now (set aside later).
+                unreadableJournal = true; reviewReason = .mutationUnresolved
             }
         }
         operationGate.onTimeout = { [weak self] purpose in
             guard let self else { return }
             if purpose.isMutation, self.journal != nil {
-                self.journal?.phase = .indeterminate; self.recoveryRequired = true
+                // The outcome is unknown: recorded (status line only on the scoped path, which closes itself later).
+                self.journal?.phase = .indeterminate
+                if self.journal?.version == 1 { self.recoveryRequired = true }
                 self.reviewReason = .mutationUnresolved
                 do { try self.saveJournal() } catch { self.reviewReason = .journalIntegrity }
             }
@@ -329,14 +378,26 @@ enum NativeChargeServiceError: Error, LocalizedError {
         let admission = root.appendingPathComponent("native-charge-validation.json")
         let monitoring = launchPolicy.monitoringOnly
         let reader = NativeChargeBackend()
-        self.init(client: PowerUIChargeClient(), journalURL: root.appendingPathComponent("native-charge-session.json"),
+        // A normal write reads back in one or two reads; six one-second tries bound the wait (an unconfirmed write closes
+        // itself later, the slider keeps working).
+        self.init(client: Self.liveTransport(), journalURL: root.appendingPathComponent("native-charge-session.json"),
                   admissionScope: monitoring ? nil : NativeChargeAdmission.loadScope(from: admission, environment: environment), monitoringOnly: monitoring,
-                  verificationAttempts: 30, verificationDelay: .seconds(2), environment: environment,
+                  verificationAttempts: 6, verificationDelay: .seconds(1), environment: environment,
                   batteryProvider: { await reader.currentObservation() }, admissionURL: admission, implicitAdmission: true)
     }
 
+    /// The live PowerUI client only inside the shipping app bundle (as the OBC transport): a test runner or the Lab Studio
+    /// gets a transport that reads and writes nothing. Explicit `client:` injection is unchanged.
+    static func liveTransport() -> any NativeChargeTransport {
+        #if TILVERO_LAB_STUDIO
+        return UnavailableNativeChargeTransport()
+        #else
+        return Bundle.main.bundleURL.pathExtension == "app" ? PowerUIChargeClient() : UnavailableNativeChargeTransport()
+        #endif
+    }
+
     func qualify() async throws {
-        guard !monitoringOnly, !isBusy, !operationGate.pending, !isQualifying, journal == nil, !journalInvalid,
+        guard !monitoringOnly, !isBusy, !operationGate.pending, !isQualifying, journal == nil, !unreadableJournal,
               !recoveryRequired, !restorationPending, pendingTarget == nil,
               let admissionURL, environment != "unavailable", let batteryProvider else { throw NativeChargeServiceError.unavailable }
         isQualifying = true
@@ -500,45 +561,28 @@ enum NativeChargeServiceError: Error, LocalizedError {
         return saved
     }
 
+    static let registryConflictMessage = "macOS lists two different charge limits. Set the limit once in System Settings › Battery to bring them together."
+    static let policyUnconfirmedMessage = "macOS has not confirmed the active limit yet."
+
     func refresh() async {
         guard !isBusy, !isQualifying, !operationGate.pending else { return }
-        isBusy = true; defer { isBusy = false }
+        isBusy = true; isRefreshing = true; defer { isBusy = false; isRefreshing = false }
         do {
-            let value = try await readNative()
-            rememberNativeSetting(value)
+            let value = try await readNative()   // a fresh read lands in nativeSetting whether or not the registry agrees
             guard value.isFresh && value.policyMatches else {
                 observed = nil
-                message = value.registryConflict
-                    ? "macOS lists two different charge limits. Set the limit once in System Settings › Battery to bring them together."
-                    : "The native policy readback is unavailable or inconsistent. The ownership journal was preserved."
+                message = value.registryConflict ? Self.registryConflictMessage : Self.policyUnconfirmedMessage
                 return
             }
             observed = value
-            if !monitoringOnly, let journal, journal.version == 2,
-               (!NativeChargeAdmission.isPersistent(value, target: value.configuration.target, optimizedCharging: journal.baseline.optimizedCharging)
-                || !NativeChargeAdmission.persistentTargets.contains(value.configuration.target)
-                || value.supportedTargets != journal.baselineSnapshot?.supportedTargets
-                || (journal.expectedMutation == nil && !value.configuration.matchesManual(journal.lastVerified))) {
-                if !journal.hasWritten {
-                    // Nothing was written: a target was only waiting, and the limit has since been changed elsewhere.
-                    // There is nothing to recover, so the waiting target is dropped and the new setting is simply observed.
-                    try? relinquish()
-                    return
-                }
-                recoveryRequired = true
-                message = "The current macOS state is outside the verified persistent session. Its recovery journal was preserved without a write."
+            if message == Self.registryConflictMessage || message == Self.policyUnconfirmedMessage { message = nil }
+            // A session journal (any scoped phase or origin, or an unusable file) only records that a write's outcome was
+            // unknown. The first settled, clear read closes it without any write: that limit is the user's macOS setting.
+            if !monitoringOnly, hasUnresolvedSession, journal?.version != 1, Self.closesSession(value: value, age: journalAge()) {
+                do { try closeSession(); message = nil } catch { markJournalIntegrity() }
                 return
             }
-            // An unconfirmed write of an earlier run (a readback that never agreed, e.g. the two-row registry after a macOS
-            // update) left the journal waiting with no way out. Once macOS reads one clear limit again and it is the
-            // original limit (or, for a user's own change, the confirmed or requested one), the journal is closed without
-            // any write: the macOS setting stays as it is and is the user's setting, as after every confirmed apply.
-            if !monitoringOnly, let journal, Self.closesUnresolvedJournal(journal, value: value, age: journalAge(), admitted: hasProof) {
-                try relinquish()
-                message = nil
-                return
-            }
-            if !monitoringOnly, let journal, journal.version != 2, journal.phase != .preparing && journal.phase != .restoring && journal.phase != .indeterminate,
+            if !monitoringOnly, let journal, journal.version == 1, journal.phase != .preparing && journal.phase != .restoring && journal.phase != .indeterminate,
                !value.configuration.matchesManual(journal.lastVerified) {
                 try relinquish()
                 message = "The macOS charge setting changed outside Tilvero. Control was released without overwriting it."
@@ -546,12 +590,57 @@ enum NativeChargeServiceError: Error, LocalizedError {
         } catch { observed = nil; message = error.localizedDescription }
     }
 
-    func apply(_ target: Int, batteryPercent: Int?, batteryFresh: Bool) async throws {
+    /// `expectedCurrent`: the limit the caller saw (charge-by, charge-once). A different fresh value means System Settings
+    /// changed it: `changedElsewhere`, nothing written.
+    func apply(_ target: Int, batteryPercent: Int?, batteryFresh: Bool, expectedCurrent: Int? = nil) async throws {
         guard !isQualifying else { throw NativeChargeServiceError.busy }
-        try await applyInternal(target, batteryPercent: batteryPercent, batteryFresh: batteryFresh)
+        if trustedFixtureAuthority {
+            try await applyInternal(target, batteryPercent: batteryPercent, batteryFresh: batteryFresh, expectedCurrent: expectedCurrent)
+        } else {
+            try await applyScoped(target, expectedCurrent: expectedCurrent)
+        }
     }
-    private func applyInternal(_ target: Int, batteryPercent: Int?, batteryFresh: Bool) async throws {
-        guard !monitoringOnly, admitted, !journalInvalid else { throw NativeChargeServiceError.unavailable }
+
+    /// The one production write path, exactly what System Settings does: a fresh read, a write-ahead journal, one
+    /// setMCLLimit inside the gate, a bounded readback, then the journal goes (a confirmed limit is the user's own setting).
+    /// No battery reading, no validation run; a level below the charge is set at once. An unconfirmed write leaves an
+    /// indeterminate journal that blocks nothing and closes itself at the first settled clear read.
+    private func applyScoped(_ target: Int, expectedCurrent: Int?) async throws {
+        guard !monitoringOnly, admitted else { throw NativeChargeServiceError.unavailable }
+        guard !isBusy, !operationGate.pending else { throw NativeChargeServiceError.busy }
+        isBusy = true; defer { isBusy = false }
+        let current = try await readNative()
+        observed = current
+        // The registry is not required: on AC both rows follow a write within 1 ms, so the write is what clears a conflict.
+        guard current.isFresh, NativeChargeAdmission.isValidState(current.configuration),
+              NativeChargeAdmission.validOfferedTargets(current.supportedTargets) else { throw NativeChargeServiceError.readbackMismatch }
+        guard current.supportedTargets.contains(target) else { throw NativeChargeServiceError.unsupportedTarget }
+        guard authorizedPersistentTargets.contains(target) else { throw NativeChargeServiceError.unqualifiedTarget }
+        if let expectedCurrent, Self.limit(current.configuration) != expectedCurrent { throw NativeChargeServiceError.changedElsewhere }
+        // A leftover (an earlier write of unknown outcome, or an unusable file) guards nothing: the operation gate has
+        // returned its call, so it is superseded without a write.
+        if hasUnresolvedSession { do { try closeSession() } catch { markJournalIntegrity(); throw error } }
+        if Self.limit(current.configuration) == target { message = nil; return }
+        let transaction = makeTransaction()   // entry: no journal, no bytes
+        journal = makeScopedJournal(baseline: current, plannedTarget: target, qualification: false)
+        transaction.sessionID = journal?.sessionID
+        do {
+            try saveJournal()
+            try await mutate(transaction: transaction, expected: .init(enabled: target != NativeChargeAdmission.unlimitedTarget, target: target,
+                                                                       optimizedCharging: current.configuration.optimizedCharging),
+                             allowBelowCharge: true) {
+                try await self.setNativeLimit(target, transaction: transaction)
+            }
+            // Confirmed: the user's own macOS setting. No baseline is kept to rewrite later.
+            try relinquish(); message = nil
+        } catch {
+            handleFailure(transaction, failure: error)
+            throw error
+        }
+    }
+
+    private func applyInternal(_ target: Int, batteryPercent: Int?, batteryFresh: Bool, expectedCurrent: Int? = nil) async throws {
+        guard !monitoringOnly, admitted, !unreadableJournal else { throw NativeChargeServiceError.unavailable }
         guard !isBusy, !operationGate.pending else { throw NativeChargeServiceError.busy }
         guard !recoveryRequired && !restorationPending else { throw NativeChargeServiceError.recoveryRequired }
         isBusy = true; defer { isBusy = false }
@@ -566,10 +655,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
         observed = current
         guard current.isFresh && current.policyMatches else { throw NativeChargeServiceError.readbackMismatch }
         guard current.supportedTargets.contains(target) else { throw NativeChargeServiceError.unsupportedTarget }
-        if !trustedFixtureAuthority {
-            guard admissionScope?.authorizedPersistentTargets.contains(target) == true else { throw NativeChargeServiceError.unqualifiedTarget }
-            guard isAuthorizedPersistentState(current) else { throw NativeChargeServiceError.readbackMismatch }
-        }
+        if let expectedCurrent, Self.limit(current.configuration) != expectedCurrent { throw NativeChargeServiceError.changedElsewhere }
         if let journal, !current.configuration.matchesManual(journal.lastVerified) {
             try relinquish(); throw NativeChargeServiceError.recoveryRequired
         }
@@ -658,8 +744,15 @@ enum NativeChargeServiceError: Error, LocalizedError {
     }
     private func restoreInternal(batteryPercent: Int?, batteryFresh: Bool) async throws -> Bool {
         guard !isBusy, !operationGate.pending else { throw NativeChargeServiceError.busy }
-        guard !monitoringOnly, (admitted || journal?.hasWritten == true), !journalInvalid else {
-            if journal != nil || journalInvalid { throw NativeChargeServiceError.unavailable }
+        // Nothing is owed to a scoped session's baseline (a confirmed limit is the user's macOS setting) and an unusable
+        // file is never acted on: no write and no refusal; the session closes at the next settled clear read. Only a
+        // validation run's own final restore still writes.
+        if !trustedFixtureAuthority || unreadableJournal || journal?.version == 2 {
+            guard isQualifying, let saved = journal, saved.version == 2 else { return true }
+            return try await restorePersistent(saved, batteryPercent: batteryPercent, batteryFresh: batteryFresh)
+        }
+        guard !monitoringOnly, (admitted || journal?.hasWritten == true) else {
+            if journal != nil { throw NativeChargeServiceError.unavailable }
             return true
         }
         guard let saved = journal else {
@@ -751,8 +844,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
               NativeChargeAdmission.isPersistent(current, target: current.configuration.target, optimizedCharging: saved.baseline.optimizedCharging)
         else { throw NativeChargeServiceError.readbackMismatch }
         if saved.hasWritten, current.configuration.matchesManual(saved.baseline),
-           (saved.expectedMutation != nil || [.indeterminate, .preparing, .restoring].contains(saved.phase)),
-           !Self.closesUnresolvedJournal(saved, value: current, age: journalAge(), admitted: hasProof) {
+           (saved.expectedMutation != nil || [.indeterminate, .preparing, .restoring].contains(saved.phase)) {
             recoveryRequired = true
             message = "An unconfirmed native operation may still take effect. The recovery journal was preserved; no follow-up write was started."
             return false
@@ -825,15 +917,17 @@ enum NativeChargeServiceError: Error, LocalizedError {
                         allowRestoredBaseline: Bool = false, allowBelowCharge: Bool = false,
                         operation: @MainActor () async throws -> Void) async throws {
         guard let saved = journal else { throw NativeChargeServiceError.recoveryRequired }
+        let scoped = saved.version == 2
+        // A user's own write starts from what macOS stores, like System Settings: no registry agreement, no battery reading.
+        let userApply = scoped && allowBelowCharge && !isQualifying
         let before = try await readNative(); observed = before
         // policyMatches needs a clean registry on AC; on battery power the registry is not evidence (see policyMatches).
-        guard before.isFresh, before.policyMatches else {
+        guard before.isFresh, userApply || before.policyMatches else {
             throw NativeChargeServiceError.readbackMismatch
         }
-        let scoped = saved.version == 2
         if scoped {
-            guard saved.hasPersistentScope(environment: environment), before.supportedTargets == saved.baselineSnapshot?.supportedTargets,
-                  NativeChargeAdmission.isPersistent(before, target: before.configuration.target, optimizedCharging: saved.baseline.optimizedCharging),
+            guard saved.hasPersistentScope(environment: environment), NativeChargeAdmission.validOfferedTargets(before.supportedTargets),
+                  userApply || NativeChargeAdmission.isPersistent(before, target: before.configuration.target, optimizedCharging: saved.baseline.optimizedCharging),
                   // Validation pins OBC (its evidence is strict): a changed OBC stops the run before the next stage write;
                   // the final restore of the user's own limit still goes ahead (no proof is recorded then).
                   !isQualifying || saved.phase == .restoring || before.configuration.optimizedCharging == saved.baseline.optimizedCharging,
@@ -852,15 +946,21 @@ enum NativeChargeServiceError: Error, LocalizedError {
         }
         guard before.configuration.matchesManual(saved.lastVerified) else {
             try relinquish()
+            // Changed in System Settings between the reads: that is the user's setting; nothing is written.
+            if userApply { throw NativeChargeServiceError.changedElsewhere }
             message = "An external charge change was preserved before the next operation."
             throw NativeChargeServiceError.recoveryRequired
         }
-        let battery = await batteryProvider?()
-        let fresh = battery?.fresh ?? batteryFresh
-        let percent = battery != nil ? battery!.percent : batteryPercent
-        guard fresh, let percent else { throw NativeChargeServiceError.staleBattery }
+        var percent: Int?
+        if !userApply {
+            let battery = await batteryProvider?()
+            let fresh = battery?.fresh ?? batteryFresh
+            let level = battery != nil ? battery!.percent : batteryPercent
+            guard fresh, let level else { throw NativeChargeServiceError.staleBattery }
+            percent = level
+        }
         // A user's own limit may sit below the charge, as in System Settings; validation and restores keep the guard.
-        if !allowBelowCharge || isQualifying {
+        if let percent, !allowBelowCharge || isQualifying {
             if expected.enabled && expected.target != before.configuration.target && percent > expected.target {
                 throw NativeChargeServiceError.unsafeEnable
             }
@@ -870,7 +970,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
         }
         let recalledBaseline = allowRestoredBaseline && saved.phase == .restoring && !before.configuration.enabled
             && before.configuration.target == 100 && saved.baseline.enabled ? saved.baseline : nil
-        if let recalledBaseline, percent > recalledBaseline.target {
+        if let recalledBaseline, let percent, percent > recalledBaseline.target {
             throw NativeChargeServiceError.unsafeEnable
         }
         // Write-ahead state includes even intermediate enable/disable operations.
@@ -878,19 +978,42 @@ enum NativeChargeServiceError: Error, LocalizedError {
         journal?.expectedMutation = expected; journal?.hasWritten = true; try saveJournal()
         try await operation()
         transaction.mutation = .returnedAwaitingConfiguration(expected)
-        let after = try await readNative(); observed = after
-        let baselineWasRecalled = recalledBaseline.map { after.configuration.matchesManual($0) && after.policyMatches } ?? false
-        guard after.isFresh && (after.configuration.matchesManual(expected) || (permitDisabled100 && after.configuration.target == 100) || baselineWasRecalled) else {
-            throw NativeChargeServiceError.readbackMismatch
-        }
+        let after: NativeChargeSnapshot
         if scoped {
-            guard NativeChargeAdmission.isPersistent(after, target: expected.target, optimizedCharging: saved.baseline.optimizedCharging, strict: isQualifying),
-                  after.supportedTargets == saved.baselineSnapshot?.supportedTargets else { throw NativeChargeServiceError.readbackMismatch }
+            after = try await confirmScopedWrite(expected: expected, baseline: saved.baseline)
+        } else {
+            let value = try await readNative(); observed = value
+            let baselineWasRecalled = recalledBaseline.map { value.configuration.matchesManual($0) && value.policyMatches } ?? false
+            guard value.isFresh && (value.configuration.matchesManual(expected) || (permitDisabled100 && value.configuration.target == 100) || baselineWasRecalled) else {
+                throw NativeChargeServiceError.readbackMismatch
+            }
+            after = value
         }
-        // Setter return and the first fresh matching configuration are separate
-        // proofs. Registration is intentionally verified by the later policy read.
+        // The setter's return and a fresh read of the requested configuration are separate proofs. A scoped write is also
+        // confirmed against the registry (policyMatches) above; the fixture path verifies registration in its later read.
         transaction.mutation = .configurationConfirmed(after.configuration)
         journal?.lastVerified = after.configuration; journal?.expectedMutation = nil; try saveJournal()
+    }
+
+    /// A bounded readback of a scoped write: fresh, the requested configuration, a valid state and the policy confirmed
+    /// (strict registry evidence while validating). A failed read is retried; a hung read (gate) means the outcome is
+    /// unknown. No confirming read leaves the mutation awaiting its configuration (an indeterminate journal).
+    private func confirmScopedWrite(expected: NativeChargeConfiguration, baseline: NativeChargeConfiguration) async throws -> NativeChargeSnapshot {
+        for attempt in 0..<verificationAttempts {
+            do {
+                let value = try await readNative(); observed = value
+                let policyConfirmed = isQualifying
+                    ? NativeChargeAdmission.isPersistent(value, target: expected.target, optimizedCharging: baseline.optimizedCharging, strict: true)
+                    : value.policyMatches
+                if value.isFresh, value.configuration.matchesManual(expected), NativeChargeAdmission.isValidState(value.configuration), policyConfirmed {
+                    return value
+                }
+            } catch let failure as NativeChargeOperationGate.Failure {
+                throw failure
+            } catch {}
+            if attempt + 1 < verificationAttempts { try await Task.sleep(for: verificationDelay) }
+        }
+        throw NativeChargeServiceError.readbackMismatch
     }
 
     private func readNative() async throws -> NativeChargeSnapshot {
@@ -898,6 +1021,9 @@ enum NativeChargeServiceError: Error, LocalizedError {
             let value = try await operationGate.call(purpose: .read) { [client] in try await client.read() }
             if let previous = incompleteObservation, message == previous.localizedDescription { message = nil }
             incompleteObservation = nil
+            // Every successful fresh read is what macOS stores now (and discovers the interface), even when its policy
+            // is not confirmed (a registry conflict): the surfaces show it, confirmation is separate.
+            rememberNativeSetting(value)
             return value
         }
         catch {
@@ -939,7 +1065,10 @@ enum NativeChargeServiceError: Error, LocalizedError {
     }
 
     private func markJournalIntegrity() {
-        recoveryRequired = true; reviewReason = .journalIntegrity; observed = nil
+        // Only the legacy fixture session is blocked by it; a scoped session keeps the slider (the next apply or a settled
+        // clear read retries closing it).
+        if journal?.version == 1 || (journal == nil && trustedFixtureAuthority && !unreadableJournal) { recoveryRequired = true }
+        reviewReason = .journalIntegrity; observed = nil
         message = "The native session journal could not be saved safely. The session needs review."
     }
 
@@ -963,8 +1092,15 @@ enum NativeChargeServiceError: Error, LocalizedError {
                     try FileManager.default.removeItem(at: journalURL)
                 }
                 message = "The native read or preparation failed before any new setting was dispatched."
-                if failure is JournalPersistenceFailure { markJournalIntegrity() }
+                // With no entry journal and nothing dispatched, macOS was not touched and no journal is left: this tap's
+                // error only. A lost entry journal still needs review.
+                if failure is JournalPersistenceFailure {
+                    if transaction.entryJournal != nil { markJournalIntegrity() } else { message = failure.localizedDescription }
+                }
             } catch { markJournalIntegrity() }
+        } else if transaction.allDispatchedConfirmed, journal?.version == 2, journal?.qualification != true {
+            // The configuration was read back: the user's own macOS setting (as after a confirmed apply). Nothing owed.
+            do { try relinquish(); message = nil } catch { markJournalIntegrity() }
         } else if transaction.allDispatchedConfirmed {
             // Owned means a settings/restoration obligation, not current policy.
             // Keep the last *actual* confirmed configuration, including a partial
@@ -984,10 +1120,14 @@ enum NativeChargeServiceError: Error, LocalizedError {
                 if failure is JournalPersistenceFailure { markJournalIntegrity() }
             } catch { markJournalIntegrity() }
         } else {
-            journal?.phase = .indeterminate; recoveryRequired = true; reviewReason = .mutationUnresolved
+            // The outcome is unknown. A scoped session keeps the slider (status line only) and closes itself at the first
+            // settled clear read; only the legacy fixture session is blocked for review.
+            journal?.phase = .indeterminate; reviewReason = .mutationUnresolved
+            if journal?.version != 2 { recoveryRequired = true }
             do {
                 try saveJournal()
-                message = "A dispatched native setting lacks a confirmed outcome. The session needs review."
+                message = journal?.version == 2 ? "macOS has not confirmed the last change yet."
+                    : "A dispatched native setting lacks a confirmed outcome. The session needs review."
             } catch { markJournalIntegrity() }
         }
     }
@@ -997,8 +1137,8 @@ enum NativeChargeServiceError: Error, LocalizedError {
             let value = try await readNative(); observed = value
             if value.isFresh && value.configuration.target == target && (enabled.map { $0 == value.configuration.enabled } ?? true) && value.policyMatches {
                 if let saved = journal, saved.version == 2 {
-                    guard NativeChargeAdmission.isPersistent(value, target: target, optimizedCharging: saved.baseline.optimizedCharging, strict: isQualifying),
-                          value.supportedTargets == saved.baselineSnapshot?.supportedTargets else { throw NativeChargeServiceError.readbackMismatch }
+                    guard NativeChargeAdmission.isPersistent(value, target: target, optimizedCharging: saved.baseline.optimizedCharging, strict: isQualifying)
+                    else { throw NativeChargeServiceError.readbackMismatch }
                 }
                 return value
             }
@@ -1019,29 +1159,44 @@ enum NativeChargeServiceError: Error, LocalizedError {
             try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: journalURL.path)
         } catch { throw JournalPersistenceFailure(underlying: error) }
     }
-    /// How long an unresolved journal waits before a clear read may close it (a write of the same run is never in
+    /// How long a session journal waits before a clear read may close it (a write of the same run is never in
     /// flight then: refresh skips while one is pending; the delay only covers a dispatch from a run that just ended).
     static let unresolvedSettleSeconds: TimeInterval = 60
-    /// Pure, testable: an unresolved v2 journal closes only when the registry agrees and the read is the original
-    /// limit. A user's own change may also close on its confirmed or requested value; a validation run's stage values
-    /// never do (the original limit is still owed). A journal from an older build counts as a user change only while
-    /// validation is complete, since the Validate action is offered only before that.
-    static func closesUnresolvedJournal(_ journal: NativeChargeJournal, value: NativeChargeSnapshot, age: TimeInterval?,
-                                        admitted: Bool) -> Bool {
-        guard journal.version == 2, journal.hasWritten,
-              journal.phase == .indeterminate || journal.expectedMutation != nil,
-              value.isFresh, value.registryAgrees, !value.registryConflict,
-              let age, age >= unresolvedSettleSeconds else { return false }
-        if value.configuration.matchesManual(journal.baseline) { return true }
-        // A restore the user asked for (it targets the baseline, or waits for discharge to reach it) is still owed.
-        let restoreOwed = journal.expectedMutation.map(journal.baseline.matchesManual) == true
-            || journal.phase == .restoring || journal.phase == .restorationPending
-        guard !restoreOwed, journal.qualification == false || (journal.qualification == nil && admitted) else { return false }
-        return value.configuration.matchesManual(journal.lastVerified) || journal.expectedMutation.map(value.configuration.matchesManual) == true
+    /// A session journal (any v2 phase or origin, or an unreadable file) only records that a write's outcome was unknown;
+    /// nothing is owed to its baseline. The first settled, clear read closes it without a write: confirmed the way a write
+    /// is (registry on AC, stored setting on battery), no conflicting rows, a valid state, file at least 60 s old. The value
+    /// read does not matter (baseline, requested, a third value set in System Settings, a validation stage value).
+    static func closesSession(value: NativeChargeSnapshot, age: TimeInterval?) -> Bool {
+        guard let age, age >= unresolvedSettleSeconds else { return false }
+        return value.isFresh && value.policyMatches && !value.registryConflict && NativeChargeAdmission.isValidState(value.configuration)
     }
     private func journalAge() -> TimeInterval? {
         guard let date = (try? FileManager.default.attributesOfItem(atPath: journalURL.path))?[.modificationDate] as? Date else { return nil }
         return Date().timeIntervalSince(date)
+    }
+    /// Closes the leftover session without any write: an unusable file is set aside (bytes kept, never deleted), a session
+    /// journal is removed.
+    private func closeSession() throws {
+        if unreadableJournal {
+            if FileManager.default.fileExists(atPath: journalURL.path) { try setAsideUnreadableJournal() }
+            unreadableJournal = false; reviewReason = nil
+        }
+        if journal != nil { try relinquish() }
+    }
+    /// `<base>.invalid-<yyyyMMdd-HHmmss>.json` in the same folder. A rename keeps the bytes; moveItem never overwrites (a
+    /// name clash gets a UUID suffix). The update probe no longer sees it.
+    private func setAsideUnreadableJournal() throws {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.timeZone = .current
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        let folder = journalURL.deletingLastPathComponent()
+        let base = journalURL.deletingPathExtension().lastPathComponent + ".invalid-" + formatter.string(from: Date())
+        var destination = folder.appendingPathComponent(base + ".json")
+        if FileManager.default.fileExists(atPath: destination.path) {
+            destination = folder.appendingPathComponent(base + "-" + UUID().uuidString + ".json")
+        }
+        try FileManager.default.moveItem(at: journalURL, to: destination)
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: destination.path)
     }
     private func relinquish() throws {
         if FileManager.default.fileExists(atPath: journalURL.path) { try FileManager.default.removeItem(at: journalURL) }

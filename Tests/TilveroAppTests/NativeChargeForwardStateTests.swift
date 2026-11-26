@@ -277,11 +277,23 @@ import PowerCore
             await f.service.refresh()
             await f.client.blockJournal(f.url, after: readsBeforeBlock)
             do { try await f.service.apply(90, batteryPercent: 60, batteryFresh: true); XCTFail("Persistence must fail") } catch {}
-            XCTAssertTrue(f.service.recoveryRequired)
-            XCTAssertEqual(f.service.presentation().attention, .journalIntegrity)
             XCTAssertNil(f.service.presentation().pendingPurpose)
             let writes = await f.client.writes
             XCTAssertEqual(writes, readsBeforeBlock == 1 ? [] : [90])
+            if readsBeforeBlock == 1 {
+                // Nothing dispatched and no entry journal: macOS was not touched and nothing is left, so nothing needs review.
+                XCTAssertFalse(f.service.recoveryRequired)
+                XCTAssertNotEqual(f.service.presentation().attention, .journalIntegrity)
+                XCTAssertFalse(FileManager.default.fileExists(atPath: f.url.path))
+                await f.service.refresh()
+                XCTAssertEqual(f.service.presentation().attention, .none)
+                try await f.service.apply(90, batteryPercent: 60, batteryFresh: true)
+                let later = await f.client.writes
+                XCTAssertEqual(later, [90], "a later apply works")
+            } else {
+                XCTAssertTrue(f.service.recoveryRequired)
+                XCTAssertEqual(f.service.presentation().attention, .journalIntegrity)
+            }
         }
     }
 

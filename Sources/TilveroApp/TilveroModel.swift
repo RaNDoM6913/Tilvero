@@ -72,8 +72,9 @@ final class TilveroModel {
 
     var updateReadiness: UpdateRecoverySnapshot {
         var result = UpdateRecoverySnapshot()
-        result.nativeOwnership = nativeCharge.hasOwnedSettings || nativeCharge.pendingTarget != nil
-        result.nativeRecovery = nativeCharge.recoveryRequired || nativeCharge.restorationPending
+        result.nativeOwnership = nativeCharge.hasOwnedSettings || nativeCharge.pendingTarget != nil   // fixture sessions only
+        // A write whose outcome macOS has not confirmed yet (it closes itself at the first settled clear read).
+        result.nativeRecovery = nativeCharge.hasUnresolvedSession || nativeCharge.recoveryRequired || nativeCharge.restorationPending
         result.helperOwnership = liveControl.hasOwnedSettings || liveControl.connected
         result.helperRecovery = liveControl.recoveryRequired
         result.lidOwnership = closedLid.isOn || closedLid.isLiveTrial || lidSleep.isOn
@@ -722,7 +723,7 @@ final class TilveroModel {
             launchPolicy: isDemo ? .resolve(metadata: [:], arguments: ["--demo"]) : hardwarePolicy)
         if let nativeCharge { self.nativeChargeStorage = nativeCharge }
         else if isDemo {
-            self.nativeChargeStorage = NativeChargeService(client: PowerUIChargeClient(),
+            self.nativeChargeStorage = NativeChargeService(client: NativeChargeService.liveTransport(),
                 journalURL: FileManager.default.temporaryDirectory.appendingPathComponent("TilveroDemo-\(UUID().uuidString)/native-session.json"), monitoringOnly: true)
         } else {
             let storage = historyURL ?? (try? ReleaseIdentity.current().historyURL()) ?? FileManager.default.temporaryDirectory.appendingPathComponent("TilveroUnavailable/History.sqlite")
@@ -1018,7 +1019,8 @@ final class TilveroModel {
     var canEdit: Bool { !controlsAreSuspended && (isDemo ? control != nil : usesNativeCharge || liveControl.canCharge) && !isApplying && !nativeCharge.isBusy && !nativeCharge.isQualifying && !liveControl.isBusy && !isFullChargeOnceRequested }
     var canPerformChargeActions: Bool { isDemo || (usesNativeCharge ? nativeCharge.canApply : liveControl.canCharge) }
     var canReleaseCharge: Bool { isDemo || nativeCharge.hasOwnedSettings || nativeCharge.pendingTarget != nil || nativeCharge.recoveryRequired || liveControl.hasOwnedSettings }
-    var terminationRecoveryMessage: String? { keepAwake.message.map(L10n.text) ?? lidSleep.failure ?? nativeCharge.message.map(L10n.text) ?? liveControl.message.map(L10n.text) }
+    /// Native charging never refuses a quit, so its message is not a termination reason.
+    var terminationRecoveryMessage: String? { keepAwake.message.map(L10n.text) ?? lidSleep.failure ?? liveControl.message.map(L10n.text) }
     var canApply: Bool {
         guard canEdit, let target = draftTarget else { return false }
         if !isDemo && usesNativeCharge && !nativeCharge.needsApply(target: target) { return false }
@@ -1449,11 +1451,13 @@ final class TilveroModel {
         if !draftDirty { discardDraft() }
     }
     func qualifyNativeCharge() { runNative { try await $0.qualify() } }
+    /// A native charge action (runNative) is running: a quit waits for it instead of refusing.
+    private(set) var nativeActionInFlight = false
     private func runNative(_ action: @escaping @MainActor (NativeChargeService) async throws -> Void) {
         guard !isDemo, !isApplying, !controlsAreSuspended else { return }
-        isApplying = true; arbiter.recordManualAction(at: Date()); persistArbiter()
+        isApplying = true; nativeActionInFlight = true; arbiter.recordManualAction(at: Date()); persistArbiter()
         Task {
-            defer { isApplying = false }
+            defer { isApplying = false; nativeActionInFlight = false }
             do {
                 try await action(nativeCharge); draftDirty = false
                 if !nativeCharge.isBusy { await nativeCharge.refresh() }
@@ -1513,17 +1517,19 @@ final class TilveroModel {
         }
         do { try keepAwake.stop() } catch { return false }
         if isDemo { return true }
-        guard !isApplying else { return false }
-        let helperRestored = await liveControl.prepareForTermination()
-        if nativeCharge.hasOwnedSettings || nativeCharge.recoveryRequired || nativeCharge.pendingTarget != nil {
-            do {
-                let restored = try await nativeCharge.restore(batteryPercent: snapshot.chargePercent.value,
-                    batteryFresh: snapshot.chargePercent.availability == .available && snapshot.chargePercent.freshness == .fresh)
-                if helperRestored && restored { notices.clear(.recovery) }
-                return helperRestored && restored
-            } catch { notices.post(L10n.text(error.localizedDescription), from: .recovery); return false }
+        // Native charging never writes the limit at quit, logout or update and never refuses: a confirmed limit is the
+        // user's macOS setting and an unconfirmed one is journaled before dispatch, so it resolves at the next launch.
+        // An ordinary quit waits (bounded) for a native write in flight to read back; a system-initiated one cannot wait.
+        if !systemInitiated {
+            let deadline = ContinuousClock.now.advanced(by: nativeCharge.maximumOperationDuration)
+            while (isApplying && nativeActionInFlight) || nativeCharge.isBusy || nativeCharge.isQualifying {
+                guard ContinuousClock.now < deadline, !Task.isCancelled else { break }
+                do { try await Task.sleep(for: .milliseconds(100)) } catch { break }
+            }
         }
-        return helperRestored
+        // Helper and mode actions keep their rule: they are not interrupted.
+        if isApplying && !nativeActionInFlight { return false }
+        return await liveControl.prepareForTermination()
     }
     func advanceSimulation() { runSimulation { try await $0.advance(seconds: 60) } }
     func saveMode(_ plan: ModePlan) throws {
@@ -1572,12 +1578,11 @@ final class TilveroModel {
                         rows[index].status = .applied
                         rows[index].detail = "Owned settings restored."
                     } else {
-                        // Existing services restore journaled baselines only; no guessed Normal values.
+                        // Existing services restore journaled baselines only; no guessed Normal values. The native limit
+                        // is the user's own macOS setting: Normal never writes it.
                         let helper = try await liveControl.restoreAll()
-                        let native = try await nativeCharge.restore(batteryPercent: snapshot.chargePercent.value,
-                            batteryFresh: snapshot.chargePercent.availability == .available && snapshot.chargePercent.freshness == .fresh)
-                        rows[index].status = helper && native ? .applied : .pending
-                        rows[index].detail = helper && native ? "Owned settings restored." : "Restoration is incomplete. Keep Tilvero open for recovery."
+                        rows[index].status = helper ? .applied : .pending
+                        rows[index].detail = helper ? "Owned settings restored." : "Restoration is incomplete. Keep Tilvero open for recovery."
                     }
                 default: throw PolicyError.unavailable
                 }

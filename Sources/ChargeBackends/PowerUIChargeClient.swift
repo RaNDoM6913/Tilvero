@@ -68,6 +68,15 @@ public protocol NativeChargeTransport: Sendable {
     func setEnabled(_ enabled: Bool) async throws
 }
 
+/// The transport outside the shipping app bundle (a test runner, the Lab Studio): nothing is read and nothing is written,
+/// so no test can ever reach the live PowerUI client.
+public struct UnavailableNativeChargeTransport: NativeChargeTransport {
+    public init() {}
+    public func read() async throws -> NativeChargeSnapshot { throw PolicyError.unavailable }
+    public func setLimit(_ target: Int) async throws { throw PolicyError.unavailable }
+    public func setEnabled(_ enabled: Bool) async throws { throw PolicyError.unavailable }
+}
+
 /// Read-only observations from a failed complete-state read. These values never
 /// describe a writable configuration or a restorable charging baseline.
 public struct NativeChargeReadFailure: Error, LocalizedError, Sendable {

@@ -30,6 +30,23 @@ import PowerCore
         XCTAssertFalse(model.keepAwake.hasOwnedAssertion)
     }
 
+    /// A test runner is no app bundle: a model built without an injected native service never reaches the live PowerUI
+    /// client (no read, no admission, no native editor), even when the panel opens.
+    func testWithoutAnInjectedServiceTheLiveChargeClientIsNeverReached() async {
+        let fixture = ModelInjectionFixture()
+        defer { fixture.cleanup() }
+        XCTAssertTrue(NativeChargeService.liveTransport() is UnavailableNativeChargeTransport)
+        let model = TilveroModel(isDemo: false, launchPolicy: .resolve(metadata: [:]),
+            preferences: fixture.preferences, historyURL: fixture.root.appendingPathComponent("History.sqlite"),
+            snapshotProvider: { .unavailable(reason: "Injection test") }, sideEffects: fixture.sideEffects)
+        defer { model.stop() }
+        await model.refreshNativeCharge()
+        await model.quickPanelWillOpen()
+        XCTAssertFalse(model.nativeCharge.admitted)
+        XCTAssertNil(model.nativeCharge.nativeSetting)
+        XCTAssertFalse(model.usesNativeCharge)
+    }
+
     func testSystemActionsAndRawInspectionAreOwnedByInjectedPorts() async {
         let fixture = ModelInjectionFixture()
         defer { fixture.cleanup() }
