@@ -600,6 +600,55 @@ import PowerCore
         await f.assertWrites(["limit95", "limit100"])
     }
 
+    func testOnBatteryEvenConflictingStaleRowsAreNotEvidenceButOnACTheyStopTheSlider() async throws {
+        let f = ScopeFixture(mode: "batteryConflict"); defer { f.cleanup() }
+        let service = f.makeService(implicit: true)
+        await service.refresh()
+        XCTAssertTrue(service.canApplyTarget(95))
+        try await service.apply(95, batteryPercent: 60, batteryFresh: true)
+        XCTAssertEqual(service.observed?.configuration.target, 95)
+        XCTAssertFalse(service.recoveryRequired)
+        await f.client.setMode("conflict")   // on AC two different rows: no write can be confirmed, the hint shows
+        await service.refresh()
+        XCTAssertFalse(service.canApplyTarget(90))
+        XCTAssertEqual(service.message, "macOS lists two different charge limits. Set the limit once in System Settings › Battery to bring them together.")
+        await f.assertWrites(["limit95"])
+    }
+
+    /// A macOS update changes only the middle of "model / OS / contract": a session journal stays reviewable.
+    func testSessionJournalSurvivesAMacOSUpdateButNotAnotherMac() async throws {
+        let contract = NativeChargeAdmission.semanticContract
+        let before = "Mac17,3 / Version 27.2 (Build 26B123) / \(contract)", after = "Mac17,3 / Version 27.2.1 (Build 26B131) / \(contract)"
+        XCTAssertTrue(NativeChargeAdmission.sameMachine(before, after))
+        XCTAssertFalse(NativeChargeAdmission.sameMachine(before, "Mac16,1 / Version 27.2.1 (Build 26B131) / \(contract)"))
+        XCTAssertFalse(NativeChargeAdmission.sameMachine(before, "Mac17,3 / Version 27.2.1 (Build 26B131) / PowerUI-v3"))
+        XCTAssertFalse(NativeChargeAdmission.sameMachine("scope-fixture", "other-fixture"))
+        let f = ScopeFixture(mode: "postUnknown"); defer { f.cleanup() }
+        do { try await f.service.qualify(); XCTFail("Expected interruption") } catch {}
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: f.journal)) as? [String: Any])
+        json["environment"] = before
+        let moved = try JSONDecoder().decode(NativeChargeJournal.self, from: JSONSerialization.data(withJSONObject: json))
+        XCTAssertTrue(moved.hasPersistentScope(environment: after))
+        XCTAssertFalse(moved.hasPersistentScope(environment: "Mac16,1 / Version 27.2.1 (Build 26B131) / \(contract)"))
+    }
+
+    func testWaitingTargetFromAnyMacOSVersionIsDroppedAtLaunch() async throws {
+        let f = ScopeFixture(); defer { f.cleanup() }
+        try await f.service.qualify()
+        let scope = try XCTUnwrap(NativeChargeAdmission.loadScope(from: f.admission, environment: "scope-fixture"))
+        let service = f.makeService(scope: scope)
+        await service.refresh()
+        await f.client.setMode("battery89")
+        try await service.apply(80, batteryPercent: 89, batteryFresh: true)   // below the charge: a waiting target, nothing written
+        XCTAssertEqual(service.pendingTarget, 80)
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: f.journal)) as? [String: Any])
+        json["environment"] = "an older macOS"
+        try JSONSerialization.data(withJSONObject: json).write(to: f.journal)
+        let reopened = f.makeService(implicit: true)
+        XCTAssertFalse(reopened.recoveryRequired)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: f.journal.path))
+    }
+
     func testLiveInterfaceGrantsNothingWhenATargetIsMissingOrMonitoringOnly() async throws {
         let f = ScopeFixture(mode: "offered"); defer { f.cleanup() }   // macOS offers no 95
         let partial = f.makeService(implicit: true)
@@ -676,15 +725,15 @@ private actor ScopeTransport: NativeChargeTransport {
         }
         let target = mode == "baseline100" ? 100 : mode == "baseline85" || (mode == "externalBefore95" && reads >= 2) ? 85 : target
         // macOS stores 100 as "limit off": disabled, no registered manual limit (mode "baseline100" is an inconsistent enabled 100).
-        let battery = mode == "battery" || mode == "batteryStaleRows"   // on battery power: the setting is stored, nothing is registered
+        let battery = mode == "battery" || mode == "batteryStaleRows" || mode == "batteryConflict"   // on battery power: the setting is stored, nothing is registered
         let off = target == 100 && mode != "baseline100"
         return .init(configuration: .init(enabled: mode != "disabled" && !off, target: target, optimizedCharging: mode != "obc"),
               supportedTargets: mode == "offered" ? [80,85,90,100] : [80,85,90,95,100],
               // "batteryStaleRows": just unplugged, macOS still lists the old 90 rows for a few minutes.
               registeredManualLimit: mode == "batteryStaleRows" ? 90 : mode == "disabled" || mode == "policy" || off || battery ? nil : target,
-              policyReadbackAvailable: mode != "conflict",
+              policyReadbackAvailable: mode != "conflict" && mode != "batteryConflict",
               collectedAt: mode == "stale" ? Date().addingTimeInterval(-100) : Date(), registrationExpected: !battery,
-              registryConflict: mode == "conflict")
+              registryConflict: mode == "conflict" || mode == "batteryConflict")
     }
     func setLimit(_ target: Int) { writes.append("limit\(target)"); self.target = target }
     func setEnabled(_ enabled: Bool) { writes.append(enabled ? "enable" : "disable") }

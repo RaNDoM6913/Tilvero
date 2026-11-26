@@ -18,6 +18,13 @@ struct NativeChargeAdmission: Codable {
     /// separate validation run. Authority comes from the live interface itself: a fresh read through the checked PowerUI
     /// bridge that offers every persistent target and holds a valid persistent state. Every write is still journaled with
     /// its baseline and read back; an unconfirmed write is handled as before (unresolved journal, no guessing).
+    /// The same Mac and charge contract, whatever the macOS version between them ("model / OS / contract"): a session
+    /// journal stays reviewable and restorable across a macOS update. Other formats (fixtures) compare exactly.
+    static func sameMachine(_ a: String, _ b: String) -> Bool {
+        let x = a.components(separatedBy: " / "), y = b.components(separatedBy: " / ")
+        guard x.count == 3, y.count == 3 else { return a == b }
+        return x[0] == y[0] && x[2] == y[2] && !x[0].isEmpty
+    }
     static func discovered(_ value: NativeChargeSnapshot, environment: String) -> Scope? {
         guard value.isFresh, validOfferedTargets(value.supportedTargets), isValidState(value.configuration) else { return nil }
         return Scope(environment: environment, optimizedCharging: value.configuration.optimizedCharging)

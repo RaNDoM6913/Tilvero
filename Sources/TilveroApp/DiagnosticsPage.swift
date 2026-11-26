@@ -177,7 +177,7 @@ private struct DiagnosticsHeading: View {
                 WindowRow(id: "limit", label: L10n.text("Charge limit"),
                           value: DiagnosticsChargeRows.limitText(preference: state.currentPreference.map { ($0.enabled, $0.target) },
                                                                  reported: native.currentReportedTarget ?? manualLimit)),
-                WindowRow(id: "verified", label: L10n.text("Verified (charge limits)"),
+                WindowRow(id: "verified", label: L10n.text(native.admitted && !native.hasValidationProof ? "Available (charge limits)" : "Verified (charge limits)"),
                           value: DiagnosticsChargeRows.verifiedText(native.admitted ? native.authorizedPersistentTargets : []),
                           dim: !native.admitted),
                 WindowRow(id: "settings", label: L10n.text("Charging settings in macOS"), value: "",

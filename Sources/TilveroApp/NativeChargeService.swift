@@ -28,7 +28,7 @@ struct NativeChargeJournal: Codable, Sendable {
     var qualification: Bool?
 
     func hasPersistentScope(environment: String) -> Bool {
-        guard version == 2, self.environment == environment,
+        guard version == 2, NativeChargeAdmission.sameMachine(self.environment, environment),
               semanticContract == NativeChargeAdmission.semanticContract,
               persistentTargets == NativeChargeAdmission.persistentTargets,
               let baselineSnapshot, baselineSnapshot.configuration == baseline,
@@ -130,7 +130,9 @@ enum NativeChargeServiceError: Error, LocalizedError {
     /// Production: the live interface grants the limit. Fixtures keep the explicit validation contract unless they opt in.
     private let implicitAdmission: Bool
     /// A validation proof exists (only that, not the live interface, vouches for a pre-0.8.2 journal of unknown origin).
-    private let hasProof: Bool
+    private var hasProof: Bool
+    /// The limits were proven by a validation run (Diagnostics says «Verified» only then; otherwise «Available»).
+    var hasValidationProof: Bool { hasProof || trustedFixtureAuthority }
     /// Not read yet while the live interface is about to grant the limit: no «Validate» button flashes at launch.
     var awaitingDiscovery: Bool { implicitAdmission && !monitoringOnly && !admitted && nativeSetting == nil }
     private var knownTargets: [Int] = []
@@ -286,11 +288,12 @@ enum NativeChargeServiceError: Error, LocalizedError {
                 let trustedLegacy = trustedFixtureAuthority && saved.version == 1 && saved.environment == environment
                     && (80...100).contains(saved.baseline.target) && (80...100).contains(saved.lastVerified.target)
                     && (saved.plannedTarget.map({ (80...100).contains($0) }) ?? true)
-                guard trustedLegacy || saved.hasPersistentScope(environment: environment) else { throw NativeChargeServiceError.recoveryRequired }
-                // A waiting target that never wrote anything leaves nothing to review: the user's macOS setting is untouched.
+                // A waiting target that never wrote anything leaves nothing to review: the user's macOS setting is untouched
+                // (whatever macOS version wrote the journal).
                 if saved.version == 2, !saved.hasWritten, saved.phase == .pendingTarget {
                     try FileManager.default.removeItem(at: journalURL)
                 } else {
+                guard trustedLegacy || saved.hasPersistentScope(environment: environment) else { throw NativeChargeServiceError.recoveryRequired }
                 journal = saved; recoveryRequired = true; reviewReason = .sessionReview
                 restorationPending = saved.phase == .restorationPending
                 message = "A previous native charge session needs review. Saved intent was not reapplied."
@@ -391,7 +394,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
             let encoded = try JSONEncoder().encode(proof)
             do { try persistAdmission(encoded, to: admissionURL) }
             catch { throw AdmissionPersistenceFailure() }
-            admissionScope = scope; admitted = true
+            admissionScope = scope; admitted = true; hasProof = true
             message = "Persistent 80%, 85%, 90%, 95% and 100% settings and restoration passed on this Mac. Other targets and physical cutoff remain unqualified."
         } catch {
             if !stagesComplete { handleFailure(transaction, failure: error) }
@@ -822,7 +825,8 @@ enum NativeChargeServiceError: Error, LocalizedError {
                         allowRestoredBaseline: Bool = false, operation: @MainActor () async throws -> Void) async throws {
         guard let saved = journal else { throw NativeChargeServiceError.recoveryRequired }
         let before = try await readNative(); observed = before
-        guard before.isFresh, before.policyReadbackAvailable, before.policyMatches else {
+        // policyMatches needs a clean registry on AC; on battery power the registry is not evidence (see policyMatches).
+        guard before.isFresh, before.policyMatches else {
             throw NativeChargeServiceError.readbackMismatch
         }
         let scoped = saved.version == 2

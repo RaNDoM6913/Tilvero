@@ -68,7 +68,8 @@ import ChargeBackends
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            if model.nativeCharge.admitted && model.nativeCharge.authorizedPersistentTargets == NativeChargeAdmission.persistentTargets {
+            if model.nativeCharge.admitted && model.nativeCharge.hasValidationProof
+                && model.nativeCharge.authorizedPersistentTargets == NativeChargeAdmission.persistentTargets {
                 Text(L10n.text("Verified persistent limits: 80%, 85%, 90%, 95% and 100%. Other targets and one-time full charging need separate validation."))
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
