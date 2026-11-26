@@ -4625,22 +4625,6 @@
         }
       }
     },
-    "Native charging control has not completed its local validation.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Native charging control has not completed its local validation."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Локальная проверка нативного управления зарядкой ещё не завершена."
-          }
-        }
-      }
-    },
     "A native charging operation is still in progress.": {
       "localizations": {
         "en": {
@@ -4689,22 +4673,6 @@
         }
       }
     },
-    "Reconcile the previous native charging session before applying another target.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reconcile the previous native charging session before applying another target."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Перед новым лимитом завершите восстановление предыдущего сеанса."
-          }
-        }
-      }
-    },
     "macOS has not independently confirmed the requested charge setting.": {
       "localizations": {
         "en": {
@@ -4749,22 +4717,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Предыдущий сеанс зарядки требует проверки. Сохранённая команда не применялась повторно."
-          }
-        }
-      }
-    },
-    "The saved native charge session cannot be read safely. It was preserved.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The saved native charge session cannot be read safely. It was preserved."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Не удалось безопасно прочитать журнал зарядки. Файл сохранён."
           }
         }
       }
@@ -5821,22 +5773,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Отложенный вызов macOS завершился. Перед новым изменением нужно прочитать и согласовать результат."
-          }
-        }
-      }
-    },
-    "The native policy readback is unavailable or inconsistent. The ownership journal was preserved.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The native policy readback is unavailable or inconsistent. The ownership journal was preserved."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Нативная политика не подтверждена или противоречива. Журнал управления сохранён."
           }
         }
       }
@@ -13937,22 +13873,6 @@
         }
       }
     },
-    "macOS returned an unrecognized charging state. Apply remains unavailable until the native state is confirmed.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "macOS returned an unrecognized charging state. Apply remains unavailable until the native state is confirmed."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "macOS вернула неизвестное состояние зарядки. Применение недоступно, пока состояние не подтверждено."
-          }
-        }
-      }
-    },
     "Native control must be validated on this macOS version before Apply is available.": {
       "localizations": {
         "en": {
@@ -15857,22 +15777,6 @@
         }
       }
     },
-    "This charge target has not completed local validation. Only the verified persistent 80%, 85%, 90%, 95% and 100% targets are authorized.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This charge target has not completed local validation. Only the verified persistent 80%, 85%, 90%, 95% and 100% targets are authorized."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Эта цель заряда не прошла локальную проверку. Разрешены только проверенные цели 80, 85, 90, 95 и 100 %."
-          }
-        }
-      }
-    },
     "Persistent 80%, 85%, 90%, 95% and 100% settings and restoration passed on this Mac. Other targets and physical cutoff remain unqualified.": {
       "localizations": {
         "en": {
@@ -15901,22 +15805,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Тот же лимит, что в настройках macOS «Аккумулятор»: зарядка останавливается на выбранном уровне. Лимит применяется, когда вы отпускаете ползунок."
-          }
-        }
-      }
-    },
-    "100% means no limit. Verified levels: 80%, 85%, 90%, 95% and 100%.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "100% means no limit. Verified levels: 80%, 85%, 90%, 95% and 100%."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "100 % означает «без лимита». Проверены уровни 80, 85, 90, 95 и 100 %."
           }
         }
       }
@@ -21069,6 +20957,582 @@
           "stringUnit": {
             "state": "translated",
             "value": "Уровень ниже текущего заряда ставится сразу, как в Системных настройках: зарядка не идёт, пока заряд выше него."
+          }
+        }
+      }
+    },
+    "macOS has not reported the charge limit yet. Nothing was changed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS has not reported the charge limit yet. Nothing was changed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS ещё не сообщила лимит зарядки. Ничего не изменено."
+          }
+        }
+      }
+    },
+    "This charge limit is not offered by macOS on this Mac.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This charge limit is not offered by macOS on this Mac."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS не предлагает этот лимит зарядки на этом Mac."
+          }
+        }
+      }
+    },
+    "The previous charging session needs review before the limit can change.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The previous charging session needs review before the limit can change."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Прежний сеанс зарядки нужно проверить, прежде чем менять лимит."
+          }
+        }
+      }
+    },
+    "macOS reported an unclear charge limit, so nothing new was confirmed. Try again in a moment.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS reported an unclear charge limit, so nothing new was confirmed. Try again in a moment."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS сообщила неясный лимит зарядки, ничего нового не подтверждено. Попробуйте ещё раз чуть позже."
+          }
+        }
+      }
+    },
+    "The charge limit was changed in System Settings. Nothing was written.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The charge limit was changed in System Settings. Nothing was written."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Лимит зарядки изменён в Системных настройках. Ничего не записано."
+          }
+        }
+      }
+    },
+    "macOS has not confirmed the active limit yet.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS has not confirmed the active limit yet."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS ещё не подтвердила действующий лимит."
+          }
+        }
+      }
+    },
+    "macOS has not confirmed the last change yet.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS has not confirmed the last change yet."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS ещё не подтвердила последнее изменение."
+          }
+        }
+      }
+    },
+    "Wait until macOS confirms the last charge-limit change.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wait until macOS confirms the last charge-limit change."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дождитесь, пока macOS подтвердит последнее изменение лимита зарядки."
+          }
+        }
+      }
+    },
+    "The charge limit has not been read yet.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The charge limit has not been read yet."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Лимит зарядки ещё не прочитан."
+          }
+        }
+      }
+    },
+    "Choose a level above your charge limit.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a level above your charge limit."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выберите уровень выше лимита зарядки."
+          }
+        }
+      }
+    },
+    "Controls are paused for sleep or an update.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Controls are paused for sleep or an update."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Управление приостановлено на время сна или обновления."
+          }
+        }
+      }
+    },
+    "A charge-limit change is still in progress.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A charge-limit change is still in progress."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Изменение лимита зарядки ещё выполняется."
+          }
+        }
+      }
+    },
+    "macOS has not reported the charge limit yet.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS has not reported the charge limit yet."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS ещё не сообщила лимит зарядки."
+          }
+        }
+      }
+    },
+    "Use System Settings › Battery to change this limit.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use System Settings › Battery to change this limit."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Измените этот лимит в Системных настройках › Аккумулятор."
+          }
+        }
+      }
+    },
+    "Charge limit change not confirmed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charge limit change not confirmed"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Изменение лимита не подтверждено"
+          }
+        }
+      }
+    },
+    "100% means no limit. Levels: 80%, 85%, 90%, 95% and 100%, as in System Settings.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "100% means no limit. Levels: 80%, 85%, 90%, 95% and 100%, as in System Settings."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "100 % означает «без лимита». Уровни 80, 85, 90, 95 и 100 %, как в Системных настройках."
+          }
+        }
+      }
+    },
+    "Read from macOS; change it in System Settings › Battery.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Read from macOS; change it in System Settings › Battery."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Прочитано из macOS; изменить можно в Системных настройках › Аккумулятор."
+          }
+        }
+      }
+    },
+    "macOS returned an unrecognized charging state. The limit can be changed again once macOS reports it clearly.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS returned an unrecognized charging state. The limit can be changed again once macOS reports it clearly."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS вернула нераспознанное состояние зарядки. Лимит снова можно будет изменить, когда macOS сообщит его ясно."
+          }
+        }
+      }
+    },
+    "Native charging control is unavailable.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Native charging control is unavailable."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Управление зарядкой macOS недоступно."
+          }
+        }
+      }
+    },
+    "The charging operation was rejected. No setting was confirmed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The charging operation was rejected. No setting was confirmed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Операция зарядки отклонена. Ни одна настройка не подтверждена."
+          }
+        }
+      }
+    },
+    "The native macOS charging client is unavailable.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The native macOS charging client is unavailable."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Клиент зарядки macOS недоступен."
+          }
+        }
+      }
+    },
+    "The native macOS charging interface changed. No setting was written.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The native macOS charging interface changed. No setting was written."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Интерфейс зарядки macOS изменился. Ничего не записано."
+          }
+        }
+      }
+    },
+    "The native macOS charging connection could not be created.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The native macOS charging connection could not be created."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось подключиться к зарядке macOS."
+          }
+        }
+      }
+    },
+    "Native charge limits are not supported on this Mac.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Native charge limits are not supported on this Mac."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Лимиты зарядки macOS не поддерживаются на этом Mac."
+          }
+        }
+      }
+    },
+    "Native target list is invalid.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Native target list is invalid."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Список уровней от macOS некорректен."
+          }
+        }
+      }
+    },
+    "Native charge readback is incomplete or invalid.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Native charge readback is incomplete or invalid."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ответ зарядки macOS неполный или некорректный."
+          }
+        }
+      }
+    },
+    "The native charging interface failed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The native charging interface failed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Интерфейс зарядки macOS дал сбой."
+          }
+        }
+      }
+    },
+    "Unsupported native charge target.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unsupported native charge target."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Этот уровень зарядки не поддерживается."
+          }
+        }
+      }
+    },
+    "Choose a target offered by this Mac.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a target offered by this Mac."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выберите уровень, доступный на этом Mac."
+          }
+        }
+      }
+    },
+    "The native charging operation failed; readback is required.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The native charging operation failed; readback is required."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Операция зарядки macOS не удалась; нужна повторная проверка."
+          }
+        }
+      }
+    },
+    "macOS Optimized Battery Charging is unavailable.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS Optimized Battery Charging is unavailable."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оптимизированная зарядка macOS недоступна."
+          }
+        }
+      }
+    },
+    "The macOS Optimized Battery Charging interface changed. No setting was written.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The macOS Optimized Battery Charging interface changed. No setting was written."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Интерфейс оптимизированной зарядки macOS изменился. Ничего не записано."
+          }
+        }
+      }
+    },
+    "The macOS Optimized Battery Charging connection could not be created.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The macOS Optimized Battery Charging connection could not be created."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось подключиться к оптимизированной зарядке macOS."
+          }
+        }
+      }
+    },
+    "Optimized Battery Charging readback is invalid.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Optimized Battery Charging readback is invalid."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ответ оптимизированной зарядки некорректный."
+          }
+        }
+      }
+    },
+    "The Optimized Battery Charging interface failed.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Optimized Battery Charging interface failed."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Интерфейс оптимизированной зарядки дал сбой."
+          }
+        }
+      }
+    },
+    "The Optimized Battery Charging operation failed; readback is required.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Optimized Battery Charging operation failed; readback is required."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Операция оптимизированной зарядки не удалась; нужна повторная проверка."
           }
         }
       }

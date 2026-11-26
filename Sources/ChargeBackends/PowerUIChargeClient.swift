@@ -108,7 +108,7 @@ public struct NativeChargeReadFailure: Error, LocalizedError, Sendable {
         return currentTarget != nil && age >= -5 && age <= 65
     }
     public var errorDescription: String? {
-        "macOS returned an unrecognized charging state. Apply remains unavailable until the native state is confirmed."
+        "macOS returned an unrecognized charging state. The limit can be changed again once macOS reports it clearly."
     }
 }
 
@@ -165,18 +165,23 @@ public actor PowerUIChargeClient: NativeChargeTransport {
               let optimized = raw["optimizedCharging"] as? Bool, let targets = raw["targets"] as? [Int],
               (80...100).contains(target), targets == targets.sorted(), Set(targets).count == targets.count,
               !targets.isEmpty, targets.allSatisfy({ (80...100).contains($0) }) else { throw PolicyError.readbackMismatch }
+        // The power source is sampled on both sides of the pmset run: a read that spans a plug or unplug is not registry
+        // evidence (as on battery power).
+        let acBefore = Self.runsOnExternalPower()
         let limits = Self.policyReadback()
+        let acAfter = Self.runsOnExternalPower()
         return .init(configuration: .init(enabled: enabled, target: target, optimizedCharging: optimized), supportedTargets: targets,
                      registeredManualLimit: limits?.manualLimit,
                      policyReadbackAvailable: limits != nil && limits?.manualLimitIsConflicting == false,
-                     registrationExpected: Self.runsOnExternalPower(), registryConflict: limits?.manualLimitIsConflicting == true)
+                     registrationExpected: acBefore && acAfter, registryConflict: limits?.manualLimitIsConflicting == true)
     }
     /// The registry readback of every native read: always a fresh `pmset -g battlimit` run, never the shared answer (this
     /// read is also every readback around a native write). The answer is recorded for the read-only observation of the
     /// same poll cycle; a failed run forgets the previous one.
     static func policyReadback(readings: BatteryLimitReadings = .shared, query: () throws -> String = BatteryLimitReadings.query) -> SystemChargeLimits? {
+        let generation = readings.generation   // a write that invalidates meanwhile makes this answer too old to share
         guard let output = try? query() else { readings.invalidate(); return nil }
-        readings.record(output)
+        readings.record(output, ifGeneration: generation)
         return try? SystemChargeLimitParser.parse(output)
     }
     public func setLimit(_ target: Int) async throws {
