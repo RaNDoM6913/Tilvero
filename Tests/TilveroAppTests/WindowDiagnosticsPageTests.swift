@@ -103,16 +103,16 @@ import PowerPersistence
         XCTAssertEqual(DiagnosticsSummary.lidValueKey(isOn: true, needsRecovery: true, systemSleepDisabled: true), "Needs restoring")
     }
 
-    /// The charge tile reads as rows: a missing reading is «—», verified levels read as a range or a list, none = not checked.
+    /// The charge tile reads as rows: a missing reading is «—», available levels read as a range or a list, none = «—».
     func testChargeRowValues() {
         XCTAssertEqual(DiagnosticsChargeRows.limitText(preference: nil, reported: nil), "—", "nothing read is «—», never a guess")
-        XCTAssertEqual(DiagnosticsChargeRows.limitText(preference: (false, 80), reported: nil), L10n.text("System managed"))
+        XCTAssertEqual(DiagnosticsChargeRows.limitText(preference: (false, 80), reported: nil), DiagnosticsChargeRows.percent(100), "limit off reads as 100 %")
         XCTAssertEqual(DiagnosticsChargeRows.limitText(preference: nil, reported: 90), DiagnosticsChargeRows.percent(90))
         XCTAssertEqual(DiagnosticsChargeRows.verifiedText([100, 80, 85, 90, 95]), "80–" + DiagnosticsChargeRows.percent(100))
         XCTAssertEqual(DiagnosticsChargeRows.verifiedText([80, 95]),
                        [80, 95].map(DiagnosticsChargeRows.percent).joined(separator: ", "), "a gap is a list, not a range")
         XCTAssertEqual(DiagnosticsChargeRows.verifiedText([85]), DiagnosticsChargeRows.percent(85))
-        XCTAssertEqual(DiagnosticsChargeRows.verifiedText([]), L10n.text("Not checked (charge limits)"))
+        XCTAssertEqual(DiagnosticsChargeRows.verifiedText([]), "—")
     }
 
     /// The page shows no developer tools (raw property read, running copy path) and no unconditional refresh buttons.

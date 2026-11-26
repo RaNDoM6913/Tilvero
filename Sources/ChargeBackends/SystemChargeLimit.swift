@@ -51,25 +51,37 @@ public enum SystemChargeLimitParser {
 public struct SystemChargeLimitObservation: Codable, Sendable, Equatable {
     public let collectedAt: Date
     public let limits: SystemChargeLimits?
+    /// Whether the Mac ran on an adapter when this was observed; nil when unknown (older encodings). On battery power
+    /// macOS keeps listing the old rows for minutes, so they are not evidence of the current limit then.
+    public let readOnExternalPower: Bool?
     public static let source = "pmset -g battlimit (read-only)"
-    public init(collectedAt: Date = Date(), limits: SystemChargeLimits?) {
-        self.collectedAt = collectedAt; self.limits = limits
+    public init(collectedAt: Date = Date(), limits: SystemChargeLimits?, readOnExternalPower: Bool? = nil) {
+        self.collectedAt = collectedAt; self.limits = limits; self.readOnExternalPower = readOnExternalPower
     }
     public func isFresh(at now: Date = Date()) -> Bool {
         let age = now.timeIntervalSince(collectedAt)
         return limits != nil && age >= -5 && age <= 65
     }
+    /// The registered manual limit as evidence of the macOS limit: fresh, read on AC, one row. Nil otherwise (the same
+    /// rule as `NativeChargeSnapshot.policyMatches`: on battery power the registry is not evidence).
+    public func evidentManualLimit(at now: Date = Date()) -> Int? {
+        guard isFresh(at: now), readOnExternalPower == true, let limits, !limits.manualLimitIsConflicting else { return nil }
+        return limits.manualLimit
+    }
     /// Reuses an answer the native charge read got within the last few seconds (the same command, read in the same poll
     /// cycle); otherwise runs `pmset -g battlimit` itself and records it. The observation keeps the original read time.
     public static func read(readings: BatteryLimitReadings = .shared, maximumAge: TimeInterval = BatteryLimitReadings.reuseWindow,
                             query: () throws -> String = BatteryLimitReadings.query) -> Self {
+        // A reused answer is at most a few seconds old: the power state sampled now stands for it.
+        let external = PowerUIChargeClient.runsOnExternalPower()
         if let recent = readings.recent(maximumAge: maximumAge) {
-            return .init(collectedAt: recent.collectedAt, limits: try? SystemChargeLimitParser.parse(recent.output))
+            return .init(collectedAt: recent.collectedAt, limits: try? SystemChargeLimitParser.parse(recent.output), readOnExternalPower: external)
         }
         let collectedAt = Date()
-        guard let output = try? query() else { readings.invalidate(); return .init(collectedAt: collectedAt, limits: nil) }
+        guard let output = try? query() else { readings.invalidate(); return .init(collectedAt: collectedAt, limits: nil, readOnExternalPower: external) }
         readings.record(output, collectedAt: collectedAt)
-        return .init(collectedAt: collectedAt, limits: try? SystemChargeLimitParser.parse(output))
+        return .init(collectedAt: collectedAt, limits: try? SystemChargeLimitParser.parse(output),
+                     readOnExternalPower: external && PowerUIChargeClient.runsOnExternalPower())
     }
 }
 

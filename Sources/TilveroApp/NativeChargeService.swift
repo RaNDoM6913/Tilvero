@@ -224,7 +224,9 @@ enum NativeChargeServiceError: Error, LocalizedError {
         let preference = nativeSetting.flatMap { $0.isFresh(at: date) ? $0.configuration : nil }
         // The background refresh's own read keeps the last reading and the state it showed: no status line or height
         // change on every poll. Writes, validation, the reads inside an apply and a read past its deadline still count.
+        // The very first read (nothing known yet) still shows its progress.
         let backgroundRead = isRefreshing && operationGate.pendingPurpose == .read && !operationGate.timedOut
+            && (nativeSetting != nil || observed != nil || incompleteObservation != nil)
         let policy = observed.flatMap { $0.isFresh(at: date) && $0.policyMatches && !recoveryRequired
             && (!operationGate.pending || backgroundRead) ? $0.configuration : nil }
         let attention: NativeChargePresentation.Attention

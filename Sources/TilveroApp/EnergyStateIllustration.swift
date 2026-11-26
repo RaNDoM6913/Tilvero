@@ -273,11 +273,8 @@ struct PowerHeadlineReading {
             .help(L10n.text("macOS manages this setting independently of Tilvero."))
     }
     private var limitText: String? {
-        if let setting = model.nativeCharge.nativeSetting, setting.isFresh {
-            return setting.configuration.enabled ? "\(setting.configuration.target)%" : L10n.text("System managed")
-        }
-        if let observation = model.systemChargeLimit, observation.isFresh(), let limits = observation.limits,
-           !limits.manualLimitIsConflicting, let limit = limits.manualLimit { return "\(limit)%" }
-        return nil
+        if let text = ChargeLimitKit.text(model.nativeCharge.nativeSetting.flatMap { $0.isFresh ? $0.configuration : nil }) { return text }
+        if let reported = model.nativeCharge.currentReportedTarget { return ChargeLimitKit.percent(reported) }
+        return model.systemChargeLimit?.evidentManualLimit().map { ChargeLimitKit.percent($0) }
     }
 }

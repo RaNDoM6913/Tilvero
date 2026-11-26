@@ -115,8 +115,8 @@ private actor MemoryChargeTransport: NativeChargeTransport {
     func testEditorModes() {
         typealias E = Editor
         XCTAssertEqual(E.mode(isDemo: false, usesNativeCharge: true, canShowControls: true, hasTargets: true), .slider)
-        XCTAssertEqual(E.mode(isDemo: false, usesNativeCharge: true, canShowControls: false, hasTargets: false), .validate,
-                       "not validated: the validation entry instead of the slider")
+        XCTAssertEqual(E.mode(isDemo: false, usesNativeCharge: true, canShowControls: false, hasTargets: false), .unavailable,
+                       "found but not changeable now: the reported value, read-only")
         XCTAssertEqual(E.mode(isDemo: false, usesNativeCharge: false, canShowControls: true, hasTargets: true), .readOnly,
                        "no native control or monitoring only: no control")
         XCTAssertEqual(E.mode(isDemo: true, usesNativeCharge: false, canShowControls: true, hasTargets: true), .slider, "DEMO acts on the simulation")
@@ -127,8 +127,9 @@ private actor MemoryChargeTransport: NativeChargeTransport {
         typealias E = Editor
         let held = NativeChargeConfiguration(enabled: true, target: 90, optimizedCharging: false)
         let off = NativeChargeConfiguration(enabled: false, target: 100, optimizedCharging: false)
+        // The draft is a DEMO-only source (the native path shows what macOS reports: see the model test below).
         XCTAssertEqual(E.shown(chosen: 85, draft: 95, preference: held), 85, "the user's own choice wins while it is applied")
-        XCTAssertEqual(E.shown(chosen: nil, draft: 95, preference: held), 95)
+        XCTAssertEqual(E.shown(chosen: nil, draft: 95, preference: held), 95, "DEMO: the simulation's draft")
         XCTAssertEqual(E.shown(chosen: nil, draft: nil, preference: held), 90)
         XCTAssertEqual(E.shown(chosen: nil, draft: nil, preference: off), 100, "limit off reads as 100")
         XCTAssertNil(E.shown(chosen: nil, draft: nil, preference: nil))
@@ -144,8 +145,13 @@ private actor MemoryChargeTransport: NativeChargeTransport {
         XCTAssertEqual(E.pendingText(pendingTarget: 80, language: "en")?.contains("80%"), true)
         XCTAssertEqual(E.percent(80, language: "ru"), "80 %")
         XCTAssertEqual(E.percent(80, language: "en"), "80%")
-        XCTAssertTrue(E.needsPowerForValidation(admitted: false, onBattery: true))
-        XCTAssertFalse(E.needsPowerForValidation(admitted: true, onBattery: true))
+        XCTAssertEqual(E.text(off, language: "ru"), "100 %", "limit off reads as 100 %")
+        XCTAssertEqual(E.text(held, language: "en"), "90%")
+        XCTAssertEqual(E.text(.init(enabled: false, target: 80, optimizedCharging: true), language: "en"), "100%", "disabled+80 shows 100")
+        XCTAssertNil(E.text(nil))
+        XCTAssertTrue(E.showsOptimizedSwitch(isDemo: false, optimizedAvailable: true), "independent of the limit")
+        XCTAssertFalse(E.showsOptimizedSwitch(isDemo: false, optimizedAvailable: false))
+        XCTAssertFalse(E.showsOptimizedSwitch(isDemo: true, optimizedAvailable: true))
     }
 
     // MARK: Composition
@@ -214,7 +220,7 @@ private actor MemoryChargeTransport: NativeChargeTransport {
         let held = NativeChargeConfiguration(enabled: true, target: 80, optimizedCharging: false)
         let off = NativeChargeConfiguration(enabled: false, target: 100, optimizedCharging: false)
         XCTAssertEqual(ChargingComposition.macOSLimitText(native: held, systemManual: 90, language: "ru"), "80 %")
-        XCTAssertEqual(ChargingComposition.macOSLimitText(native: off, systemManual: nil, language: "ru"), L10n.text("System managed"))
+        XCTAssertEqual(ChargingComposition.macOSLimitText(native: off, systemManual: nil, language: "ru"), "100 %")
         XCTAssertEqual(ChargingComposition.macOSLimitText(native: nil, systemManual: 85, language: "en"), "85%")
         XCTAssertEqual(ChargingComposition.macOSLimitText(native: nil, systemManual: nil), "—")
         XCTAssertEqual(ChargingComposition.onOff(nil), "—")
@@ -317,7 +323,7 @@ private actor MemoryChargeTransport: NativeChargeTransport {
 
         let unvalidated = try await ChargingFixture.make(admitted: false)
         defer { unvalidated.cleanup() }
-        XCTAssertEqual(Editor.mode(unvalidated.model), .validate)
+        XCTAssertEqual(Editor.mode(unvalidated.model), .unavailable)
 
         // Monitoring only: no control, the macOS limit as a read-only row.
         let monitoring = try await ChargingFixture.make(monitoringOnly: true)

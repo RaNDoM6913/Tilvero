@@ -174,3 +174,70 @@ extension NativeChargeModelIntegrationTests {
         await f.assertWrites(["limit100"])
     }
 }
+
+// MARK: Surfaces show what macOS reports (A5)
+
+extension NativeChargeModelIntegrationTests {
+    func testTheEditorShowsWhatMacOSReportsNeverTheDraft() async throws {
+        let f = ScopeFixture(); defer { f.cleanup() }
+        let service = f.makeService(implicit: true)
+        let (model, suite) = f.makeModel(service, percent: 60, charging: true, externalPower: true)
+        defer { model.stop(); TestDefaults.remove(suite) }
+        await model.refreshNativeCharge()
+        model.setDraft(95)
+        XCTAssertEqual(ChargeLimitKit.shown(chosen: nil, model: model), 90, "macOS's value, not the lingering draft")
+        XCTAssertEqual(ChargeLimitKit.shown(chosen: 85, model: model), 85, "the slider's own choice while it is applied")
+        // An unresolved session never makes the readout show the journal's value.
+        await f.client.setMode("conflict")
+        do { try await service.apply(85, batteryPercent: nil, batteryFresh: false); XCTFail("unconfirmed") } catch {}
+        await f.client.setMode("")
+        await f.client.external(target: 95)   // System Settings
+        await model.refreshNativeCharge()
+        XCTAssertEqual(model.draftTarget, 95)
+        XCTAssertEqual(ChargeLimitKit.shown(chosen: nil, model: model), 95)
+        await f.assertWrites(["limit85"])
+    }
+
+    func testARefusedReleaseResetsTheDraftAndSaysWhyWithoutAWrite() async throws {
+        let f = ScopeFixture(initialTarget: 80); defer { f.cleanup() }
+        let service = f.makeService(implicit: true)
+        let (model, suite) = f.makeModel(service, percent: 60, charging: true, externalPower: true)
+        defer { model.stop(); TestDefaults.remove(suite) }
+        await model.refreshNativeCharge()
+        await f.client.setMode("disabled")   // macOS's temporary "charge to full": disabled with a target
+        await model.refreshNativeCharge()
+        XCTAssertEqual(ChargeLimitKit.shown(chosen: nil, model: model), 100, "disabled+80 shows 100")
+        XCTAssertEqual(model.draftTarget, 100)
+        model.releaseChargeLimit(at: 85)
+        try await Task.sleep(for: .milliseconds(20))
+        XCTAssertEqual(model.draftTarget, 100, "the thumb returns to what macOS reports")
+        XCTAssertEqual(model.notice, L10n.text("Use System Settings › Battery to change this limit."))
+        await f.assertWrites([])
+    }
+
+    func testAReleaseThatCanApplyWritesOnce() async throws {
+        let f = ScopeFixture(); defer { f.cleanup() }
+        let service = f.makeService(implicit: true)
+        let (model, suite) = f.makeModel(service, percent: 60, charging: true, externalPower: true)
+        defer { model.stop(); TestDefaults.remove(suite) }
+        await model.refreshNativeCharge()
+        model.releaseChargeLimit(at: 85)
+        try await settle(model)
+        XCTAssertEqual(service.reportedLimit, 85)
+        XCTAssertEqual(model.draftTarget, 85)
+        await f.assertWrites(["limit85"])
+    }
+
+    func testTheRegistryIsEvidenceOfTheLimitOnlyOnAC() throws {
+        func decode(_ json: String) throws -> SystemChargeLimits { try JSONDecoder().decode(SystemChargeLimits.self, from: Data(json.utf8)) }
+        let limits = try decode(#"{"manualLimit":85,"otherLimits":[],"manualLimitIsConflicting":false}"#)
+        XCTAssertEqual(SystemChargeLimitObservation(limits: limits, readOnExternalPower: true).evidentManualLimit(), 85)
+        XCTAssertNil(SystemChargeLimitObservation(limits: limits, readOnExternalPower: false).evidentManualLimit(), "battery: stale rows")
+        XCTAssertNil(SystemChargeLimitObservation(limits: limits).evidentManualLimit(), "unknown power state")
+        XCTAssertNil(SystemChargeLimitObservation(collectedAt: Date().addingTimeInterval(-100), limits: limits, readOnExternalPower: true).evidentManualLimit(), "stale")
+        let conflict = try decode(#"{"otherLimits":[],"manualLimitIsConflicting":true}"#)
+        XCTAssertNil(SystemChargeLimitObservation(limits: conflict, readOnExternalPower: true).evidentManualLimit())
+        let old = Data(#"{"collectedAt":0,"limits":{"manualLimit":80,"otherLimits":[],"manualLimitIsConflicting":false}}"#.utf8)
+        XCTAssertNil(try JSONDecoder().decode(SystemChargeLimitObservation.self, from: old).readOnExternalPower, "older encodings decode")
+    }
+}

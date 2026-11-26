@@ -85,12 +85,10 @@ enum ChargingComposition {
                               approximate: magnitude.approximate, state: magnitude.state, masked: magnitude.masked)
     }
 
-    /// The macOS limit as a read-only value: the fresh native setting first, then the registered manual limit;
-    /// «Управляет macOS» when the native limit is off; «—» when nothing fresh is known.
+    /// The macOS limit as a read-only value: the fresh native setting first (100 % when the limit is off), then the
+    /// registered manual limit read on AC; «—» when nothing fresh is known.
     static func macOSLimitText(native: NativeChargeConfiguration?, systemManual: Int?, language: String = L10n.language) -> String {
-        if let native {
-            return native.enabled ? ChargeLimitKit.percent(native.target, language: language) : L10n.text("System managed")
-        }
+        if let text = ChargeLimitKit.text(native, language: language) { return text }
         return systemManual.map { ChargeLimitKit.percent($0, language: language) } ?? "—"
     }
 
@@ -186,13 +184,20 @@ enum ChargingComposition {
             VStack(alignment: .leading, spacing: 12) {
                 switch mode {
                 case .slider: editor(state)
-                case .validate:
-                    header(value: nil, applied: false, state: state)
-                    ChargeLimitValidateButton(model: model)
+                case .unavailable:
+                    // Found, but not changeable by Tilvero right now: what macOS reports, read-only.
+                    header(value: ChargeLimitKit.reported(model), applied: state.currentPreference != nil, state: state)
+                    ChargeLimitUnavailableNote(model: model)
                     statusLine(state)
                     actions
                 case .readOnly: readOnly
                 }
+                // Optimized Charging is its own macOS setting: its switch is drawn in every mode.
+                if ChargeLimitKit.showsOptimizedSwitch(isDemo: model.isDemo, optimizedAvailable: model.optimizedCharging.isAvailable) {
+                    Divider()
+                    OptimizedChargingRow(service: model.optimizedCharging, showsHold: true, locked: model.nativeCharge.isQualifying)
+                }
+                if !model.isDemo, mode != .readOnly { ChargeByBlock(model: model, service: model.chargeBy) }
             }
         }
         .task {
@@ -248,12 +253,13 @@ enum ChargingComposition {
             .accessibilityElement(children: .combine)
         }
         ChargeLimitLevelSlider(model: model, targets: ChargeLimitKit.targets(model), chosen: $chosen)
+            .steadyControl(ChargeLimitKit.sliderLook(model, targets: ChargeLimitKit.targets(model)))
         statusLine(state)
         actions
     }
 
-    /// Charge once and charge by time: shown with the slider and while the levels await validation (as in the quick menu,
-    /// where they stay dimmed until they can start).
+    /// Charge once: shown with the slider and with the read-only native value (as in the quick menu, where it stays
+    /// dimmed until it can start). Charge by time and the Optimized Charging switch follow in the tile body.
     @ViewBuilder private var actions: some View {
         Divider()
         HStack {
@@ -268,20 +274,15 @@ enum ChargingComposition {
             }
             Spacer(minLength: 0)
         }
-        if !model.isDemo, model.canShowChargeControls, model.optimizedCharging.isAvailable {
-            Divider()
-            OptimizedChargingRow(service: model.optimizedCharging, showsHold: true, locked: model.nativeCharge.isQualifying)
-        }
-        if !model.isDemo { ChargeByBlock(model: model, service: model.chargeBy) }
     }
 
     /// The native status line (review, unconfirmed policy); the waiting limit has its own line above and the notice strip
     /// under the lead carries the page-wide notices.
     @ViewBuilder private func statusLine(_ state: NativeChargePresentation) -> some View {
-        if !model.isDemo, state.attention != .operationPending,
+        if !model.isDemo, state.attention != .operationPending || state.pendingTimedOut,
            let status = NativeChargeStatusPanel(model: model, compact: true).statusText(state) {
             Text(L10n.text(status)).font(.callout)
-                .foregroundStyle(state.requiresGlobalAttention ? .orange : .secondary)
+                .foregroundStyle(state.requiresGlobalAttention || state.pendingTimedOut ? .orange : .secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -289,15 +290,13 @@ enum ChargingComposition {
     /// No native control or monitoring only: the macOS limit as a read-only row.
     private var readOnly: some View {
         let native = model.nativeCharge.nativeSetting.flatMap { $0.isFresh ? $0.configuration : nil }
-        let system: Int? = {
-            guard let observation = model.systemChargeLimit, observation.isFresh(), let limits = observation.limits,
-                  !limits.manualLimitIsConflicting else { return nil }
-            return limits.manualLimit
-        }()
+        // The registry rows are evidence only on AC (on battery macOS keeps listing old rows for minutes).
+        let system = model.systemChargeLimit?.evidentManualLimit()
         let text = ChargingComposition.macOSLimitText(native: model.isDemo ? nil : native, systemManual: system)
         return HStack(spacing: 5) {
             Text(L10n.text("macOS charge limit")).font(.headline)
-            ChargeLimitInfoButton()
+            SectionInfoButton(title: L10n.text("macOS charge limit"),
+                              paragraphs: [L10n.text("Read from macOS; change it in System Settings › Battery.")], id: "charge-limit-readonly-info")
             Spacer(minLength: 8)
             Text(text).font(.system(size: 17, weight: .semibold)).monospacedDigit()
                 .foregroundStyle(text == "—" ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.primary))
@@ -438,7 +437,7 @@ enum ChargingComposition {
         let optimized: Bool? = model.isDemo ? nil : model.optimizedChargingEnabled
         let optimizedText = ChargingComposition.onOff(optimized)
         // With its own switch row on this page, Optimized charging is not repeated here as a read-only line.
-        let switchShown = !model.isDemo && model.canShowChargeControls && model.optimizedCharging.isAvailable
+        let switchShown = ChargeLimitKit.showsOptimizedSwitch(isDemo: model.isDemo, optimizedAvailable: model.optimizedCharging.isAvailable)
         VStack(alignment: .leading, spacing: WindowTheme.tileGap) {
             BatterySectionHeading(title: L10n.text("System"))
             WindowRowsTile(rows: (switchShown ? [] : [

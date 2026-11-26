@@ -14,12 +14,12 @@ enum OverviewHeroLimit: Equatable {
     case unconfirmed
     case percent(Int)
 
-    /// A confirmed readback (fresh, policy matches) shows its target while the limit is on and 100 % while it is
-    /// off. Anything else is unconfirmed.
-    static func resolve(usesNativeCharge: Bool, observed: NativeChargeSnapshot?) -> OverviewHeroLimit {
+    /// What macOS reports (the fresh stored setting, as System Settings shows it): its target while the limit is on and
+    /// 100 % while it is off, also during a registry conflict. A dash only when nothing fresh was read.
+    static func resolve(usesNativeCharge: Bool, preference: NativeChargeConfiguration?) -> OverviewHeroLimit {
         guard usesNativeCharge else { return .hidden }
-        guard let observed, observed.isFresh, observed.policyMatches else { return .unconfirmed }
-        return .percent(observed.configuration.enabled ? observed.configuration.target : 100)
+        guard let value = ChargeLimitKit.current(preference) else { return .unconfirmed }
+        return .percent(value)
     }
 
     var text: String? {
@@ -39,7 +39,7 @@ enum OverviewHeroLimit: Equatable {
     var openCharge: (@MainActor () -> Void)?
 
     private var limit: OverviewHeroLimit {
-        .resolve(usesNativeCharge: model.usesNativeCharge, observed: model.nativeCharge.observed)
+        .resolve(usesNativeCharge: model.usesNativeCharge, preference: model.nativeCharge.presentation().currentPreference)
     }
 
     var body: some View {

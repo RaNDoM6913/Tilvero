@@ -340,7 +340,7 @@ struct BatteryInfoView: View {
                     Text(L10n.text(nativeAttentionTitle(state.attention))).font(.system(size: 12, weight: .medium))
                         .foregroundStyle(nativeAttentionColor(state.attention))
                     if let preference = state.currentPreference {
-                        Text(L10n.text("Native macOS setting") + ": " + (preference.enabled ? "\(preference.target)%" : L10n.text("System managed")))
+                        Text(L10n.text("Native macOS setting") + ": " + (ChargeLimitKit.text(preference) ?? "—"))
                             .font(.system(size: 11)).foregroundStyle(.secondary)
                     }
                     if let target = state.pendingTarget {

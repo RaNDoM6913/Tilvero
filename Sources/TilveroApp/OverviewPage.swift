@@ -465,12 +465,10 @@ enum WindowChartLabels {
         ])
     }
     private var limitText: String {
-        let percent: (Int) -> String = { L10n.language == "ru" ? "\($0) %" : "\($0)%" }
-        if let setting = model.nativeCharge.nativeSetting, setting.isFresh {
-            return setting.configuration.enabled ? percent(setting.configuration.target) : L10n.text("System managed")
-        }
-        if let observation = model.systemChargeLimit, observation.isFresh(), let limits = observation.limits,
-           !limits.manualLimitIsConflicting, let limit = limits.manualLimit { return percent(limit) }
+        // What macOS stores (off = 100 %), else the readable target of an incomplete read, else a registry row read on AC.
+        if let text = ChargeLimitKit.text(model.nativeCharge.nativeSetting.flatMap { $0.isFresh ? $0.configuration : nil }) { return text }
+        if let reported = model.nativeCharge.currentReportedTarget { return ChargeLimitKit.percent(reported) }
+        if let limit = model.systemChargeLimit?.evidentManualLimit() { return ChargeLimitKit.percent(limit) }
         return "—"
     }
     private var coolingText: String {

@@ -143,6 +143,11 @@ struct QuickPanel: View {
                 StudioActionButton(L10n.text("Return to system control"), id: "action.return-to-system-control") { model.releaseControl() }
                     .disabled(model.isApplying || !model.canReleaseCharge)
             }
+            // Optimized Charging is its own macOS setting: the switch is here even when the native limit was never found.
+            if ChargeLimitKit.showsOptimizedSwitch(isDemo: model.isDemo, optimizedAvailable: model.optimizedCharging.isAvailable) {
+                Divider()
+                OptimizedChargingRow(service: model.optimizedCharging, showsHold: false)
+            }
         }
     }
 
@@ -265,13 +270,6 @@ struct ChargeLimitControl: View {
                 NativeChargeStatusPanel(model: model, compact: isQuickPanel)
             } else {
                 SystemChargeLimitPanel(model: model)
-                Text(L10n.text("Direct Tilvero control requires a trusted signed helper and verified hardware restoration."))
-                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                if isQuickPanel {
-                    StudioActionButton(L10n.text("Control availability…"), id: "action.control-availability") {
-                        model.navigation.open(.section(.diagnostics))
-                    }
-                }
             }
         }.studioElement("charge.editor", kind: "container", label: "Charge limit editor")
         .task { await model.refreshNativeChargeIfStale() }

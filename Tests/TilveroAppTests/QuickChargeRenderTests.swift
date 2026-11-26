@@ -17,10 +17,26 @@ private actor RenderChargeTransport: NativeChargeTransport {
 }
 
 @MainActor final class QuickChargeRenderTests: XCTestCase {
-    func testValidationNeedsPowerButAnAdmittedLimitDoesNot() {
-        XCTAssertTrue(QuickNativeChargePanel.needsPowerForValidation(admitted: false, onBattery: true))
-        XCTAssertFalse(QuickNativeChargePanel.needsPowerForValidation(admitted: false, onBattery: false))
-        XCTAssertFalse(QuickNativeChargePanel.needsPowerForValidation(admitted: true, onBattery: true), "Once validated, the limit works on battery power")
+    /// A native limit Tilvero cannot change right now shows what macOS reports, read-only, with no validation button.
+    func testANotAdmittedLimitRendersTheReportedValueWithoutAButton() async throws {
+        let suite = TestDefaults.name("ChargeRender"), prefs = TestDefaults.defaults(suite)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
+        prefs.set(false, forKey: "historyEnabled")
+        let m = await model(admitted: false, prefs: prefs, root: root)
+        defer { m.stop() }
+        XCTAssertEqual(ChargeLimitKit.mode(m), .unavailable)
+        XCTAssertEqual(ChargeLimitKit.reported(m), 90)
+        XCTAssertFalse(m.nativeCharge.awaitingDiscovery, "the note is shown (not the quiet first-launch state)")
+        let host = NSHostingController(rootView: QuickPanel(model: m, section: .charge).frame(width: 360))
+        let window = NSWindow(contentViewController: host)
+        window.setContentSize(host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 900))); host.view.layoutSubtreeIfNeeded()
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertGreaterThan(host.view.fittingSize.height, 0)
+        window.orderOut(nil)
+        let source = try String(contentsOf: URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("Sources/TilveroApp/ChargeLimitKit.swift"), encoding: .utf8)
+        XCTAssertFalse(source.contains("qualifyNativeCharge"), "no validation entry on any surface")
     }
 
     private func model(admitted: Bool, prefs: UserDefaults, root: URL) async -> TilveroModel {

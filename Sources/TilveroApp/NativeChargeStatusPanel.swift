@@ -57,16 +57,6 @@ import ChargeBackends
             HStack(spacing: 10) {
                 StudioActionButton(L10n.text("Refresh"), id: "action.refresh") { Task { await model.refreshNativeCharge() } }
                     .disabled(actionsBlocked)
-                if !model.nativeCharge.admitted && !model.nativeCharge.recoveryRequired && !model.nativeCharge.awaitingDiscovery {
-                    StudioActionButton(L10n.text("Validate 80–100%…"), id: "action.validate-native-control") { model.qualifyNativeCharge() }
-                        .disabled(actionsBlocked || !model.nativeCharge.canRequestQualification)
-                        .help(L10n.text("Validation writes each of the other verified limits in turn and restores your setting, after a confirmed persistent baseline and a battery level below 80%."))
-                }
-            }
-            if model.nativeCharge.interfaceWasDiscovered && !model.nativeCharge.admitted {
-                Text(L10n.text("Native control must be validated on this macOS version before Apply is available."))
-                    .font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
             if model.nativeCharge.admitted && model.nativeCharge.hasValidationProof
                 && model.nativeCharge.authorizedPersistentTargets == NativeChargeAdmission.persistentTargets {
@@ -109,40 +99,44 @@ import ChargeBackends
             || model.nativeCharge.presentation().pendingPurpose != nil
     }
     private func configurationText(_ configuration: NativeChargeConfiguration) -> String {
-        configuration.enabled ? "\(configuration.target)%" : L10n.text("System managed")
+        ChargeLimitKit.text(configuration) ?? "—"
     }
     func statusText(_ state: NativeChargePresentation) -> String? {
+        let conflict = model.nativeCharge.nativeSetting?.registryConflict == true
         switch state.attention {
-        case .sessionReview: "Saved charging session needs review."
+        case .sessionReview: return "Saved charging session needs review."
         case .mutationUnresolved:
-            model.nativeCharge.nativeSetting?.registryConflict == true
-                ? "macOS lists two different charge limits. Set the limit once in System Settings › Battery to bring them together."
-                : "A dispatched native setting still has an unconfirmed outcome."
-        case .journalIntegrity: "The native session journal needs review before further changes."
+            return conflict ? NativeChargeService.registryConflictMessage : "macOS has not confirmed the last change yet."
+        case .journalIntegrity: return "The native session journal needs review before further changes."
         case .operationPending:
+            // A pending operation speaks only once it has passed its deadline (the spinner covers the ordinary case).
+            if state.pendingTimedOut {
+                return state.pendingPurpose == .read
+                    ? "The native policy read timed out. Further actions wait for the read to return."
+                    : "The native setting operation timed out. Its outcome needs review; further writes are blocked."
+            }
             if state.pendingPurpose == .read {
                 if compact && !model.nativeCharge.isBusy && !model.nativeCharge.isQualifying,
                    let message = model.nativeCharge.message {
-                    message
+                    return message
                 } else if compact && !model.nativeCharge.isQualifying, let partialPolicyWarning {
                     // The same reported target and diagnostic context remain visible
                     // while a read is pending. Keep their policy warning in place.
-                    partialPolicyWarning
+                    return partialPolicyWarning
                 } else {
-                    compact && state.currentPreference != nil ? nil : "Reading the native charge policy…"
+                    return compact && state.currentPreference != nil ? nil : "Reading the native charge policy…"
                 }
-            } else {
-                "Waiting for the native charging operation…"
             }
-        case .restorationPending:
-            state.restorationTarget == nil ? "Restoring the previous setting is waiting for natural discharge." : nil
-        case .lowerTargetPending:
-            state.pendingTarget == nil ? "The lower target is waiting for natural discharge." : nil
+            return "Waiting for the native charging operation…"
+        // Fixture sessions only; they always say why the slider waits.
+        case .restorationPending: return "Restoring the previous setting is waiting for natural discharge."
+        case .lowerTargetPending: return "The lower target is waiting for natural discharge."
         case .policyUnconfirmed:
-            partialPolicyWarning ?? (model.nativeCharge.nativeSetting == nil
-                ? model.nativeCharge.message ?? "Active charge policy is unconfirmed"
-                : "Active charge policy is unconfirmed")
-        case .none: nil
+            if conflict { return NativeChargeService.registryConflictMessage }
+            if let partialPolicyWarning { return partialPolicyWarning }
+            // A fresh stored setting is shown as it is; only when nothing fresh was read is there something to say.
+            return state.currentPreference == nil ? model.nativeCharge.message ?? "Active charge policy is unconfirmed" : nil
+        case .none: return nil
         }
     }
     private var partialPolicyWarning: String? {

@@ -96,10 +96,24 @@ import ChargeBackends
         try await Task.sleep(for: .milliseconds(30))
         host.view.layoutSubtreeIfNeeded()
         XCTAssertEqual(fixture.native.presentation().attention, .policyUnconfirmed)
-        XCTAssertEqual(panel.statusText(fixture.native.presentation()), "Active charge policy is unconfirmed",
-                      "Read failure must still expose policy uncertainty")
-        XCTAssertGreaterThan(host.sizeThatFits(in: NSSize(width: 320, height: 900)).height, initialSize.height,
-                             "A real policy warning must still grow the compact panel")
+        XCTAssertNil(fixture.native.presentation().activePolicy, "the policy is not claimed")
+        XCTAssertNotNil(fixture.native.message, "the failure is recorded (Details show it)")
+        // The stored setting read moments ago is still fresh and shown as it is: no line flashes for a one-off read error.
+        XCTAssertNil(panel.statusText(fixture.native.presentation()))
+        XCTAssertEqual(host.sizeThatFits(in: NSSize(width: 320, height: 900)).height, initialSize.height)
+
+        // A held background read keeps the attention, the status text and the height (no flicker on every poll).
+        let before = panel.statusText(fixture.native.presentation())
+        await fixture.transport.holdNextRead()
+        let poll = Task { await fixture.native.refresh() }
+        await fixture.transport.waitUntilSuspended()
+        try await Task.sleep(for: .milliseconds(30))
+        host.view.layoutSubtreeIfNeeded()
+        XCTAssertEqual(fixture.native.presentation().attention, .policyUnconfirmed)
+        XCTAssertEqual(panel.statusText(fixture.native.presentation()), before)
+        XCTAssertEqual(host.sizeThatFits(in: NSSize(width: 320, height: 900)).height, initialSize.height)
+        await fixture.transport.releaseRead()
+        await poll.value
         let writes = await fixture.transport.writes
         XCTAssertEqual(writes, 0)
     }
@@ -166,12 +180,13 @@ import ChargeBackends
         XCTAssertEqual(pendingWrites + recoveryWrites, 0)
     }
 
-    func testFirstUnknownReadAndFullDiagnosticPanelKeepDetailedProgress() async throws {
-        for compact in [false, true] {
+    /// The very first read (nothing known yet) shows its progress; a later background read keeps the confirmed state.
+    func testFirstUnknownReadShowsProgressAndABackgroundReadKeepsTheConfirmedState() async throws {
+        for known in [false, true] {
             let fixture = try StatusFixture()
             defer { fixture.cleanUp() }
-            if !compact { await fixture.native.refresh() }
-            let panel = NativeChargeStatusPanel(model: fixture.model, compact: compact)
+            if known { await fixture.native.refresh() }
+            let panel = NativeChargeStatusPanel(model: fixture.model, compact: !known)
             let host = NSHostingController(rootView: panel.frame(width: 320))
             let window = NSWindow(contentViewController: host)
             window.setContentSize(host.sizeThatFits(in: NSSize(width: 320, height: 900)))
@@ -180,7 +195,13 @@ import ChargeBackends
             await fixture.transport.waitUntilSuspended()
             try await Task.sleep(for: .milliseconds(30))
             host.view.layoutSubtreeIfNeeded()
-            XCTAssertEqual(panel.statusText(fixture.native.presentation()), "Reading the native charge policy…")
+            if known {
+                XCTAssertEqual(fixture.native.presentation().attention, .none, "a background read is not a pending operation")
+                XCTAssertEqual(fixture.native.presentation().activePolicy?.target, 90, "the confirmed policy stays shown")
+                XCTAssertNil(panel.statusText(fixture.native.presentation()))
+            } else {
+                XCTAssertEqual(panel.statusText(fixture.native.presentation()), "Reading the native charge policy…")
+            }
             await fixture.transport.releaseRead()
             await refresh.value
             let writes = await fixture.transport.writes
@@ -201,11 +222,15 @@ import ChargeBackends
         await refresh.value
         XCTAssertFalse(fixture.native.isBusy, "The deadline returns control without claiming transport cancellation")
         XCTAssertEqual(fixture.native.presentation().pendingPurpose, .read)
-        let warning = try XCTUnwrap(fixture.native.message)
-        XCTAssertEqual(panel.statusText(fixture.native.presentation()), warning,
+        XCTAssertTrue(fixture.native.presentation().pendingTimedOut)
+        // A fixed line (the service message is overwritten by the refresh that timed out).
+        XCTAssertEqual(panel.statusText(fixture.native.presentation()), "The native policy read timed out. Further actions wait for the read to return.",
                        "An overdue read needs its warning, rather than only the compact progress indicator")
         XCTAssertGreaterThan(host.sizeThatFits(in: NSSize(width: 320, height: 900)).height, normalHeight)
         await fixture.transport.releaseRead()
+        for _ in 0..<200 where fixture.native.presentation().pendingPurpose != nil { await Task.yield() }
+        XCTAssertFalse(fixture.native.presentation().pendingTimedOut, "the late return clears it")
+        XCTAssertNil(panel.statusText(fixture.native.presentation()), "the fresh stored setting is shown as it is")
         let writes = await fixture.transport.writes
         XCTAssertEqual(writes, 0)
     }

@@ -1355,9 +1355,12 @@ final class TilveroModel {
         if !isDetailVisible || selectedSection != .charging { discardDraft() }
     }
     func discardDraft() {
-        if !isDemo, case let .ceiling(target) = nativeCharge.requestedIntent { draftText = String(target) }
-        else if !isDemo, let observed = nativeCharge.observed { draftText = String(observed.configuration.target) }
-        else if !isDemo, let reported = nativeCharge.currentReportedTarget { draftText = String(reported) }
+        // Native: what macOS reports (off = 100), never a journal's last value; empty when unknown. A waiting target is
+        // fixture-only.
+        if !isDemo, let value = nativeCharge.pendingTarget ?? nativeCharge.reportedLimit ?? nativeCharge.currentReportedTarget {
+            draftText = String(value)
+        }
+        else if !isDemo, usesNativeCharge { draftText = "" }
         else if !isDemo, case let .ceiling(target) = liveControl.requestedIntent { draftText = String(target) }
         else if case let .ceiling(target) = chargeState?.requested { draftText = String(target) }
         else if let value = chargeState?.appliedTarget, acceptedTargets.contains(value) { draftText = String(value) }
@@ -1365,6 +1368,23 @@ final class TilveroModel {
         draftDirty = false
     }
     func applyDraftTarget() { guard canApply, validateTypedDraft(), let target = draftTarget else { return }; perform(.setCeiling(percent: target)) }
+    /// Why a released slider was refused (one short line; the thumb returns to what macOS reports).
+    var chargeLimitRefusal: String {
+        if controlsAreSuspended { return "Controls are paused for sleep or an update." }
+        if isApplying || nativeCharge.isBusy || nativeCharge.isQualifying { return "A charge-limit change is still in progress." }
+        if let message = nativeCharge.message { return message }
+        // A state macOS reports but Tilvero does not change (its temporary charge to full, disabled with a target).
+        return nativeCharge.reportedLimit == nil ? "macOS has not reported the charge limit yet." : "Use System Settings › Battery to change this limit."
+    }
+    /// The slider was let go at `target` (only the user's own movement calls this): applied when it can be; otherwise the
+    /// draft returns to what macOS reports and, for a different level, one short reason is posted (never a silent snap-back).
+    func releaseChargeLimit(at target: Int) {
+        setDraft(target)
+        if canApply { applyDraftTarget(); return }
+        discardDraft()
+        guard !isDemo, target != ChargeLimitKit.current(nativeCharge.presentation().currentPreference) else { return }
+        notices.post(L10n.text(chargeLimitRefusal), from: .control, expiresAfter: .seconds(6))
+    }
     /// Simulation only. The live one-time charge is `startChargeOnce`/`cancelChargeOnce` (`ChargeOnceStore`, quick menu).
     func toggleSimulatedFullChargeOnce() {
         guard isDemo else { return }
@@ -1481,6 +1501,10 @@ final class TilveroModel {
                 discardDraft(); notices.clearPageNotices()
                 if nativeCharge.pendingTarget != nil, let message = nativeCharge.message { notices.post(L10n.text(message), from: .chargeStatus) }
             } catch {
+                // The slider and readout go back to what macOS reports now.
+                draftDirty = false
+                if !nativeCharge.isBusy { await nativeCharge.refresh() }
+                discardDraft()
                 // A failure line that goes away on its own, so a one-off refusal never stays on the Charge page.
                 if postsFailure { notices.post(L10n.text(error.localizedDescription), from: .control, expiresAfter: .seconds(6)) }
             }
