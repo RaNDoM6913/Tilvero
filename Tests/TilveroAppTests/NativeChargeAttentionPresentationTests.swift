@@ -6,48 +6,45 @@ import ChargeBackends
 @testable import TilveroApp
 
 final class NativeChargeAttentionPresentationTests: XCTestCase {
-    func testSavedSessionReviewUsesDiagnosticsInsteadOfPageBanner() {
-        let saved = presentation(.sessionReview)
-        XCTAssertTrue(saved.requiresGlobalAttention, "The saved issue must remain globally discoverable")
-        XCTAssertFalse(saved.showsAttentionBanner, "Readable85 plus a saved review must not dominate every page")
-        XCTAssertNil(saved.activePolicy, "A quieter presentation must not invent an active policy")
-    }
-
-    func testUnknownMutationAndJournalIntegrityRemainProminent() {
-        for reason in [NativeChargePresentation.Attention.mutationUnresolved, .journalIntegrity] {
-            let unresolved = presentation(reason)
-            XCTAssertTrue(unresolved.requiresGlobalAttention)
-            XCTAssertTrue(unresolved.showsAttentionBanner, "A readable85 preference cannot hide an unresolved operation")
+    /// Only a session file that could not be handled safely is flagged globally (banner, Diagnostics dot); every other state
+    /// is a local status line that blocks nothing.
+    func testOnlyJournalIntegrityIsGlobal() {
+        XCTAssertTrue(presentation(.journalIntegrity).requiresGlobalAttention)
+        XCTAssertTrue(presentation(.journalIntegrity).showsAttentionBanner)
+        for attention in [NativeChargePresentation.Attention.none, .mutationUnresolved, .operationPending, .policyUnconfirmed] {
+            XCTAssertFalse(presentation(attention).requiresGlobalAttention, "\(attention)")
+            XCTAssertFalse(presentation(attention, purpose: .setLimit(target: 85), recordedMutation: true).showsAttentionBanner, "\(attention)")
         }
-        XCTAssertTrue(presentation(.sessionReview, purpose: .setLimit(target: 85)).showsAttentionBanner)
-        XCTAssertTrue(presentation(.sessionReview, recordedMutation: true).showsAttentionBanner)
-        XCTAssertTrue(presentation(.sessionReview, savedAction: true).showsAttentionBanner)
-        XCTAssertTrue(presentation(.sessionReview, owned: false).showsAttentionBanner, "An unreadable journal must not become a passive owned session")
+        XCTAssertNil(presentation(.mutationUnresolved).activePolicy, "a quieter presentation must not invent an active policy")
     }
 
-    func testPendingIntentStaysProminentThroughReviewAndSuspendedRead() {
-        for reason in [NativeChargePresentation.Attention.sessionReview, .operationPending, .lowerTargetPending, .restorationPending] {
-            XCTAssertTrue(presentation(reason, purpose: .read, pending: 80).showsAttentionBanner)
-            XCTAssertTrue(presentation(reason, purpose: .read, restoring: 80).showsAttentionBanner)
-        }
-        XCTAssertFalse(presentation(.operationPending, purpose: .read).showsAttentionBanner)
-        XCTAssertFalse(presentation(.sessionReview, purpose: .read).showsAttentionBanner)
-    }
-
-    func testOwnedUnconfirmedPolicyRemainsVisibleWithoutInventingOwnerAttention() {
-        XCTAssertTrue(presentation(.policyUnconfirmed).showsAttentionBanner)
-        XCTAssertFalse(presentation(.policyUnconfirmed, owned: false).showsAttentionBanner)
-        XCTAssertFalse(presentation(.none).showsAttentionBanner)
+    /// The one status text: an unconfirmed change, the two-row hint, a pending operation only past its deadline, and nothing
+    /// for a fresh stored setting.
+    func testStatusTextSpeaksOnlyWhenThereIsSomethingToSay() {
+        typealias T = NativeChargeStatusText
+        XCTAssertEqual(T.text(presentation(.mutationUnresolved), .init()), "macOS has not confirmed the last change yet.")
+        XCTAssertEqual(T.text(presentation(.mutationUnresolved), .init(registryConflict: true)), NativeChargeService.registryConflictMessage)
+        XCTAssertEqual(T.text(presentation(.policyUnconfirmed), .init(registryConflict: true)), NativeChargeService.registryConflictMessage)
+        XCTAssertNil(T.text(presentation(.policyUnconfirmed), .init(message: "x")), "a fresh stored setting is shown as it is")
+        XCTAssertEqual(T.text(presentation(.policyUnconfirmed, preference: false), .init(message: "x")), "x")
+        XCTAssertEqual(T.text(presentation(.policyUnconfirmed), .init(partialRead: true)), T.partialReadWarning)
+        XCTAssertNil(T.text(presentation(.operationPending, purpose: .read), .init()), "a known setting's read has its spinner")
+        XCTAssertEqual(T.text(presentation(.operationPending, purpose: .read, preference: false), .init()), "Reading the native charge policy…")
+        XCTAssertEqual(T.text(presentation(.operationPending, purpose: .read, timedOut: true), .init()),
+                       "The native policy read timed out. Further actions wait for the read to return.")
+        XCTAssertEqual(T.text(presentation(.operationPending, purpose: .setLimit(target: 85), timedOut: true), .init()),
+                       "The native setting operation timed out. Its outcome needs review; further writes are blocked.")
+        XCTAssertEqual(T.text(presentation(.journalIntegrity), .init()), "The native session journal needs review before further changes.")
+        XCTAssertNil(T.text(presentation(.none), .init()))
+        XCTAssertTrue(T.isWarning(presentation(.journalIntegrity)))
+        XCTAssertTrue(T.isWarning(presentation(.operationPending, purpose: .read, timedOut: true)))
+        XCTAssertFalse(T.isWarning(presentation(.mutationUnresolved)))
     }
 
     private func presentation(_ attention: NativeChargePresentation.Attention,
-                              purpose: NativeChargeOperationGate.Purpose? = nil,
-                              pending: Int? = nil, restoring: Int? = nil,
-                              owned: Bool = true, recordedMutation: Bool = false,
-                              savedAction: Bool = false) -> NativeChargePresentation {
-        .init(currentPreference: .init(enabled: true, target: 85, optimizedCharging: true), activePolicy: nil,
-              pendingPurpose: purpose, hasOwnership: owned, pendingTarget: pending,
-              restorationTarget: restoring, attention: attention,
-              hasRecordedMutation: recordedMutation, hasSavedAction: savedAction)
+                              purpose: NativeChargeOperationGate.Purpose? = nil, timedOut: Bool = false,
+                              recordedMutation: Bool = false, preference: Bool = true) -> NativeChargePresentation {
+        .init(currentPreference: preference ? .init(enabled: true, target: 85, optimizedCharging: true) : nil, activePolicy: nil,
+              pendingPurpose: purpose, pendingTimedOut: timedOut, attention: attention, hasRecordedMutation: recordedMutation)
     }
 }

@@ -9,8 +9,12 @@ import PowerCore
 @testable import TilveroApp
 
 private actor RenderChargeTransport: NativeChargeTransport {
+    /// false: macOS offers no 95, a level set Tilvero does not change (the value is still shown).
+    let recognised: Bool
+    init(recognised: Bool = true) { self.recognised = recognised }
     func read() -> NativeChargeSnapshot {
-        .init(configuration: .init(enabled: true, target: 90, optimizedCharging: true), supportedTargets: [80, 85, 90, 95, 100], registeredManualLimit: 90)
+        .init(configuration: .init(enabled: true, target: 90, optimizedCharging: true),
+              supportedTargets: recognised ? [80, 85, 90, 95, 100] : [80, 85, 90, 100], registeredManualLimit: 90)
     }
     func setLimit(_ target: Int) { XCTFail("Rendering never writes") }
     func setEnabled(_ enabled: Bool) { XCTFail("Rendering never writes") }
@@ -23,11 +27,12 @@ private actor RenderChargeTransport: NativeChargeTransport {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         prefs.set(false, forKey: "historyEnabled")
-        let m = await model(admitted: false, prefs: prefs, root: root)
+        let m = await model(recognised: false, prefs: prefs, root: root)
         defer { m.stop() }
         XCTAssertEqual(ChargeLimitKit.mode(m), .unavailable)
         XCTAssertEqual(ChargeLimitKit.reported(m), 90)
-        XCTAssertFalse(m.nativeCharge.awaitingDiscovery, "the note is shown (not the quiet first-launch state)")
+        XCTAssertFalse(m.nativeCharge.admitted)
+        XCTAssertFalse(m.nativeCharge.notReadYet, "the note is shown (not the quiet first-launch state)")
         let host = NSHostingController(rootView: QuickPanel(model: m, section: .charge).frame(width: 360))
         let window = NSWindow(contentViewController: host)
         window.setContentSize(host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 900))); host.view.layoutSubtreeIfNeeded()
@@ -39,8 +44,8 @@ private actor RenderChargeTransport: NativeChargeTransport {
         XCTAssertFalse(source.contains("qualifyNativeCharge"), "no validation entry on any surface")
     }
 
-    private func model(admitted: Bool, prefs: UserDefaults, root: URL) async -> TilveroModel {
-        let native = NativeChargeService(client: RenderChargeTransport(), journalURL: root.appendingPathComponent("native.json"), admitted: admitted)
+    private func model(recognised: Bool, prefs: UserDefaults, root: URL) async -> TilveroModel {
+        let native = NativeChargeService(client: RenderChargeTransport(recognised: recognised), journalURL: root.appendingPathComponent("native.json"))
         await native.refresh()
         let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"),
                                  snapshotProvider: { .unavailable(reason: "fixture") }, nativeCharge: native)
@@ -53,7 +58,7 @@ private actor RenderChargeTransport: NativeChargeTransport {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         prefs.set(false, forKey: "historyEnabled")
-        let m = await model(admitted: true, prefs: prefs, root: root)
+        let m = await model(recognised: true, prefs: prefs, root: root)
         defer { m.stop() }
         m.setDraft(95)
         let host = NSHostingController(rootView: QuickPanel(model: m, section: .charge).frame(width: 360))
@@ -72,7 +77,7 @@ private actor RenderChargeTransport: NativeChargeTransport {
     func testRenderChargePage() async throws {
         guard let folder = ProcessInfo.processInfo.environment["TILVERO_LOOK_DIR"] else { throw XCTSkip("render is opt-in") }
         try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
-        for (name, admitted, draft) in [("applied", true, 90), ("changed", true, 95), ("unvalidated", false, 0)] as [(String, Bool, Int)] {
+        for (name, recognised, draft) in [("applied", true, 90), ("changed", true, 95), ("unrecognised", false, 0)] as [(String, Bool, Int)] {
             for language in ["ru"] {
                 let saved = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
                 UserDefaults.standard.setVolatileDomain(saved.merging(["language": language]) { _, v in v }, forName: UserDefaults.argumentDomain)
@@ -81,7 +86,7 @@ private actor RenderChargeTransport: NativeChargeTransport {
                 let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
                 defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
                 prefs.set(false, forKey: "historyEnabled")
-                let m = await model(admitted: admitted, prefs: prefs, root: root)
+                let m = await model(recognised: recognised, prefs: prefs, root: root)
                 defer { m.stop() }
                 if draft > 0 { m.setDraft(draft) }
                 let host = NSHostingController(rootView: QuickPanel(model: m, section: .charge).frame(width: 360)
@@ -108,8 +113,7 @@ private actor RenderChargeTransport: NativeChargeTransport {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         prefs.set(false, forKey: "historyEnabled")
-        let native = NativeChargeService(client: StableChargeTransport(), journalURL: root.appendingPathComponent("native.json"), admitted: true,
-                                         batteryProvider: { ChargeObservation(percent: 60, externalPower: true, fresh: true) })
+        let native = NativeChargeService(client: StableChargeTransport(), journalURL: root.appendingPathComponent("native.json"))
         await native.refresh()
         let model = TilveroModel(isDemo: false, preferences: prefs, historyURL: root.appendingPathComponent("History.sqlite"),
                                  snapshotProvider: { .unavailable(reason: "fixture") }, nativeCharge: native)

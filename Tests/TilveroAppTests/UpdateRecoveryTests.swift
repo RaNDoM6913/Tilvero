@@ -10,7 +10,7 @@ final class UpdateRecoveryTests: XCTestCase {
     func testReadinessNeverAdmitsOwnedOrIndeterminateHardware() {
         var value = UpdateRecoverySnapshot()
         XCTAssertTrue(value.blockers.isEmpty)
-        for flag in [\UpdateRecoverySnapshot.nativeOwnership, \.nativeRecovery,
+        for flag in [\UpdateRecoverySnapshot.nativeRecovery,
                      \.helperOwnership, \.helperRecovery, \.lidOwnership, \.lidRecovery,
                      \.operationInFlight, \.sleepTransition, \.persistentEvidence,
                      \.externalController, \.environmentUnknown] {
@@ -25,8 +25,8 @@ final class UpdateRecoveryTests: XCTestCase {
         value.awakeActive = true; value.timerActive = true
         XCTAssertTrue(value.blockers.isEmpty)
         XCTAssertEqual(value.consequences.count, 2)
-        value.nativeOwnership = true
-        XCTAssertFalse(value.blockers.isEmpty)
+        value.nativeRecovery = true
+        XCTAssertEqual(value.blockers, ["Wait until macOS confirms the last charge-limit change."])
     }
 
     func testEvidenceProbeDoesNotCreateMissingDirectoriesOrReadJournalContents() throws {

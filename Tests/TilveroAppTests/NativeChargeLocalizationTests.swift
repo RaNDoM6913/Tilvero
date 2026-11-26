@@ -37,8 +37,7 @@ import PowerCore
             "The native setting operation timed out. Its outcome needs review; further writes are blocked.",
         ]
         keys += ChargeLimitKit.infoParagraphKeys + DiagnosticsChargeRows.infoKeys
-        let errors: [NativeChargeServiceError] = [.unavailable, .busy, .unsupportedTarget, .unqualifiedTarget, .staleBattery,
-                                                  .recoveryRequired, .readbackMismatch, .unsafeEnable, .changedElsewhere]
+        let errors: [NativeChargeServiceError] = [.unavailable, .busy, .unsupportedTarget, .unqualifiedTarget, .readbackMismatch, .changedElsewhere]
         keys += errors.map(\.localizedDescription)
         let policy: [PolicyError] = [.invalidContract, .unsupportedTarget, .staleGeneration, .readbackMismatch, .unavailable, .invalidPolicy]
         keys += policy.map(\.localizedDescription)

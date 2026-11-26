@@ -55,11 +55,11 @@ enum ChargeLimitKit {
         chosen ?? draft ?? current(preference)
     }
 
-    /// The level the editor shows. Native: the slider's own in-progress choice, else a waiting target (fixtures), else what
-    /// macOS reports (off = 100), else nothing; never the model's draft or a journal's last value. DEMO keeps its draft.
+    /// The level the editor shows. Native: the slider's own in-progress choice, else what macOS reports (off = 100), else
+    /// nothing; never the model's draft or a journal's last value. DEMO keeps its draft.
     @MainActor static func shown(chosen: Int?, model: TilveroModel) -> Int? {
         if model.isDemo { return shown(chosen: chosen, draft: model.draftTarget, preference: nil) }
-        return chosen ?? model.nativeCharge.pendingTarget ?? current(model.nativeCharge.presentation().currentPreference)
+        return chosen ?? current(model.nativeCharge.presentation().currentPreference)
     }
 
     /// The slider looks offered while macOS offers its levels and the current value is known; momentary states (a read or
@@ -71,7 +71,8 @@ enum ChargeLimitKit {
                           busy: model.isApplying)
     }
 
-    /// The shown level is the one macOS holds and nothing waits: only then is it drawn as applied (pending never is).
+    /// The shown level is the one held now and nothing waits (the simulation's pending lower target): only then is it drawn
+    /// as applied.
     static func isApplied(shown: Int?, current: Int?, pendingTarget: Int?) -> Bool {
         guard let shown, let current, pendingTarget == nil else { return false }
         return shown == current
@@ -82,7 +83,8 @@ enum ChargeLimitKit {
         language == "ru" ? "\(value) %" : "\(value)%"
     }
 
-    /// The pending line: «Ожидает: 80 % после разряда ниже 80 %». Nil when nothing waits.
+    /// The simulation's pending line: «Ожидает: 80 % после разряда ниже 80 %». Nil when nothing waits (the native limit
+    /// never waits: a level below the charge is set at once).
     static func pendingText(pendingTarget: Int?, language: String = L10n.language) -> String? {
         guard let pendingTarget else { return nil }
         let level = percent(pendingTarget, language: language)
@@ -91,10 +93,6 @@ enum ChargeLimitKit {
 
     @MainActor static func onBattery(_ model: TilveroModel) -> Bool {
         model.snapshot.isExternalPower.availability == .available && model.snapshot.isExternalPower.value == false
-    }
-    @MainActor static func actionsBlocked(_ model: TilveroModel) -> Bool {
-        model.isApplying || model.nativeCharge.isBusy || model.nativeCharge.isQualifying
-            || model.nativeCharge.presentation().pendingPurpose != nil
     }
     /// The Optimized Charging switch is independent of the limit: shown wherever the OBC state is known (never in DEMO).
     static func showsOptimizedSwitch(isDemo: Bool, optimizedAvailable: Bool) -> Bool { !isDemo && optimizedAvailable }
@@ -201,7 +199,7 @@ enum ChargeLimitKit {
     var model: TilveroModel
     var body: some View {
         let native = model.nativeCharge
-        if !native.awaitingDiscovery || native.incompleteObservation != nil {
+        if !native.notReadYet || native.incompleteObservation != nil {
             Text(L10n.text("Use System Settings › Battery to change this limit."))
                 .font(.system(size: 13)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Button(L10n.text("Charging settings in macOS…")) { model.openBatterySettings() }

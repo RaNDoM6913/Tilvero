@@ -15,10 +15,12 @@ private typealias Editor = ChargeLimitKit
 /// Native transport that fails the test on any write: rendering the page (and the quick menu beside it) only reads.
 private actor ReadOnlyChargeTransport: NativeChargeTransport {
     let target: Int
-    init(target: Int) { self.target = target }
+    /// false: macOS offers no 95, a level set Tilvero does not change (the value is still shown, read-only).
+    let recognised: Bool
+    init(target: Int, recognised: Bool = true) { self.target = target; self.recognised = recognised }
     func read() -> NativeChargeSnapshot {
-        .init(configuration: .init(enabled: true, target: target, optimizedCharging: false), supportedTargets: [80, 85, 90, 95, 100],
-              registeredManualLimit: target)
+        .init(configuration: .init(enabled: true, target: target, optimizedCharging: false),
+              supportedTargets: recognised ? [80, 85, 90, 95, 100] : [80, 85, 90, 100], registeredManualLimit: target)
     }
     func setLimit(_ target: Int) { XCTFail("Rendering never writes") }
     func setEnabled(_ enabled: Bool) { XCTFail("Rendering never writes") }
@@ -64,7 +66,7 @@ private actor MemoryChargeTransport: NativeChargeTransport {
                                batteryIdentityToken: base.batteryIdentityToken)
     }
 
-    static func make(adapter: Bool = true, level: Int = 72, admitted: Bool = true, nativeTarget: Int = 80,
+    static func make(adapter: Bool = true, level: Int = 72, recognised: Bool = true, nativeTarget: Int = 80, leftoverSession: Bool = false,
                      monitoringOnly: Bool = false, transport: (any NativeChargeTransport)? = nil) async throws -> ChargingFixture {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -77,9 +79,18 @@ private actor MemoryChargeTransport: NativeChargeTransport {
         }
         try await store.close()
         let current = snapshot(at: now, level: level, adapter: adapter)
-        let native = NativeChargeService(client: transport ?? ReadOnlyChargeTransport(target: nativeTarget),
-                                         journalURL: root.appendingPathComponent("native.json"), admitted: admitted,
-                                         monitoringOnly: monitoringOnly)
+        if leftoverSession {   // a write of an earlier run whose outcome macOS has not confirmed yet (young: it stays)
+            let baseline = NativeChargeConfiguration(enabled: true, target: nativeTarget, optimizedCharging: false)
+            var journal = NativeChargeJournal(sessionID: UUID(), environment: "charging-fixture", baseline: baseline, lastVerified: baseline,
+                plannedTarget: 85, phase: .indeterminate, hasWritten: true, expectedMutation: .init(enabled: true, target: 85, optimizedCharging: false))
+            journal.version = 2; journal.semanticContract = NativeChargeAdmission.semanticContract
+            journal.persistentTargets = NativeChargeAdmission.persistentTargets
+            journal.baselineSnapshot = .init(configuration: baseline, supportedTargets: [80, 85, 90, 95, 100], registeredManualLimit: nativeTarget)
+            try JSONEncoder().encode(journal).write(to: root.appendingPathComponent("native.json"))
+        }
+        let native = NativeChargeService(client: transport ?? ReadOnlyChargeTransport(target: nativeTarget, recognised: recognised),
+                                         journalURL: root.appendingPathComponent("native.json"), monitoringOnly: monitoringOnly,
+                                         environment: "charging-fixture")
         await native.refresh()
         let model = TilveroModel(isDemo: false, preferences: defaults, historyURL: url, snapshotProvider: { current },
                                  systemChargeLimitProvider: { _ in SystemChargeLimitObservation(limits: nil) },
@@ -309,21 +320,18 @@ private actor MemoryChargeTransport: NativeChargeTransport {
         let noAdapter = try await ChargingFixture.make(adapter: false, level: 64)
         defer { noAdapter.cleanup() }
 
-        // A lower limit below the charge waits for discharge without any write (the transport would fail the test).
-        let pending = try await ChargingFixture.make(level: 87, nativeTarget: 90)
-        defer { pending.cleanup() }
-        pending.model.setDraft(85)
-        pending.model.applyDraftTarget()
-        for _ in 0..<40 where pending.model.nativeCharge.pendingTarget == nil { try await Task.sleep(for: .milliseconds(50)) }
-        XCTAssertEqual(pending.model.nativeCharge.pendingTarget, 85)
-        let state = pending.model.nativeCharge.presentation()
-        XCTAssertFalse(Editor.isApplied(shown: Editor.shown(chosen: nil, model: pending.model),
-                                                   current: Editor.current(state.currentPreference),
-                                                   pendingTarget: state.pendingTarget), "pending is never drawn as applied")
+        // An earlier write macOS has not confirmed yet: one status line, the slider stays usable, nothing is written.
+        let unconfirmed = try await ChargingFixture.make(level: 87, nativeTarget: 90, leftoverSession: true)
+        defer { unconfirmed.cleanup() }
+        XCTAssertEqual(Editor.mode(unconfirmed.model), .slider)
+        XCTAssertEqual(unconfirmed.model.nativeCharge.presentation().attention, .mutationUnresolved)
+        XCTAssertEqual(NativeChargeStatusText.text(unconfirmed.model.nativeCharge.presentation(), model: unconfirmed.model),
+                       "macOS has not confirmed the last change yet.")
+        XCTAssertEqual(Editor.shown(chosen: nil, model: unconfirmed.model), 90, "what macOS reports, never the journal's value")
 
-        let unvalidated = try await ChargingFixture.make(admitted: false)
-        defer { unvalidated.cleanup() }
-        XCTAssertEqual(Editor.mode(unvalidated.model), .unavailable)
+        let unrecognised = try await ChargingFixture.make(recognised: false)
+        defer { unrecognised.cleanup() }
+        XCTAssertEqual(Editor.mode(unrecognised.model), .unavailable)
 
         // Monitoring only: no control, the macOS limit as a read-only row.
         let monitoring = try await ChargingFixture.make(monitoringOnly: true)
@@ -336,9 +344,9 @@ private actor MemoryChargeTransport: NativeChargeTransport {
         await demo.refresh()
 
         let cases: [(String, TilveroModel)] = [("normal", normal.model), ("noadapter", noAdapter.model),
-                                               ("pending", pending.model), ("unvalidated", unvalidated.model),
+                                               ("unconfirmed", unconfirmed.model), ("unrecognised", unrecognised.model),
                                                ("readonly", monitoring.model), ("demo", demo)]
-        let extra: Set<String> = ["unvalidated", "readonly", "demo"]
+        let extra: Set<String> = ["unrecognised", "readonly", "demo"]
         for (name, model) in cases {
             let observedBefore = model.nativeCharge.observed?.configuration
             let demoDraft = model.isDemo ? model.chargeState : nil
@@ -404,8 +412,7 @@ private actor MemoryChargeTransport: NativeChargeTransport {
         let quick85 = Editor.shown(chosen: nil, model: model)
         XCTAssertEqual(window85, 85)
         XCTAssertEqual(window85, quick85)
-        XCTAssertTrue(Editor.isApplied(shown: window85, current: Editor.current(state.currentPreference),
-                                                  pendingTarget: state.pendingTarget))
+        XCTAssertTrue(Editor.isApplied(shown: window85, current: Editor.current(state.currentPreference), pendingTarget: nil))
         XCTAssertEqual(Editor.targets(model), [80, 85, 90, 95, 100])
     }
 }

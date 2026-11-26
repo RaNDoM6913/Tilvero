@@ -25,7 +25,7 @@ import ChargeBackends
             // Optimized Charging is its own macOS setting: its switch does not depend on the limit.
             if ChargeLimitKit.showsOptimizedSwitch(isDemo: model.isDemo, optimizedAvailable: model.optimizedCharging.isAvailable) {
                 Divider()
-                OptimizedChargingRow(service: model.optimizedCharging, showsHold: false, locked: model.nativeCharge.isQualifying)
+                OptimizedChargingRow(service: model.optimizedCharging, showsHold: false)
             }
             ChargeByBlock(model: model, service: model.chargeBy)
         }
@@ -80,16 +80,15 @@ import ChargeBackends
     // MARK: Only when there is something to say
 
     @ViewBuilder private func attention(_ state: NativeChargePresentation) -> some View {
-        // A waiting limit has no line of its own: moving the slider back to the limit macOS holds cancels the wait.
         // While an operation is pending the spinner is the only sign (no text that appears and vanishes), until it passes
         // its deadline: then it says so, in orange.
         if state.attention != .operationPending || state.pendingTimedOut,
-           let status = NativeChargeStatusPanel(model: model, compact: true).statusText(state) {
+           let status = NativeChargeStatusText.text(state, model: model) {
             StudioText(L10n.text(status), id: "native.status").font(.caption)
-                .foregroundStyle(state.requiresGlobalAttention || state.pendingTimedOut ? .orange : .secondary)
+                .foregroundStyle(NativeChargeStatusText.isWarning(state) ? .orange : .secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        if let message = model.notices.current(excluding: [.chargeStatus])?.text, message != model.nativeCharge.message.map(L10n.text) {
+        if let message = model.notices.current()?.text, message != model.nativeCharge.message.map(L10n.text) {
             Text(message).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
         }
     }

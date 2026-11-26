@@ -127,7 +127,7 @@ enum DiagnosticsSummary {
         input.ownsSettings = model.liveControl.hasOwnedSettings
         input.lidNeedsRecovery = lid.needsRecovery
         input.systemSleepDisabled = lid.systemSleepDisabled
-        input.appHolds = (native?.hasOwnership ?? false) || lid.isOn
+        input.appHolds = lid.isOn   // the native limit is the user's own macOS setting, never held by Tilvero
         input.monitoringOnly = model.launchPolicy.monitoringOnly
         input.readableFields = DiagnosticsSummary.fieldCounts(model.snapshot.catalog).readable
         return LeadLine(lead: DiagnosticsSummary.lead(input)) { EmptyView() }
@@ -152,8 +152,8 @@ private struct DiagnosticsHeading: View {
 
 // MARK: macOS charging
 
-/// The macOS charge limit as rows (limit, verified levels, the macOS settings), and the existing actions only while
-/// they apply: restore a limit Tilvero still owns, validate when nothing is validated yet. The explanations live in (i).
+/// The macOS charge limit as rows (limit, offered levels, the macOS settings) and its one status line. Nothing to restore
+/// or validate: a confirmed limit is the user's own macOS setting. The explanations live in (i).
 @MainActor private struct DiagnosticsChargeTile: View {
     var model: TilveroModel
     var body: some View {
@@ -161,10 +161,7 @@ private struct DiagnosticsHeading: View {
         let state = native.presentation()
         // A background read keeps the line it had (no flicker); a read past its deadline says so.
         let status = state.attention == .operationPending && state.pendingPurpose == .read && !state.pendingTimedOut
-            ? nil : NativeChargeStatusPanel(model: model).statusText(state)
-        let pending = state.pendingTarget ?? state.restorationTarget
-        let restores = state.hasOwnership || native.recoveryRequired || native.restorationPending
-        let blocked = model.isApplying || native.isBusy || native.isQualifying || state.pendingPurpose != nil
+            ? nil : NativeChargeStatusText.text(state, model: model, compact: false)
         // The registered `pmset` manual limit when the native setting is not readable (the Charging page's fallback):
         // evidence only when read on AC.
         let manualLimit = model.systemChargeLimit?.evidentManualLimit()
@@ -183,23 +180,9 @@ private struct DiagnosticsHeading: View {
             ])
             if let status {
                 Text(L10n.text(status)).font(.callout)
-                    .foregroundStyle(state.requiresGlobalAttention || state.pendingTimedOut ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
+                    .foregroundStyle(NativeChargeStatusText.isWarning(state) ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
                     .fixedSize(horizontal: false, vertical: true).padding(.horizontal, 4)
                     .accessibilityIdentifier("diagnostics-charge-status")
-            }
-            if let pending {
-                Text(L10n.text(state.pendingTarget == nil ? "Restoration pending" : "Pending charging target")
-                     + " · " + L10n.text("Waiting for discharge below") + " \(pending)%")
-                    .font(.callout).foregroundStyle(.secondary).padding(.horizontal, 4)
-            }
-            if restores {
-                HStack(spacing: 10) {
-                    Button(L10n.text("Restore previous macOS limit")) { model.releaseControl() }
-                        .buttonStyle(.borderedProminent).disabled(blocked)
-                        .accessibilityIdentifier("diagnostics-restore-limit")
-                    Spacer(minLength: 0)
-                }
-                .padding(.leading, 4)
             }
         }
     }

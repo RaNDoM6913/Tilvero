@@ -8,7 +8,7 @@ import PowerCore
 
 @MainActor final class NativeChargeDiscoveryTests: XCTestCase {
     func testPartialCurrentTargetIsDistinctFromDiagnosticTargetAndDraft() async throws {
-        let fixture = try DiscoveryFixture(admitted: false)
+        let fixture = try DiscoveryFixture()
         defer { fixture.cleanUp() }
         await fixture.transport.setPartialObservation(current: 100, stored: 90)
         await fixture.model.refreshNativeCharge()
@@ -27,11 +27,10 @@ import PowerCore
         let writes = await fixture.transport.writes
         XCTAssertTrue(writes.isEmpty)
         XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.journal.path))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.admission.path))
     }
 
     func testStalePartialTargetCannotInitializeDraftOrDisplayStoredTarget() async throws {
-        let fixture = try DiscoveryFixture(admitted: false)
+        let fixture = try DiscoveryFixture()
         defer { fixture.cleanUp() }
         await fixture.transport.setPartialObservation(current: 100, stored: 90, date: Date().addingTimeInterval(-120))
         await fixture.model.refreshNativeCharge()
@@ -43,7 +42,7 @@ import PowerCore
 
     func testCompleteOrUnrelatedFailedReadClearsPartialObservation() async throws {
         for fullRead in [false, true] {
-            let fixture = try DiscoveryFixture(admitted: false)
+            let fixture = try DiscoveryFixture()
             defer { fixture.cleanUp() }
             await fixture.transport.setPartialObservation(current: 100, stored: 90)
             await fixture.model.refreshNativeCharge()
@@ -55,12 +54,12 @@ import PowerCore
             XCTAssertNil(fixture.native.diagnosticStoredTarget)
             XCTAssertEqual(fixture.native.currentReportedTarget, fullRead ? 85 : nil)
             if fullRead { XCTAssertNil(fixture.native.message, "A recovered complete read clears its former partial-read warning") }
-            XCTAssertFalse(fixture.native.admitted)
+            XCTAssertEqual(fixture.native.admitted, fullRead, "only a complete, recognised read grants the limit")
         }
     }
 
     func testUnknownConfigurationDoesNotInventLowestOfferedLimitAsDraft() async throws {
-        let fixture = try DiscoveryFixture(admitted: false)
+        let fixture = try DiscoveryFixture()
         defer { fixture.cleanUp() }
         XCTAssertTrue(fixture.model.draftText.isEmpty, "An unread setting must not look like an 80% limit")
         await fixture.model.refreshNativeCharge()
@@ -75,10 +74,16 @@ import PowerCore
     }
 
     func testUnknownStateKeepsNativeEditorVisibleWithoutAuthorizingWrites() async throws {
-        for admitted in [false, true] {
-            let fixture = try DiscoveryFixture(admitted: admitted)
+        for admittedBefore in [false, true] {
+            let fixture = try DiscoveryFixture()
             defer { fixture.cleanUp() }
+            if admittedBefore {   // an earlier complete read granted the limit; macOS now reports a state Tilvero does not recognise
+                await fixture.transport.setUnknown(false)
+                await fixture.native.refresh()
+                await fixture.transport.setUnknown(true)
+            }
             await fixture.native.refresh()
+            XCTAssertEqual(fixture.native.admitted, admittedBefore)
 
             XCTAssertTrue(fixture.model.usesNativeCharge)
             XCTAssertTrue(fixture.model.canShowChargeControls)
@@ -89,36 +94,29 @@ import PowerCore
             XCTAssertFalse(fixture.model.canPerformChargeActions)
             fixture.model.setDraft(90)
             XCTAssertFalse(fixture.model.canApply, "A discovered target is only a draft until the policy is confirmed")
-            do { try await fixture.native.apply(90, batteryPercent: 60, batteryFresh: true); XCTFail("Unknown state must block Apply") } catch {}
-            do { try await fixture.native.qualify(); XCTFail("Unknown state must block qualification before any setter") } catch {}
+            do { try await fixture.native.apply(90); XCTFail("Unknown state must block Apply") } catch {}
             let writes = await fixture.transport.writes
             XCTAssertTrue(writes.isEmpty)
             XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.journal.path))
-            XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.admission.path))
         }
     }
 
     func testUnknownStateClearsCachedPreferenceAcrossEveryReadEntryPoint() async throws {
-        for action in ["refresh", "apply", "restore", "qualify"] {
-            let fixture = try DiscoveryFixture(admitted: true)
+        for action in ["refresh", "apply"] {
+            let fixture = try DiscoveryFixture()
             defer { fixture.cleanUp() }
             await fixture.transport.setUnknown(false)
             await fixture.native.refresh()
-            if action == "apply" || action == "restore" {
-                try await fixture.native.apply(90, batteryPercent: 60, batteryFresh: true)
-            }
+            if action == "apply" { try await fixture.native.apply(90) }
             let journalBefore = try? Data(contentsOf: fixture.journal)
             let writesBefore = await fixture.transport.writes
-            let ownershipBefore = fixture.native.hasOwnedSettings
             XCTAssertNotNil(fixture.native.nativeSetting)
             await fixture.transport.setUnknown(true)
 
             do {
                 switch action {
                 case "refresh": await fixture.native.refresh()
-                case "apply": try await fixture.native.apply(95, batteryPercent: 60, batteryFresh: true)
-                case "restore": _ = try await fixture.native.restore(batteryPercent: 60, batteryFresh: true)
-                default: try await fixture.native.qualify()
+                default: try await fixture.native.apply(95)
                 }
                 if action != "refresh" { XCTFail("The unknown state must stop \(action)") }
             } catch {}
@@ -127,15 +125,16 @@ import PowerCore
             XCTAssertNil(fixture.native.observed)
             XCTAssertEqual(fixture.native.acceptedTargets, [80, 85, 90, 95, 100])
             XCTAssertFalse(fixture.native.canApply)
-            XCTAssertEqual(fixture.native.hasOwnedSettings, ownershipBefore)
             XCTAssertEqual(try? Data(contentsOf: fixture.journal), journalBefore)
             let writesAfter = await fixture.transport.writes
             XCTAssertEqual(writesAfter, writesBefore, "Discovery may not dispatch a setter")
         }
     }
 
-    func testFullReadRecoversPresentationWithoutGrantingAdmission() async throws {
-        let fixture = try DiscoveryFixture(admitted: false)
+    /// A complete, recognised read after an unknown one shows the setting and grants the limit (as System Settings shows
+    /// it); nothing is written by reading.
+    func testFullReadRecoversPresentationAndGrantsTheLimit() async throws {
+        let fixture = try DiscoveryFixture()
         defer { fixture.cleanUp() }
         await fixture.native.refresh()
         XCTAssertTrue(fixture.model.usesNativeCharge)
@@ -143,14 +142,14 @@ import PowerCore
         await fixture.native.refresh()
         XCTAssertEqual(fixture.native.nativeSetting?.configuration.target, 85)
         XCTAssertEqual(fixture.native.observed?.configuration.target, 85)
-        XCTAssertFalse(fixture.native.admitted)
-        XCTAssertFalse(fixture.model.canPerformChargeActions)
+        XCTAssertTrue(fixture.native.admitted)
+        XCTAssertTrue(fixture.model.canPerformChargeActions)
         let writes = await fixture.transport.writes
         XCTAssertTrue(writes.isEmpty)
     }
 
     func testUnsupportedInterfaceDoesNotInventTargets() async throws {
-        let fixture = try DiscoveryFixture(admitted: false)
+        let fixture = try DiscoveryFixture()
         defer { fixture.cleanUp() }
         await fixture.transport.setUnsupported()
         await fixture.native.refresh()
@@ -170,14 +169,12 @@ import PowerCore
     let native: NativeChargeService
     let model: TilveroModel
     var journal: URL { root.appendingPathComponent("session.json") }
-    var admission: URL { root.appendingPathComponent("admission.json") }
 
-    init(admitted: Bool) throws {
+    init() throws {
         preferences = TestDefaults.defaults(suite)
         preferences.set(false, forKey: "historyEnabled")
         native = NativeChargeService(client: transport, journalURL: root.appendingPathComponent("session.json"),
-            admitted: admitted, verificationAttempts: 2, environment: "discovery-fixture",
-            batteryProvider: { .init(percent: 60, externalPower: true) }, admissionURL: root.appendingPathComponent("admission.json"))
+            verificationAttempts: 2, environment: "discovery-fixture")
         model = TilveroModel(isDemo: false, launchPolicy: .resolve(metadata: [:]), preferences: preferences,
             historyURL: root.appendingPathComponent("History.sqlite"),
             snapshotProvider: { .unavailable(reason: "Discovery fixture; no native telemetry") }, nativeCharge: native)

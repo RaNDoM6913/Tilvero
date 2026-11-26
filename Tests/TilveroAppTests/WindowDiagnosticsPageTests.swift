@@ -45,12 +45,12 @@ import PowerPersistence
     }
 
     func testAttentionCountsAndNamesTheFirstItem() {
-        var input = DiagnosticsInputs(nativeAttentionKey: NativeChargePresentation.Attention.sessionReview.titleKey)
+        var input = DiagnosticsInputs(nativeAttentionKey: NativeChargePresentation.Attention.journalIntegrity.titleKey)
         var lead = DiagnosticsSummary.lead(input)
         XCTAssertEqual(lead.value, "1")
         XCTAssertEqual(lead.tone, .attention)
         XCTAssertEqual(lead.status, L10n.text("Needs review"))
-        XCTAssertEqual(lead.detail, L10n.text("Charging session needs review"))
+        XCTAssertEqual(lead.detail, L10n.text("Native journal needs review"))
 
         input.recoveryRequired = true
         input.systemSleepDisabled = true
@@ -58,7 +58,7 @@ import PowerPersistence
         XCTAssertEqual(lead.value, "3")
         XCTAssertEqual(lead.detail, L10n.text("App-owned settings require restoration"), "recovery comes first")
         XCTAssertEqual(DiagnosticsSummary.items(input),
-                       ["App-owned settings require restoration", "Charging session needs review",
+                       ["App-owned settings require restoration", "Native journal needs review",
                         DiagnosticsSummary.sleepDisabledWarningKey])
     }
 

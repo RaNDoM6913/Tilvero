@@ -116,7 +116,7 @@ enum OverviewRange: String, CaseIterable, Identifiable, Sendable {
             helperTargetPending: !model.usesNativeCharge && model.pendingTarget != nil,
             attentionKey: attention.flatMap { $0.showsAttentionBanner ? $0.attention.titleKey : nil },
             storeError: model.storeError,
-            notice: model.notices.current(excluding: model.isDemo ? [.chargeStatus, .simulation] : [.chargeStatus])?.text)
+            notice: model.notices.current(excluding: model.isDemo ? [.simulation] : [])?.text)
         if let notice = NoticeDisplay.choose(input) {
             NoticeTile(symbol: notice.symbol, text: notice.text, tint: notice.isWarning ? .orange : .secondary, button: button(notice.action))
         }

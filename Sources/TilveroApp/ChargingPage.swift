@@ -195,7 +195,7 @@ enum ChargingComposition {
                 // Optimized Charging is its own macOS setting: its switch is drawn in every mode.
                 if ChargeLimitKit.showsOptimizedSwitch(isDemo: model.isDemo, optimizedAvailable: model.optimizedCharging.isAvailable) {
                     Divider()
-                    OptimizedChargingRow(service: model.optimizedCharging, showsHold: true, locked: model.nativeCharge.isQualifying)
+                    OptimizedChargingRow(service: model.optimizedCharging, showsHold: true)
                 }
                 if !model.isDemo, mode != .readOnly { ChargeByBlock(model: model, service: model.chargeBy) }
             }
@@ -240,7 +240,8 @@ enum ChargingComposition {
 
     @ViewBuilder private func editor(_ state: NativeChargePresentation) -> some View {
         let shown = ChargeLimitKit.shown(chosen: chosen, model: model)
-        let pendingTarget = model.isDemo ? model.pendingTarget : state.pendingTarget
+        // Only the simulation's lower target waits; the native limit is set at once (as in System Settings).
+        let pendingTarget = model.isDemo ? model.pendingTarget : nil
         header(value: shown, applied: ChargeLimitKit.isApplied(shown: shown, current: current, pendingTarget: pendingTarget), state: state)
         if let pending = ChargeLimitKit.pendingText(pendingTarget: pendingTarget) {
             HStack(spacing: 6) {
@@ -276,13 +277,13 @@ enum ChargingComposition {
         }
     }
 
-    /// The native status line (review, unconfirmed policy); the waiting limit has its own line above and the notice strip
-    /// under the lead carries the page-wide notices.
+    /// The native status line (an unconfirmed change or policy); the notice strip under the lead carries the page-wide
+    /// notices.
     @ViewBuilder private func statusLine(_ state: NativeChargePresentation) -> some View {
         if !model.isDemo, state.attention != .operationPending || state.pendingTimedOut,
-           let status = NativeChargeStatusPanel(model: model, compact: true).statusText(state) {
+           let status = NativeChargeStatusText.text(state, model: model) {
             Text(L10n.text(status)).font(.callout)
-                .foregroundStyle(state.requiresGlobalAttention || state.pendingTimedOut ? .orange : .secondary)
+                .foregroundStyle(NativeChargeStatusText.isWarning(state) ? .orange : .secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }

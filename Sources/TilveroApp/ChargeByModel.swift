@@ -33,7 +33,7 @@ import PowerCore
         do {
             // The service reads the limit fresh, refuses a changed one, writes and reads back: no further refresh is needed
             // (a later read failure must not turn a confirmed write into a reported failure).
-            try await model.nativeCharge.apply(limit, batteryPercent: nil, batteryFresh: false, expectedCurrent: expected)
+            try await model.nativeCharge.apply(limit, expectedCurrent: expected)
             return .confirmed
         } catch NativeChargeServiceError.changedElsewhere {
             return .changedElsewhere

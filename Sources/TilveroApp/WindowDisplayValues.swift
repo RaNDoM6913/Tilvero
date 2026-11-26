@@ -171,12 +171,9 @@ extension NativeChargePresentation.Attention {
     /// Localisation key of the attention title (details banner, notice tile).
     var titleKey: String {
         switch self {
-        case .sessionReview: "Charging session needs review"
         case .mutationUnresolved: "Charge limit change not confirmed"
         case .journalIntegrity: "Native journal needs review"
         case .operationPending: "Waiting for native operation"
-        case .restorationPending: "Restoration pending"
-        case .lowerTargetPending: "Pending charging target"
         case .policyUnconfirmed: "Waiting for policy confirmation"
         case .none: "Native charging"
         }

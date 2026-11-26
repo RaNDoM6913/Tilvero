@@ -115,7 +115,7 @@ import ChargeBackends
     func testAlreadyConfirmedNativeTargetDoesNotOfferApply() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
-        let service = NativeChargeService(client: PanelChargeFixture(), journalURL: root.appendingPathComponent("session.json"), admitted: true)
+        let service = NativeChargeService(client: PanelChargeFixture(), journalURL: root.appendingPathComponent("session.json"))
         await service.refresh()
         XCTAssertFalse(service.needsApply(target: 80))
         XCTAssertTrue(service.needsApply(target: 90))

@@ -10,7 +10,7 @@ import PowerCore
     func testInjectedServicesRetainTheirOwnAdmissionAndClockWithoutNativeFallback() async throws {
         let fixture = ModelInjectionFixture()
         defer { fixture.cleanup() }
-        let native = NativeChargeService(client: InjectionNativeTransport(), journalURL: fixture.root.appendingPathComponent("native.json"), admitted: true)
+        let native = NativeChargeService(client: InjectionNativeTransport(), journalURL: fixture.root.appendingPathComponent("native.json"))
         let clock = InjectionAwakeClock()
         let awake = KeepAwakeService(driver: AwakeFixture(), sleeper: { _ in try await Task.sleep(for: .seconds(3600)) },
             continuousNow: { clock.now })
@@ -82,7 +82,8 @@ import PowerCore
 @MainActor private final class InjectionAwakeClock { var now = ContinuousClock.now }
 private actor InjectionNativeTransport: NativeChargeTransport {
     func read() -> NativeChargeSnapshot {
-        .init(configuration: .init(enabled: true, target: 100, optimizedCharging: true), supportedTargets: [80, 85, 90, 95, 100], registeredManualLimit: 100)
+        // macOS stores 100 as "limit off": disabled, no registered row.
+        .init(configuration: .init(enabled: false, target: 100, optimizedCharging: true), supportedTargets: [80, 85, 90, 95, 100], registeredManualLimit: nil)
     }
     func setLimit(_ target: Int) {}
     func setEnabled(_ enabled: Bool) {}

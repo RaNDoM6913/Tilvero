@@ -66,7 +66,7 @@ private actor InvalidationProcesses {
         let prefs = makeTestDefaults("Invalidation").defaults
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         addTeardownBlock { UserDefaults.standard.removeObject(forKey: "TilveroReleaseTabs"); try? FileManager.default.removeItem(at: root) }
-        let native = NativeChargeService(client: InvalidationChargeTransport(), journalURL: root.appendingPathComponent("native.json"), admitted: true)
+        let native = NativeChargeService(client: InvalidationChargeTransport(), journalURL: root.appendingPathComponent("native.json"))
         await native.refresh()
         let keyboardFixture = InvalidationKeyboard()
         let keyboard = KeyboardBacklightService(driver: keyboardFixture, storage: keyboardFixture, settleDelay: .milliseconds(1))

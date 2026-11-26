@@ -58,7 +58,7 @@ struct ModePlan: Codable, Equatable {
         } else {
             if let chargeTarget {
                 rows.append(.init(action: .charge, status: chargeAvailable && chargeTargets.contains(chargeTarget) ? .available : .excluded,
-                                  detail: chargeAvailable && chargeTargets.contains(chargeTarget) ? "Lower targets wait for natural discharge." : "Native charging validation or an offered target is required."))
+                                  detail: chargeAvailable && chargeTargets.contains(chargeTarget) ? "Set at once, as in System Settings." : "The limit is not available right now."))
             }
             if lowPower {
                 rows.append(.init(action: .energy, status: .excluded, detail: "Power mode writes require a qualified signed helper."))

@@ -29,7 +29,7 @@ import PowerCore
             let f = ScopeFixture(mode: mode); defer { f.cleanup() }
             try arrange(f)
             let bytes = try Data(contentsOf: f.journal)
-            let service = f.makeService(implicit: true)
+            let service = f.makeService()
             let (model, suite) = f.makeModel(service, percent: 60, charging: true, externalPower: true)
             defer { model.stop(); TestDefaults.remove(suite) }
             await service.refresh()
@@ -48,7 +48,7 @@ import PowerCore
 
     func testQuitDuringAWriteWaitsForItOnlyWhenItCan() async throws {
         let f = ScopeFixture(); defer { f.cleanup() }
-        let service = f.makeService(implicit: true)
+        let service = f.makeService()
         let (model, suite) = f.makeModel(service, percent: 60, charging: true, externalPower: true)
         defer { model.stop(); TestDefaults.remove(suite) }
         await model.refreshNativeCharge()
@@ -102,7 +102,7 @@ extension NativeChargeModelIntegrationTests {
 
     func testAChargeOnceLiftThatReadsBackLateStillRestoresThePreviousLimitOnUnplug() async throws {
         let f = ScopeFixture(); defer { f.cleanup() }
-        let service = f.makeService(implicit: true)
+        let service = f.makeService()
         let source = SnapshotSource(percent: 60, charging: true, externalPower: true)
         let (model, suite) = f.makeModel(service, snapshot: { source.read() })
         defer { model.stop(); TestDefaults.remove(suite) }
@@ -127,7 +127,7 @@ extension NativeChargeModelIntegrationTests {
 
     func testALimitSetInSystemSettingsDuringChargeOnceIsKept() async throws {
         let f = ScopeFixture(initialTarget: 85); defer { f.cleanup() }
-        let service = f.makeService(implicit: true)
+        let service = f.makeService()
         let source = SnapshotSource(percent: 60, charging: true, externalPower: true)
         let (model, suite) = f.makeModel(service, snapshot: { source.read() })
         defer { model.stop(); TestDefaults.remove(suite) }
@@ -146,7 +146,7 @@ extension NativeChargeModelIntegrationTests {
 
     func testASavedChargeOnceIntentDecidesNothingBeforeTheFirstRead() async throws {
         let f = ScopeFixture(); defer { f.cleanup() }
-        let service = f.makeService(implicit: true)
+        let service = f.makeService()
         let (model, suite) = f.makeModel(service, configure: { $0.set(85, forKey: "chargeOncePreviousTarget") },
                                          snapshot: { ScopeFixture.snapshot(percent: 70, charging: false, externalPower: false) })
         defer { model.stop(); TestDefaults.remove(suite) }
@@ -160,7 +160,7 @@ extension NativeChargeModelIntegrationTests {
 
     func testChargeByWritesNothingOverALimitChangedElsewhere() async throws {
         let f = ScopeFixture(); defer { f.cleanup() }
-        let service = f.makeService(implicit: true)
+        let service = f.makeService()
         let (model, suite) = f.makeModel(service, percent: 60, charging: true, externalPower: true)
         defer { model.stop(); TestDefaults.remove(suite) }
         await model.refreshNativeCharge()
@@ -180,7 +180,7 @@ extension NativeChargeModelIntegrationTests {
 extension NativeChargeModelIntegrationTests {
     func testTheEditorShowsWhatMacOSReportsNeverTheDraft() async throws {
         let f = ScopeFixture(); defer { f.cleanup() }
-        let service = f.makeService(implicit: true)
+        let service = f.makeService()
         let (model, suite) = f.makeModel(service, percent: 60, charging: true, externalPower: true)
         defer { model.stop(); TestDefaults.remove(suite) }
         await model.refreshNativeCharge()
@@ -189,7 +189,7 @@ extension NativeChargeModelIntegrationTests {
         XCTAssertEqual(ChargeLimitKit.shown(chosen: 85, model: model), 85, "the slider's own choice while it is applied")
         // An unresolved session never makes the readout show the journal's value.
         await f.client.setMode("conflict")
-        do { try await service.apply(85, batteryPercent: nil, batteryFresh: false); XCTFail("unconfirmed") } catch {}
+        do { try await service.apply(85); XCTFail("unconfirmed") } catch {}
         await f.client.setMode("")
         await f.client.external(target: 95)   // System Settings
         await model.refreshNativeCharge()
@@ -200,7 +200,7 @@ extension NativeChargeModelIntegrationTests {
 
     func testARefusedReleaseResetsTheDraftAndSaysWhyWithoutAWrite() async throws {
         let f = ScopeFixture(initialTarget: 80); defer { f.cleanup() }
-        let service = f.makeService(implicit: true)
+        let service = f.makeService()
         let (model, suite) = f.makeModel(service, percent: 60, charging: true, externalPower: true)
         defer { model.stop(); TestDefaults.remove(suite) }
         await model.refreshNativeCharge()
@@ -217,7 +217,7 @@ extension NativeChargeModelIntegrationTests {
 
     func testAReleaseThatCanApplyWritesOnce() async throws {
         let f = ScopeFixture(); defer { f.cleanup() }
-        let service = f.makeService(implicit: true)
+        let service = f.makeService()
         let (model, suite) = f.makeModel(service, percent: 60, charging: true, externalPower: true)
         defer { model.stop(); TestDefaults.remove(suite) }
         await model.refreshNativeCharge()

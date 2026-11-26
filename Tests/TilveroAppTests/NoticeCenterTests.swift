@@ -32,19 +32,19 @@ import XCTest
     func testAnExcludedNewestNoticeHidesTheLineInsteadOfShowingAnOlderOne() {
         let center = NoticeCenter()
         center.post("Export saved", from: .data)
-        center.post("Waiting for natural discharge", from: .chargeStatus)
-        XCTAssertNil(center.current(excluding: [.chargeStatus]), "A surface that leaves out the newest line shows nothing")
-        XCTAssertEqual(center.current()?.text, "Waiting for natural discharge")
-        center.clear(.chargeStatus)
-        XCTAssertEqual(center.current(excluding: [.chargeStatus])?.text, "Export saved")
+        center.post("Simulation only", from: .simulation)
+        XCTAssertNil(center.current(excluding: [.simulation]), "A surface that leaves out the newest line shows nothing")
+        XCTAssertEqual(center.current()?.text, "Simulation only")
+        center.clear(.simulation)
+        XCTAssertEqual(center.current(excluding: [.simulation])?.text, "Export saved")
     }
 
     func testAControlResultReplacesTheEarlierControlLinesOnly() {
         let center = NoticeCenter()
         center.post("Keep Awake failed", from: .keepAwake)
-        center.post("Waiting for natural discharge", from: .chargeStatus)
+        center.post("Recovery required", from: .recovery)
         center.post("The limit could not be applied", from: .control)
-        XCTAssertNil(center.notices[.chargeStatus], "A newer apply outdates the pending line")
+        XCTAssertNil(center.notices[.recovery], "A newer apply outdates the recovery line")
         center.post("Simulation only", from: .simulation)
         XCTAssertNil(center.notices[.control], "…and the previous failure")
         center.post("Recovery required", from: .recovery)

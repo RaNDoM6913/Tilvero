@@ -573,7 +573,10 @@ struct ReadingInfoPresentation {
                         if model.isDemo {
                             StudioActionButton(L10n.text(model.isFullChargeOnceRequested ? "Cancel one-time charge" : "Charge to 100% once"), id: "charge.once") { model.toggleSimulatedFullChargeOnce() }
                         }
-                        StudioActionButton(L10n.text("Return to system control"), id: "action.return-to-system-control") { model.releaseControl() }.disabled(!model.canReleaseCharge)
+                        // Only owned settings (simulation, helper) are returned: the native limit is the user's own macOS setting.
+                        if model.isDemo || !model.usesNativeCharge {
+                            StudioActionButton(L10n.text("Return to system control"), id: "action.return-to-system-control") { model.releaseControl() }.disabled(!model.canReleaseCharge)
+                        }
                     }.disabled(model.isApplying)
                 }
                 Label(L10n.text("Power mode") + ": " + L10n.text(model.isLowPowerModeEnabled ? "Low Power" : "Automatic"), systemImage: "bolt.circle")

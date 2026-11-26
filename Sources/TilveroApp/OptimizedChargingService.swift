@@ -78,8 +78,6 @@ import SwiftUI
 @MainActor struct OptimizedChargingRow: View {
     @ObservedObject var service: OptimizedChargingService
     var showsHold: Bool
-    /// While the charge-limit validation runs, the switch waits (its writes would make the validation fail).
-    var locked = false
 
     var body: some View {
         if service.isAvailable {
@@ -91,7 +89,7 @@ import SwiftUI
                     Spacer(minLength: 8)
                     Toggle(L10n.text("Optimized charging"), isOn: Binding(get: { service.shownEnabled },
                                                                           set: { value in Task { await service.setEnabled(value) } }))
-                        .toggleStyle(.switch).labelsHidden().disabled(service.isBusy || locked)
+                        .toggleStyle(.switch).labelsHidden().disabled(service.isBusy)
                         .accessibilityIdentifier("optimized-charging-switch")
                 }
                 if showsHold, let state = service.state, let line = OptimizedChargingText.holdLine(state) {
