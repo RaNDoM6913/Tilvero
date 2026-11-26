@@ -182,7 +182,7 @@ enum ChargeLimitKit {
 @MainActor struct ChargeLimitValidateButton: View {
     var model: TilveroModel
     var body: some View {
-        if !model.nativeCharge.admitted && !model.nativeCharge.recoveryRequired {
+        if !model.nativeCharge.admitted && !model.nativeCharge.recoveryRequired && !model.nativeCharge.awaitingDiscovery {
             let enabled = ChargeLimitKit.canValidate(model)
             Button { model.qualifyNativeCharge() } label: {
                 Text(L10n.text("Validate 80–100%…"))

@@ -564,6 +564,56 @@ import PowerCore
         await f.assertWrites(["limit80"])
     }
 
+    /// Owner decision 2026-11-26: the limit works at once, at any charge, after every macOS update: the live interface
+    /// grants it (no validation run, no proof file), and every write is still read back.
+    func testLiveInterfaceGrantsTheLimitWithoutValidationAtAnyCharge() async throws {
+        let f = ScopeFixture(mode: "battery89"); defer { f.cleanup() }
+        let service = f.makeService(implicit: true)
+        XCTAssertTrue(service.awaitingDiscovery, "no Validate button flashes before the first read")
+        XCTAssertFalse(service.admitted)
+        await service.refresh()
+        XCTAssertTrue(service.admitted)
+        XCTAssertFalse(service.awaitingDiscovery)
+        XCTAssertEqual(service.authorizedPersistentTargets, NativeChargeAdmission.persistentTargets)
+        XCTAssertTrue(service.canApplyTarget(95))
+        try await service.apply(95, batteryPercent: 89, batteryFresh: true)   // above the charge: written and read back
+        XCTAssertEqual(service.observed?.configuration.target, 95)
+        try await service.apply(100, batteryPercent: 89, batteryFresh: true)  // limit off
+        XCTAssertEqual(service.observed?.configuration.enabled, false)
+        try await service.apply(85, batteryPercent: 89, batteryFresh: true)   // below the charge: waits, as System Settings would hold it
+        XCTAssertEqual(service.pendingTarget, 85)
+        await f.assertWrites(["limit95", "limit100"])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: f.admission.path), "no proof file is invented")
+        XCTAssertFalse(service.recoveryRequired)
+    }
+
+    func testOnBatteryJustAfterUnpluggingTheStaleRegistryRowsDoNotBlockAWrite() async throws {
+        let f = ScopeFixture(mode: "batteryStaleRows"); defer { f.cleanup() }
+        let service = f.makeService(implicit: true)
+        await service.refresh()
+        XCTAssertTrue(service.canApplyTarget(95))
+        try await service.apply(95, batteryPercent: 60, batteryFresh: true)
+        XCTAssertEqual(service.observed?.configuration.target, 95)
+        XCTAssertFalse(service.recoveryRequired, "the stored setting is the evidence on battery power, not the stale rows")
+        try await service.apply(100, batteryPercent: 60, batteryFresh: true)
+        XCTAssertEqual(service.observed?.configuration.enabled, false)
+        await f.assertWrites(["limit95", "limit100"])
+    }
+
+    func testLiveInterfaceGrantsNothingWhenATargetIsMissingOrMonitoringOnly() async throws {
+        let f = ScopeFixture(mode: "offered"); defer { f.cleanup() }   // macOS offers no 95
+        let partial = f.makeService(implicit: true)
+        await partial.refresh()
+        XCTAssertFalse(partial.admitted)
+        XCTAssertFalse(partial.canApplyTarget(90))
+        let g = ScopeFixture(); defer { g.cleanup() }
+        let monitor = g.makeService(implicit: true, monitoringOnly: true)
+        await monitor.refresh()
+        XCTAssertFalse(monitor.admitted)
+        XCTAssertFalse(monitor.awaitingDiscovery)
+        await f.assertWrites([]); await g.assertWrites([])
+    }
+
     func testProductionScopeRejectsLegacyJournalAndPreservesItsBytes() async throws {
         let f = ScopeFixture(); defer { f.cleanup() }
         try FileManager.default.createDirectory(at: f.root, withIntermediateDirectories: true)
@@ -589,10 +639,10 @@ import PowerCore
         service = NativeChargeService(client: transport, journalURL: root.appendingPathComponent("session.json"), verificationAttempts: 1,
             environment: "scope-fixture", batteryProvider: { await transport.battery() }, admissionURL: root.appendingPathComponent("admission.json"))
     }
-    func makeService(scope: NativeChargeAdmission.Scope? = nil) -> NativeChargeService {
+    func makeService(scope: NativeChargeAdmission.Scope? = nil, implicit: Bool = false, monitoringOnly: Bool = false) -> NativeChargeService {
         let transport = client
-        return NativeChargeService(client: client, journalURL: journal, admissionScope: scope, verificationAttempts: 1,
-            environment: "scope-fixture", batteryProvider: { await transport.battery() }, admissionURL: admission)
+        return NativeChargeService(client: client, journalURL: journal, admissionScope: scope, monitoringOnly: monitoringOnly, verificationAttempts: 1,
+            environment: "scope-fixture", batteryProvider: { await transport.battery() }, admissionURL: admission, implicitAdmission: implicit)
     }
     func assertWrites(_ expected: [String], _ message: String = "", file: StaticString = #filePath, line: UInt = #line) async {
         let writes = await client.writes
@@ -626,11 +676,12 @@ private actor ScopeTransport: NativeChargeTransport {
         }
         let target = mode == "baseline100" ? 100 : mode == "baseline85" || (mode == "externalBefore95" && reads >= 2) ? 85 : target
         // macOS stores 100 as "limit off": disabled, no registered manual limit (mode "baseline100" is an inconsistent enabled 100).
-        let battery = mode == "battery"   // macOS on battery power: the setting is stored, nothing is registered
+        let battery = mode == "battery" || mode == "batteryStaleRows"   // on battery power: the setting is stored, nothing is registered
         let off = target == 100 && mode != "baseline100"
         return .init(configuration: .init(enabled: mode != "disabled" && !off, target: target, optimizedCharging: mode != "obc"),
               supportedTargets: mode == "offered" ? [80,85,90,100] : [80,85,90,95,100],
-              registeredManualLimit: mode == "disabled" || mode == "policy" || off || battery ? nil : target,
+              // "batteryStaleRows": just unplugged, macOS still lists the old 90 rows for a few minutes.
+              registeredManualLimit: mode == "batteryStaleRows" ? 90 : mode == "disabled" || mode == "policy" || off || battery ? nil : target,
               policyReadbackAvailable: mode != "conflict",
               collectedAt: mode == "stale" ? Date().addingTimeInterval(-100) : Date(), registrationExpected: !battery,
               registryConflict: mode == "conflict")

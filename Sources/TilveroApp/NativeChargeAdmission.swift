@@ -13,6 +13,15 @@ struct NativeChargeAdmission: Codable {
     /// The persistent states a local validation exercises (every one written, read back and restored). 100 is how
     /// macOS stores "limit off": enabled false, target 100, no registered manual limit.
     static let persistentTargets = [80, 85, 90, 95, 100]
+
+    /// Owner decision 2026-11-26: the limit is always usable, at any charge level and after every macOS update, without a
+    /// separate validation run. Authority comes from the live interface itself: a fresh read through the checked PowerUI
+    /// bridge that offers every persistent target and holds a valid persistent state. Every write is still journaled with
+    /// its baseline and read back; an unconfirmed write is handled as before (unresolved journal, no guessing).
+    static func discovered(_ value: NativeChargeSnapshot, environment: String) -> Scope? {
+        guard value.isFresh, validOfferedTargets(value.supportedTargets), isValidState(value.configuration) else { return nil }
+        return Scope(environment: environment, optimizedCharging: value.configuration.optimizedCharging)
+    }
     static let unlimitedTarget = 100
     /// A configuration the scoped journal may hold: an enabled limit at a verified target, or the limit off.
     static func isValidState(_ configuration: NativeChargeConfiguration) -> Bool {
@@ -24,7 +33,7 @@ struct NativeChargeAdmission: Codable {
         let semanticContract: String
         let authorizedPersistentTargets: [Int]
         let optimizedCharging: Bool
-        // Only a fully validated proof can construct production authority.
+        // A fully validated proof, or (owner decision 2026-11-26) the live interface itself: see `discovered`.
         fileprivate init(environment: String, optimizedCharging: Bool) {
             self.environment = environment; semanticContract = NativeChargeAdmission.semanticContract
             authorizedPersistentTargets = NativeChargeAdmission.persistentTargets
@@ -67,10 +76,11 @@ struct NativeChargeAdmission: Codable {
         let obcOK = !strict || value.configuration.optimizedCharging == optimizedCharging
         if target == unlimitedTarget {
             return value.configuration.matchesManual(.init(enabled: false, target: unlimitedTarget, optimizedCharging: optimizedCharging)) && obcOK
-                && registryOK && value.registeredManualLimit == nil && validOfferedTargets(value.supportedTargets)
+                && registryOK && (value.registeredManualLimit == nil || (!strict && !value.registrationExpected))
+                && validOfferedTargets(value.supportedTargets)
         }
         return value.configuration.matchesManual(.init(enabled: true, target: target, optimizedCharging: optimizedCharging)) && obcOK
-            && registryOK && (value.registeredManualLimit == target || (!strict && value.registeredManualLimit == nil && !value.registrationExpected))
+            && registryOK && (value.registeredManualLimit == target || (!strict && !value.registrationExpected))
             && validOfferedTargets(value.supportedTargets)
     }
 

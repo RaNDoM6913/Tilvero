@@ -51,8 +51,10 @@ public struct NativeChargeSnapshot: Codable, Equatable, Sendable {
     public var isFresh: Bool { let age = Date().timeIntervalSince(collectedAt); return age >= -5 && age <= 65 }
     /// The registry agrees with the stored setting, or (on battery power only) lists nothing at all.
     public var policyMatches: Bool {
+        // On battery power macOS does not forward a limit to powerd and keeps listing the old rows for minutes after
+        // unplugging: the registry is not evidence then, the stored setting (configuration) is.
+        if !registrationExpected { return true }
         guard policyReadbackAvailable else { return false }
-        if registeredManualLimit == nil, !registrationExpected { return true }
         return configuration.enabled ? registeredManualLimit == configuration.target : registeredManualLimit == nil
     }
     /// Registry agreement with no battery-power allowance: what validation evidence requires.

@@ -121,7 +121,18 @@ enum NativeChargeServiceError: Error, LocalizedError {
         guard value.isFresh else { return }
         nativeSetting = value
         knownTargets = value.supportedTargets
+        // The live interface grants the persistent targets (no validation run, no battery floor; see `discovered`).
+        if implicitAdmission, !monitoringOnly, admissionScope == nil, !isQualifying,
+           let scope = NativeChargeAdmission.discovered(value, environment: environment) {
+            admissionScope = scope; admitted = true
+        }
     }
+    /// Production: the live interface grants the limit. Fixtures keep the explicit validation contract unless they opt in.
+    private let implicitAdmission: Bool
+    /// A validation proof exists (only that, not the live interface, vouches for a pre-0.8.2 journal of unknown origin).
+    private let hasProof: Bool
+    /// Not read yet while the live interface is about to grant the limit: no «Validate» button flashes at launch.
+    var awaitingDiscovery: Bool { implicitAdmission && !monitoringOnly && !admitted && nativeSetting == nil }
     private var knownTargets: [Int] = []
     @Published private(set) var pendingTarget: Int?
     @Published private(set) var restorationPending = false
@@ -260,12 +271,13 @@ enum NativeChargeServiceError: Error, LocalizedError {
          verificationAttempts: Int = 30, verificationDelay: Duration = .zero,
          environment: String = ProcessInfo.processInfo.operatingSystemVersionString,
          batteryProvider: (@Sendable () async -> ChargeObservation)? = nil, admissionURL: URL? = nil,
-         operationTimeout: Duration = .seconds(15), fullOnceQualified: Bool = false) {
+         operationTimeout: Duration = .seconds(15), fullOnceQualified: Bool = false, implicitAdmission: Bool = false) {
         operationGate = NativeChargeOperationGate(timeout: operationTimeout); self.fullOnceQualified = fullOnceQualified
         self.client = client; self.journalURL = journalURL; self.monitoringOnly = monitoringOnly
         trustedFixtureAuthority = admitted && !monitoringOnly
         self.admissionScope = !monitoringOnly && admissionScope?.environment == environment ? admissionScope : nil
         self.admitted = !monitoringOnly && (admitted || self.admissionScope != nil)
+        self.implicitAdmission = implicitAdmission; hasProof = self.admissionScope != nil
         self.batteryProvider = batteryProvider; self.admissionURL = admissionURL
         self.verificationAttempts = max(1, verificationAttempts); self.verificationDelay = verificationDelay; self.environment = environment
         if !monitoringOnly && FileManager.default.fileExists(atPath: journalURL.path) {
@@ -317,7 +329,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
         self.init(client: PowerUIChargeClient(), journalURL: root.appendingPathComponent("native-charge-session.json"),
                   admissionScope: monitoring ? nil : NativeChargeAdmission.loadScope(from: admission, environment: environment), monitoringOnly: monitoring,
                   verificationAttempts: 30, verificationDelay: .seconds(2), environment: environment,
-                  batteryProvider: { await reader.currentObservation() }, admissionURL: admission)
+                  batteryProvider: { await reader.currentObservation() }, admissionURL: admission, implicitAdmission: true)
     }
 
     func qualify() async throws {
@@ -518,7 +530,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
             // update) left the journal waiting with no way out. Once macOS reads one clear limit again and it is the
             // original limit (or, for a user's own change, the confirmed or requested one), the journal is closed without
             // any write: the macOS setting stays as it is and is the user's setting, as after every confirmed apply.
-            if !monitoringOnly, let journal, Self.closesUnresolvedJournal(journal, value: value, age: journalAge(), admitted: admitted) {
+            if !monitoringOnly, let journal, Self.closesUnresolvedJournal(journal, value: value, age: journalAge(), admitted: hasProof) {
                 try relinquish()
                 message = nil
                 return
@@ -737,7 +749,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
         else { throw NativeChargeServiceError.readbackMismatch }
         if saved.hasWritten, current.configuration.matchesManual(saved.baseline),
            (saved.expectedMutation != nil || [.indeterminate, .preparing, .restoring].contains(saved.phase)),
-           !Self.closesUnresolvedJournal(saved, value: current, age: journalAge(), admitted: admitted) {
+           !Self.closesUnresolvedJournal(saved, value: current, age: journalAge(), admitted: hasProof) {
             recoveryRequired = true
             message = "An unconfirmed native operation may still take effect. The recovery journal was preserved; no follow-up write was started."
             return false

@@ -57,7 +57,7 @@ import ChargeBackends
             HStack(spacing: 10) {
                 StudioActionButton(L10n.text("Refresh"), id: "action.refresh") { Task { await model.refreshNativeCharge() } }
                     .disabled(actionsBlocked)
-                if !model.nativeCharge.admitted && !model.nativeCharge.recoveryRequired {
+                if !model.nativeCharge.admitted && !model.nativeCharge.recoveryRequired && !model.nativeCharge.awaitingDiscovery {
                     StudioActionButton(L10n.text("Validate 80–100%…"), id: "action.validate-native-control") { model.qualifyNativeCharge() }
                         .disabled(actionsBlocked || !model.nativeCharge.canRequestQualification)
                         .help(L10n.text("Validation writes each of the other verified limits in turn and restores your setting, after a confirmed persistent baseline and a battery level below 80%."))

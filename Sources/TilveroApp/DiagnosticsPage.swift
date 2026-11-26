@@ -162,7 +162,7 @@ private struct DiagnosticsHeading: View {
         let status = state.pendingPurpose == .read ? nil : NativeChargeStatusPanel(model: model).statusText(state)
         let pending = state.pendingTarget ?? state.restorationTarget
         let restores = state.hasOwnership || native.recoveryRequired || native.restorationPending
-        let validates = !native.admitted && !native.recoveryRequired
+        let validates = !native.admitted && !native.recoveryRequired && !native.awaitingDiscovery
         let blocked = model.isApplying || native.isBusy || native.isQualifying || state.pendingPurpose != nil
         // The registered `pmset` manual limit when the native setting is not readable (the Charging page's fallback).
         let manualLimit: Int? = {
