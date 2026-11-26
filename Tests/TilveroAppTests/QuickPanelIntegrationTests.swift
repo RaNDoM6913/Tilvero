@@ -152,5 +152,4 @@ private actor PanelChargeFixture: NativeChargeTransport {
         .init(configuration: .init(enabled: true, target: 80, optimizedCharging: true), supportedTargets: [80,85,90,95,100], registeredManualLimit: 80)
     }
     func setLimit(_ target: Int) { XCTFail("Presentation never writes") }
-    func setEnabled(_ enabled: Bool) { XCTFail("Presentation never writes") }
 }

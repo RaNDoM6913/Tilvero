@@ -62,10 +62,10 @@ public struct NativeChargeSnapshot: Codable, Equatable, Sendable {
         policyReadbackAvailable && (configuration.enabled ? registeredManualLimit == configuration.target : registeredManualLimit == nil)
     }
 }
+/// The two calls Tilvero makes, exactly what System Settings does: read the stored limit and set it (100 is the limit off).
 public protocol NativeChargeTransport: Sendable {
     func read() async throws -> NativeChargeSnapshot
     func setLimit(_ target: Int) async throws
-    func setEnabled(_ enabled: Bool) async throws
 }
 
 /// The transport outside the shipping app bundle (a test runner, the Lab Studio): nothing is read and nothing is written,
@@ -74,7 +74,6 @@ public struct UnavailableNativeChargeTransport: NativeChargeTransport {
     public init() {}
     public func read() async throws -> NativeChargeSnapshot { throw PolicyError.unavailable }
     public func setLimit(_ target: Int) async throws { throw PolicyError.unavailable }
-    public func setEnabled(_ enabled: Bool) async throws { throw PolicyError.unavailable }
 }
 
 /// Read-only observations from a failed complete-state read. These values never
@@ -190,15 +189,6 @@ public actor PowerUIChargeClient: NativeChargeTransport {
         try autoreleasepool {
             var error: NSError?
             let success = TVNativeChargeSetLimit(UInt8(target), &error)
-            if let error { throw error }
-            guard success else { throw PolicyError.readbackMismatch }
-        }
-    }
-    public func setEnabled(_ enabled: Bool) async throws {
-        BatteryLimitReadings.shared.invalidate()   // the registry is about to change
-        try autoreleasepool {
-            var error: NSError?
-            let success = TVNativeChargeSetEnabled(enabled, &error)
             if let error { throw error }
             guard success else { throw PolicyError.readbackMismatch }
         }

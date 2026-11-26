@@ -333,5 +333,4 @@ private actor PopoverReadTransport: NativeChargeTransport {
                      supportedTargets: [80, 85, 90, 95, 100], registeredManualLimit: 90)
     }
     func setLimit(_ target: Int) async throws { writes += 1; throw NativeChargeServiceError.unavailable }
-    func setEnabled(_ enabled: Bool) async throws { writes += 1; throw NativeChargeServiceError.unavailable }
 }

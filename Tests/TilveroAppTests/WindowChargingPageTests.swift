@@ -23,7 +23,6 @@ private actor ReadOnlyChargeTransport: NativeChargeTransport {
               supportedTargets: recognised ? [80, 85, 90, 95, 100] : [80, 85, 90, 100], registeredManualLimit: target)
     }
     func setLimit(_ target: Int) { XCTFail("Rendering never writes") }
-    func setEnabled(_ enabled: Bool) { XCTFail("Rendering never writes") }
 }
 
 /// In-memory fixture transport (never the Mac's settings) for the "both editors agree after an apply" check.
@@ -35,7 +34,6 @@ private actor MemoryChargeTransport: NativeChargeTransport {
                      registeredManualLimit: off ? nil : target)
     }
     func setLimit(_ target: Int) { self.target = target }
-    func setEnabled(_ enabled: Bool) {}
 }
 
 /// A model over a temporary history store (the last hour once a minute) with a native charge service on a fixture

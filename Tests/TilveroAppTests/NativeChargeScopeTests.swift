@@ -677,5 +677,4 @@ actor ScopeTransport: NativeChargeTransport {
         if holdNextWrite { holdNextWrite = false; await withCheckedContinuation { heldWrite = $0 } }
         self.target = target
     }
-    func setEnabled(_ enabled: Bool) { writes.append(enabled ? "enable" : "disable") }
 }

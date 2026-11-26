@@ -16,7 +16,7 @@ import Foundation
         }
     }
     enum Purpose: Equatable, Sendable {
-        case read, setLimit(target: Int), setEnabled(enabled: Bool)
+        case read, setLimit(target: Int)
         var isMutation: Bool { self != .read }
     }
     private(set) var pendingPurpose: Purpose?

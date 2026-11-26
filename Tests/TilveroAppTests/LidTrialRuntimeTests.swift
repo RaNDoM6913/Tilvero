@@ -77,7 +77,6 @@ private actor TrialNativePort: NativeChargeTransport {
     private(set) var calls = 0
     func read() throws -> NativeChargeSnapshot { calls += 1; throw NativeChargeServiceError.unavailable }
     func setLimit(_ target: Int) { calls += 1 }
-    func setEnabled(_ enabled: Bool) { calls += 1 }
 }
 @MainActor private final class TrialRegistrationPort: LiveHelperRegistrationDriving {
     var state: HelperInstallationState { .notRegistered }

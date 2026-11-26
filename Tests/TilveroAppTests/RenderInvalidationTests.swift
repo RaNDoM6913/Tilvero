@@ -16,7 +16,6 @@ private actor InvalidationChargeTransport: NativeChargeTransport {
         .init(configuration: .init(enabled: true, target: 90, optimizedCharging: true), supportedTargets: [80, 85, 90, 95, 100], registeredManualLimit: 90)
     }
     func setLimit(_ target: Int) { XCTFail("Rendering never writes") }
-    func setEnabled(_ enabled: Bool) { XCTFail("Rendering never writes") }
 }
 
 @MainActor private final class InvalidationKeyboard: KeyboardBacklightTransport, KeyboardBacklightPreferenceStorage {

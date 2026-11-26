@@ -17,7 +17,6 @@ private actor RenderChargeTransport: NativeChargeTransport {
               supportedTargets: recognised ? [80, 85, 90, 95, 100] : [80, 85, 90, 100], registeredManualLimit: 90)
     }
     func setLimit(_ target: Int) { XCTFail("Rendering never writes") }
-    func setEnabled(_ enabled: Bool) { XCTFail("Rendering never writes") }
 }
 
 @MainActor final class QuickChargeRenderTests: XCTestCase {
@@ -150,5 +149,4 @@ private actor StableChargeTransport: NativeChargeTransport {
                      registeredManualLimit: off ? nil : target)
     }
     func setLimit(_ target: Int) async { try? await Task.sleep(for: .milliseconds(80)); self.target = target }
-    func setEnabled(_ enabled: Bool) {}
 }

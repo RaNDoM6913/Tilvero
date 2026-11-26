@@ -86,5 +86,4 @@ private actor InjectionNativeTransport: NativeChargeTransport {
         .init(configuration: .init(enabled: false, target: 100, optimizedCharging: true), supportedTargets: [80, 85, 90, 95, 100], registeredManualLimit: nil)
     }
     func setLimit(_ target: Int) {}
-    func setEnabled(_ enabled: Bool) {}
 }

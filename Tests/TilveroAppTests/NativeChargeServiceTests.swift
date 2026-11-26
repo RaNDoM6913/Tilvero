@@ -206,7 +206,6 @@ actor NativeChargeFixtureClient: NativeChargeTransport {
         return value
     }
     func setLimit(_ target: Int) async throws { writes.append(target); if ignoreSet { ignoreSet = false; return }; self.target = target }
-    func setEnabled(_ enabled: Bool) async throws { XCTFail("The native path writes only the limit") }
     func forceInvalidRead(target: Int, stale: Bool) { self.target = target; staleReads = stale; unavailablePolicy = !stale }
     func clearInvalidRead() { staleReads = false; unavailablePolicy = false }
     func ignoreNextSet() { ignoreSet = true }

@@ -16,8 +16,6 @@
 - (NSUInteger)isSmartChargingCurrentlyEnabled:(NSError **)error;
 - (id)powerLogStatus;
 - (BOOL)setMCLLimit:(uint8_t)target error:(NSError **)error;
-- (BOOL)enableMCL:(NSError **)error;
-- (BOOL)disableMCL:(NSError **)error;
 - (BOOL)enableSmartCharging:(NSError **)error;
 - (BOOL)disableSmartCharging:(NSError **)error;
 - (BOOL)temporarilyDisableSmartCharging:(NSError **)error;
@@ -67,11 +65,12 @@ static id TVClient(NSError **error) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{ handle = dlopen("/System/Library/PrivateFrameworks/PowerUI.framework/Versions/A/PowerUI", RTLD_LAZY | RTLD_LOCAL); });
     Class cls = NSClassFromString(@"PowerUISmartChargeClient");
+    // Only the selectors Tilvero calls: a macOS update that renames one it never uses cannot hide the limit.
     NSDictionary *signatures = @{
         @"initWithClientName:":@"@24@0:8@16", @"isMCLSupported":@"B16@0:8",
         @"isMCLCurrentlyEnabled:":@"Q24@0:8^@16", @"getMCLLimitWithError:":@"C24@0:8^@16",
         @"availableChargeLimitsWithError:":@"@24@0:8^@16", @"isSmartChargingCurrentlyEnabled:":@"Q24@0:8^@16",
-        @"setMCLLimit:error:":@"B28@0:8C16^@20", @"enableMCL:":@"B24@0:8^@16", @"disableMCL:":@"B24@0:8^@16"
+        @"setMCLLimit:error:":@"B28@0:8C16^@20"
     };
     if (!handle || !cls) { TVFail(error,1,@"The native macOS charging client is unavailable."); return nil; }
     for (NSString *name in signatures) {
@@ -132,12 +131,6 @@ BOOL TVNativeChargeSetLimit(uint8_t target,NSError **error) {
         if (!offered) return TVFail(error,7,@"Choose a target offered by this Mac.");
         id client=TVClient(error); if (!client) return NO;
         return [client setMCLLimit:target error:error];
-    } @catch (NSException *exception) { return TVFail(error,6,@"The native charging operation failed; readback is required."); }
-}
-BOOL TVNativeChargeSetEnabled(BOOL enabled,NSError **error) {
-    @try {
-        id client=TVClient(error); if (!client) return NO;
-        return enabled ? [client enableMCL:error] : [client disableMCL:error];
     } @catch (NSException *exception) { return TVFail(error,6,@"The native charging operation failed; readback is required."); }
 }
 

@@ -211,5 +211,4 @@ private actor DiscoveryTransport: NativeChargeTransport {
             supportedTargets: [80, 85, 90, 95, 100], registeredManualLimit: enabled ? target : nil)
     }
     func setLimit(_ value: Int) { writes.append("limit\(value)"); target = value }
-    func setEnabled(_ value: Bool) { writes.append("enabled\(value)"); enabled = value }
 }

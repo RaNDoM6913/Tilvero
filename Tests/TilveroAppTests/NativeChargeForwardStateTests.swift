@@ -218,7 +218,6 @@ private actor ForwardClient: NativeChargeTransport {
             collectedAt: stale ? Date().addingTimeInterval(-120) : Date())
     }
     func setLimit(_ target: Int) async throws { writes.append(target); self.target = target }
-    func setEnabled(_ enabled: Bool) async throws { XCTFail("The native path writes only the limit") }
     func lockFolder(_ folder: URL, after reads: Int) { lock = (folder, reads) }
     func release() { continuation?.resume(); continuation = nil }
 }

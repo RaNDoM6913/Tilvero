@@ -52,6 +52,5 @@ private actor SlowNativeChargeClient: NativeChargeTransport {
         if first { first = false; await withCheckedContinuation { continuation = $0 } }
         self.target = target
     }
-    func setEnabled(_ enabled: Bool) async throws {}
     func release() { continuation?.resume(); continuation = nil }
 }
