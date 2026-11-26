@@ -3249,22 +3249,6 @@
         }
       }
     },
-    "Control availability…": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Control availability…"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Доступность управления…"
-          }
-        }
-      }
-    },
     "Profiles require verified control capabilities.": {
       "localizations": {
         "en": {
@@ -4353,22 +4337,6 @@
         }
       }
     },
-    "Direct Tilvero control requires a trusted signed helper and verified hardware restoration.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Direct Tilvero control requires a trusted signed helper and verified hardware restoration."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Прямому управлению Tilvero нужны доверенный подписанный помощник и проверенное восстановление настроек оборудования."
-          }
-        }
-      }
-    },
     "macOS charge limit": {
       "localizations": {
         "en": {
@@ -4529,102 +4497,6 @@
         }
       }
     },
-    "Changes here use the same native limit as macOS Battery settings.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Changes here use the same native limit as macOS Battery settings."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Изменения используют тот же нативный лимит, что и настройки аккумулятора macOS."
-          }
-        }
-      }
-    },
-    "Native control needs one local setting-and-restoration check.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Native control needs one local setting-and-restoration check."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Для нативного управления нужна одна локальная проверка применения и восстановления."
-          }
-        }
-      }
-    },
-    "Validate native control…": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Validate native control…"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Проверить нативное управление…"
-          }
-        }
-      }
-    },
-    "Restore previous macOS limit": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Restore previous macOS limit"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Восстановить прежний лимит macOS"
-          }
-        }
-      }
-    },
-    "Restoration waiting for natural discharge": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Restoration waiting for natural discharge"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Восстановление ждёт естественного разряда"
-          }
-        }
-      }
-    },
-    "Keep Tilvero open and let the battery discharge naturally before restoring the previous limit.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Keep Tilvero open and let the battery discharge naturally before restoring the previous limit."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Оставьте Tilvero открытым и дождитесь естественного разряда для возврата прежнего лимита."
-          }
-        }
-      }
-    },
     "A native charging operation is still in progress.": {
       "localizations": {
         "en": {
@@ -4657,22 +4529,6 @@
         }
       }
     },
-    "A fresh battery reading is required before changing charging.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A fresh battery reading is required before changing charging."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Для изменения зарядки нужно свежее показание аккумулятора."
-          }
-        }
-      }
-    },
     "macOS has not independently confirmed the requested charge setting.": {
       "localizations": {
         "en": {
@@ -4685,246 +4541,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "macOS ещё не подтвердила запрошенную настройку зарядки независимым чтением."
-          }
-        }
-      }
-    },
-    "Enabling the previous system target could discharge the battery. Waiting for natural discharge.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Enabling the previous system target could discharge the battery. Waiting for natural discharge."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Включение прежнего лимита может вызвать разряд. Ожидается естественное снижение заряда."
-          }
-        }
-      }
-    },
-    "A previous native charge session needs review. Saved intent was not reapplied.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A previous native charge session needs review. Saved intent was not reapplied."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Предыдущий сеанс зарядки требует проверки. Сохранённая команда не применялась повторно."
-          }
-        }
-      }
-    },
-    "For the bounded native test, unplug and let the battery fall at least two percentage points below the existing limit. No setting was written.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "For the bounded native test, unplug and let the battery fall at least two percentage points below the existing limit. No setting was written."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Для безопасной проверки отключите питание и дождитесь заряда минимум на 2 процентных пункта ниже текущего лимита. Настройки не менялись."
-          }
-        }
-      }
-    },
-    "Native limit setting and restoration passed on this Mac. Physical cutoff remains separately observed.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Native limit setting and restoration passed on this Mac. Physical cutoff remains separately observed."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Применение и восстановление нативного лимита проверены на этом Mac. Фактический порог остановки зарядки проверяется отдельно."
-          }
-        }
-      }
-    },
-    "The macOS charge setting changed outside Tilvero. Control was released without overwriting it.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The macOS charge setting changed outside Tilvero. Control was released without overwriting it."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Лимит macOS изменён вне Tilvero. Управление освобождено без перезаписи настройки."
-          }
-        }
-      }
-    },
-    "The selected native limit is already active.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The selected native limit is already active."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Выбранный нативный лимит уже активен."
-          }
-        }
-      }
-    },
-    "Waiting for natural discharge before applying the lower native limit. The current system setting remains active.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Waiting for natural discharge before applying the lower native limit. The current system setting remains active."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Снижение лимита ожидает естественного разряда. Сейчас действует прежняя системная настройка."
-          }
-        }
-      }
-    },
-    "The native macOS charge limit was independently confirmed.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The native macOS charge limit was independently confirmed."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Нативный лимит macOS подтверждён независимым чтением."
-          }
-        }
-      }
-    },
-    "The outcome needs recovery. No additional setting was written after the unconfirmed operation.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The outcome needs recovery. No additional setting was written after the unconfirmed operation."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Результату операции нужно восстановление. После неподтверждённой операции дополнительные настройки не записывались."
-          }
-        }
-      }
-    },
-    "An unconfirmed native operation may still take effect. The recovery journal was preserved; no follow-up write was started.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "An unconfirmed native operation may still take effect. The recovery journal was preserved; no follow-up write was started."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Неподтверждённая операция ещё может завершиться. Журнал сохранён; следующая запись не запускалась."
-          }
-        }
-      }
-    },
-    "The original macOS charge setting is confirmed.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The original macOS charge setting is confirmed."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Исходная настройка зарядки macOS подтверждена."
-          }
-        }
-      }
-    },
-    "An external macOS charge change was preserved.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "An external macOS charge change was preserved."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Внешнее изменение зарядки macOS сохранено."
-          }
-        }
-      }
-    },
-    "Restoring the original limit is waiting for natural discharge. Keep Tilvero open; the current limit remains active.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Restoring the original limit is waiting for natural discharge. Keep Tilvero open; the current limit remains active."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Возврат исходного лимита ждёт естественного разряда. Оставьте Tilvero открытым; сейчас действует текущий лимит."
-          }
-        }
-      }
-    },
-    "The original macOS charge setting was verified as restored.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The original macOS charge setting was verified as restored."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Восстановление исходной настройки зарядки macOS подтверждено."
-          }
-        }
-      }
-    },
-    "An external charge change was preserved before the next operation.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "An external charge change was preserved before the next operation."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Внешнее изменение зарядки сохранено; следующая операция не выполнялась."
           }
         }
       }
@@ -5165,38 +4781,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Нет настроек Tilvero для восстановления."
-          }
-        }
-      }
-    },
-    "Lower targets wait for natural discharge.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lower targets wait for natural discharge."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Понижение лимита ожидает естественного разряда."
-          }
-        }
-      }
-    },
-    "Native charging validation or an offered target is required.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Native charging validation or an offered target is required."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Нужны проверка нативного управления и лимит, поддерживаемый macOS."
           }
         }
       }
@@ -5729,70 +5313,6 @@
         }
       }
     },
-    "Last confirmed macOS limit": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Last confirmed macOS limit"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Последний подтверждённый лимит macOS"
-          }
-        }
-      }
-    },
-    "macOS did not respond before the deadline. The call may still complete; further writes are blocked.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "macOS did not respond before the deadline. The call may still complete; further writes are blocked."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "macOS не ответила вовремя. Операция ещё может завершиться; новые изменения заблокированы."
-          }
-        }
-      }
-    },
-    "The delayed macOS call has returned. Read and reconcile its result before changing charging.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The delayed macOS call has returned. Read and reconcile its result before changing charging."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Отложенный вызов macOS завершился. Перед новым изменением нужно прочитать и согласовать результат."
-          }
-        }
-      }
-    },
-    "Actual native limit is unconfirmed — recovery required": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Actual native limit is unconfirmed — recovery required"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Текущий нативный лимит не подтверждён — нужно восстановление"
-          }
-        }
-      }
-    },
     "Waiting for natural discharge; the requested limit is not active.": {
       "localizations": {
         "en": {
@@ -5873,22 +5393,6 @@
         }
       }
     },
-    "No active native session": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No active native session"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Нет активного нативного управления"
-          }
-        }
-      }
-    },
     "Privileged controls": {
       "localizations": {
         "en": {
@@ -5933,22 +5437,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Перед удалением Tilvero освободите управление. Проверьте восстановление в разделах нативного и привилегированного управления в диагностике. Завершите приложение обычным способом и перенесите его в Корзину. Историю можно удалить отдельно."
-          }
-        }
-      }
-    },
-    "For validation with an existing 100% limit, first choose a lower supported limit in macOS and let the battery discharge naturally below it. No setting was written.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "For validation with an existing 100% limit, first choose a lower supported limit in macOS and let the battery discharge naturally below it. No setting was written."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Для проверки при лимите 100% сначала выберите меньший поддерживаемый лимит в macOS и дождитесь естественного разряда ниже него. Настройки не менялись."
           }
         }
       }
@@ -6029,54 +5517,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Нативная настройка macOS"
-          }
-        }
-      }
-    },
-    "The native setting is readable, but the active policy is unconfirmed. Connect power and refresh before validation or applying.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The native setting is readable, but the active policy is unconfirmed. Connect power and refresh before validation or applying."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Нативная настройка доступна, но активная политика не подтверждена. Подключите питание и обновите данные перед проверкой или применением."
-          }
-        }
-      }
-    },
-    "Charge policy unconfirmed": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Charge policy unconfirmed"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Лимит пока не подтверждён"
-          }
-        }
-      }
-    },
-    "Waiting for discharge below": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Waiting for discharge below"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ждём разряда ниже"
           }
         }
       }
@@ -11345,22 +10785,6 @@
         }
       }
     },
-    "Charging session needs review": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Charging session needs review"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Нужно проверить сеанс зарядки"
-          }
-        }
-      }
-    },
     "Native journal needs review": {
       "localizations": {
         "en": {
@@ -11393,38 +10817,6 @@
         }
       }
     },
-    "Restoration pending": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Restoration pending"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ожидание восстановления"
-          }
-        }
-      }
-    },
-    "Pending charging target": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pending charging target"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Лимит ожидает применения"
-          }
-        }
-      }
-    },
     "Waiting for policy confirmation": {
       "localizations": {
         "en": {
@@ -11437,22 +10829,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ожидание подтверждения политики"
-          }
-        }
-      }
-    },
-    "App-managed charging": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "App-managed charging"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Зарядка под управлением Tilvero"
           }
         }
       }
@@ -11553,54 +10929,6 @@
         }
       }
     },
-    "The native setting was confirmed, but the active policy is currently unconfirmed. Refresh before applying another target.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The native setting was confirmed, but the active policy is currently unconfirmed. Refresh before applying another target."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Настройка macOS подтверждена, но действующая политика пока не подтверждена. Обновите данные перед выбором другого предела."
-          }
-        }
-      }
-    },
-    "A dispatched native setting lacks a confirmed outcome. The session needs review.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A dispatched native setting lacks a confirmed outcome. The session needs review."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Результат отправленного изменения настройки macOS не подтверждён. Сеанс требует проверки."
-          }
-        }
-      }
-    },
-    "Confirmed active policy": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Confirmed active policy"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Подтверждённая действующая политика"
-          }
-        }
-      }
-    },
     "Active charge policy is unconfirmed": {
       "localizations": {
         "en": {
@@ -11613,38 +10941,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Действующая политика зарядки не подтверждена"
-          }
-        }
-      }
-    },
-    "The native charge session needs review. A readable setting does not resolve its saved state.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The native charge session needs review. A readable setting does not resolve its saved state."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Сеанс управления зарядкой требует проверки. Доступная настройка не устраняет неопределённость сохранённого состояния."
-          }
-        }
-      }
-    },
-    "A dispatched native setting still has an unconfirmed outcome.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A dispatched native setting still has an unconfirmed outcome."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Результат отправленного изменения настройки macOS по-прежнему не подтверждён."
           }
         }
       }
@@ -11693,86 +10989,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ожидание операции управления зарядкой macOS…"
-          }
-        }
-      }
-    },
-    "Restoring the previous setting is waiting for natural discharge.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Restoring the previous setting is waiting for natural discharge."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Восстановление предыдущей настройки ожидает естественного разряда."
-          }
-        }
-      }
-    },
-    "The lower target is waiting for natural discharge.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The lower target is waiting for natural discharge."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Более низкий предел ожидает естественного разряда."
-          }
-        }
-      }
-    },
-    "Refresh to check the active policy. The readable native setting is shown separately.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Refresh to check the active policy. The readable native setting is shown separately."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Обновите данные для проверки действующей политики. Доступная настройка macOS показана отдельно."
-          }
-        }
-      }
-    },
-    "Tilvero manages this native setting.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tilvero manages this native setting."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tilvero управляет этой настройкой macOS."
-          }
-        }
-      }
-    },
-    "Saved charging session needs review.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Saved charging session needs review."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Сохранённый сеанс зарядки требует проверки."
           }
         }
       }
@@ -13745,22 +12961,6 @@
         }
       }
     },
-    "Review app-owned charging settings in Diagnostics.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Review app-owned charging settings in Diagnostics."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Проверьте принадлежащие приложению настройки зарядки в диагностике."
-          }
-        }
-      }
-    },
     "Review app-owned helper settings in Diagnostics.": {
       "localizations": {
         "en": {
@@ -13869,38 +13069,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Отменить таймер сна."
-          }
-        }
-      }
-    },
-    "Native control must be validated on this macOS version before Apply is available.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Native control must be validated on this macOS version before Apply is available."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Для применения лимита нужна проверка нативного управления на текущей версии macOS."
-          }
-        }
-      }
-    },
-    "Unrecognized native charge state": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Unrecognized native charge state"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Состояние зарядки не распознано"
           }
         }
       }
@@ -14045,86 +13213,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Выберите новый лимит. Пока ничего не выбрано."
-          }
-        }
-      }
-    },
-    "The current macOS state is outside the verified persistent session. Its recovery journal was preserved without a write.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The current macOS state is outside the verified persistent session. Its recovery journal was preserved without a write."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Текущее состояние macOS выходит за рамки проверенного постоянного режима. Журнал восстановления сохранён, настройки не изменены."
-          }
-        }
-      }
-    },
-    "The verified persistent baseline is confirmed.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The verified persistent baseline is confirmed."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Проверенная исходная постоянная настройка подтверждена."
-          }
-        }
-      }
-    },
-    "Restoring the persistent baseline is waiting for natural discharge.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Restoring the persistent baseline is waiting for natural discharge."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Восстановление исходной постоянной настройки ожидает естественного разряда."
-          }
-        }
-      }
-    },
-    "The original persistent macOS charge setting was verified as restored.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The original persistent macOS charge setting was verified as restored."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Подтверждено восстановление исходной постоянной настройки зарядки macOS."
-          }
-        }
-      }
-    },
-    "The persistent baseline was restored, but the validation proof could not be saved safely. The previous proof was preserved.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The persistent baseline was restored, but the validation proof could not be saved safely. The previous proof was preserved."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Исходная постоянная настройка восстановлена, но результат проверки не удалось безопасно сохранить. Предыдущее подтверждение сохранено."
           }
         }
       }
@@ -15713,86 +14801,6 @@
         }
       }
     },
-    "Validation requires a confirmed persistent baseline and a fresh battery level below 80%. No setting was written.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Validation requires a confirmed persistent baseline and a fresh battery level below 80%. No setting was written."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Для проверки нужна подтверждённая постоянная настройка и свежий уровень заряда ниже 80 %. Ничего не записано."
-          }
-        }
-      }
-    },
-    "Validate 80–100%…": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Validate 80–100%…"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Проверить 80–100 %…"
-          }
-        }
-      }
-    },
-    "Validation writes each of the other verified limits in turn and restores your setting, after a confirmed persistent baseline and a battery level below 80%.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Validation writes each of the other verified limits in turn and restores your setting, after a confirmed persistent baseline and a battery level below 80%."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Проверка по очереди ставит каждый из остальных проверенных лимитов и возвращает вашу настройку; нужна подтверждённая постоянная настройка и заряд ниже 80 %."
-          }
-        }
-      }
-    },
-    "Verified persistent limits: 80%, 85%, 90%, 95% and 100%. Other targets and one-time full charging need separate validation.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verified persistent limits: 80%, 85%, 90%, 95% and 100%. Other targets and one-time full charging need separate validation."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Проверены постоянные лимиты 80, 85, 90, 95 и 100 %. Другие цели и однократная полная зарядка требуют отдельной проверки."
-          }
-        }
-      }
-    },
-    "Persistent 80%, 85%, 90%, 95% and 100% settings and restoration passed on this Mac. Other targets and physical cutoff remain unqualified.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Persistent 80%, 85%, 90%, 95% and 100% settings and restoration passed on this Mac. Other targets and physical cutoff remain unqualified."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Постоянные настройки 80, 85, 90, 95 и 100 % и возврат прошли проверку на этом Mac. Другие цели и физическая остановка зарядки не проверены."
-          }
-        }
-      }
-    },
     "The same limit as macOS Battery settings: charging stops at the chosen level. Letting go of the slider applies it.": {
       "localizations": {
         "en": {
@@ -15805,22 +14813,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Тот же лимит, что в настройках macOS «Аккумулятор»: зарядка останавливается на выбранном уровне. Лимит применяется, когда вы отпускаете ползунок."
-          }
-        }
-      }
-    },
-    "Connect the charger for the one-time validation. After that the limit works on battery power too.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Connect the charger for the one-time validation. After that the limit works on battery power too."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Подключите зарядку для разовой проверки. После неё лимит работает и от батареи."
           }
         }
       }
@@ -20113,38 +19105,6 @@
         }
       }
     },
-    "Verified (charge limits)": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verified"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Проверено"
-          }
-        }
-      }
-    },
-    "Not checked (charge limits)": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Not checked"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Не проверено"
-          }
-        }
-      }
-    },
     "Charging settings in macOS": {
       "localizations": {
         "en": {
@@ -20993,22 +19953,6 @@
         }
       }
     },
-    "The previous charging session needs review before the limit can change.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The previous charging session needs review before the limit can change."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Прежний сеанс зарядки нужно проверить, прежде чем менять лимит."
-          }
-        }
-      }
-    },
     "macOS reported an unclear charge limit, so nothing new was confirmed. Try again in a moment.": {
       "localizations": {
         "en": {
@@ -21533,6 +20477,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Операция оптимизированной зарядки не удалась; нужна повторная проверка."
+          }
+        }
+      }
+    },
+    "Set at once, as in System Settings.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set at once, as in System Settings."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Устанавливается сразу, как в Системных настройках."
+          }
+        }
+      }
+    },
+    "The limit is not available right now.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The limit is not available right now."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Лимит сейчас недоступен."
           }
         }
       }

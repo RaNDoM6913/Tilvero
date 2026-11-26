@@ -35,7 +35,10 @@ import PowerCore
             "Charge limit change not confirmed", "Read from macOS; change it in System Settings › Battery.",
             "The native policy read timed out. Further actions wait for the read to return.",
             "The native setting operation timed out. Its outcome needs review; further writes are blocked.",
+            "Set at once, as in System Settings.", "The limit is not available right now.",
+            "The native session journal needs review before further changes.", NativeChargeStatusText.partialReadWarning,
         ]
+        keys += [NativeChargePresentation.Attention.none, .mutationUnresolved, .journalIntegrity, .operationPending, .policyUnconfirmed].map(\.titleKey)
         keys += ChargeLimitKit.infoParagraphKeys + DiagnosticsChargeRows.infoKeys
         let errors: [NativeChargeServiceError] = [.unavailable, .busy, .unsupportedTarget, .unqualifiedTarget, .readbackMismatch, .changedElsewhere]
         keys += errors.map(\.localizedDescription)
