@@ -77,3 +77,100 @@ import PowerCore
         await f.assertWrites(["limit85"])
     }
 }
+
+/// The battery reading a model test changes between refreshes (plugged in, unplugged, full).
+final class SnapshotSource: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: BatterySnapshot
+    init(percent: Int?, charging: Bool?, externalPower: Bool?) {
+        value = ScopeFixture.snapshot(percent: percent, charging: charging, externalPower: externalPower)
+    }
+    func set(percent: Int?, charging: Bool?, externalPower: Bool?) {
+        let next = ScopeFixture.snapshot(percent: percent, charging: charging, externalPower: externalPower)
+        lock.lock(); value = next; lock.unlock()
+    }
+    func read() -> BatterySnapshot { lock.lock(); defer { lock.unlock() }; return value }
+}
+
+extension NativeChargeModelIntegrationTests {
+    private func settle(_ model: TilveroModel) async throws {
+        for _ in 0..<400 where model.isApplying || model.nativeCharge.isBusy { try await Task.sleep(for: .milliseconds(5)) }
+        XCTAssertFalse(model.isApplying)
+    }
+
+    // MARK: Charge-once and charge-by keep the user's previous limit (A4)
+
+    func testAChargeOnceLiftThatReadsBackLateStillRestoresThePreviousLimitOnUnplug() async throws {
+        let f = ScopeFixture(); defer { f.cleanup() }
+        let service = f.makeService(implicit: true)
+        let source = SnapshotSource(percent: 60, charging: true, externalPower: true)
+        let (model, suite) = f.makeModel(service, snapshot: { source.read() })
+        defer { model.stop(); TestDefaults.remove(suite) }
+        await model.refreshNativeCharge()
+        XCTAssertTrue(model.canStartChargeOnce)
+        await f.client.failReadsAfterNextWrite()
+        model.startChargeOnce()
+        try await settle(model)
+        XCTAssertEqual(model.chargeOnce.previousTarget, 90, "the intent was recorded before the write")
+        await f.client.clearReadFailure()
+        await model.refreshNativeCharge()   // the lift landed: macOS reads 100
+        XCTAssertEqual(model.nativeCharge.reportedLimit, 100)
+        await model.refresh()
+        XCTAssertEqual(model.chargeOnce.previousTarget, 90, "still charging: kept")
+        source.set(percent: 70, charging: false, externalPower: false)
+        await model.refresh()
+        try await settle(model)
+        XCTAssertNil(model.chargeOnce.previousTarget)
+        XCTAssertEqual(model.nativeCharge.reportedLimit, 90)
+        await f.assertWrites(["limit100", "limit90"])
+    }
+
+    func testALimitSetInSystemSettingsDuringChargeOnceIsKept() async throws {
+        let f = ScopeFixture(initialTarget: 85); defer { f.cleanup() }
+        let service = f.makeService(implicit: true)
+        let source = SnapshotSource(percent: 60, charging: true, externalPower: true)
+        let (model, suite) = f.makeModel(service, snapshot: { source.read() })
+        defer { model.stop(); TestDefaults.remove(suite) }
+        await model.refreshNativeCharge()
+        model.startChargeOnce()
+        try await settle(model)
+        XCTAssertEqual(model.chargeOnce.previousTarget, 85)
+        await f.client.external(target: 90)   // System Settings
+        await model.refreshNativeCharge()
+        source.set(percent: 70, charging: false, externalPower: false)
+        await model.refresh()
+        try await settle(model)
+        XCTAssertNil(model.chargeOnce.previousTarget, "dropped: the user's own value wins")
+        await f.assertWrites(["limit100"])
+    }
+
+    func testASavedChargeOnceIntentDecidesNothingBeforeTheFirstRead() async throws {
+        let f = ScopeFixture(); defer { f.cleanup() }
+        let service = f.makeService(implicit: true)
+        let (model, suite) = f.makeModel(service, configure: { $0.set(85, forKey: "chargeOncePreviousTarget") },
+                                         snapshot: { ScopeFixture.snapshot(percent: 70, charging: false, externalPower: false) })
+        defer { model.stop(); TestDefaults.remove(suite) }
+        XCTAssertEqual(model.chargeOnce.previousTarget, 85)
+        await model.refresh()
+        try await settle(model)
+        XCTAssertEqual(model.chargeOnce.previousTarget, 85, "no decision before macOS reported the limit")
+        XCTAssertNil(model.notice)
+        await f.assertWrites([])
+    }
+
+    func testChargeByWritesNothingOverALimitChangedElsewhere() async throws {
+        let f = ScopeFixture(); defer { f.cleanup() }
+        let service = f.makeService(implicit: true)
+        let (model, suite) = f.makeModel(service, percent: 60, charging: true, externalPower: true)
+        defer { model.stop(); TestDefaults.remove(suite) }
+        await model.refreshNativeCharge()
+        let environment = ModelChargeByEnvironment(model: model)
+        XCTAssertEqual(environment.observation().observedLimit, 90)
+        let stale = await environment.apply(limit: 100, expected: 80)
+        XCTAssertEqual(stale, .changedElsewhere)
+        await f.assertWrites([])
+        let lifted = await environment.apply(limit: 100, expected: 90)
+        XCTAssertEqual(lifted, .confirmed)
+        await f.assertWrites(["limit100"])
+    }
+}

@@ -945,12 +945,16 @@ import PowerCore
     var journalExists: Bool { FileManager.default.fileExists(atPath: journal.path) }
     /// A real model around `service` (the caller removes the preference suite and stops the model).
     func makeModel(_ service: NativeChargeService, percent: Int? = nil, charging: Bool? = nil, externalPower: Bool? = nil) -> (TilveroModel, String) {
+        makeModel(service, snapshot: { ScopeFixture.snapshot(percent: percent, charging: charging, externalPower: externalPower) })
+    }
+    func makeModel(_ service: NativeChargeService, configure: (UserDefaults) -> Void = { _ in },
+                   snapshot: @escaping @Sendable () async -> BatterySnapshot) -> (TilveroModel, String) {
         let suite = TestDefaults.name("ScopeModel")
         let preferences = TestDefaults.defaults(suite)
         preferences.set(false, forKey: "historyEnabled")
+        configure(preferences)
         let model = TilveroModel(isDemo: false, launchPolicy: .resolve(metadata: [:]), preferences: preferences,
-            historyURL: root.appendingPathComponent("model.sqlite"),
-            snapshotProvider: { ScopeFixture.snapshot(percent: percent, charging: charging, externalPower: externalPower) }, nativeCharge: service)
+            historyURL: root.appendingPathComponent("model.sqlite"), snapshotProvider: snapshot, nativeCharge: service)
         return (model, suite)
     }
     nonisolated static func snapshot(percent: Int?, charging: Bool?, externalPower: Bool?) -> BatterySnapshot {

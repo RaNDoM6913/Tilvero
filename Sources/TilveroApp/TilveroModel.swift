@@ -1372,54 +1372,66 @@ final class TilveroModel {
     }
 
     // MARK: One-time charge to 100 % on the native path (the slider's own apply; the previous limit is put back afterwards)
-    /// The limit macOS reports right now (100 when the limit is off), nil until read.
-    var observedNativeLimit: Int? {
-        nativeCharge.observed.map { $0.configuration.enabled ? $0.configuration.target : NativeChargeAdmission.unlimitedTarget }
-    }
     var isChargeOnceRunning: Bool { chargeOnce.isActive }
     var chargeByObservation: ChargeByObservation { chargeByEnvironment?.observation() ?? ModelChargeByEnvironment(model: self).observation() }
     /// The one-time charge is on offer (steady look); `canStartChargeOnce` adds the momentary gates and decides the tap.
     var chargeOnceOffered: Bool {
         guard !isDemo, usesNativeCharge, !controlsAreSuspended, !chargeOnce.isActive, !chargeBy.isArmed, nativeCharge.offersTarget(100),
-              let limit = observedNativeLimit, limit < NativeChargeAdmission.unlimitedTarget else { return false }
+              let limit = nativeCharge.reportedLimit, limit < NativeChargeAdmission.unlimitedTarget else { return false }
         return true
     }
     var canStartChargeOnce: Bool {
         guard !isDemo, usesNativeCharge, canEdit, !chargeOnce.isActive, !chargeBy.isArmed, nativeCharge.canApplyTarget(100),
-              let limit = observedNativeLimit, limit < NativeChargeAdmission.unlimitedTarget else { return false }
+              let limit = nativeCharge.reportedLimit, limit < NativeChargeAdmission.unlimitedTarget else { return false }
         return true
     }
     func startChargeOnce() {
-        guard canStartChargeOnce, let previous = observedNativeLimit else { return }
+        guard canStartChargeOnce, let previous = nativeCharge.reportedLimit else { return }
         let percent = snapshot.chargePercent.value
         let fresh = snapshot.chargePercent.availability == .available && snapshot.chargePercent.freshness == .fresh
         runNative { [weak self] service in
-            try await service.apply(100, batteryPercent: percent, batteryFresh: fresh)
+            // The intent is recorded before the write: a lift that lands late still has its previous limit to put back.
             self?.chargeOnce.begin(previous: previous)
+            do { try await service.apply(100, batteryPercent: percent, batteryFresh: fresh, expectedCurrent: previous) }
+            catch NativeChargeServiceError.changedElsewhere { self?.chargeOnce.clear(); throw NativeChargeServiceError.changedElsewhere }
         }
     }
+    /// The user's own cancel: an explicit action (its failure is shown), whatever the limit reads now.
     func cancelChargeOnce() {
         guard let previous = chargeOnce.previousTarget else { return }
-        restoreAfterChargeOnce(previous)
+        restoreAfterChargeOnce(previous, automatic: false)
     }
-    private func restoreAfterChargeOnce(_ previous: Int) {
+    /// The last automatic restore attempt: it runs at most once a minute and never posts a notice.
+    @ObservationIgnored private var chargeOnceRestoreAttemptAt: Date?
+    private func restoreAfterChargeOnce(_ previous: Int, automatic: Bool) {
         let percent = snapshot.chargePercent.value
         let fresh = snapshot.chargePercent.availability == .available && snapshot.chargePercent.freshness == .fresh
-        runNative { [weak self] service in
-            try await service.apply(previous, batteryPercent: percent, batteryFresh: fresh)
+        if automatic { chargeOnceRestoreAttemptAt = Date() }
+        runNative(recordsManualAction: !automatic, postsFailure: !automatic) { [weak self] service in
+            do {
+                // The automatic restore only replaces the 100 it lifted; a value changed elsewhere stays.
+                try await service.apply(previous, batteryPercent: percent, batteryFresh: fresh, expectedCurrent: automatic ? NativeChargeAdmission.unlimitedTarget : nil)
+            } catch NativeChargeServiceError.changedElsewhere {
+                self?.chargeOnce.clear(); return
+            }
             self?.chargeOnce.clear()
         }
     }
     /// After every reading: the charge is over (full, or the adapter was unplugged) or the limit was changed elsewhere.
+    /// Nothing is decided before macOS has reported the limit (no launch-time restore from a saved intent).
     private func evaluateChargeOnce() {
-        guard !isDemo, !sleeping, !isApplying, !nativeCharge.isBusy, let previous = chargeOnce.previousTarget else { return }
+        guard !isDemo, !sleeping, !isApplying, !nativeCharge.isBusy, let previous = chargeOnce.previousTarget,
+              let reported = nativeCharge.reportedLimit else { return }
         let usable = { (reading: TelemetryReading<Bool>) in reading.availability == .available && reading.freshness != .stale ? reading.value : nil }
         let level = snapshot.chargePercent.availability == .available && snapshot.chargePercent.freshness != .stale ? snapshot.chargePercent.value : nil
-        switch ChargeOnceRule.decide(previous: previous, observedTarget: observedNativeLimit, percent: level,
+        switch ChargeOnceRule.decide(previous: previous, observedTarget: reported, percent: level,
                                      isCharging: usable(snapshot.isCharging), externalPower: usable(snapshot.isExternalPower)) {
         case .keep: break
         case .drop: chargeOnce.clear()
-        case .restore(let target): restoreAfterChargeOnce(target)
+        case .restore(let target):
+            guard nativeCharge.canApplyTarget(target) else { break }
+            if let last = chargeOnceRestoreAttemptAt, Date().timeIntervalSince(last) < 60 { break }
+            restoreAfterChargeOnce(target, automatic: true)
         }
     }
     func releaseControl() { perform(.returnToSystemControl) }
@@ -1453,9 +1465,12 @@ final class TilveroModel {
     func qualifyNativeCharge() { runNative { try await $0.qualify() } }
     /// A native charge action (runNative) is running: a quit waits for it instead of refusing.
     private(set) var nativeActionInFlight = false
-    private func runNative(_ action: @escaping @MainActor (NativeChargeService) async throws -> Void) {
+    /// `recordsManualAction`: an automatic action does not stamp the arbiter. `postsFailure`: an automatic one stays quiet.
+    private func runNative(recordsManualAction: Bool = true, postsFailure: Bool = true,
+                           _ action: @escaping @MainActor (NativeChargeService) async throws -> Void) {
         guard !isDemo, !isApplying, !controlsAreSuspended else { return }
-        isApplying = true; nativeActionInFlight = true; arbiter.recordManualAction(at: Date()); persistArbiter()
+        isApplying = true; nativeActionInFlight = true
+        if recordsManualAction { arbiter.recordManualAction(at: Date()); persistArbiter() }
         Task {
             defer { isApplying = false; nativeActionInFlight = false }
             do {
@@ -1467,7 +1482,7 @@ final class TilveroModel {
                 if nativeCharge.pendingTarget != nil, let message = nativeCharge.message { notices.post(L10n.text(message), from: .chargeStatus) }
             } catch {
                 // A failure line that goes away on its own, so a one-off refusal never stays on the Charge page.
-                notices.post(L10n.text(error.localizedDescription), from: .control, expiresAfter: .seconds(6))
+                if postsFailure { notices.post(L10n.text(error.localizedDescription), from: .control, expiresAfter: .seconds(6)) }
             }
         }
     }

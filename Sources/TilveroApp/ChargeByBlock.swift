@@ -16,11 +16,11 @@ import PowerCore
     @State private var committedWheelValue: SleepWheelValue?
 
     private static let strip = [85, 90, 95]
-    private var limit: Int? { model.observedNativeLimit }
-    /// Levels above the user's limit; the strip never offers a level the limit already allows.
+    private var limit: Int? { model.nativeCharge.reportedLimit }
+    /// Levels above the user's limit that macOS offers; the strip never offers a level the limit already allows, and offers
+    /// none until the limit has been read.
     private var levels: [Int] {
-        let allowed = Set(model.nativeCharge.authorizedPersistentTargets)
-        return [85, 90, 95, 100].filter { level in allowed.contains(level) && (limit.map { level > $0 } ?? true) }
+        [85, 90, 95, 100].filter { level in model.nativeCharge.offersTarget(level) && (limit.map { level > $0 } ?? false) }
     }
     private var selected: Int { service.state?.target ?? service.draftTarget }
     private var armedPhase: Bool { service.state?.phase == .armed }

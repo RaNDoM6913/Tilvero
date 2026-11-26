@@ -15,7 +15,7 @@ import PowerCore
         func usable(_ reading: TelemetryReading<Bool>) -> Bool? { reading.availability == .available && reading.freshness != .stale ? reading.value : nil }
         func catalog(_ id: String) -> Double? { snapshot.catalog.first { $0.id == id }?.value?.doubleValue }
         let percent = snapshot.chargePercent.availability == .available && snapshot.chargePercent.freshness != .stale ? snapshot.chargePercent.value.map(Double.init) : nil
-        return ChargeByObservation(observedLimit: model.observedNativeLimit, percent: percent, isCharging: usable(snapshot.isCharging),
+        return ChargeByObservation(observedLimit: model.nativeCharge.reportedLimit, percent: percent, isCharging: usable(snapshot.isCharging),
                                    externalPower: usable(snapshot.isExternalPower), adapterWatts: catalog("050"),
                                    fullEnergyWh: Self.fullEnergyWh(catalog: catalog), systemWatts: catalog("043"),
                                    systemTimeToFullSeconds: catalog("069").flatMap { $0 > 0 ? $0 : nil })
@@ -28,14 +28,15 @@ import PowerCore
 
     func pauseOptimizedCharging() async -> Bool { await model?.optimizedCharging.pauseForPlannedCharge() != .failed }
 
-    func apply(limit: Int) async -> Bool {
-        guard let model, !model.isApplying else { return false }
-        let percent = model.snapshot.chargePercent.value
+    func apply(limit: Int, expected: Int?) async -> ChargeByApplyResult {
+        guard let model, !model.isApplying, !model.isDemo else { return .failed }
         do {
-            // The service reads the battery itself (fresh) for its safety checks; the model's snapshot may be stale after a wake.
-            try await model.nativeCharge.apply(limit, batteryPercent: percent, batteryFresh: true)
-            await model.nativeCharge.refresh()
-            return model.observedNativeLimit == limit || model.nativeCharge.pendingTarget == limit
-        } catch { return false }
+            // The service reads the limit fresh, refuses a changed one, writes and reads back: no further refresh is needed
+            // (a later read failure must not turn a confirmed write into a reported failure).
+            try await model.nativeCharge.apply(limit, batteryPercent: nil, batteryFresh: false, expectedCurrent: expected)
+            return .confirmed
+        } catch NativeChargeServiceError.changedElsewhere {
+            return .changedElsewhere
+        } catch { return .failed }
     }
 }

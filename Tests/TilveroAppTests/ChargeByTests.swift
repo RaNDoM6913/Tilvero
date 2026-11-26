@@ -59,10 +59,21 @@ import PowerCore
     @MainActor final class Env: ChargeByEnvironment {
         var obs = ChargeByObservation(observedLimit: 80, percent: 80, isCharging: false, externalPower: true, adapterWatts: 67, fullEnergyWh: 70, systemWatts: 3)
         var applied: [Int] = []; var succeed = true; var pauses = 0; var pauseOK = true
+        /// A failed apply that still lands: the next observation reads the requested limit.
+        var landsLate = false
+        /// The next apply finds the limit changed elsewhere (nothing written).
+        var changedElsewhere = false
+        var expectations: [Int?] = []
         var phaseAtPause: ChargeByPlanState.Phase?; weak var service: ChargeByService?
         func observation() -> ChargeByObservation { obs }
         func pauseOptimizedCharging() async -> Bool { pauses += 1; phaseAtPause = service?.state?.phase; return pauseOK }
-        func apply(limit: Int) async -> Bool { applied.append(limit); if succeed { obs.observedLimit = limit }; return succeed }
+        func apply(limit: Int, expected: Int?) async -> ChargeByApplyResult {
+            expectations.append(expected)
+            if changedElsewhere { changedElsewhere = false; return .changedElsewhere }
+            applied.append(limit)
+            if succeed || landsLate { obs.observedLimit = limit }
+            return succeed ? .confirmed : .failed
+        }
     }
     @MainActor final class Wake: WakeScheduling {
         var permitted = true; var scheduled: [Date] = []; var cancelled: [Date] = []; var cancelledStamps: [String?] = []; var scheduleOK = true
@@ -206,9 +217,86 @@ import PowerCore
         let (service, _, _) = makeService(env: env) { self.now }
         let armed145 = await service.arm(deadline: now.addingTimeInterval(300), target: 100)
         XCTAssertFalse(armed145)
+        XCTAssertEqual(service.message, "Choose a later time.")
         let armed147 = await service.arm(deadline: now.addingTimeInterval(8 * 3600), target: 80)
         XCTAssertFalse(armed147)
+        XCTAssertEqual(service.message, "Choose a level above your charge limit.")
+        env.obs.observedLimit = nil
+        let unread = await service.arm(deadline: now.addingTimeInterval(8 * 3600), target: 100)
+        XCTAssertFalse(unread)
+        XCTAssertEqual(service.message, "The charge limit has not been read yet.")
         XCTAssertNil(service.state)
+    }
+
+    // MARK: Lifts that land late, changes made elsewhere, cancels that retry (A4)
+
+    func testALiftThatFailsButLandsLateIsChargingAndStillRestoresThePreviousLimit() async throws {
+        let env = Env(); var clock = now
+        let (service, _, _) = makeService(env: env) { clock }
+        let armed = await service.arm(deadline: now.addingTimeInterval(8 * 3600), target: 100)
+        XCTAssertTrue(armed)
+        clock = try XCTUnwrap(service.state).startAt.addingTimeInterval(1)
+        env.succeed = false; env.landsLate = true
+        await service.tick()
+        XCTAssertEqual(service.state?.phase, .armed, "the unconfirmed lift is not claimed")
+        XCTAssertEqual(service.state?.liftRequested, true, "but its intent is recorded")
+        XCTAssertEqual(env.expectations, [80], "the lift writes only over the previous limit")
+        XCTAssertEqual(decide(try XCTUnwrap(service.state), limit: 100), .lifted)
+        env.succeed = true; env.landsLate = false
+        await service.tick()   // the next observation reads the target: Tilvero's own lift, landed late
+        XCTAssertEqual(service.state?.phase, .charging)
+        XCTAssertEqual(service.state?.previousLimit, 80)
+        XCTAssertEqual(env.applied, [100], "nothing written again")
+        XCTAssertEqual(env.pauses, 1)
+        env.obs.externalPower = false
+        await service.tick()
+        XCTAssertEqual(env.applied, [100, 80], "unplugged: the previous limit returns, never dropped")
+        XCTAssertNil(service.state)
+    }
+
+    func testALiftThatFindsTheLimitChangedElsewhereWritesNothingAndFollowsTheUser() async throws {
+        let env = Env(); var clock = now
+        let (service, _, _) = makeService(env: env) { clock }
+        let armed = await service.arm(deadline: now.addingTimeInterval(8 * 3600), target: 100)
+        XCTAssertTrue(armed)
+        clock = try XCTUnwrap(service.state).startAt.addingTimeInterval(1)
+        env.changedElsewhere = true
+        await service.tick()
+        XCTAssertEqual(env.applied, [])
+        XCTAssertNil(service.message, "no failure line: the user's own change wins")
+        XCTAssertNil(service.state?.liftRequested)
+        env.obs.observedLimit = 85   // what System Settings set
+        await service.tick()
+        XCTAssertEqual(service.state?.previousLimit, 85, "adopted as the limit to return to")
+        env.obs.observedLimit = 100
+        await service.tick()
+        XCTAssertNil(service.state, "already allows the target: dropped")
+        XCTAssertEqual(env.applied, [])
+    }
+
+    func testACancelWhileChargingWhoseRestoreFailsIsRetriedOnTheNextTick() async throws {
+        let env = Env()
+        let (service, _, _) = makeService(env: env) { self.now }
+        let armed = await service.arm(deadline: now.addingTimeInterval(50 * 60), target: 100)
+        XCTAssertTrue(armed)
+        XCTAssertEqual(service.state?.phase, .charging)
+        env.succeed = false
+        await service.cancel()
+        XCTAssertEqual(service.state?.cancelRequested, true)
+        XCTAssertEqual(service.message, "The charge limit could not be restored. Tilvero will try again.")
+        XCTAssertEqual(env.expectations.last, 100, "the restore only replaces the lifted limit")
+        env.succeed = true
+        await service.tick()
+        XCTAssertNil(service.state)
+        XCTAssertEqual(env.applied, [100, 80, 80])
+    }
+
+    func testAPlanSavedBeforeTheNewKeysStillDecodes() throws {
+        let old = Data(#"{"deadline":0,"target":100,"previousLimit":80,"phase":"armed","startAt":0}"#.utf8)
+        let decoded = try JSONDecoder().decode(ChargeByPlanState.self, from: old)
+        XCTAssertNil(decoded.liftRequested)
+        XCTAssertNil(decoded.cancelRequested)
+        XCTAssertEqual(decoded.previousLimit, 80)
     }
     func testTickerRunsTheTimerOnlyWhileAPlanExists() async throws {
         let env = Env(), wake = Wake()
