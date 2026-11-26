@@ -1483,8 +1483,8 @@ final class TilveroModel {
         if !draftDirty { discardDraft() }
     }
     func qualifyNativeCharge() { runNative { try await $0.qualify() } }
-    /// A native charge action (runNative) is running: a quit waits for it instead of refusing.
-    private(set) var nativeActionInFlight = false
+    /// A native charge action (runNative) is running: a quit waits for it instead of refusing. Not drawn anywhere.
+    @ObservationIgnored private(set) var nativeActionInFlight = false
     /// `recordsManualAction`: an automatic action does not stamp the arbiter. `postsFailure`: an automatic one stays quiet.
     private func runNative(recordsManualAction: Bool = true, postsFailure: Bool = true,
                            _ action: @escaping @MainActor (NativeChargeService) async throws -> Void) {
