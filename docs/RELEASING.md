@@ -1,10 +1,10 @@
 # Releasing Tilvero
 
-Tilvero has two distribution routes. The **Source Preview** distributes code for local builds. The planned **Monitoring Preview** is a trusted Mac download with its own distribution checks.
+Tilvero has two distribution routes. The **source release** distributes code that `scripts/install.sh` builds and installs on the user's Mac. The planned **Monitoring Preview** is a trusted Mac download with its own distribution checks.
 
-## Source Preview
+## Source release
 
-The current source release is `v0.8.1`. It targets developers building on Apple silicon with macOS 26 or later and a compatible full Xcode installation. It includes no `.app`, helper executable or DMG. The source tree contains gated development controls as well as monitoring.
+The current source release is `v0.8.1`. It targets anyone building on Apple silicon with macOS 26 or later and a compatible full Xcode installation. It includes no `.app`, helper executable or DMG. The source tree contains gated development controls as well as monitoring.
 
 The source profile's exact upload allowlist is:
 

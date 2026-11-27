@@ -1,8 +1,7 @@
 # Compatibility and current support
 
-Tilvero is a source preview for Apple silicon Macs running **macOS 26.0+**.
-Its first public binary scope is the planned read-only **Monitoring Preview**.
-A source prerelease and a trusted Mac download are separate deliverables.
+Tilvero runs on Apple silicon Macs with **macOS 26.0+** and installs from source with
+`scripts/install.sh`. A signed, notarized Mac download is a separate deliverable in preparation.
 
 ## System requirements
 
@@ -39,7 +38,7 @@ This UI acceptance does not renew hardware-control qualification after an OS upg
 | Sleep Timer | One-shot development sessions with preparation and cancellation | Disabled in DEMO and Monitoring Preview; actual system sleep/wake remains a device check |
 | Closed-lid mode | Implemented lid-only backend, dedicated signed helper, journal, lease and guardian; fixture-tested | Normal builds gated; separately signed trial is limited to 120 seconds; physical behavior/restoration not qualified |
 | Saved modes | Separate Save / Apply, action previews and per-action outcomes | Saving never applies; unqualified energy/display actions are excluded |
-| Charge by time | Plan from the charge level, adapter power and a margin; lifts the macOS limit just in time and restores it; one optional administrator permission (`pmset schedule wake`) for a scheduled wake; fixture-tested | Waking a sleeping Mac on schedule, lid closed as well, still needs a device check; a limit you change in macOS always wins. Lifting and restoring the limit use the native charge controller, so the same admission (exact Mac/OS/ABI) applies |
+| Charge by time | Plan from the charge level, adapter power and a margin; lifts the macOS limit just in time and restores it; one optional administrator permission (`pmset schedule wake`) for a scheduled wake; fixture-tested | Waking a sleeping Mac on schedule with the lid closed was verified on one Mac (Mac17,3, macOS 27.2, 2026-11-24); macOS Optimized Battery Charging can still hold the charge at 80 % for a while; a limit you change in macOS always wins. Lifting and restoring the limit use the native charge controller, so the same admission (exact Mac/OS/ABI) applies |
 | First-run setup | One window on a brand-new install: launch at login, history, the With lid closed switch (`pmset disablesleep` through the sudoers rule, not the gated closed-lid helper) and charge by time, with one macOS administrator dialog (or a prepared Terminal command) for the two that need it; Settings > Setup lists and removes the permissions; fixture-tested | The real administrator dialog, the Terminal route and the login item from a non-/Applications path still need your own device check |
 | Native charge controller | User-space PowerUI adapter with a recovery journal | Requires admission on the exact Mac/OS/ABI; cutoff and one-time-full-charge behavior have separate gates |
 | Privileged helper and recovery | Source and fixture implementation | Trusted signing, OS enrollment, lifecycle and device acceptance remain open |
@@ -94,5 +93,5 @@ Local machine snapshots and owner telemetry are not public qualification data.
 README gallery captures, when supplied, use injected fixture data and do
 not certify a release binary or physical hardware controls.
 
-[Build and run](../README.md#build-and-run) · [Installation](INSTALL.md) ·
+[Install](../README.md#install) · [Installation](INSTALL.md) ·
 [Release preparation](RELEASING.md) · [Roadmap](../ROADMAP.md)

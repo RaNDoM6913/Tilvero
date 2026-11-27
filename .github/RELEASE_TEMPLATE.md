@@ -1,6 +1,6 @@
 # Release-note routes
 
-For the first **Source Preview**, use [the source release notes](../docs/releases/v0.1.0-beta.1.md). Convert repository-relative links to absolute URLs pinned to the release tag before copying them into a GitHub release body. Upload only the source ZIP, `source-release.json` and `SHA256SUMS`; no app or DMG is included.
+For a **source release**, start from [the source release notes](../docs/releases/v0.1.0-beta.1.md). Convert repository-relative links to absolute URLs pinned to the release tag before copying them into a GitHub release body. Upload only the source ZIP, `source-release.json` and `SHA256SUMS`; no app or DMG is included.
 
 The template below is reserved for a future trusted binary release with its own fresh tag and completed distribution checks. Follow [the release guide](../docs/RELEASING.md).
 

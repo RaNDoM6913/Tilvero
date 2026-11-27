@@ -4,12 +4,20 @@
 
 ## English
 
-### Available now: source preview
+### Install now: one command
 
-Tilvero is available as source for **Apple silicon, macOS 26.0+**. Use the
-[v0.8.1 source release](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.8.1)
-and follow [Build and run](../README.md#build-and-run).
-A source archive requires a full Xcode installation; it is not an installable app.
+Tilvero installs from source on **Apple silicon, macOS 26.0+** with Xcode installed:
+
+```sh
+git clone https://github.com/RaNDoM6913/Tilvero.git && cd Tilvero && bash scripts/install.sh
+```
+
+`scripts/install.sh` checks the requirements (`--check` stops there), builds a release
+copy, verifies its signature and installs it into `/Applications` (`--applications-dir`
+picks another folder). It refuses while Tilvero runs from that folder and will not replace
+a signed copy without `--replace-signed`; the previous copy is kept in `build/install.noindex/`.
+It needs no `sudo` and changes no charging, fan, power or sleep setting.
+Developers can instead follow [Build from source](../README.md#build-from-source-developers).
 
 **No trusted public DMG is available yet.** Developer ID signing, notarization and
 downloaded-install acceptance remain prerequisites. Local **TEST** packages use
@@ -96,12 +104,20 @@ before sharing them. No automatic updater is enabled.
 
 ## Русский
 
-### Сейчас доступны исходники
+### Установка сейчас: одна команда
 
-Tilvero доступен в исходниках для **Apple silicon, macOS 26.0+**. Скачайте
-[исходники v0.8.1](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.8.1)
-и следуйте инструкции [«Сборка и запуск»](../README.ru.md#сборка-и-запуск).
-Архив исходников требует полной установки Xcode; это не готовое приложение.
+Tilvero устанавливается из исходников на **Apple silicon, macOS 26.0+** с установленным Xcode:
+
+```sh
+git clone https://github.com/RaNDoM6913/Tilvero.git && cd Tilvero && bash scripts/install.sh
+```
+
+`scripts/install.sh` проверяет требования (`--check` на этом останавливается), собирает
+релизную копию, проверяет подпись и устанавливает её в `/Applications` (`--applications-dir`
+задаёт другую папку). Скрипт откажется работать, пока Tilvero запущен из этой папки, и не заменит
+подписанную копию без `--replace-signed`; предыдущая копия сохраняется в `build/install.noindex/`.
+Ему не нужен `sudo`, и он не меняет настройки зарядки, вентиляторов, питания и сна.
+Разработчики могут пойти путём [«Сборка из исходников»](../README.ru.md#сборка-из-исходников-для-разработчиков).
 
 **Доверенный публичный DMG пока недоступен.** Нужны подпись Developer ID,
 нотарификация и проверка скачанной установки. Локальные пакеты **TEST** с
