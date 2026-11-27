@@ -33,8 +33,17 @@ final class NativeChargeAttentionPresentationTests: XCTestCase {
         XCTAssertEqual(T.text(presentation(.operationPending, purpose: .read, timedOut: true), .init()),
                        "The native policy read timed out. Further actions wait for the read to return.")
         XCTAssertEqual(T.text(presentation(.operationPending, purpose: .setLimit(target: 85), timedOut: true), .init()),
-                       "The native setting operation timed out. Its outcome needs review; further writes are blocked.")
-        XCTAssertEqual(T.text(presentation(.journalIntegrity), .init()), "The native session journal needs review before further changes.")
+                       "macOS did not answer in time. The limit can be changed again once it responds.")
+        // An apply's own steps (the setter, the pause between its readback reads) say nothing until a deadline passes, on
+        // every surface (the Diagnostics line used to come and go with each step).
+        for compact in [true, false] {
+            XCTAssertNil(T.text(presentation(.operationPending, purpose: .setLimit(target: 85)), .init(busy: true), compact: compact))
+            XCTAssertNil(T.text(presentation(.operationPending), .init(busy: true), compact: compact), "between readback reads")
+            XCTAssertNil(T.text(presentation(.operationPending, purpose: .read), .init(busy: true), compact: compact), "a read inside an apply")
+            XCTAssertEqual(T.text(presentation(.operationPending, purpose: .read, preference: false), .init(), compact: compact),
+                           "Reading the native charge policy…", "the very first read still shows its progress")
+        }
+        XCTAssertEqual(T.text(presentation(.journalIntegrity), .init()), "Tilvero could not update its charge-limit record. The next change tries again.")
         XCTAssertNil(T.text(presentation(.none), .init()))
         XCTAssertTrue(T.isWarning(presentation(.journalIntegrity)))
         XCTAssertTrue(T.isWarning(presentation(.operationPending, purpose: .read, timedOut: true)))

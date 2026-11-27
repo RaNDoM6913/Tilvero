@@ -32,6 +32,10 @@ private actor RenderChargeTransport: NativeChargeTransport {
         XCTAssertEqual(ChargeLimitKit.reported(m), 90)
         XCTAssertFalse(m.nativeCharge.admitted)
         XCTAssertFalse(m.nativeCharge.notReadYet, "the note is shown (not the quiet first-launch state)")
+        // Read-only: nothing to act on, so no dimmed charge-once pill or charge-by block (no dead controls).
+        XCTAssertFalse(ChargeLimitKit.showsChargeOnce(m))
+        XCTAssertFalse(ChargeLimitKit.showsChargeBy(m, armed: false))
+        XCTAssertTrue(ChargeLimitKit.showsChargeBy(m, armed: true), "an armed plan keeps its cancel")
         let host = NSHostingController(rootView: QuickPanel(model: m, section: .charge).frame(width: 360))
         let window = NSWindow(contentViewController: host)
         window.setContentSize(host.sizeThatFits(in: NSSize(width: QuickPanelMetrics.width, height: 900))); host.view.layoutSubtreeIfNeeded()
@@ -69,6 +73,10 @@ private actor RenderChargeTransport: NativeChargeTransport {
         XCTAssertFalse(texts.contains { $0 == "80%" || $0 == "90%" || $0 == "100%" }, "The old preset buttons are gone")
         XCTAssertFalse(texts.contains(L10n.text("Apply")), "There is no Apply button: letting go of the slider applies")
         XCTAssertTrue(m.canApply, "A different draft can be applied")
+        // The control for the read-only case: with the slider, the pill and the charge-by block are drawn.
+        XCTAssertEqual(ChargeLimitKit.mode(m), .slider)
+        XCTAssertTrue(ChargeLimitKit.showsChargeOnce(m))
+        XCTAssertTrue(ChargeLimitKit.showsChargeBy(m, armed: false))
         window.orderOut(nil)
     }
 

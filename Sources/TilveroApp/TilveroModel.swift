@@ -61,7 +61,8 @@ final class TilveroModel {
     private(set) var updatePreparationActive = false
     @ObservationIgnored private var updateExclusion: ControllerSessionLease?
     private let updateLeaseDirectory: URL?
-    private let updateEvidence: () -> [UpdateEvidenceProbe.Result]
+    /// Probes the saved control evidence; the argument is the native service's own journal, which it leaves out.
+    private let updateEvidence: (URL?) -> [UpdateEvidenceProbe.Result]
     @ObservationIgnored lazy var updateInstaller = SparkleUpdateInstaller(
         readOnlyReadiness: { [weak self] in self?.updateReadiness.blockers ?? ["Update recovery status is unavailable."] },
         prepareAfterExplicitConsent: { [weak self] in await self?.prepareForUpdateInstallation() ?? false },
@@ -83,7 +84,8 @@ final class TilveroModel {
         result.sleepTransition = sleeping || sleepTimerBlocksControls || sleepTimer.needsHoldRelease
         result.awakeActive = keepAwake.hasOwnedAssertion
         result.timerActive = sleepTimer.isActive
-        let evidence = updateEvidence()
+        // The running service's own journal is `nativeRecovery` above (a wait), not also a manual review.
+        let evidence = updateEvidence(nativeCharge.ownJournalURL)
         result.persistentEvidence = evidence.contains(.present)
         result.environmentUnknown = evidence.contains(.unknown)
         if updateExclusion == nil {
@@ -623,7 +625,7 @@ final class TilveroModel {
          lidComfortService: LidComfortService? = nil,
          liveSampler: (@Sendable () -> LivePowerSample?)? = nil,
          updateIdentity: UpdateIdentity? = nil,
-         updateEvidence: (() -> [UpdateEvidenceProbe.Result])? = nil,
+         updateEvidence: ((URL?) -> [UpdateEvidenceProbe.Result])? = nil,
          updateLeaseDirectory: URL? = nil,
          sideEffects: TilveroModelSideEffects? = nil,
          setupBundle: Bundle = .main,
@@ -632,7 +634,7 @@ final class TilveroModel {
          lowPowerMode: (@Sendable () -> Bool)? = nil) {
         updates = UpdateCheckService(identity: updateIdentity ?? .current(), defaults: preferences)
         self.updateLeaseDirectory = updateLeaseDirectory
-        self.updateEvidence = updateEvidence ?? {
+        self.updateEvidence = updateEvidence ?? { ownJournal in
             let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
                 .appendingPathComponent("Tilvero", isDirectory: true)
             let paths = [root.appendingPathComponent("native-charge-session.json"),
@@ -641,7 +643,7 @@ final class TilveroModel {
                          root.appendingPathComponent("LidTrial/native-charge-session.json"),
                          URL(fileURLWithPath: "/Library/Application Support/Tilvero"),
                          URL(fileURLWithPath: "/Library/Application Support/TilveroClosedLidLab")]
-            return paths.map(UpdateEvidenceProbe.inspect)
+            return UpdateEvidenceProbe.inspect(paths, excluding: ownJournal)
         }
         self.systemChargeLimitProvider = systemChargeLimitProvider ?? { maximumAge in
             await Task.detached(priority: .utility) { SystemChargeLimitObservation.read(maximumAge: maximumAge) }.value
@@ -1354,6 +1356,11 @@ final class TilveroModel {
     var chargeLimitRefusal: String {
         if controlsAreSuspended { return "Controls are paused for sleep or an update." }
         if isApplying || nativeCharge.isBusy { return "A charge-limit change is still in progress." }
+        // A fresh state macOS reports but Tilvero does not change (its temporary charge to full: disabled with a target) is
+        // the real reason; a registry message about the same read would otherwise hide it.
+        if let preference = nativeCharge.presentation().currentPreference, !NativeChargeAdmission.isValidState(preference) {
+            return "Use System Settings › Battery to change this limit."
+        }
         if let message = nativeCharge.message { return message }
         // A state macOS reports but Tilvero does not change (its temporary charge to full, disabled with a target).
         return nativeCharge.reportedLimit == nil ? "macOS has not reported the charge limit yet." : "Use System Settings › Battery to change this limit."
@@ -1392,8 +1399,14 @@ final class TilveroModel {
         runNative { [weak self] service in
             // The intent is recorded before the write: a lift that lands late still has its previous limit to put back.
             self?.chargeOnce.begin(previous: previous)
+            let leftover = service.unresolvedSessionID
             do { try await service.apply(100, expectedCurrent: previous) }
-            catch NativeChargeServiceError.changedElsewhere { self?.chargeOnce.clear(); throw NativeChargeServiceError.changedElsewhere }
+            catch {
+                // Only a write this tap dispatched can land late, and it leaves a session of its own on disk. Anything
+                // else (a failed read, a refused state, a value changed elsewhere) lifted nothing: the pill returns at once.
+                if service.unresolvedSessionID == nil || service.unresolvedSessionID == leftover { self?.chargeOnce.clear() }
+                throw error
+            }
         }
     }
     /// The user's own cancel: an explicit action (its failure is shown), whatever the limit reads now.
@@ -1417,15 +1430,17 @@ final class TilveroModel {
     }
     /// After every reading: the charge is over (full, or the adapter was unplugged) or the limit was changed elsewhere.
     /// Nothing is decided before macOS has reported the limit (no launch-time restore from a saved intent).
+    /// While a write of unknown outcome is pending or on disk, a reading other than 100 may be the pre-write value: the
+    /// intent is kept until the session resolves (the first settled clear read), so a lift that lands late is still undone.
     private func evaluateChargeOnce() {
-        guard !isDemo, !sleeping, !isApplying, !nativeCharge.isBusy, let previous = chargeOnce.previousTarget,
-              let reported = nativeCharge.reportedLimit else { return }
+        guard !isDemo, !sleeping, !isApplying, !nativeCharge.isBusy, !nativeCharge.operationPending,
+              let previous = chargeOnce.previousTarget, let reported = nativeCharge.reportedLimit else { return }
         let usable = { (reading: TelemetryReading<Bool>) in reading.availability == .available && reading.freshness != .stale ? reading.value : nil }
         let level = snapshot.chargePercent.availability == .available && snapshot.chargePercent.freshness != .stale ? snapshot.chargePercent.value : nil
         switch ChargeOnceRule.decide(previous: previous, observedTarget: reported, percent: level,
                                      isCharging: usable(snapshot.isCharging), externalPower: usable(snapshot.isExternalPower)) {
         case .keep: break
-        case .drop: chargeOnce.clear()
+        case .drop: if !nativeCharge.hasUnresolvedSession { chargeOnce.clear() }
         case .restore(let target):
             guard nativeCharge.canApplyTarget(target) else { break }
             if let last = chargeOnceRestoreAttemptAt, Date().timeIntervalSince(last) < 60 { break }

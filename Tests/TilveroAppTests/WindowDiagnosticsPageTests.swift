@@ -50,7 +50,7 @@ import PowerPersistence
         XCTAssertEqual(lead.value, "1")
         XCTAssertEqual(lead.tone, .attention)
         XCTAssertEqual(lead.status, L10n.text("Needs review"))
-        XCTAssertEqual(lead.detail, L10n.text("Native journal needs review"))
+        XCTAssertEqual(lead.detail, L10n.text("Charge-limit record not updated"))
 
         input.recoveryRequired = true
         input.systemSleepDisabled = true
@@ -58,7 +58,7 @@ import PowerPersistence
         XCTAssertEqual(lead.value, "3")
         XCTAssertEqual(lead.detail, L10n.text("App-owned settings require restoration"), "recovery comes first")
         XCTAssertEqual(DiagnosticsSummary.items(input),
-                       ["App-owned settings require restoration", "Native journal needs review",
+                       ["App-owned settings require restoration", "Charge-limit record not updated",
                         DiagnosticsSummary.sleepDisabledWarningKey])
     }
 

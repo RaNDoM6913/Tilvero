@@ -189,7 +189,8 @@ enum ChargingComposition {
                     header(value: ChargeLimitKit.reported(model), applied: state.currentPreference != nil, state: state)
                     ChargeLimitUnavailableNote(model: model)
                     statusLine(state)
-                    actions
+                    // Nothing to act on here: charge once only while it runs (its cancel stays reachable).
+                    if ChargeLimitKit.showsChargeOnce(model) { actions }
                 case .readOnly: readOnly
                 }
                 // Optimized Charging is its own macOS setting: its switch is drawn in every mode.
@@ -259,8 +260,8 @@ enum ChargingComposition {
         actions
     }
 
-    /// Charge once: shown with the slider and with the read-only native value (as in the quick menu, where it stays
-    /// dimmed until it can start). Charge by time and the Optimized Charging switch follow in the tile body.
+    /// Charge once: shown with the slider (as in the quick menu, where it stays dimmed until it can start), and with the
+    /// read-only native value only while it runs. Charge by time and the Optimized Charging switch follow in the tile body.
     @ViewBuilder private var actions: some View {
         Divider()
         HStack {
@@ -270,7 +271,7 @@ enum ChargingComposition {
                     model.toggleSimulatedFullChargeOnce()
                 }
                 .controlSize(.large).disabled(model.isApplying)
-            } else if model.canShowChargeControls {
+            } else if ChargeLimitKit.showsChargeOnce(model) {
                 ChargeOncePill(model: model, fillsWidth: false)
             }
             Spacer(minLength: 0)

@@ -172,7 +172,7 @@ extension NativeChargePresentation.Attention {
     var titleKey: String {
         switch self {
         case .mutationUnresolved: "Charge limit change not confirmed"
-        case .journalIntegrity: "Native journal needs review"
+        case .journalIntegrity: "Charge-limit record not updated"
         case .operationPending: "Waiting for native operation"
         case .policyUnconfirmed: "Waiting for policy confirmation"
         case .none: "Native charging"

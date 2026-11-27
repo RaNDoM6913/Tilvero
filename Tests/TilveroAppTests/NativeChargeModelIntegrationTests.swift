@@ -241,3 +241,154 @@ extension NativeChargeModelIntegrationTests {
         XCTAssertNil(try JSONDecoder().decode(SystemChargeLimitObservation.self, from: old).readOnExternalPower, "older encodings decode")
     }
 }
+
+// MARK: Review fixes: unresolved lifts, read-only states, failed starts
+
+extension NativeChargeModelIntegrationTests {
+    private func waitUntil(_ condition: () async -> Bool) async throws {
+        for _ in 0..<400 where !(await condition()) { try await Task.sleep(for: .milliseconds(5)) }
+    }
+
+    /// The setter hangs past the gate deadline: the stored setting is unknown (not the pre-write 80), nothing is decided
+    /// while the call is pending, and once it lands (100) the previous limit returns on unplug.
+    func testAChargeOnceLiftWhoseSetterTimesOutKeepsItsIntentAndIsUndoneAfterItLands() async throws {
+        let f = ScopeFixture(initialTarget: 80); defer { f.cleanup() }
+        let service = f.makeService(operationTimeout: .milliseconds(150))
+        let source = SnapshotSource(percent: 60, charging: true, externalPower: true)
+        let (model, suite) = f.makeModel(service, snapshot: { source.read() })
+        defer { model.stop(); TestDefaults.remove(suite) }
+        await model.refreshNativeCharge()
+        XCTAssertTrue(model.canStartChargeOnce)
+        await f.client.holdWrites()
+        model.startChargeOnce()
+        try await waitUntil { await f.client.isHoldingWrite }
+        try await settle(model)   // the gate deadline passed: the action returned with the call still pending
+        XCTAssertTrue(service.operationPending)
+        XCTAssertTrue(service.hasUnresolvedSession)
+        XCTAssertNil(service.reportedLimit, "the outcome is unknown: never the pre-write 80")
+        XCTAssertNil(model.chargeByObservation.observedLimit)
+        XCTAssertEqual(model.chargeOnce.previousTarget, 80)
+        await model.refresh()
+        XCTAssertEqual(model.chargeOnce.previousTarget, 80, "nothing is decided while the setter has not returned")
+        await f.client.releaseWrite()   // the write lands late: macOS stores 100
+        try await waitUntil { !service.operationPending }
+        XCTAssertEqual(service.message, NativeChargeService.lateAnswerMessage)
+        await model.refreshNativeCharge()
+        XCTAssertEqual(service.reportedLimit, 100)
+        XCTAssertNil(service.message, "a successful read clears the late-answer line")
+        await model.refresh()
+        XCTAssertEqual(model.chargeOnce.previousTarget, 80, "still charging: kept")
+        source.set(percent: 70, charging: false, externalPower: false)
+        await model.refresh()
+        try await settle(model)
+        XCTAssertNil(model.chargeOnce.previousTarget)
+        XCTAssertEqual(service.reportedLimit, 80)
+        await f.assertWrites(["limit100", "limit80"])
+    }
+
+    /// The setter returned but macOS still reads the old 80 for a while: the session is unresolved, so a reading of 80 does
+    /// not drop the intent; once macOS shows 100 and the session closes, the previous limit returns on unplug.
+    func testAChargeOnceLiftThatStillReadsTheOldValueKeepsItsIntentUntilTheSessionResolves() async throws {
+        let f = ScopeFixture(initialTarget: 80); defer { f.cleanup() }
+        let service = f.makeService()
+        let source = SnapshotSource(percent: 60, charging: true, externalPower: true)
+        let (model, suite) = f.makeModel(service, snapshot: { source.read() })
+        defer { model.stop(); TestDefaults.remove(suite) }
+        await model.refreshNativeCharge()
+        await f.client.lagNextWrite(reads: 2)   // the readback and the refresh after it still read 80
+        model.startChargeOnce()
+        try await settle(model)
+        XCTAssertTrue(service.hasUnresolvedSession)
+        XCTAssertEqual(service.reportedLimit, 80, "macOS still reports the old value")
+        XCTAssertEqual(model.chargeOnce.previousTarget, 80, "a write of its own is on disk: kept")
+        await model.refresh()
+        XCTAssertEqual(model.chargeOnce.previousTarget, 80, "a reading of 80 while the session is unresolved drops nothing")
+        await model.refreshNativeCharge()   // the write has landed
+        XCTAssertEqual(service.reportedLimit, 100)
+        try f.settle()
+        await model.refreshNativeCharge()   // a settled clear read closes the session
+        XCTAssertFalse(service.hasUnresolvedSession)
+        await model.refresh()
+        XCTAssertEqual(model.chargeOnce.previousTarget, 80)
+        source.set(percent: 70, charging: false, externalPower: false)
+        await model.refresh()
+        try await settle(model)
+        XCTAssertNil(model.chargeOnce.previousTarget)
+        XCTAssertEqual(service.reportedLimit, 80)
+        await f.assertWrites(["limit100", "limit80"])
+    }
+
+    /// A start that fails before anything is dispatched lifted nothing: the pill returns at once (no "Charging to 100%"
+    /// until the next poll), also when an older session is still on disk.
+    func testAChargeOnceStartThatFailsBeforeAnyWriteClearsItsIntentAtOnce() async throws {
+        for leftover in [false, true] {
+            let f = ScopeFixture(initialTarget: 80); defer { f.cleanup() }
+            if leftover { try f.writeSessionJournal(phase: .indeterminate) }
+            let service = f.makeService()
+            let (model, suite) = f.makeModel(service, percent: 60, charging: true, externalPower: true)
+            defer { model.stop(); TestDefaults.remove(suite) }
+            await model.refreshNativeCharge()
+            XCTAssertTrue(model.canStartChargeOnce, "\(leftover)")
+            XCTAssertEqual(service.hasUnresolvedSession, leftover)
+            await f.client.setMode("unknown")   // the start's own read fails: nothing can be written
+            model.startChargeOnce()
+            try await settle(model)
+            XCTAssertNil(model.chargeOnce.previousTarget, "\(leftover): nothing was lifted")
+            XCTAssertFalse(model.isChargeOnceRunning)
+            XCTAssertNotNil(model.notice, "the failure is said once")
+            XCTAssertEqual(service.hasUnresolvedSession, leftover, "an older session is not this tap's write")
+            await f.assertWrites([], "\(leftover)")
+        }
+    }
+
+    /// macOS's temporary charge to full (disabled with a target) while the AC registry still lists the row: shown read-only
+    /// (no live-looking slider, no dead charge-once or charge-by), and a refusal names the real reason; the slider returns
+    /// with a valid state.
+    func testATemporaryChargeToFullStateIsReadOnlyAndRecovers() async throws {
+        let f = ScopeFixture(initialTarget: 80); defer { f.cleanup() }
+        let service = f.makeService()
+        let (model, suite) = f.makeModel(service, percent: 60, charging: true, externalPower: true)
+        defer { model.stop(); TestDefaults.remove(suite) }
+        await model.refreshNativeCharge()
+        let targets = ChargeLimitKit.targets(model)
+        XCTAssertEqual(ChargeLimitKit.mode(model), .slider)
+        XCTAssertTrue(ChargeLimitKit.sliderLook(model, targets: targets).offered)
+        XCTAssertTrue(ChargeLimitKit.showsChargeOnce(model))
+        await f.client.setMode("disabledListed")
+        await model.refreshNativeCharge()
+        XCTAssertTrue(service.admitted)
+        XCTAssertEqual(service.message, NativeChargeService.policyUnconfirmedMessage)
+        XCTAssertEqual(ChargeLimitKit.mode(model), .unavailable)
+        XCTAssertEqual(ChargeLimitKit.reported(model), 100)
+        XCTAssertEqual(ChargeLimitKit.shown(chosen: nil, model: model), 100)
+        XCTAssertFalse(ChargeLimitKit.sliderLook(model, targets: targets).offered)
+        XCTAssertFalse(ChargeLimitKit.showsChargeOnce(model))
+        XCTAssertFalse(ChargeLimitKit.showsChargeBy(model, armed: false))
+        XCTAssertEqual(model.chargeLimitRefusal, "Use System Settings › Battery to change this limit.")
+        model.releaseChargeLimit(at: 85)
+        XCTAssertEqual(model.notice, L10n.text("Use System Settings › Battery to change this limit."),
+                       "the real reason, not the registry line the quick panel filters out")
+        await f.client.setMode("")
+        await model.refreshNativeCharge()
+        XCTAssertEqual(ChargeLimitKit.mode(model), .slider)
+        XCTAssertTrue(ChargeLimitKit.sliderLook(model, targets: targets).offered)
+        await f.assertWrites([])
+    }
+
+    /// The pmset fallback panel builds its headline as the window's read-only row: a row read on battery power is never the
+    /// limit (only a secondary caption), a row read on AC is, and the native setting wins over both.
+    func testTheFallbackPanelNeverShowsABatteryRowAsTheLimit() throws {
+        let limits = try JSONDecoder().decode(SystemChargeLimits.self, from: Data(#"{"manualLimit":80,"otherLimits":[],"manualLimitIsConflicting":false}"#.utf8))
+        let battery = SystemChargeLimitObservation(limits: limits, readOnExternalPower: false)
+        XCTAssertEqual(SystemChargeLimitPanel.headline(native: nil, observation: battery, language: "en"), "—")
+        XCTAssertEqual(SystemChargeLimitPanel.unconfirmedRow(battery), 80)
+        let unknown = SystemChargeLimitObservation(limits: limits)
+        XCTAssertEqual(SystemChargeLimitPanel.headline(native: nil, observation: unknown, language: "en"), "—")
+        XCTAssertEqual(SystemChargeLimitPanel.unconfirmedRow(unknown), 80)
+        let ac = SystemChargeLimitObservation(limits: limits, readOnExternalPower: true)
+        XCTAssertEqual(SystemChargeLimitPanel.headline(native: nil, observation: ac, language: "en"), "80%")
+        XCTAssertNil(SystemChargeLimitPanel.unconfirmedRow(ac))
+        let native = NativeChargeConfiguration(enabled: false, target: 100, optimizedCharging: true)
+        XCTAssertEqual(SystemChargeLimitPanel.headline(native: native, observation: battery, language: "en"), "100%")
+    }
+}

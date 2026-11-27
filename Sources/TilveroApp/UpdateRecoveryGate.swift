@@ -41,6 +41,13 @@ struct UpdateRecoverySnapshot {
 enum UpdateEvidenceProbe {
     enum Result: Equatable { case absent, present, unknown }
 
+    /// Every path except the running native service's own session journal: that service loads it and reports it itself
+    /// (`nativeRecovery`, a wait that ends on its own), so it is not also "evidence for a manual review".
+    static func inspect(_ paths: [URL], excluding own: URL?) -> [Result] {
+        let excluded = own?.standardizedFileURL.path
+        return paths.filter { excluded == nil || $0.standardizedFileURL.path != excluded }.map(inspect)
+    }
+
     /// No journal decoder, service connection, mkdir, or restoration belongs here.
     static func inspect(_ url: URL) -> Result {
         guard url.isFileURL, url.path.hasPrefix("/"),

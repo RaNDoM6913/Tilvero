@@ -23,12 +23,17 @@ import ChargeBackends
         XCTAssertEqual(service.presentation().pendingPurpose, .setLimit(target: 90))
         XCTAssertTrue(service.presentation().pendingTimedOut)
         XCTAssertFalse(service.canApply, "the gate still holds the call")
+        XCTAssertNil(service.reportedLimit, "the write may land at any moment: the stored setting is unknown, not the pre-write 85")
+        XCTAssertNil(service.nativeSetting)
         do { try await service.apply(95); XCTFail("No second call while the first has not returned") } catch {}
         var writes = await client.writes; XCTAssertEqual(writes, [90])
         await client.release()
         for _ in 0..<200 where service.presentation().pendingPurpose != nil { await Task.yield() }
         XCTAssertTrue(FileManager.default.fileExists(atPath: journal.path), "a late continuation must not claim the write")
+        XCTAssertEqual(service.message, NativeChargeService.lateAnswerMessage)
         await service.refresh()
+        XCTAssertNotEqual(service.message, NativeChargeService.lateAnswerMessage, "the read it promised clears it")
+        XCTAssertEqual(service.reportedLimit, 90, "what macOS stores now")
         XCTAssertTrue(service.canApplyTarget(95), "the slider is usable once the call returned")
         XCTAssertEqual(service.presentation().attention, .mutationUnresolved)
         try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(-120)], ofItemAtPath: journal.path)

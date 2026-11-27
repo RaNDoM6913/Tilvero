@@ -342,6 +342,8 @@ import PowerCore
         XCTAssertEqual(service.reportedLimit, 95, "what macOS stores is shown")
         do { try await service.apply(90); XCTFail("a conflict that stays is not confirmed") } catch {}
         XCTAssertTrue(f.journalExists, "an unconfirmed write leaves a session that closes itself")
+        XCTAssertNil(service.reportedLimit, "the outcome is unknown until the next read (the model reads at once)")
+        await service.refresh()
         XCTAssertTrue(service.canApplyTarget(85))
         await f.assertWrites(["limit95", "limit90"])
     }
@@ -471,7 +473,9 @@ import PowerCore
         catch NativeChargeServiceError.readbackMismatch {} catch { XCTFail("Wrong error: \(error)") }
         let saved = try JSONDecoder().decode(NativeChargeJournal.self, from: Data(contentsOf: g.journal))
         XCTAssertEqual(saved.phase, .indeterminate)
-        XCTAssertTrue(stuck.canApplyTarget(90))
+        XCTAssertNil(stuck.reportedLimit, "the outcome is unknown until the next read (the model reads at once)")
+        await stuck.refresh()
+        XCTAssertTrue(stuck.canApplyTarget(90), "the session blocks nothing")
         await g.client.setMode("")
         try g.settle()
         await stuck.refresh()
@@ -640,7 +644,15 @@ actor ScopeTransport: NativeChargeTransport {
     var isHoldingWrite: Bool { heldWrite != nil }
     func holdWrites() { holdNextWrite = true }
     func releaseWrite() { heldWrite?.resume(); heldWrite = nil }
+    /// The next write lands in macOS only after this many further reads (they still return the old value): a setter that
+    /// returned while macOS lags behind it.
+    private var lagNext: Int?
+    private var lag: (target: Int, reads: Int)?
+    func lagNextWrite(reads: Int) { lagNext = reads }
     func read() throws -> NativeChargeSnapshot {
+        if let pending = lag {
+            if pending.reads > 0 { lag = (pending.target, pending.reads - 1) } else { target = pending.target; lag = nil }
+        }
         if mode == "unknown" || failAfterWrites.map({ writes.count > $0 }) == true {
             throw NativeChargeReadFailure(supportedTargets: [80,85,90,95,100], currentTarget: 100, rawManualState: 3, diagnosticStoredTarget: 90)!
         }
@@ -649,6 +661,7 @@ actor ScopeTransport: NativeChargeTransport {
             failedReadAfterWrite = true
             throw NativeChargeReadFailure(supportedTargets: [80,85,90,95,100], currentTarget: target, rawManualState: 3)!
         }
+        // "disabledListed": macOS's temporary charge to full (disabled with a target) while the AC registry still lists the row.
         // "conflictUntilWrite": the two-row AC registry after a macOS update; a write rewrites both rows.
         // "staleRow": one AC row with an old 80 until a write. "offeredAll": macOS offers every level 80…100.
         let conflicted = mode == "conflict" || mode == "batteryConflict" || (mode == "conflictUntilWrite" && writes.isEmpty)
@@ -664,7 +677,7 @@ actor ScopeTransport: NativeChargeTransport {
         // macOS stores 100 as "limit off": disabled, no registered manual limit (mode "baseline100" is an inconsistent enabled 100).
         let battery = mode == "battery" || mode == "batteryStaleRows" || mode == "batteryConflict"   // on battery power: the setting is stored, nothing is registered
         let off = target == 100 && mode != "baseline100"
-        return .init(configuration: .init(enabled: mode != "disabled" && !off, target: target, optimizedCharging: mode != "obc"),
+        return .init(configuration: .init(enabled: mode != "disabled" && mode != "disabledListed" && !off, target: target, optimizedCharging: mode != "obc"),
               supportedTargets: mode == "offered" ? [80,85,90,100] : mode == "offeredAll" ? Array(80...100) : [80,85,90,95,100],
               // "batteryStaleRows": just unplugged, macOS still lists the old 90 rows for a few minutes.
               registeredManualLimit: mode == "batteryStaleRows" ? 90 : mode == "disabled" || off || battery ? nil : target,
@@ -675,6 +688,7 @@ actor ScopeTransport: NativeChargeTransport {
     func setLimit(_ target: Int) async {
         writes.append("limit\(target)")
         if holdNextWrite { holdNextWrite = false; await withCheckedContinuation { heldWrite = $0 } }
+        if let reads = lagNext { lagNext = nil; lag = (target, reads); return }
         self.target = target
     }
 }

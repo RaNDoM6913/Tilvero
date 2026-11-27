@@ -26,8 +26,9 @@ import PowerCore
     private var armedPhase: Bool { service.state?.phase == .armed }
 
     var body: some View {
-        // Always present with the controls (dimmed while no level lies above the limit) so changing the limit never resizes the page.
-        if model.canShowChargeControls, model.usesNativeCharge {
+        // Present with the slider (dimmed while no level lies above the limit) so changing the limit never resizes the page;
+        // in the read-only state only while a plan exists, so its cancel stays reachable.
+        if ChargeLimitKit.showsChargeBy(model, armed: service.isArmed) {
             VStack(alignment: .leading, spacing: 12) {
                 Divider()
                 titleRow

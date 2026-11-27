@@ -24,9 +24,22 @@ enum ChargeLimitKit {
         return canShowControls && hasTargets ? .slider : .unavailable
     }
 
+    /// A fresh state macOS reports but Tilvero does not change (its temporary charge to full: disabled with a target) is
+    /// shown read-only, as it is before the interface was granted; the slider returns once macOS reports a valid state.
     @MainActor static func mode(_ model: TilveroModel) -> Mode {
-        mode(isDemo: model.isDemo, usesNativeCharge: model.usesNativeCharge,
-             canShowControls: model.canShowChargeControls, hasTargets: !targets(model).isEmpty)
+        let preference = model.nativeCharge.presentation().currentPreference
+        let validState = model.isDemo || preference.map(NativeChargeAdmission.isValidState) ?? true
+        return mode(isDemo: model.isDemo, usesNativeCharge: model.usesNativeCharge,
+                    canShowControls: model.canShowChargeControls && validState, hasTargets: !targets(model).isEmpty)
+    }
+
+    /// Charge once and charge by time act only where the slider does; in the read-only state they are not drawn at all
+    /// (no dead controls), except while one of them runs, so its cancel stays reachable.
+    @MainActor static func showsChargeOnce(_ model: TilveroModel) -> Bool {
+        !model.isDemo && model.usesNativeCharge && (mode(model) == .slider || model.isChargeOnceRunning)
+    }
+    @MainActor static func showsChargeBy(_ model: TilveroModel, armed: Bool) -> Bool {
+        !model.isDemo && model.usesNativeCharge && (mode(model) == .slider || armed)
     }
 
     /// Levels the slider offers: the verified persistent targets (100 means no limit); the simulation's own in DEMO.
@@ -62,13 +75,14 @@ enum ChargeLimitKit {
         return chosen ?? current(model.nativeCharge.presentation().currentPreference)
     }
 
-    /// The slider looks offered while macOS offers its levels and the current value is known; momentary states (a read or
-    /// an apply in flight) never dim it. The thumb is never drawn at a guessed level. Only an apply in flight ignores
-    /// input: a background poll (a few milliseconds of `isBusy`) must never cut a drag short.
+    /// The slider looks offered while macOS offers its levels and the current value is known and valid; momentary states (a
+    /// read or an apply in flight) never dim it. The thumb is never drawn at a guessed level. Only an apply in flight
+    /// ignores input: a background poll (a few milliseconds of `isBusy`) must never cut a drag short.
     @MainActor static func sliderLook(_ model: TilveroModel, targets: [Int]) -> SteadyControlLook {
-        SteadyControlLook(offered: model.isDemo || (targets.contains(where: model.nativeCharge.offersTarget)
-                                                    && current(model.nativeCharge.presentation().currentPreference) != nil),
-                          busy: model.isApplying)
+        let preference = model.nativeCharge.presentation().currentPreference
+        return SteadyControlLook(offered: model.isDemo || (targets.contains(where: model.nativeCharge.offersTarget)
+                                                           && preference.map(NativeChargeAdmission.isValidState) == true),
+                                 busy: model.isApplying)
     }
 
     /// The shown level is the one held now and nothing waits (the simulation's pending lower target): only then is it drawn
@@ -209,7 +223,8 @@ enum ChargeLimitKit {
 }
 
 /// «Зарядить до 100 % один раз»: grey to start, accent while it runs («Заряжается до 100 % · 86 %»); tapping it again
-/// cancels. Present whenever the controls are (dimmed when it cannot start) so applying a limit never resizes the page.
+/// cancels. Present with the slider (dimmed when it cannot start) so applying a limit never resizes the page; not drawn in
+/// the read-only state unless it runs (`ChargeLimitKit.showsChargeOnce`).
 @MainActor struct ChargeOncePill: View {
     var model: TilveroModel
     var fillsWidth = true

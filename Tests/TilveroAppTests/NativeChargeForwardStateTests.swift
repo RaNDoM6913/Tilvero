@@ -92,20 +92,38 @@ import PowerCore
         }
     }
 
-    /// A write-ahead save failure dispatches nothing and leaves nothing to review; a journal that cannot be removed after a
-    /// confirmed write is the one state Diagnostics flags, and it still blocks nothing.
+    /// A save failure before the dispatch (the preparing record, or the write-ahead record itself) dispatches nothing and
+    /// never leaves a record that claims a write; a journal that cannot be removed after a confirmed write is the one state
+    /// Diagnostics flags, and it still blocks nothing.
     func testWriteAheadAndConfirmedJournalPersistenceFailuresNeverInventInFlightSetter() async throws {
-        for readsBeforeBlock in [0, 2] {
+        for readsBeforeBlock in [0, 1, 2] {
             let f = ForwardFixture(); defer { f.cleanup() }
             try FileManager.default.createDirectory(at: f.folder, withIntermediateDirectories: true)
             await f.service.refresh()
+            // 0: locked at the apply's own read (the preparing record cannot be saved); 1: at the re-read just before the
+            // write (the write-ahead save fails); 2: at the readback (the confirmed record cannot be removed).
             await f.client.lockFolder(f.folder, after: readsBeforeBlock)
             do { try await f.service.apply(90); XCTFail("Persistence must fail") } catch {}
             XCTAssertNil(f.service.presentation().pendingPurpose)
             let writes = await f.client.writes
-            XCTAssertEqual(writes, readsBeforeBlock == 0 ? [] : [90])
+            XCTAssertEqual(writes, readsBeforeBlock == 2 ? [90] : [])
+            if readsBeforeBlock == 1 {
+                // The write-ahead save failed: no setter was dispatched, and the record on disk still says nothing was written
+                // (a launch drops it). The read-only folder kept that preparing record from being removed: flagged.
+                let saved = try JSONDecoder().decode(NativeChargeJournal.self, from: Data(contentsOf: f.url))
+                XCTAssertFalse(saved.hasWritten)
+                XCTAssertNil(saved.expectedMutation)
+                XCTAssertEqual(f.service.presentation().attention, .journalIntegrity)
+                XCTAssertFalse(f.service.hasUnresolvedSession, "nothing of unknown outcome")
+            }
             f.unlockFolder()
-            if readsBeforeBlock == 0 {
+            if readsBeforeBlock == 1 {
+                try await f.service.apply(90)
+                let later = await f.client.writes
+                XCTAssertEqual(later, [90], "the next change works and writes once")
+                XCTAssertFalse(f.journalExists)
+                XCTAssertEqual(f.service.presentation().attention, .none)
+            } else if readsBeforeBlock == 0 {
                 XCTAssertNotEqual(f.service.presentation().attention, .journalIntegrity)
                 XCTAssertFalse(f.journalExists, "nothing is left on disk")
                 await f.service.refresh()

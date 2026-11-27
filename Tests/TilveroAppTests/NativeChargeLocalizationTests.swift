@@ -34,9 +34,12 @@ import PowerCore
             "macOS has not reported the charge limit yet.", "Use System Settings › Battery to change this limit.",
             "Charge limit change not confirmed", "Read from macOS; change it in System Settings › Battery.",
             "The native policy read timed out. Further actions wait for the read to return.",
-            "The native setting operation timed out. Its outcome needs review; further writes are blocked.",
+            NativeChargeService.writeTimeoutMessage, NativeChargeService.readTimeoutMessage, NativeChargeService.lateAnswerMessage,
+            NativeChargeService.journalIntegrityMessage, NativeChargeOperationGate.Failure.timedOut.localizedDescription,
+            NativeChargeOperationGate.Failure.busy.localizedDescription,
+            "Listed by macOS: {level}. On battery power this list may be out of date.",
             "Set at once, as in System Settings.", "The limit is not available right now.",
-            "The native session journal needs review before further changes.", NativeChargeStatusText.partialReadWarning,
+            NativeChargeStatusText.partialReadWarning,
         ]
         keys += [NativeChargePresentation.Attention.none, .mutationUnresolved, .journalIntegrity, .operationPending, .policyUnconfirmed].map(\.titleKey)
         keys += ChargeLimitKit.infoParagraphKeys + DiagnosticsChargeRows.infoKeys

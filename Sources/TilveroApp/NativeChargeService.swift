@@ -144,6 +144,15 @@ enum NativeChargeServiceError: Error, LocalizedError {
     @Published private(set) var unreadableJournal = false
     /// A write whose outcome is unknown (or an unusable session file) is on disk. It blocks nothing and closes itself.
     var hasUnresolvedSession: Bool { journal != nil || unreadableJournal }
+    /// The session journal on disk, if any: a caller that compares it before and after an apply knows whether that apply
+    /// left a write of its own whose outcome is unknown (a new session) or wrote nothing (the same one, or none).
+    var unresolvedSessionID: UUID? { journal?.sessionID }
+    /// A gated native call has not returned yet (it may be past its deadline): nothing should be decided from the last
+    /// reading while it runs.
+    var operationPending: Bool { operationGate.pending }
+    /// The session journal this service loads and closes itself (the update probe leaves it to `hasUnresolvedSession`).
+    /// Nil while monitoring: such a service never loads its journal, so the probe stays its only guard.
+    var ownJournalURL: URL? { monitoringOnly ? nil : journalURL }
     /// The background refresh's own read: it never counts as a pending operation in the presentation (no flicker).
     private var isRefreshing = false
     /// The longest a native apply can take (gate deadline plus the readback budget), for the model's waits.
@@ -235,15 +244,12 @@ enum NativeChargeServiceError: Error, LocalizedError {
                 do { try self.saveJournal() } catch { self.reviewReason = .journalIntegrity }
             }
             self.observed = nil
-            self.message = purpose.isMutation
-                ? "The native setting operation timed out. Its outcome needs review; further writes are blocked."
-                : "The native policy read timed out. Further actions wait for the read to return."
+            self.message = purpose.isMutation ? Self.writeTimeoutMessage : Self.readTimeoutMessage
         }
-        operationGate.onLateCompletion = { [weak self] purpose in
+        operationGate.onLateCompletion = { [weak self] _ in
+            // The next read (the next poll) shows what macOS stores now; that read clears this line.
             self?.objectWillChange.send()
-            self?.message = purpose.isMutation
-                ? "The delayed setting operation returned. Its outcome still needs explicit review."
-                : "The delayed policy read returned. Refresh to obtain a current policy reading."
+            self?.message = Self.lateAnswerMessage
         }
     }
 
@@ -277,6 +283,16 @@ enum NativeChargeServiceError: Error, LocalizedError {
 
     nonisolated static let registryConflictMessage = "macOS lists two different charge limits. Set the limit once in System Settings › Battery to bring them together."
     nonisolated static let policyUnconfirmedMessage = "macOS has not confirmed the active limit yet."
+    /// A write past its deadline: further writes wait only for that call to return (the gate), nothing else.
+    nonisolated static let writeTimeoutMessage = "macOS did not answer in time. The limit can be changed again once it responds."
+    nonisolated static let readTimeoutMessage = "The native policy read timed out. Further actions wait for the read to return."
+    nonisolated static let lateAnswerMessage = "macOS answered late; Tilvero is checking the limit."
+    /// A session file could not be saved or removed: the next apply (or a settled clear read) tries again.
+    nonisolated static let journalIntegrityMessage = "Tilvero could not update its charge-limit record. The next change tries again."
+    /// Lines about a call past its deadline: a later successful read makes them untrue, so it clears them.
+    private static var deadlineMessages: Set<String> {
+        [writeTimeoutMessage, readTimeoutMessage, lateAnswerMessage, NativeChargeOperationGate.Failure.timedOut.localizedDescription]
+    }
 
     func refresh() async {
         guard !isBusy, !operationGate.pending else { return }
@@ -383,6 +399,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
         do {
             let value = try await operationGate.call(purpose: .read) { [client] in try await client.read() }
             if let previous = incompleteObservation, message == previous.localizedDescription { message = nil }
+            if let current = message, Self.deadlineMessages.contains(current) { message = nil }
             incompleteObservation = nil
             // Every successful fresh read is what macOS stores now (and grants the interface), even when its policy is not
             // confirmed (a registry conflict): the surfaces show it, confirmation is separate.
@@ -411,7 +428,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
     private func markJournalIntegrity() {
         // A status for Diagnostics; it blocks nothing (the next apply or a settled clear read retries).
         reviewReason = .journalIntegrity; observed = nil
-        message = "The native session journal could not be saved safely. The session needs review."
+        message = Self.journalIntegrityMessage
     }
 
     /// Three outcomes: nothing dispatched (the new journal goes), dispatched and confirmed (the user's setting: the journal
@@ -431,6 +448,10 @@ enum NativeChargeServiceError: Error, LocalizedError {
         } else if transaction.confirmed {
             do { try relinquish(); message = nil } catch { markJournalIntegrity() }
         } else {
+            // The write may land at any moment (a setter past its deadline, a readback that did not confirm): the stored
+            // setting is unknown until the next read, so no caller decides from the pre-write value (charge-once, charge-by,
+            // the readout show "—" meanwhile). The gate keeps the slider unavailable while the call is still pending.
+            nativeSetting = nil
             journal?.phase = .indeterminate; reviewReason = .mutationUnresolved
             do { try saveJournal(); message = "macOS has not confirmed the last change yet." } catch { markJournalIntegrity() }
         }

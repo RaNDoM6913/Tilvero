@@ -26,7 +26,8 @@ struct ChargeByPlanState: Codable, Equatable {
     /// The lift was requested (recorded before the write): a later read of exactly the target is Tilvero's own lift
     /// landing late, not a change made elsewhere. Optional so plans saved earlier still decode.
     var liftRequested: Bool? = nil
-    /// The user cancelled while charging: the previous limit is restored on every tick until it reads back.
+    /// The user cancelled while charging or while a lift was unresolved: the previous limit is restored on every tick until
+    /// it reads back (or, for a lift that never landed, the plan just ends).
     var cancelRequested: Bool? = nil
 }
 
@@ -66,9 +67,16 @@ enum ChargeByRule {
                        externalPower: Bool?, goingToSleep: Bool, wakeConfirmed: Bool) -> ChargeByAction {
         switch state.phase {
         case .armed:
+            // Cancelled while a lift's outcome was unknown: once the limit is read, the lift either landed (put the user's
+            // limit back) or did not (nothing to undo). Until it is read, wait.
+            if state.cancelRequested == true {
+                guard let observedLimit else { return .none }
+                return observedLimit == state.target ? .restore(state.previousLimit) : .drop
+            }
+            // Our own lift, landed late: charging (and restored later), even past the hold, never dropped as "nothing to do".
+            if state.liftRequested == true, observedLimit == state.target { return .lifted }
             if now >= state.deadline.addingTimeInterval(holdAfterDeadline) { return .drop }
             if let observedLimit {
-                if state.liftRequested == true, observedLimit == state.target { return .lifted }   // our own lift, landed late
                 if observedLimit >= state.target { return .drop }                 // already allows the target: nothing to do
                 if observedLimit != state.previousLimit { return .adopt(observedLimit) }
             }
@@ -201,15 +209,17 @@ extension ChargeByEnvironment { func pauseOptimizedCharging() async -> Bool { tr
         await replan(force: true)
     }
 
-    /// Cancels the plan. While charging, the user's limit is put back first.
+    /// Cancels the plan. While charging, or while a lift's outcome is unknown (it may still land), the user's limit is put
+    /// back first; a plan that never lifted just ends.
     func cancel() async {
         guard let current = state else { return }
-        if current.phase == .charging {
-            // Recorded first: a restore that fails now is retried on every tick (and after a relaunch).
-            var cancelling = current; cancelling.cancelRequested = true; state = cancelling; save()
-            _ = await perform(.restore(cancelling.previousLimit), cancelling)
-        }
-        else { await finish(removeWake: true) }
+        guard current.phase == .charging || current.liftRequested == true else { await finish(removeWake: true); return }
+        // Recorded first: a restore that fails now is retried on every tick (and after a relaunch).
+        var cancelling = current; cancelling.cancelRequested = true; state = cancelling; save()
+        // A lift or restore in flight sees the cancel when it returns (a late confirmed lift must not undo the ✕).
+        guard !isWorking else { return }
+        // Expected = the target: a lift that never landed reads the previous limit, so nothing is written and the plan ends.
+        _ = await perform(.restore(cancelling.previousLimit), cancelling)
     }
 
     // MARK: Ticks
@@ -283,12 +293,31 @@ extension ChargeByEnvironment { func pauseOptimizedCharging() async -> Bool { tr
             defer { holder.end(token); isWorking = false }
             // The intent is recorded before the write: a lift that lands late is recognised as this lift, not a user change.
             var requested = current; requested.liftRequested = true; state = requested; save()
-            switch await environment.apply(limit: level, expected: current.previousLimit) {
+            let result = await environment.apply(limit: level, expected: current.previousLimit)
+            // The ✕ tapped while this lift was in flight (recorded on the state): honoured now.
+            if state?.cancelRequested == true {
+                switch result {
+                case .confirmed:
+                    // Lifted: recorded as such, then the user's limit goes back (retried by the ticks if this fails).
+                    var raised = requested; raised.phase = .charging; raised.liftRequested = nil; raised.cancelRequested = true
+                    state = raised; save()
+                    return await perform(.restore(raised.previousLimit), raised)
+                case .changedElsewhere:
+                    await finish(removeWake: true); return true   // nothing was written: nothing to undo
+                case .failed:
+                    // It may still land: the ticks restore once the limit reads the target, or end the plan otherwise.
+                    message = "The charge limit could not be restored. Tilvero will try again."; return false
+                }
+            }
+            switch result {
             case .confirmed:
                 await completeLift(requested); return true
             case .changedElsewhere:
-                // The user's own limit changed just before the write: nothing was written; the next tick adopts or drops.
-                var cleared = requested; cleared.liftRequested = nil; state = cleared; message = nil; save(); return false
+                // Nothing was written by this call. A first lift: the user's own limit changed just before it, so the next
+                // tick adopts or drops. A retry of an earlier unresolved lift: that lift may be what changed the limit, so
+                // its intent stays and the next tick recognises it (`.lifted`) or follows the user's value.
+                if current.liftRequested != true { var cleared = requested; cleared.liftRequested = nil; state = cleared; save() }
+                message = nil; return false
             case .failed:
                 message = "The charge limit could not be raised. Tilvero will try again."; return false
             }

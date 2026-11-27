@@ -11,7 +11,7 @@ import Foundation
         var errorDescription: String? {
             switch self {
             case .busy: "A native charging operation is still in progress."
-            case .timedOut: "macOS did not respond in time. Read and reconcile its result before trying again."
+            case .timedOut: "macOS did not respond in time. Tilvero will check the limit once it answers."
             }
         }
     }

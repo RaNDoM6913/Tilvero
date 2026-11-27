@@ -18,26 +18,27 @@ enum NativeChargeStatusText {
         var busy = false
     }
 
-    static let partialReadWarning = "The current target is readable. Safe control and restoration are not yet confirmed for this charging mode."
+    static let partialReadWarning = "macOS reports a charging state Tilvero does not recognize; use System Settings › Battery to change it."
 
     /// `compact`: the quick panel and the Charging page, where a read of a known setting has its own spinner slot.
     static func text(_ state: NativeChargePresentation, _ input: Inputs, compact: Bool = true) -> String? {
         switch state.attention {
         case .mutationUnresolved:
             return input.registryConflict ? NativeChargeService.registryConflictMessage : "macOS has not confirmed the last change yet."
-        case .journalIntegrity: return "The native session journal needs review before further changes."
+        case .journalIntegrity: return NativeChargeService.journalIntegrityMessage
         case .operationPending:
             // A pending operation speaks only once it has passed its deadline (the spinner covers the ordinary case).
             if state.pendingTimedOut {
-                return state.pendingPurpose == .read
-                    ? "The native policy read timed out. Further actions wait for the read to return."
-                    : "The native setting operation timed out. Its outcome needs review; further writes are blocked."
+                return state.pendingPurpose == .read ? NativeChargeService.readTimeoutMessage : NativeChargeService.writeTimeoutMessage
             }
-            guard state.pendingPurpose == .read else { return "Waiting for the native charging operation…" }
+            // An apply's own steps (its setter, the pause between its readback reads) say nothing: a line that came and
+            // went with every step was a flicker, not information.
+            guard state.pendingPurpose == .read else { return nil }
             if compact && !input.busy, let message = input.message { return message }
             // The same reported target stays visible while a read is pending: so does its warning.
             if compact && input.partialRead { return partialReadWarning }
-            return compact && state.currentPreference != nil ? nil : "Reading the native charge policy…"
+            // Only the very first read (nothing known yet) shows its progress, on every surface.
+            return state.currentPreference != nil ? nil : "Reading the native charge policy…"
         case .policyUnconfirmed:
             if input.registryConflict { return NativeChargeService.registryConflictMessage }
             if input.partialRead { return partialReadWarning }

@@ -19,7 +19,8 @@ import ChargeBackends
         let _ = RenderProbe.hit("QuickNativeChargePanel")
         let state = model.nativeCharge.presentation()
         VStack(alignment: .leading, spacing: 14) {
-            if model.canShowChargeControls, !targets.isEmpty { controls(state) } else { unavailableHeader(state) }
+            // The same rule as the Charging page: a state macOS reports but Tilvero does not change is read-only here too.
+            if ChargeLimitKit.mode(model) == .slider { controls(state) } else { unavailableHeader(state) }
             attention(state)
             footer(state)
             // Optimized Charging is its own macOS setting: its switch does not depend on the limit.
@@ -94,8 +95,9 @@ import ChargeBackends
     }
 
     @ViewBuilder private func footer(_ state: NativeChargePresentation) -> some View {
-        // Always present with the controls (dimmed when it cannot start) so applying a limit never resizes the page.
-        if model.canShowChargeControls {
+        // Present with the slider (dimmed when it cannot start) so applying a limit never resizes the page; in the read-only
+        // state only while it runs, so its cancel stays reachable.
+        if ChargeLimitKit.showsChargeOnce(model) {
             ChargeOncePill(model: model)
                 .studioElement("charge.once", label: model.isChargeOnceRunning ? "Cancel one-time charge" : "Charge to 100% once")
         }
