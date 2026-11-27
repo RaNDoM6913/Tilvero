@@ -688,7 +688,9 @@ actor ScopeTransport: NativeChargeTransport {
               // "batteryStaleRows": just unplugged, macOS still lists the old 90 rows for a few minutes.
               registeredManualLimit: mode == "batteryStaleRows" ? 90 : mode == "disabled" || off || battery ? nil : target,
               policyReadbackAvailable: mode != "conflict" && mode != "batteryConflict",
-              collectedAt: mode == "stale" ? Date().addingTimeInterval(-100) : Date(), registrationExpected: !battery,
+              // "agingSoon": fresh when read, lapsed about a second later (the Mac slept before the next read).
+              collectedAt: mode == "stale" ? Date().addingTimeInterval(-100) : mode == "agingSoon" ? Date().addingTimeInterval(-64) : Date(),
+              registrationExpected: !battery,
               registryConflict: mode == "conflict" || mode == "batteryConflict")
     }
     func setLimit(_ target: Int) async {

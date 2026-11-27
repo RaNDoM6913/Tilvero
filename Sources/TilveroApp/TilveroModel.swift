@@ -1474,19 +1474,21 @@ final class TilveroModel {
                 do { try await service.apply(target) }
                 catch {
                     // Only a write this release dispatched can land (it leaves a session of its own on disk): it is the
-                    // user's choice as much as a confirmed one. A release that wrote nothing leaves both running.
-                    if let session = service.unresolvedSessionID, session != leftover { await self?.userChoseLimit() }
+                    // user's choice as much as a confirmed one, its value unknown. A release that wrote nothing leaves both.
+                    if let session = service.unresolvedSessionID, session != leftover { self?.userChoseLimit(nil) }
                     throw error
                 }
-                await self?.userChoseLimit()
+                self?.userChoseLimit(target)
             }
         } else { runLive { try await $0.submit(request) } }
     }
-    /// The user set the limit themselves: their level wins at once. A running one-time charge and a charge-by plan (armed
-    /// or charging) end here, writing nothing, so neither can later put an older limit back over this choice.
-    private func userChoseLimit() async {
+    /// The user set the limit themselves (`limit`, nil when the write's outcome is unknown): their level wins at once. A
+    /// running one-time charge ends, and a charge-by plan that could put an older limit back ends too, writing nothing; a
+    /// plain armed plan follows the new value as it follows System Settings. Synchronous: nothing here waits (a wake that
+    /// goes is removed on its own), so the apply's claim on the model ends with the write.
+    private func userChoseLimit(_ limit: Int?) {
         chargeOnce.clear()
-        await chargeBy.userChoseLimit()
+        chargeBy.userChoseLimit(limit)
     }
     func refreshNativeCharge() async {
         guard !isDemo, !sleeping else { return }

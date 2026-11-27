@@ -514,13 +514,13 @@ extension NativeChargeModelIntegrationTests {
         await f.assertWrites(["limit100"])
     }
 
-    /// The user's own release ends a charge-by plan, armed (even with a lift of unknown outcome) or charging, writing
-    /// nothing of the plan's: it never puts the previous limit back over the user's choice.
-    func testTheUsersOwnReleaseEndsAChargeByPlanWithoutAWrite() async throws {
+    /// The user's own release ends a charge-by plan that could put the previous limit back over it (charging, or armed
+    /// with a lift of unknown outcome), writing nothing of the plan's.
+    func testTheUsersOwnReleaseEndsAChargeByPlanThatCouldRestoreOverIt() async throws {
         let now = Date()
-        for (phase, liftRequested) in [(ChargeByPlanState.Phase.charging, false), (.armed, true), (.armed, false)] {
+        for (phase, liftRequested) in [(ChargeByPlanState.Phase.charging, false), (.armed, true)] {
             let label = "\(phase) lift=\(liftRequested)"
-            let f = ScopeFixture(initialTarget: phase == .charging || liftRequested ? 100 : 80); defer { f.cleanup() }
+            let f = ScopeFixture(initialTarget: 100); defer { f.cleanup() }
             var plan = ChargeByPlanState(deadline: now.addingTimeInterval(8 * 3600), target: 100, previousLimit: 80, phase: phase,
                                          startAt: now.addingTimeInterval(3600), wakeAt: nil)
             plan.liftRequested = liftRequested ? true : nil
@@ -537,6 +537,31 @@ extension NativeChargeModelIntegrationTests {
             XCTAssertEqual(service.reportedLimit, 85, label)
             await f.assertWrites(["limit85"], label)
         }
+    }
+
+    /// A plain armed plan (nothing lifted) follows the user's release exactly as it follows a change made in System
+    /// Settings: a level below the target is the new previous limit and the plan continues; one that already allows the
+    /// target drops it. Nothing of the plan's is written.
+    func testAPlainArmedPlanFollowsTheUsersReleaseLikeASystemSettingsChange() async throws {
+        let now = Date()
+        let f = ScopeFixture(initialTarget: 80); defer { f.cleanup() }
+        let plan = ChargeByPlanState(deadline: now.addingTimeInterval(8 * 3600), target: 100, previousLimit: 80,
+                                     startAt: now.addingTimeInterval(3600), wakeAt: nil)
+        let data = try JSONEncoder().encode(plan)
+        let service = f.makeService()
+        let (model, suite) = f.makeModel(service, configure: { $0.set(data, forKey: "chargeByPlan.v1") },
+                                         snapshot: { ScopeFixture.snapshot(percent: 60, charging: true, externalPower: true) })
+        defer { model.stop(); TestDefaults.remove(suite) }
+        await model.refreshNativeCharge()
+        model.releaseChargeLimit(at: 85)
+        try await settle(model)
+        XCTAssertEqual(model.chargeBy.state?.phase, .armed, "the plan continues")
+        XCTAssertEqual(model.chargeBy.state?.previousLimit, 85, "the user's level is the one put back after the charge")
+        model.releaseChargeLimit(at: 100)
+        try await settle(model)
+        XCTAssertNil(model.chargeBy.state, "the limit already allows the target: nothing left to do")
+        XCTAssertEqual(service.reportedLimit, 100)
+        await f.assertWrites(["limit85", "limit100"])
     }
 
     /// A background read that takes the service between the release and its apply is waited for: the user's level is
@@ -611,7 +636,7 @@ extension NativeChargeModelIntegrationTests {
         defer { model.stop(); TestDefaults.remove(suite) }
         let environment = ModelChargeByEnvironment(model: model)
         let unread = await environment.apply(limit: 100, expected: 90)
-        XCTAssertEqual(unread, .notWritten, "launch: nothing read yet")
+        XCTAssertEqual(unread, .deferred, "launch: nothing read yet, a momentary refusal")
         await model.refreshNativeCharge()
         await f.client.setMode("unknown")
         let refused = await environment.apply(limit: 100, expected: 90)
@@ -622,5 +647,132 @@ extension NativeChargeModelIntegrationTests {
         let unconfirmed = await environment.apply(limit: 100, expected: 90)
         XCTAssertEqual(unconfirmed, .failed, "dispatched, not confirmed: it may still land")
         await f.assertWrites(["limit100"])
+    }
+}
+
+// MARK: Third review: a lapsed value keeps the slider, the user's release always wins over a queued charge-by apply
+
+/// A fixture transport whose next read is held until `releaseRead()`: a background read in flight.
+actor HeldReadTransport: NativeChargeTransport {
+    let inner: ScopeTransport
+    private var holdNext = false
+    private var held: CheckedContinuation<Void, Never>?
+    var isHolding: Bool { held != nil }
+    init(_ inner: ScopeTransport) { self.inner = inner }
+    func holdNextRead() { holdNext = true }
+    func releaseRead() { held?.resume(); held = nil }
+    func read() async throws -> NativeChargeSnapshot {
+        if holdNext { holdNext = false; await withCheckedContinuation { held = $0 } }
+        return try await inner.read()
+    }
+    func setLimit(_ target: Int) async throws { await inner.setLimit(target) }
+}
+
+extension NativeChargeModelIntegrationTests {
+    /// A charge-by apply parked behind a background read, and the user lets go of the slider while that read is in flight.
+    /// When the read ends, the release has claimed the model: the charge-by apply yields (nothing written, quietly retried)
+    /// and the user's level is written, never refused as "still in progress".
+    func testTheUsersReleaseWinsOverAChargeByApplyQueuedBehindARead() async throws {
+        let f = ScopeFixture(initialTarget: 80); defer { f.cleanup() }
+        let transport = HeldReadTransport(f.client)
+        let service = NativeChargeService(client: transport, journalURL: f.journal, verificationAttempts: 1, environment: "scope-fixture")
+        let (model, suite) = f.makeModel(service, percent: 60, charging: true, externalPower: true)
+        defer { model.stop(); TestDefaults.remove(suite) }
+        await model.refreshNativeCharge()
+        let environment = ModelChargeByEnvironment(model: model)
+        await transport.holdNextRead()
+        let read = Task { @MainActor in await service.refresh() }                                   // the poll's read, held
+        for _ in 0..<1000 where !(await transport.isHolding) { await Task.yield() }
+        let lift = Task { @MainActor in await environment.apply(limit: 100, expected: 80) }        // a charge-by tick parks behind it
+        for _ in 0..<50 { await Task.yield() }
+        let release = Task { @MainActor in                                                          // the slider's settle loop
+            while service.isBusy || model.isApplying { await Task.yield() }
+            model.releaseChargeLimit(at: 85)
+        }
+        for _ in 0..<50 { await Task.yield() }
+        await transport.releaseRead()
+        _ = await read.value
+        let result = await lift.value
+        await release.value
+        try await settle(model)
+        await f.assertWrites(["limit85"])
+        XCTAssertEqual(result, .deferred, "the charge-by apply yielded to the user's release: nothing written, retried later")
+        XCTAssertEqual(service.reportedLimit, 85)
+        XCTAssertNil(model.notice, "the release was never refused")
+    }
+
+    /// The service-level claim: an apply that waited behind a background read asks `yields` after the wait, with no
+    /// suspension before it takes the service; true refuses it before anything is read or written.
+    func testAnApplyThatYieldsAfterTheWaitWritesNothing() async throws {
+        let f = ScopeFixture(initialTarget: 80); defer { f.cleanup() }
+        let transport = HeldReadTransport(f.client)
+        let service = NativeChargeService(client: transport, journalURL: f.journal, verificationAttempts: 1, environment: "scope-fixture")
+        await service.refresh()
+        await transport.holdNextRead()
+        let read = Task { @MainActor in await service.refresh() }
+        for _ in 0..<1000 where !(await transport.isHolding) { await Task.yield() }
+        var claimed = false
+        let apply = Task { @MainActor in
+            do { try await service.apply(100, expectedCurrent: 80, yields: { claimed }); return "written" }
+            catch NativeChargeServiceError.busy { return "busy" } catch { return "\(error)" }
+        }
+        for _ in 0..<50 { await Task.yield() }
+        claimed = true   // the user's release claimed the model while the apply waited
+        await transport.releaseRead()
+        _ = await read.value
+        let outcome = await apply.value
+        XCTAssertEqual(outcome, "busy")
+        XCTAssertFalse(service.isBusy)
+        await f.assertWrites([])
+    }
+
+    /// The Mac slept: the last valid value lapsed and the next read is due. The page keeps its slider at that value
+    /// (dimmed, no input) instead of swapping to the read-only layout with a System Settings note; no status line appears
+    /// and goes. The read confirms it.
+    func testALapsedValidValueKeepsTheSliderAtThatValue() async throws {
+        let f = ScopeFixture(initialTarget: 85); defer { f.cleanup() }
+        let service = f.makeService()
+        let (model, suite) = f.makeModel(service, percent: 60, charging: true, externalPower: true)
+        defer { model.stop(); TestDefaults.remove(suite) }
+        await f.client.setMode("agingSoon")
+        await model.refreshNativeCharge()
+        XCTAssertEqual(service.reportedLimit, 85)
+        try await waitFor { service.reportedLimit == nil }
+        XCTAssertNil(service.presentation().currentPreference, "lapsed")
+        XCTAssertTrue(service.settingLapsed)
+        XCTAssertEqual(ChargeLimitKit.mode(model), .slider, "no swap to the read-only layout")
+        XCTAssertEqual(ChargeLimitKit.shown(chosen: nil, model: model), 85, "the thumb at the last value macOS reported, never a guess")
+        XCTAssertFalse(ChargeLimitKit.isConfirmed(model), "the readout is dimmed until the read")
+        XCTAssertFalse(ChargeLimitKit.sliderLook(model, targets: ChargeLimitKit.targets(model)).acceptsTaps, "no input on a lapsed value")
+        XCTAssertTrue(ChargeLimitKit.showsChargeOnce(model), "the pill stays (no height change)")
+        XCTAssertTrue(ChargeLimitKit.showsChargeBy(model, armed: false), "the charge-by block stays")
+        XCTAssertNil(NativeChargeStatusText.shown(service.presentation(), model: model), "no line that comes and goes on wake")
+        await f.client.setMode("")
+        await model.refreshNativeCharge()
+        XCTAssertEqual(ChargeLimitKit.mode(model), .slider)
+        XCTAssertTrue(ChargeLimitKit.isConfirmed(model))
+        XCTAssertEqual(ChargeLimitKit.shown(chosen: nil, model: model), 85)
+        // A read that failed after it lapsed says so: the dimmed value is explained.
+        await f.client.setMode("agingSoon")
+        await model.refreshNativeCharge()
+        try await waitFor { service.reportedLimit == nil }
+        await f.client.setMode("readError")
+        await model.refreshNativeCharge()
+        XCTAssertEqual(ChargeLimitKit.mode(model), .slider)
+        XCTAssertEqual(NativeChargeStatusText.shown(service.presentation(), model: model), ScopeReadError().localizedDescription)
+        await f.assertWrites([])
+    }
+
+    /// Only an unrecognised state or no value at all is read-only: a stored state Tilvero does not set keeps that layout.
+    func testAnUnrecognisedStoredStateStaysReadOnly() async throws {
+        let f = ScopeFixture(mode: "disabledListed", initialTarget: 85); defer { f.cleanup() }
+        let service = f.makeService()
+        let (model, suite) = f.makeModel(service, percent: 60, charging: true, externalPower: true)
+        defer { model.stop(); TestDefaults.remove(suite) }
+        await model.refreshNativeCharge()
+        XCTAssertNotNil(service.nativeSetting)
+        XCTAssertNil(service.lastValidSetting, "macOS's temporary charge to full is not a level Tilvero sets")
+        XCTAssertEqual(ChargeLimitKit.mode(model), .unavailable)
+        await f.assertWrites([])
     }
 }

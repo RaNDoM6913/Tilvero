@@ -77,6 +77,7 @@ struct StudioText: View {
         self.value = value; self.id = id; self.file = file; self.line = line
     }
     var body: some View {
+        let _ = RenderProbe.text(id, value)
         #if TILVERO_LAB_STUDIO
         StudioEditableText(value: value, id: id, file: file, line: line)
         #else

@@ -125,6 +125,16 @@ enum NativeChargeServiceError: Error, LocalizedError {
     }
     /// Nothing has been read from macOS yet: surfaces stay quiet (no explanation flashes at launch).
     var notReadYet: Bool { nativeSetting == nil }
+    /// The last valid setting macOS reported, fresh or lapsed (the Mac slept and the next read is due): the editor keeps
+    /// its slider at that level instead of swapping to the read-only layout. Nil after an incomplete or unrecognised read,
+    /// after a write whose outcome is unknown, and before the first read.
+    var lastValidSetting: NativeChargeConfiguration? {
+        guard let setting = nativeSetting, incompleteObservation == nil,
+              NativeChargeAdmission.isValidState(setting.configuration) else { return nil }
+        return setting.configuration
+    }
+    /// A valid setting was read but is no longer fresh: only staleness keeps it from being confirmed.
+    var settingLapsed: Bool { lastValidSetting != nil && nativeSetting?.isFresh == false }
     private var knownTargets: [Int] = []
     @Published private(set) var isBusy = false
     @Published private(set) var message: String?
@@ -329,12 +339,15 @@ enum NativeChargeServiceError: Error, LocalizedError {
     /// journal that blocks nothing and closes itself at the first settled clear read.
     /// `expectedCurrent`: the limit the caller saw (charge-by, charge-once). A different fresh value means System Settings
     /// changed it: `changedElsewhere`, nothing written.
-    func apply(_ target: Int, expectedCurrent: Int? = nil) async throws {
+    /// `yields`: asked after every wait, right before the service is taken, with no suspension in between. True refuses
+    /// with `busy` and writes nothing, so an automatic apply (charge-by) parked behind a background read never takes the
+    /// service from a user's release that claimed the model while it waited.
+    func apply(_ target: Int, expectedCurrent: Int? = nil, yields: (@MainActor () -> Bool)? = nil) async throws {
         guard !monitoringOnly, admitted else { throw NativeChargeServiceError.unavailable }
         // A background read in flight (the poll, the panel opening) is waited for, never a reason to refuse: it takes
         // milliseconds and the gate bounds it.
         while isRefreshing { await withCheckedContinuation { readWaiters.append($0) } }
-        guard !isBusy, !operationGate.pending else { throw NativeChargeServiceError.busy }
+        guard !isBusy, !operationGate.pending, yields?() != true else { throw NativeChargeServiceError.busy }
         isBusy = true; defer { isBusy = false }
         let current = try await readNative()
         observed = current

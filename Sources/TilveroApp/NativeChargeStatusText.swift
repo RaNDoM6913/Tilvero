@@ -16,6 +16,9 @@ enum NativeChargeStatusText {
         var partialRead = false
         /// A native call of the service is running.
         var busy = false
+        /// A valid setting was read and only its freshness lapsed (the Mac slept, the next read is due): the editor dims it
+        /// and the read that confirms it follows, so there is nothing to say.
+        var lapsed = false
     }
 
     static let partialReadWarning = "macOS reports a charging state Tilvero does not recognize; use System Settings › Battery to change it."
@@ -38,19 +41,23 @@ enum NativeChargeStatusText {
             // The same reported target stays visible while a read is pending: so does its warning.
             if compact && input.partialRead { return partialReadWarning }
             // Only the very first read (nothing known yet) shows its progress, on every surface.
-            return state.currentPreference != nil ? nil : "Reading the native charge policy…"
+            return state.currentPreference != nil || input.lapsed ? nil : "Reading the native charge policy…"
         case .policyUnconfirmed:
             if input.registryConflict { return NativeChargeService.registryConflictMessage }
             if input.partialRead { return partialReadWarning }
-            // A fresh stored setting is shown as it is; only when nothing fresh was read is there something to say.
-            return state.currentPreference == nil ? input.message ?? "Active charge policy is unconfirmed" : nil
+            // A fresh stored setting is shown as it is; only when nothing fresh was read is there something to say, and a
+            // valid value that merely lapsed says nothing unless a read failed (no line that comes and goes on wake).
+            guard state.currentPreference == nil else { return nil }
+            if let message = input.message { return message }
+            return input.lapsed ? nil : "Active charge policy is unconfirmed"
         case .none: return nil
         }
     }
 
     @MainActor static func inputs(_ native: NativeChargeService) -> Inputs {
         .init(registryConflict: native.nativeSetting?.registryConflict == true, message: native.message,
-              partialRead: native.incompleteObservation != nil && native.currentReportedTarget != nil, busy: native.isBusy)
+              partialRead: native.incompleteObservation != nil && native.currentReportedTarget != nil, busy: native.isBusy,
+              lapsed: native.settingLapsed)
     }
 
     @MainActor static func text(_ state: NativeChargePresentation, model: TilveroModel, compact: Bool = true) -> String? {

@@ -71,7 +71,7 @@ enum OverviewHeroLimit: Equatable {
     }
 
     @ViewBuilder private func capsule(_ text: String) -> some View {
-        let label = Text(text).font(.system(size: 12, weight: .semibold)).monospacedDigit().foregroundStyle(Color.accentColor)
+        let label = StudioText(text, id: "quick.charge.limit.value").font(.system(size: 12, weight: .semibold)).monospacedDigit().foregroundStyle(Color.accentColor)
             .frame(width: Self.iconWidth, height: 20)
             .overlay(Capsule().strokeBorder(Color.accentColor, lineWidth: 1))
             .contentShape(Capsule())

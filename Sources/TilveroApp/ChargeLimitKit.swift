@@ -24,15 +24,21 @@ enum ChargeLimitKit {
         return canShowControls && hasTargets ? .slider : .unavailable
     }
 
-    /// The slider needs a fresh, valid value from macOS. Anything else is shown read-only, as before the interface was
-    /// granted: a state Tilvero does not change (its temporary charge to full: disabled with a target), an incomplete read
-    /// (the reported target), or nothing fresh at all (a write whose outcome is unknown, a failing read: "—"). The slider
-    /// returns once macOS reports a valid state; the thumb is never drawn at a guessed level.
+    /// The slider needs a valid value from macOS. A valid one that merely lapsed (the Mac slept, the next read is due)
+    /// keeps the slider at that level, dimmed until the read confirms it: no layout swap and no System Settings note.
+    /// Anything else is shown read-only, as before the interface was granted: a state Tilvero does not change (its
+    /// temporary charge to full: disabled with a target), an incomplete or unrecognised read (the reported target), or no
+    /// value at all (nothing read yet, a write whose outcome is unknown: "—"). The thumb is never drawn at a guessed level.
     @MainActor static func mode(_ model: TilveroModel) -> Mode {
-        let preference = model.nativeCharge.presentation().currentPreference
-        let known = model.isDemo || preference.map(NativeChargeAdmission.isValidState) == true
+        let known = model.isDemo || model.nativeCharge.lastValidSetting != nil
         return mode(isDemo: model.isDemo, usesNativeCharge: model.usesNativeCharge,
                     canShowControls: model.canShowChargeControls && known, hasTargets: !targets(model).isEmpty)
+    }
+
+    /// The value on screen is the one macOS holds now (fresh): only then is the readout drawn as held. A lapsed value is
+    /// dimmed until the next read.
+    @MainActor static func isConfirmed(_ model: TilveroModel) -> Bool {
+        model.isDemo || model.nativeCharge.presentation().currentPreference != nil
     }
 
     /// The limit's readout: the level, or "—" when macOS has not reported one (never a guessed number).
@@ -74,15 +80,17 @@ enum ChargeLimitKit {
     }
 
     /// The level the editor shows. Native: the slider's own in-progress choice, else what macOS reports (off = 100), else
-    /// nothing; never the model's draft or a journal's last value. DEMO keeps its draft.
+    /// the last valid value it reported while that lapsed, else nothing; never the model's draft or a journal's last
+    /// value. DEMO keeps its draft.
     @MainActor static func shown(chosen: Int?, model: TilveroModel) -> Int? {
         if model.isDemo { return shown(chosen: chosen, draft: model.draftTarget, preference: nil) }
-        return chosen ?? current(model.nativeCharge.presentation().currentPreference)
+        return chosen ?? current(model.nativeCharge.presentation().currentPreference ?? model.nativeCharge.lastValidSetting)
     }
 
-    /// The slider looks offered while macOS offers its levels and the current value is known and valid; momentary states (a
-    /// read or an apply in flight) never dim it. The thumb is never drawn at a guessed level. Only an apply in flight
-    /// ignores input: a background poll (a few milliseconds of `isBusy`) must never cut a drag short.
+    /// The slider looks offered while macOS offers its levels and the current value is fresh and valid; momentary states (a
+    /// read or an apply in flight) never dim it. A lapsed value keeps the thumb at its level, dimmed and without input,
+    /// until the next read confirms it. Only an apply in flight ignores input: a background poll (a few milliseconds of
+    /// `isBusy`) must never cut a drag short.
     @MainActor static func sliderLook(_ model: TilveroModel, targets: [Int]) -> SteadyControlLook {
         let preference = model.nativeCharge.presentation().currentPreference
         return SteadyControlLook(offered: model.isDemo || (targets.contains(where: model.nativeCharge.offersTarget)
@@ -203,8 +211,10 @@ enum ChargeLimitKit {
         guard let target = chosen else { return }
         settle = Task { @MainActor in
             try? await Task.sleep(for: delay)
-            // A busy model (a read or an earlier apply) is waited for, not fought: the choice is applied once it is free.
-            for _ in 0..<40 {
+            // A busy model (a read, an earlier apply, a charge-by lift) is waited for, not fought, for as long as a native
+            // apply can take: the choice is applied once it is free.
+            let free = ContinuousClock.now + model.nativeCharge.maximumOperationDuration
+            while ContinuousClock.now < free {
                 guard !Task.isCancelled, !dragging else { return }
                 if !model.isApplying && !model.nativeCharge.isBusy { break }
                 try? await Task.sleep(for: .milliseconds(100))
@@ -223,7 +233,8 @@ enum ChargeLimitKit {
 }
 
 /// The native limit is found but Tilvero cannot change it right now (macOS reports a state it does not recognise, or the
-/// levels are not offered): one line pointing to System Settings, with the existing action. Quiet before the first read.
+/// levels are not offered): one line pointing to System Settings, with the existing action. Quiet before the first read
+/// and while a write's outcome is unknown; a valid value that merely lapsed never gets here (it keeps the slider).
 @MainActor struct ChargeLimitUnavailableNote: View {
     var model: TilveroModel
     var body: some View {

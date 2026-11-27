@@ -36,7 +36,8 @@ import ChargeBackends
 
     // MARK: Title row
 
-    private func title(value: Int?, state: NativeChargePresentation) -> some View {
+    /// `confirmed`: the value is the one macOS holds now; a lapsed one (the Mac slept, the next read is due) is dimmed.
+    private func title(value: Int?, state: NativeChargePresentation, confirmed: Bool = true) -> some View {
         HStack(spacing: 6) {
             StudioText(L10n.text("Charge limit"), id: "charge.title").font(.system(size: 14, weight: .semibold)).fixedSize()
             ChargeLimitInfoButton()
@@ -50,7 +51,7 @@ import ChargeBackends
             HStack(alignment: .firstTextBaseline, spacing: 2) {
                 StudioText(ChargeLimitKit.readout(value), id: "charge.readout")
                     .font(.system(size: 22, weight: .semibold, design: .rounded)).monospacedDigit()
-                    .foregroundStyle(value == nil ? Color.secondary : Color.primary)
+                    .foregroundStyle(value == nil || !confirmed ? Color.secondary : Color.primary)
                 if value != nil {
                     Text("%").font(.system(size: 15, weight: .medium, design: .rounded)).foregroundStyle(.secondary)
                 }
@@ -64,7 +65,7 @@ import ChargeBackends
 
     private func controls(_ state: NativeChargePresentation) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            title(value: ChargeLimitKit.shown(chosen: chosen, model: model), state: state)
+            title(value: ChargeLimitKit.shown(chosen: chosen, model: model), state: state, confirmed: ChargeLimitKit.isConfirmed(model))
             ChargeLimitLevelSlider(model: model, targets: targets, chosen: $chosen)
                 .steadyControl(ChargeLimitKit.sliderLook(model, targets: targets))
                 .studioElement("charge.slider", label: "Charge limit slider")
