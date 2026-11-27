@@ -36,8 +36,12 @@ import PowerCore
                 statusLines
             }
             .studioElement("charge.by", kind: "container", label: "Charge by time")
-            .onAppear { if !levels.contains(service.draftTarget) { service.draftTarget = levels.last ?? 100 } }
-            .onChange(of: limit) { _, _ in if !service.isArmed, !levels.contains(service.draftTarget) { service.draftTarget = levels.last ?? 100 } }
+            // The picked level is checked only against a known limit: while it is unknown (lapsed after sleep, the next
+            // read is due) the strip offers nothing, and the user's choice is kept for when it is read.
+            .onAppear { if limit != nil, !levels.contains(service.draftTarget) { service.draftTarget = levels.last ?? 100 } }
+            .onChange(of: limit) { _, _ in
+                if limit != nil, !service.isArmed, !levels.contains(service.draftTarget) { service.draftTarget = levels.last ?? 100 }
+            }
         }
     }
 

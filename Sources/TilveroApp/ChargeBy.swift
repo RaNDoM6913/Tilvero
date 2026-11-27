@@ -40,8 +40,8 @@ enum ChargeByApplyResult: Equatable {
     /// Refused for a moment before any write (another apply or the user's own change holds the service, nothing read since
     /// launch): nothing was dispatched, and the next tick simply tries again. Never a failure to report.
     case deferred
-    /// Refused before any write for another reason (an unclear or unrecognised read, a target macOS does not offer, a
-    /// record that could not be saved, a call still pending past its deadline): nothing was dispatched, so nothing can land.
+    /// Refused before any write for another reason (an unclear, failing or unrecognised read, a target macOS does not offer,
+    /// a record that could not be saved, a call still pending past its deadline): nothing was dispatched, so nothing can land.
     case notWritten
     /// Dispatched but not confirmed: it may still land (the next observation decides).
     case failed

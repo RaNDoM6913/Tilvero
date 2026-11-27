@@ -17,15 +17,21 @@ import PowerCore
 
     /// Hosts `view`, lets it draw, and returns the texts its `StudioText`s drew.
     private func drawnTexts<V: View>(_ view: V, width: CGFloat) async throws -> [String: String] {
+        try await drawn(view, width: width).texts
+    }
+
+    /// Hosts `view`, lets it draw, and returns the texts it drew and whether each readout was drawn as held (primary) or
+    /// dimmed.
+    private func drawn<V: View>(_ view: V, width: CGFloat) async throws -> (texts: [String: String], held: [String: Bool]) {
         RenderProbe.isEnabled = true; RenderProbe.reset()
         let host = NSHostingController(rootView: view.frame(width: width))
         let window = NSWindow(contentViewController: host)
         defer { window.orderOut(nil) }
         window.setContentSize(host.sizeThatFits(in: NSSize(width: width, height: 1200))); host.view.layoutSubtreeIfNeeded()
         for _ in 0..<8 { try await Task.sleep(for: .milliseconds(20)); host.view.layoutSubtreeIfNeeded() }
-        let texts = RenderProbe.texts
+        let result = (texts: RenderProbe.texts, held: RenderProbe.heldReadouts)
         RenderProbe.isEnabled = false; RenderProbe.reset()
-        return texts
+        return result
     }
 
     private func waitUntil(_ condition: () async -> Bool) async {
@@ -103,6 +109,68 @@ import PowerCore
         for _ in 0..<12 { try await Task.sleep(for: .milliseconds(20)); host.view.layoutSubtreeIfNeeded() }
         XCTAssertTrue(ChargeLimitKit.isConfirmed(model))
         XCTAssertTrue(heights.isEmpty, "the read that confirms a lapsed value must not resize the open menu: \(heights)")
+        await f.assertWrites([])
+    }
+
+    /// A lapsed value is drawn dimmed on the quick Charge page and on the window's Charging tile, never as the value macOS
+    /// holds now; the read that confirms it draws it as held on both.
+    func testALapsedValueIsDrawnDimmedOnBothEditors() async throws {
+        let f = ScopeFixture(initialTarget: 85); defer { f.cleanup() }
+        let service = f.makeService()
+        let (model, suite) = f.makeModel(service, percent: 60, charging: true, externalPower: true)
+        defer { model.stop(); TestDefaults.remove(suite) }
+        await f.client.setMode("agingSoon")
+        await model.refreshNativeCharge()
+        await waitUntil { service.reportedLimit == nil }
+        XCTAssertTrue(service.settingLapsed)
+        let quick = try await drawn(QuickNativeChargePanel(model: model), width: QuickPanelMetrics.width)
+        XCTAssertEqual(quick.texts["charge.readout"], "85")
+        XCTAssertEqual(quick.held["charge.readout"], false, "the quick Charge page dims a lapsed value")
+        let window = try await drawn(ChargingPage(model: model), width: 800)
+        XCTAssertEqual(window.texts["charging.readout"], "85")
+        XCTAssertEqual(window.held["charging.readout"], false, "the window's Charging tile dims a lapsed value")
+        await f.client.setMode("")
+        await model.refreshNativeCharge()
+        let quickConfirmed = try await drawn(QuickNativeChargePanel(model: model), width: QuickPanelMetrics.width)
+        XCTAssertEqual(quickConfirmed.texts["charge.readout"], "85")
+        XCTAssertEqual(quickConfirmed.held["charge.readout"], true, "confirmed: drawn as held")
+        let windowConfirmed = try await drawn(ChargingPage(model: model), width: 800)
+        XCTAssertEqual(windowConfirmed.texts["charging.readout"], "85")
+        XCTAssertEqual(windowConfirmed.held["charging.readout"], true, "confirmed: drawn as held")
+        await f.assertWrites([])
+    }
+
+    /// The level picked in the charge-by strip survives a lapsed limit (the Mac slept, the next read is due): neither a
+    /// page left open nor a menu opened meanwhile resets the user's choice, and the read keeps it.
+    func testTheChargeByLevelPickedSurvivesALapsedLimit() async throws {
+        let f = ScopeFixture(initialTarget: 80); defer { f.cleanup() }
+        let service = f.makeService()
+        let (model, suite) = f.makeModel(service, percent: 60, charging: true, externalPower: true)
+        defer { model.stop(); TestDefaults.remove(suite) }
+        await model.refreshNativeCharge()
+        model.chargeBy.draftTarget = 90
+        // A page left open across the sleep.
+        let width = QuickPanelMetrics.width
+        let host = NSHostingController(rootView: QuickNativeChargePanel(model: model).frame(width: width))
+        let window = NSWindow(contentViewController: host)
+        defer { window.orderOut(nil) }
+        window.setContentSize(host.sizeThatFits(in: NSSize(width: width, height: 1200)))
+        for _ in 0..<8 { try await Task.sleep(for: .milliseconds(20)); host.view.layoutSubtreeIfNeeded() }
+        XCTAssertEqual(model.chargeBy.draftTarget, 90)
+        await f.client.setMode("agingSoon")
+        await model.refreshNativeCharge()
+        await waitUntil { service.reportedLimit == nil }
+        XCTAssertTrue(ChargeLimitKit.showsChargeBy(model, armed: false), "the block is drawn while the limit lapsed")
+        model.chargeBy.objectWillChange.send()   // anything that redraws the open page while the limit is unknown
+        for _ in 0..<8 { try await Task.sleep(for: .milliseconds(20)); host.view.layoutSubtreeIfNeeded() }
+        XCTAssertEqual(model.chargeBy.draftTarget, 90, "a page left open keeps the choice")
+        // A menu opened while the limit is unknown.
+        _ = try await drawnTexts(QuickNativeChargePanel(model: model), width: width)
+        XCTAssertEqual(model.chargeBy.draftTarget, 90, "a menu opened meanwhile keeps the choice")
+        await f.client.setMode("")
+        await model.refreshNativeCharge()
+        _ = try await drawnTexts(QuickNativeChargePanel(model: model), width: width)
+        XCTAssertEqual(model.chargeBy.draftTarget, 90, "the read keeps it: 90 is above the limit")
         await f.assertWrites([])
     }
 }

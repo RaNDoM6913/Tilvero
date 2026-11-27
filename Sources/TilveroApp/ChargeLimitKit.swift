@@ -28,7 +28,8 @@ enum ChargeLimitKit {
     /// keeps the slider at that level, dimmed until the read confirms it: no layout swap and no System Settings note.
     /// Anything else is shown read-only, as before the interface was granted: a state Tilvero does not change (its
     /// temporary charge to full: disabled with a target), an incomplete or unrecognised read (the reported target), or no
-    /// value at all (nothing read yet, a write whose outcome is unknown: "—"). The thumb is never drawn at a guessed level.
+    /// value at all (nothing read yet, a write whose outcome is unknown, a lapsed value whose next read failed: "—"). The
+    /// thumb is never drawn at a guessed level.
     @MainActor static func mode(_ model: TilveroModel) -> Mode {
         let known = model.isDemo || model.nativeCharge.lastValidSetting != nil
         return mode(isDemo: model.isDemo, usesNativeCharge: model.usesNativeCharge,
@@ -123,6 +124,23 @@ enum ChargeLimitKit {
     }
     /// The Optimized Charging switch is independent of the limit: shown wherever the OBC state is known (never in DEMO).
     static func showsOptimizedSwitch(isDemo: Bool, optimizedAvailable: Bool) -> Bool { !isDemo && optimizedAvailable }
+    /// The slider's release once it settled: a busy model (a read, an earlier apply, a charge-by lift) is waited for, not
+    /// fought, for as long as a native apply can take (`within`: the service's `maximumOperationDuration`; tests pass a
+    /// shorter one). Then the level is applied, or refused visibly (the thumb returns to what macOS reports with one short
+    /// reason). False, with nothing done, once `stopped` says the release no longer stands (a new drag, the task cancelled).
+    @MainActor static func releaseWhenFree(_ model: TilveroModel, at target: Int, within: Duration? = nil,
+                                           stopped: () -> Bool) async -> Bool {
+        let free = ContinuousClock.now + (within ?? model.nativeCharge.maximumOperationDuration)
+        while ContinuousClock.now < free {
+            if stopped() { return false }
+            if !model.isApplying && !model.nativeCharge.isBusy { break }
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        if stopped() { return false }
+        model.releaseChargeLimit(at: target)
+        return true
+    }
+
     /// The native read or an apply is in flight (the spinner slot beside the value).
     @MainActor static func isWorking(_ model: TilveroModel, _ state: NativeChargePresentation) -> Bool {
         state.pendingPurpose != nil || model.isApplying
@@ -211,17 +229,7 @@ enum ChargeLimitKit {
         guard let target = chosen else { return }
         settle = Task { @MainActor in
             try? await Task.sleep(for: delay)
-            // A busy model (a read, an earlier apply, a charge-by lift) is waited for, not fought, for as long as a native
-            // apply can take: the choice is applied once it is free.
-            let free = ContinuousClock.now + model.nativeCharge.maximumOperationDuration
-            while ContinuousClock.now < free {
-                guard !Task.isCancelled, !dragging else { return }
-                if !model.isApplying && !model.nativeCharge.isBusy { break }
-                try? await Task.sleep(for: .milliseconds(100))
-            }
-            guard !Task.isCancelled, !dragging else { return }
-            // Applied, or refused visibly: the thumb returns to what macOS reports with one short reason.
-            model.releaseChargeLimit(at: target)
+            guard await ChargeLimitKit.releaseWhenFree(model, at: target, stopped: { Task.isCancelled || dragging }) else { return }
             // Release the local choice once the apply is over (or refused), however long the native call takes.
             let end = ContinuousClock.now + model.nativeCharge.maximumOperationDuration
             while !Task.isCancelled, ContinuousClock.now < end, model.isApplying || model.nativeCharge.isBusy {
@@ -233,8 +241,9 @@ enum ChargeLimitKit {
 }
 
 /// The native limit is found but Tilvero cannot change it right now (macOS reports a state it does not recognise, or the
-/// levels are not offered): one line pointing to System Settings, with the existing action. Quiet before the first read
-/// and while a write's outcome is unknown; a valid value that merely lapsed never gets here (it keeps the slider).
+/// levels are not offered, or a read failed after the value lapsed): one line pointing to System Settings, with the
+/// existing action. Quiet before the first read and while a write's outcome is unknown; a valid value that merely lapsed
+/// never gets here (it keeps the slider).
 @MainActor struct ChargeLimitUnavailableNote: View {
     var model: TilveroModel
     var body: some View {

@@ -126,15 +126,23 @@ enum NativeChargeServiceError: Error, LocalizedError {
     /// Nothing has been read from macOS yet: surfaces stay quiet (no explanation flashes at launch).
     var notReadYet: Bool { nativeSetting == nil }
     /// The last valid setting macOS reported, fresh or lapsed (the Mac slept and the next read is due): the editor keeps
-    /// its slider at that level instead of swapping to the read-only layout. Nil after an incomplete or unrecognised read,
-    /// after a write whose outcome is unknown, and before the first read.
+    /// its slider at that level instead of swapping to the read-only layout. A lapsed one counts only while no read has
+    /// failed since it was collected: a failing read (any error, a gate deadline, an unclear reply) means Tilvero cannot
+    /// tell what macOS holds now, so the editor shows "—" read-only. Nil after an incomplete or unrecognised read, after a
+    /// write whose outcome is unknown, and before the first read.
     var lastValidSetting: NativeChargeConfiguration? {
-        guard let setting = nativeSetting, incompleteObservation == nil,
+        guard let setting = nativeSetting, incompleteObservation == nil, setting.isFresh || !readFailedSinceSetting,
               NativeChargeAdmission.isValidState(setting.configuration) else { return nil }
         return setting.configuration
     }
     /// A valid setting was read but is no longer fresh: only staleness keeps it from being confirmed.
     var settingLapsed: Bool { lastValidSetting != nil && nativeSetting?.isFresh == false }
+    /// The newest read did not produce `nativeSetting` (it failed, or returned nothing fresh): a lapsed setting no longer
+    /// counts (`lastValidSetting`).
+    @Published private(set) var readFailedSinceSetting = false
+    /// A read has returned or failed since launch. Before that, an interface not granted yet is momentary (the first read
+    /// is due); afterwards it may persist.
+    private(set) var hasFinishedARead = false
     private var knownTargets: [Int] = []
     @Published private(set) var isBusy = false
     @Published private(set) var message: String?
@@ -424,6 +432,8 @@ enum NativeChargeServiceError: Error, LocalizedError {
     private func readNative() async throws -> NativeChargeSnapshot {
         do {
             let value = try await operationGate.call(purpose: .read) { [client] in try await client.read() }
+            hasFinishedARead = true
+            readFailedSinceSetting = !value.isFresh
             if let previous = incompleteObservation, message == previous.localizedDescription { message = nil }
             if let current = message, Self.deadlineMessages.contains(current) || current == readFailureMessage { message = nil }
             readFailureMessage = nil
@@ -438,6 +448,8 @@ enum NativeChargeServiceError: Error, LocalizedError {
             return value
         }
         catch {
+            hasFinishedARead = true
+            readFailedSinceSetting = true
             observed = nil
             incompleteObservation = nil
             if let failure = error as? NativeChargeReadFailure {

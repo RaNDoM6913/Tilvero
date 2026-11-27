@@ -752,14 +752,52 @@ extension NativeChargeModelIntegrationTests {
         XCTAssertEqual(ChargeLimitKit.mode(model), .slider)
         XCTAssertTrue(ChargeLimitKit.isConfirmed(model))
         XCTAssertEqual(ChargeLimitKit.shown(chosen: nil, model: model), 85)
-        // A read that failed after it lapsed says so: the dimmed value is explained.
+        await f.assertWrites([])
+    }
+
+    /// A lapsed value counts only while no read has failed since it was collected. Once one fails (an interface error, a
+    /// gate deadline) Tilvero cannot tell what macOS holds: the read-only layout with "—", the System Settings note and
+    /// the read's error, never the old number for as long as reads keep failing. The next good read brings the slider back.
+    func testAFailedReadAfterALapseShowsADashReadOnly() async throws {
+        let f = ScopeFixture(initialTarget: 85); defer { f.cleanup() }
+        let transport = HeldReadTransport(f.client)
+        let service = NativeChargeService(client: transport, journalURL: f.journal, verificationAttempts: 1, environment: "scope-fixture",
+                                          operationTimeout: .milliseconds(150))
+        let (model, suite) = f.makeModel(service, percent: 60, charging: true, externalPower: true)
+        defer { model.stop(); TestDefaults.remove(suite) }
+        func assertDashReadOnly(_ label: String, file: StaticString = #filePath, line: UInt = #line) {
+            XCTAssertNil(service.lastValidSetting, label, file: file, line: line)
+            XCTAssertFalse(service.settingLapsed, label, file: file, line: line)
+            XCTAssertEqual(ChargeLimitKit.mode(model), .unavailable, "\(label): the read-only layout", file: file, line: line)
+            XCTAssertNil(ChargeLimitKit.reported(model), "\(label): «—», not the old number", file: file, line: line)
+            XCTAssertFalse(service.notReadYet, "\(label): the System Settings note is shown", file: file, line: line)
+            XCTAssertFalse(ChargeLimitKit.showsChargeBy(model, armed: false), "\(label): no dead controls", file: file, line: line)
+        }
+        // An interface error after the lapse, while the user sets 95 in System Settings.
         await f.client.setMode("agingSoon")
         await model.refreshNativeCharge()
         try await waitFor { service.reportedLimit == nil }
+        XCTAssertTrue(service.settingLapsed)
         await f.client.setMode("readError")
+        await f.client.external(target: 95)
+        for _ in 0..<3 { await model.refreshNativeCharge() }
+        assertDashReadOnly("interface error")
+        XCTAssertEqual(NativeChargeStatusText.shown(service.presentation(), model: model), ScopeReadError().localizedDescription)
+        // A good read brings the slider back at what macOS holds now.
+        await f.client.setMode("")
         await model.refreshNativeCharge()
         XCTAssertEqual(ChargeLimitKit.mode(model), .slider)
-        XCTAssertEqual(NativeChargeStatusText.shown(service.presentation(), model: model), ScopeReadError().localizedDescription)
+        XCTAssertEqual(ChargeLimitKit.shown(chosen: nil, model: model), 95)
+        // A read past its deadline after the lapse.
+        await f.client.setMode("agingSoon")
+        await model.refreshNativeCharge()
+        try await waitFor { service.reportedLimit == nil }
+        await transport.holdNextRead()
+        await service.refresh()   // returns at the gate's deadline; the call itself is still held
+        XCTAssertTrue(service.operationPending)
+        assertDashReadOnly("gate deadline")
+        await transport.releaseRead()
+        try await waitFor { !service.operationPending }
         await f.assertWrites([])
     }
 
@@ -773,6 +811,144 @@ extension NativeChargeModelIntegrationTests {
         XCTAssertNotNil(service.nativeSetting)
         XCTAssertNil(service.lastValidSetting, "macOS's temporary charge to full is not a level Tilvero sets")
         XCTAssertEqual(ChargeLimitKit.mode(model), .unavailable)
+        await f.assertWrites([])
+    }
+}
+
+// MARK: Fourth review: refusals that may persist are reported, the slider's release waits as long as an apply can take
+
+/// Forwards applies to the real model environment with a fixed observation (no snapshot plumbing in the test).
+@MainActor final class FixedObservationChargeByEnvironment: ChargeByEnvironment {
+    let inner: ModelChargeByEnvironment
+    var obs: ChargeByObservation
+    init(model: TilveroModel, obs: ChargeByObservation) { inner = ModelChargeByEnvironment(model: model); self.obs = obs }
+    func observation() -> ChargeByObservation { obs }
+    func apply(limit: Int, expected: Int?) async -> ChargeByApplyResult { await inner.apply(limit: limit, expected: expected) }
+}
+
+extension NativeChargeModelIntegrationTests {
+    private func chargeByService(plan: ChargeByPlanState, environment: any ChargeByEnvironment) throws -> ChargeByService {
+        let suite = TestDefaults.name("ChargeByFourth"); let defaults = TestDefaults.defaults(suite)
+        addTeardownBlock { TestDefaults.remove(suite) }
+        defaults.set(try JSONEncoder().encode(plan), forKey: "chargeByPlan.v1")
+        let service = ChargeByService(defaults: defaults, wake: ChargeByTests.Wake(), holder: ChargeByTests.Holder())
+        service.environment = environment
+        return service
+    }
+
+    /// Not being granted the interface is momentary only until a read finishes after launch. Reads that keep failing (an
+    /// interface error until reboot) are a refusal that may persist: the plan says it cannot restore or raise the limit
+    /// (a lift after one quiet retry) instead of promising a charge quietly. Nothing is written.
+    func testChargeByReportsALimitItCannotChangeOnceAReadFailed() async throws {
+        let now = Date()
+        let f = ScopeFixture(mode: "readError", initialTarget: 100); defer { f.cleanup() }
+        let service = f.makeService()
+        let (model, suite) = f.makeModel(service, percent: 60, charging: false, externalPower: false)
+        defer { model.stop(); TestDefaults.remove(suite) }
+        // Restore: a charging plan, the adapter unplugged.
+        let unplugged = FixedObservationChargeByEnvironment(model: model, obs: ChargeByObservation(externalPower: false))
+        let charging = try chargeByService(plan: ChargeByPlanState(deadline: now.addingTimeInterval(8 * 3600), target: 100, previousLimit: 80,
+                                                                   phase: .charging, startAt: now.addingTimeInterval(-3600)),
+                                           environment: unplugged)
+        let unread = await unplugged.apply(limit: 80, expected: 100)
+        XCTAssertEqual(unread, .deferred, "launch: no read has finished yet, a momentary refusal")
+        await charging.tick()
+        XCTAssertNil(charging.message, "nothing to report before the first read")
+        await model.refreshNativeCharge()   // fails
+        XCTAssertFalse(service.admitted)
+        let refused = await unplugged.apply(limit: 80, expected: 100)
+        XCTAssertEqual(refused, .notWritten, "a read failed: the refusal may persist")
+        await charging.tick()
+        XCTAssertEqual(charging.message, "The charge limit could not be restored. Tilvero will try again.")
+        XCTAssertEqual(charging.state?.phase, .charging, "the plan keeps trying")
+        // Lift: an armed plan that is due, on the adapter.
+        let plugged = FixedObservationChargeByEnvironment(model: model, obs: ChargeByObservation(externalPower: true))
+        let armed = try chargeByService(plan: ChargeByPlanState(deadline: now.addingTimeInterval(8 * 3600), target: 100, previousLimit: 80,
+                                                                startAt: now.addingTimeInterval(-60)),
+                                        environment: plugged)
+        await armed.tick()
+        XCTAssertNil(armed.message, "the first refusal is retried quietly")
+        await armed.tick()
+        XCTAssertEqual(armed.message, "The charge limit could not be raised. Tilvero will try again.")
+        XCTAssertEqual(armed.state?.phase, .armed)
+        await f.assertWrites([])
+    }
+
+    /// A gate still pending past its deadline (a hung macOS call) is not a momentary refusal: charge-by gets `.notWritten`,
+    /// so its repeat message can appear, never a quiet `.deferred` for as long as the call hangs.
+    func testAGateStuckPastItsDeadlineIsNotAMomentaryRefusal() async throws {
+        let f = ScopeFixture(initialTarget: 80); defer { f.cleanup() }
+        let transport = HeldReadTransport(f.client)
+        let service = NativeChargeService(client: transport, journalURL: f.journal, verificationAttempts: 1, environment: "scope-fixture",
+                                          operationTimeout: .milliseconds(150))
+        let (model, suite) = f.makeModel(service, percent: 60, charging: true, externalPower: true)
+        defer { model.stop(); TestDefaults.remove(suite) }
+        await model.refreshNativeCharge()
+        let environment = ModelChargeByEnvironment(model: model)
+        await transport.holdNextRead()
+        await service.refresh()   // returns at the deadline; the call itself is still held
+        XCTAssertTrue(service.operationPending)
+        XCTAssertFalse(service.isBusy)
+        let stuck = await environment.apply(limit: 100, expected: 80)
+        XCTAssertEqual(stuck, .notWritten, "a hung call may persist")
+        await transport.releaseRead()
+        try await waitFor { !service.operationPending }
+        await f.assertWrites([])
+    }
+
+    /// The slider's release waits for a busy model for as long as a native apply can take, not a fixed few seconds: a
+    /// release behind a call that takes longer than four seconds is applied once the service is free, never refused as
+    /// "still in progress".
+    func testTheSliderReleaseWaitsAsLongAsANativeApplyCanTake() async throws {
+        let f = ScopeFixture(initialTarget: 80); defer { f.cleanup() }
+        let transport = HeldReadTransport(f.client)
+        let service = NativeChargeService(client: transport, journalURL: f.journal, verificationAttempts: 1, environment: "scope-fixture")
+        let (model, suite) = f.makeModel(service, percent: 60, charging: true, externalPower: true)
+        defer { model.stop(); TestDefaults.remove(suite) }
+        await model.refreshNativeCharge()
+        XCTAssertGreaterThan(service.maximumOperationDuration, .seconds(5))
+        await transport.holdNextRead()
+        let read = Task { @MainActor in await service.refresh() }   // a call that takes longer than four seconds
+        for _ in 0..<1000 where !(await transport.isHolding) { await Task.yield() }
+        let releaser = Task { try await Task.sleep(for: .milliseconds(4300)); await transport.releaseRead() }
+        let start = ContinuousClock.now
+        let handed = await ChargeLimitKit.releaseWhenFree(model, at: 85, stopped: { false })
+        let waited = ContinuousClock.now - start
+        XCTAssertTrue(handed)
+        XCTAssertGreaterThanOrEqual(waited, .milliseconds(4200), "it waited for the service, not a fixed four seconds")
+        try await releaser.value
+        await read.value
+        try await settle(model)
+        XCTAssertNil(model.notice, "never refused as still in progress")
+        XCTAssertEqual(service.reportedLimit, 85)
+        await f.assertWrites(["limit85"])
+    }
+
+    /// The wait is bounded (`within`; the service's longest apply in the app): past it the release is refused visibly,
+    /// writing nothing. A release that no longer stands (a new drag) does nothing at all.
+    func testTheSliderReleaseWaitIsBounded() async throws {
+        let f = ScopeFixture(initialTarget: 80); defer { f.cleanup() }
+        let transport = HeldReadTransport(f.client)
+        let service = NativeChargeService(client: transport, journalURL: f.journal, verificationAttempts: 1, environment: "scope-fixture")
+        let (model, suite) = f.makeModel(service, percent: 60, charging: true, externalPower: true)
+        defer { model.stop(); TestDefaults.remove(suite) }
+        await model.refreshNativeCharge()
+        let dropped = await ChargeLimitKit.releaseWhenFree(model, at: 85, stopped: { true })
+        XCTAssertFalse(dropped, "a release that no longer stands does nothing")
+        await transport.holdNextRead()
+        let read = Task { @MainActor in await service.refresh() }
+        for _ in 0..<1000 where !(await transport.isHolding) { await Task.yield() }
+        let releaser = Task { try await Task.sleep(for: .seconds(2)); await transport.releaseRead() }   // never hangs the test
+        let start = ContinuousClock.now
+        let handed = await ChargeLimitKit.releaseWhenFree(model, at: 85, within: .milliseconds(300), stopped: { false })
+        let waited = ContinuousClock.now - start
+        XCTAssertTrue(handed)
+        XCTAssertGreaterThanOrEqual(waited, .milliseconds(300), "it waited for the service up to the bound")
+        XCTAssertLessThan(waited, .milliseconds(1500), "and no longer")
+        XCTAssertEqual(model.notice, L10n.text("A charge-limit change is still in progress."), "refused visibly")
+        try await releaser.value
+        await read.value
+        try await settle(model)
         await f.assertWrites([])
     }
 }

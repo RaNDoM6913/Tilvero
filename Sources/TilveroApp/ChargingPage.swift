@@ -228,10 +228,12 @@ enum ChargingComposition {
             // A level that is not the one macOS holds (pending, or still being applied) is never drawn as applied; "—" while
             // macOS has not reported a level (never a guessed number).
             let secondary: Color = theme.secondaryIsPrimary ? .primary : .secondary
+            let held = applied && value != nil
+            let _ = RenderProbe.held("charging.readout", held)
             HStack(alignment: .firstTextBaseline, spacing: 0) {
                 StudioText(ChargeLimitKit.readout(value), id: "charging.readout")
                     .font(.system(size: 26, weight: .semibold)).monospacedDigit()
-                    .foregroundStyle(applied && value != nil ? Color.primary : secondary)
+                    .foregroundStyle(held ? Color.primary : secondary)
                 if value != nil {
                     Text(L10n.language == "ru" ? " %" : "%").font(.system(size: 16, weight: .medium)).foregroundStyle(secondary)
                 }

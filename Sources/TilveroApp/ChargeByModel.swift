@@ -46,10 +46,12 @@ import PowerCore
             // wrote nothing.
             if let session = model.nativeCharge.unresolvedSessionID, session != leftover { return .failed }
             // Momentary refusals: another apply or the user's own change holds the service, or the interface is not granted
-            // yet (nothing read since launch). A gate still pending past its deadline is not momentary.
+            // yet because no read has finished since launch. A read that failed or did not grant it, and a gate still
+            // pending past its deadline, may persist.
             let native = model.nativeCharge
             if let refusal = error as? NativeChargeServiceError,
-               (refusal == .unavailable && !native.isMonitoringOnly) || (refusal == .busy && !native.operationPending) { return .deferred }
+               (refusal == .unavailable && !native.isMonitoringOnly && !native.hasFinishedARead)
+                || (refusal == .busy && !native.operationPending) { return .deferred }
             return .notWritten
         }
     }

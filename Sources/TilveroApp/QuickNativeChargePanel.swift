@@ -48,10 +48,12 @@ import ChargeBackends
                 .animation(.easeOut(duration: 0.15), value: ChargeLimitKit.isWorking(model, state))
                 .accessibilityHidden(true)
             // "—" while macOS has not reported a level (never a guessed number).
+            let held = value != nil && confirmed
+            let _ = RenderProbe.held("charge.readout", held)
             HStack(alignment: .firstTextBaseline, spacing: 2) {
                 StudioText(ChargeLimitKit.readout(value), id: "charge.readout")
                     .font(.system(size: 22, weight: .semibold, design: .rounded)).monospacedDigit()
-                    .foregroundStyle(value == nil || !confirmed ? Color.secondary : Color.primary)
+                    .foregroundStyle(held ? Color.primary : Color.secondary)
                 if value != nil {
                     Text("%").font(.system(size: 15, weight: .medium, design: .rounded)).foregroundStyle(.secondary)
                 }
