@@ -19724,7 +19724,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS придерживает заряд · полная к ≈ %@"
+            "value": "macOS придерживает заряд · полный заряд к ≈ %@"
           }
         }
       }
@@ -20449,18 +20449,18 @@
         }
       }
     },
-    "macOS reports a charging state Tilvero does not recognize; use System Settings › Battery to change it.": {
+    "macOS reports a charging state Tilvero does not recognize.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS reports a charging state Tilvero does not recognize; use System Settings › Battery to change it."
+            "value": "macOS reports a charging state Tilvero does not recognize."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS сообщает режим зарядки, который Tilvero не распознаёт; измените его в Системных настройках › Аккумулятор."
+            "value": "macOS сообщает режим зарядки, который Tilvero не распознаёт."
           }
         }
       }

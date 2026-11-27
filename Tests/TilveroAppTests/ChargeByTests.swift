@@ -75,7 +75,9 @@ import PowerCore
         var isHolding: Bool { held != nil }
         func release() { held?.resume(); held = nil }
         func observation() -> ChargeByObservation { obs }
-        func pauseOptimizedCharging() async -> Bool { pauses += 1; phaseAtPause = service?.state?.phase; return pauseOK }
+        /// Runs inside the pause (the user's slider or the ✕ while macOS answers).
+        var duringPause: (() -> Void)?
+        func pauseOptimizedCharging() async -> Bool { pauses += 1; phaseAtPause = service?.state?.phase; duringPause?(); return pauseOK }
         func apply(limit: Int, expected: Int?) async -> ChargeByApplyResult {
             expectations.append(expected)
             if holdNext { holdNext = false; await withCheckedContinuation { held = $0 } }
@@ -200,6 +202,19 @@ import PowerCore
         await service.tick()
         XCTAssertNil(service.state)
         XCTAssertFalse(service.optimizedPauseFailed)
+    }
+    func testAPlanEndedDuringAFailedPauseLeavesNoWarning() async throws {
+        let env = Env(), wake = Wake(); var clock = now
+        let (service, _, _) = makeService(env: env, wake: wake) { clock }
+        env.service = service; env.pauseOK = false
+        env.duringPause = { [weak service] in service?.userChoseLimit(85) }   // the slider while macOS answers the pause
+        let armed = await service.arm(deadline: now.addingTimeInterval(8 * 3600), target: 100)
+        XCTAssertTrue(armed)
+        clock = try XCTUnwrap(service.state).startAt.addingTimeInterval(-ChargeByRule.wakeLead)
+        await service.systemDidWake()
+        XCTAssertEqual(env.pauses, 1)
+        XCTAssertNil(service.state, "the user's choice ended the plan")
+        XCTAssertFalse(service.optimizedPauseFailed, "the ended plan's warning is not brought back")
     }
     func testNoPermissionFallsBackToLiftingWhenTheMacGoesToSleep() async {
         let env = Env(), wake = Wake(); wake.permitted = false

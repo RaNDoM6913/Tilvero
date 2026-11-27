@@ -33,8 +33,8 @@ git clone https://github.com/RaNDoM6913/Tilvero.git && cd Tilvero && bash script
 
 The first build takes a few minutes. Tilvero then appears in the menu bar; click the battery icon.
 `bash scripts/install.sh --check` only checks the requirements, and `--applications-dir ~/Applications`
-installs without touching `/Applications`. To update, run `git pull && bash scripts/install.sh` in the same folder.
-To remove Tilvero, quit it and move it to the Trash. A signed, notarized download is in preparation.
+installs without touching `/Applications`. To update, quit Tilvero (Quit Tilvero in its menu), then run
+`git pull && bash scripts/install.sh` in the same folder. To remove Tilvero, see the FAQ below. A signed, notarized download is in preparation.
 
 ### Install with an AI agent
 
@@ -83,9 +83,9 @@ fan, power or sleep settings. Those change only when the user turns a control on
 ## Why Tilvero
 
 - **One app instead of three:** charge limit, keep awake and sleep timer, battery health and history.
-- **Native and light:** Swift 6, AppKit and SwiftUI; low CPU use when idle; a closed quick menu measures nothing.
+- **Native and light:** Swift 6, AppKit and SwiftUI; low CPU use when idle; the once-a-second live charts run only while the quick menu or window is open.
 - **Honest numbers:** every reading has a source and a time; a missing value is shown as unavailable, never as a made-up zero.
-- **Safe controls:** Tilvero uses the macOS charge limit, reads every change back and restores what it changed. Your own limit always wins.
+- **Safe controls:** Tilvero uses the macOS charge limit, reads every change back, and a one-time charge or charge by time puts your previous limit back. Your own limit always wins.
 - **Private by design:** no account, no cloud, no telemetry. History stays on your Mac.
 - **Free software:** GPL-3.0, no subscription, no paid tier.
 
@@ -168,8 +168,8 @@ See [compatibility](docs/COMPATIBILITY.md).
 **Does it need administrator rights?** No. Monitoring, history, the sleep timer, Keep Awake and the charge limit work
 without them. Two optional features ask once: waking a sleeping Mac for charge by time, and **With lid closed**.
 
-**Will it change my battery settings on its own?** No. Nothing changes until you turn a control on, and Tilvero
-restores what it changed. Fans always stay under macOS control.
+**Will it change my battery settings on its own?** No. Nothing changes until you turn a control on; a one-time charge or
+charge by time puts your previous limit back when it ends. Fans always stay under macOS control.
 
 **Does it send data anywhere?** No readings ever leave your Mac. The only network request is a daily check for a newer
 release on GitHub, which you can switch off in Settings > Updates.
@@ -177,7 +177,8 @@ release on GitHub, which you can switch off in Settings > Updates.
 **Why build from source?** The signed, notarized download is in preparation. Until then `scripts/install.sh` builds
 the same app on your Mac in one step.
 
-**How do I uninstall it?** Quit Tilvero and move it to the Trash. History lives in
+**How do I uninstall it?** If you gave Tilvero administrator permission (With lid closed, charge by time), first press
+**Remove all Tilvero permissions** in Settings > Features. Then quit Tilvero and move it to the Trash. History lives in
 `~/Library/Application Support/Tilvero/`; delete that folder too if you want it gone.
 
 ## Good to know

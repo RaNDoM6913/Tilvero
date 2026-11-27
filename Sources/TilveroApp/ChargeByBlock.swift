@@ -162,7 +162,8 @@ import PowerCore
         }
         // The note promises the pause, so only before the lift; afterwards only a failed pause is said.
         if service.isArmed, service.state?.phase == .armed { OptimizedChargingPlanNote(service: model.optimizedCharging) }
-        if service.optimizedPauseFailed {
+        // Only while the plan runs and macOS has not since turned Optimized charging off (the user's switch, say).
+        if service.isArmed, service.optimizedPauseFailed, model.optimizedCharging.state?.enabled != false {
             Label { Text(L10n.text("Optimized charging could not be paused. macOS may hold the battery at 80 %.")).fixedSize(horizontal: false, vertical: true) }
                 icon: { Image(systemName: "exclamationmark.triangle") }
                 .font(.system(size: 13, weight: .medium)).foregroundStyle(Color.orange)

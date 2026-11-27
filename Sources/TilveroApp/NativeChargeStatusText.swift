@@ -21,7 +21,7 @@ enum NativeChargeStatusText {
         var lapsed = false
     }
 
-    static let partialReadWarning = "macOS reports a charging state Tilvero does not recognize; use System Settings › Battery to change it."
+    static let partialReadWarning = "macOS reports a charging state Tilvero does not recognize."
 
     /// `compact`: the quick panel and the Charging page, where a read of a known setting has its own spinner slot.
     static func text(_ state: NativeChargePresentation, _ input: Inputs, compact: Bool = true) -> String? {

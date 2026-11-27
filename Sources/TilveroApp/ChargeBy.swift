@@ -400,7 +400,9 @@ extension ChargeByEnvironment { func pauseOptimizedCharging() async -> Bool { tr
         // is cleared.
         guard var charging = state else { return }
         charging.wakeAt = nil; charging.wakeStamp = nil; state = charging; save()
-        optimizedPauseFailed = !(await (environment?.pauseOptimizedCharging() ?? true))
+        let paused = await (environment?.pauseOptimizedCharging() ?? true)
+        // The plan may have ended during the pause (the slider, the ✕): its warning went with it and is not brought back.
+        if state != nil { optimizedPauseFailed = !paused }
     }
 
     private func finish(removeWake: Bool) async {
