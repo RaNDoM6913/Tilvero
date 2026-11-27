@@ -22,8 +22,9 @@ final class LaboratoryRuntimeTests: XCTestCase {
         XCTAssertFalse(model.liveControl.canCharge)
         XCTAssertThrowsError(try model.keepAwake.start(seconds: 60))
         XCTAssertThrowsError(try model.selectSleepTimer(minutes: 15))
-        do { try await model.nativeCharge.qualify(); XCTFail("Monitoring cannot qualify hardware") } catch {}
-        do { try await model.nativeCharge.apply(90, batteryPercent: 60, batteryFresh: true); XCTFail("Monitoring cannot write") } catch {}
+        await model.nativeCharge.refresh()
+        XCTAssertFalse(model.nativeCharge.admitted, "Monitoring is never granted the limit")
+        do { try await model.nativeCharge.apply(90); XCTFail("Monitoring cannot write") } catch {}
         await model.keyboardBacklight.setEnabled(true)
         XCTAssertNil(model.keyboardBacklight.lastAppliedBrightness)
         XCTAssertFalse(model.keyboardBacklight.isAvailable)

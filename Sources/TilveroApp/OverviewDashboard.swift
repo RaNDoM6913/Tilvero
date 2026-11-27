@@ -103,11 +103,9 @@ import PowerPersistence
         }
     }
     private var limitText: String {
-        if let setting = model.nativeCharge.nativeSetting, setting.isFresh {
-            return setting.configuration.enabled ? "\(setting.configuration.target)%" : L10n.text("System managed")
-        }
-        if let observation = model.systemChargeLimit, observation.isFresh(), let limits = observation.limits,
-           !limits.manualLimitIsConflicting, let limit = limits.manualLimit { return "\(limit)%" }
+        if let text = ChargeLimitKit.text(model.nativeCharge.nativeSetting.flatMap { $0.isFresh ? $0.configuration : nil }) { return text }
+        if let reported = model.nativeCharge.currentReportedTarget { return ChargeLimitKit.percent(reported) }
+        if let limit = model.systemChargeLimit?.evidentManualLimit() { return ChargeLimitKit.percent(limit) }
         return "—"
     }
     private var historyStrip: some View {

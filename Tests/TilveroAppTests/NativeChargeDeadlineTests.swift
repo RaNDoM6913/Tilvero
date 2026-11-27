@@ -6,25 +6,41 @@ import XCTest
 import ChargeBackends
 
 @MainActor final class NativeChargeDeadlineTests: XCTestCase {
-    func testTimedOutSetterCannotContinueAndBlocksRollbackUntilItReturns() async throws {
+    /// A setter past its deadline is an unknown outcome: an indeterminate journal, no follow-up write, and the slider is
+    /// blocked only while the gate still holds the call. A late return claims nothing; a settled clear read closes it.
+    func testATimedOutSetterIsIndeterminateAndBlocksOnlyWhileItsCallIsPending() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("NativeDeadline-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
+        let journal = root.appendingPathComponent("session.json")
         let client = SlowNativeChargeClient()
-        let service = NativeChargeService(client: client, journalURL: root.appendingPathComponent("session.json"), admitted: true,
-                                          verificationAttempts: 2, operationTimeout: .milliseconds(30))
+        let service = NativeChargeService(client: client, journalURL: journal, verificationAttempts: 2, operationTimeout: .milliseconds(30))
         await service.refresh()
-        do { try await service.apply(90, batteryPercent: 60, batteryFresh: true); XCTFail("Setter must time out") } catch {}
-        XCTAssertTrue(service.recoveryRequired)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent("session.json").path))
-        do { _ = try await service.restore(batteryPercent: 60, batteryFresh: true); XCTFail("An in-flight call cannot be rolled back concurrently") } catch {}
+        do { try await service.apply(90); XCTFail("Setter must time out") }
+        catch NativeChargeOperationGate.Failure.timedOut {} catch { XCTFail("Wrong error: \(error)") }
+        let saved = try JSONDecoder().decode(NativeChargeJournal.self, from: Data(contentsOf: journal))
+        XCTAssertEqual(saved.phase, .indeterminate)
+        XCTAssertEqual(saved.expectedMutation?.target, 90)
+        XCTAssertEqual(service.presentation().pendingPurpose, .setLimit(target: 90))
+        XCTAssertTrue(service.presentation().pendingTimedOut)
+        XCTAssertFalse(service.canApply, "the gate still holds the call")
+        XCTAssertNil(service.reportedLimit, "the write may land at any moment: the stored setting is unknown, not the pre-write 85")
+        XCTAssertNil(service.nativeSetting)
+        do { try await service.apply(95); XCTFail("No second call while the first has not returned") } catch {}
         var writes = await client.writes; XCTAssertEqual(writes, [90])
         await client.release()
-        for _ in 0..<200 { await Task.yield() }
-        XCTAssertTrue(service.recoveryRequired, "A late continuation must not claim applied or erase recovery")
+        for _ in 0..<200 where service.presentation().pendingPurpose != nil { await Task.yield() }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: journal.path), "a late continuation must not claim the write")
+        XCTAssertEqual(service.message, NativeChargeService.lateAnswerMessage)
         await service.refresh()
-        let restored = try await service.restore(batteryPercent: 60, batteryFresh: true)
-        XCTAssertTrue(restored)
-        writes = await client.writes; XCTAssertEqual(writes, [90,85])
+        XCTAssertNotEqual(service.message, NativeChargeService.lateAnswerMessage, "the read it promised clears it")
+        XCTAssertEqual(service.reportedLimit, 90, "what macOS stores now")
+        XCTAssertTrue(service.canApplyTarget(95), "the slider is usable once the call returned")
+        XCTAssertEqual(service.presentation().attention, .mutationUnresolved)
+        try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(-120)], ofItemAtPath: journal.path)
+        await service.refresh()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: journal.path))
+        XCTAssertEqual(service.reportedLimit, 90)
+        writes = await client.writes; XCTAssertEqual(writes, [90], "no follow-up write")
     }
 }
 
@@ -41,6 +57,5 @@ private actor SlowNativeChargeClient: NativeChargeTransport {
         if first { first = false; await withCheckedContinuation { continuation = $0 } }
         self.target = target
     }
-    func setEnabled(_ enabled: Bool) async throws {}
     func release() { continuation?.resume(); continuation = nil }
 }

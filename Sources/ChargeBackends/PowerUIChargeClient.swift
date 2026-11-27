@@ -26,14 +26,17 @@ public struct NativeChargeSnapshot: Codable, Equatable, Sendable {
     /// False when the Mac ran on battery power at the read: macOS then lists no manual limit in `pmset -g battlimit`
     /// even though the setting is stored (measured on macOS 27.2), so an absent registration is expected, not a fault.
     public let registrationExpected: Bool
+    /// `pmset -g battlimit` listed two different manual limits (seen after the macOS 27.2.1 update: a second, ownerless
+    /// row kept the old value while PowerUI's own row took the new one). No write can then be confirmed.
+    public let registryConflict: Bool
     public init(configuration: NativeChargeConfiguration, supportedTargets: [Int], registeredManualLimit: Int?, policyReadbackAvailable: Bool = true,
-                collectedAt: Date = Date(), registrationExpected: Bool = true) {
+                collectedAt: Date = Date(), registrationExpected: Bool = true, registryConflict: Bool = false) {
         self.configuration = configuration; self.supportedTargets = supportedTargets
         self.registeredManualLimit = registeredManualLimit; self.policyReadbackAvailable = policyReadbackAvailable; self.collectedAt = collectedAt
-        self.registrationExpected = registrationExpected
+        self.registrationExpected = registrationExpected; self.registryConflict = registryConflict
     }
     private enum CodingKeys: String, CodingKey {
-        case configuration, supportedTargets, registeredManualLimit, policyReadbackAvailable, collectedAt, registrationExpected
+        case configuration, supportedTargets, registeredManualLimit, policyReadbackAvailable, collectedAt, registrationExpected, registryConflict
     }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -43,12 +46,15 @@ public struct NativeChargeSnapshot: Codable, Equatable, Sendable {
         policyReadbackAvailable = try c.decode(Bool.self, forKey: .policyReadbackAvailable)
         collectedAt = try c.decode(Date.self, forKey: .collectedAt)
         registrationExpected = try c.decodeIfPresent(Bool.self, forKey: .registrationExpected) ?? true
+        registryConflict = try c.decodeIfPresent(Bool.self, forKey: .registryConflict) ?? false
     }
     public var isFresh: Bool { let age = Date().timeIntervalSince(collectedAt); return age >= -5 && age <= 65 }
     /// The registry agrees with the stored setting, or (on battery power only) lists nothing at all.
     public var policyMatches: Bool {
+        // On battery power macOS does not forward a limit to powerd and keeps listing the old rows for minutes after
+        // unplugging: the registry is not evidence then, the stored setting (configuration) is.
+        if !registrationExpected { return true }
         guard policyReadbackAvailable else { return false }
-        if registeredManualLimit == nil, !registrationExpected { return true }
         return configuration.enabled ? registeredManualLimit == configuration.target : registeredManualLimit == nil
     }
     /// Registry agreement with no battery-power allowance: what validation evidence requires.
@@ -56,10 +62,18 @@ public struct NativeChargeSnapshot: Codable, Equatable, Sendable {
         policyReadbackAvailable && (configuration.enabled ? registeredManualLimit == configuration.target : registeredManualLimit == nil)
     }
 }
+/// The two calls Tilvero makes, exactly what System Settings does: read the stored limit and set it (100 is the limit off).
 public protocol NativeChargeTransport: Sendable {
     func read() async throws -> NativeChargeSnapshot
     func setLimit(_ target: Int) async throws
-    func setEnabled(_ enabled: Bool) async throws
+}
+
+/// The transport outside the shipping app bundle (a test runner, the Lab Studio): nothing is read and nothing is written,
+/// so no test can ever reach the live PowerUI client.
+public struct UnavailableNativeChargeTransport: NativeChargeTransport {
+    public init() {}
+    public func read() async throws -> NativeChargeSnapshot { throw PolicyError.unavailable }
+    public func setLimit(_ target: Int) async throws { throw PolicyError.unavailable }
 }
 
 /// Read-only observations from a failed complete-state read. These values never
@@ -93,7 +107,7 @@ public struct NativeChargeReadFailure: Error, LocalizedError, Sendable {
         return currentTarget != nil && age >= -5 && age <= 65
     }
     public var errorDescription: String? {
-        "macOS returned an unrecognized charging state. Apply remains unavailable until the native state is confirmed."
+        "macOS returned an unrecognized charging state. The limit can be changed again once macOS reports it clearly."
     }
 }
 
@@ -150,18 +164,23 @@ public actor PowerUIChargeClient: NativeChargeTransport {
               let optimized = raw["optimizedCharging"] as? Bool, let targets = raw["targets"] as? [Int],
               (80...100).contains(target), targets == targets.sorted(), Set(targets).count == targets.count,
               !targets.isEmpty, targets.allSatisfy({ (80...100).contains($0) }) else { throw PolicyError.readbackMismatch }
+        // The power source is sampled on both sides of the pmset run: a read that spans a plug or unplug is not registry
+        // evidence (as on battery power).
+        let acBefore = Self.runsOnExternalPower()
         let limits = Self.policyReadback()
+        let acAfter = Self.runsOnExternalPower()
         return .init(configuration: .init(enabled: enabled, target: target, optimizedCharging: optimized), supportedTargets: targets,
                      registeredManualLimit: limits?.manualLimit,
                      policyReadbackAvailable: limits != nil && limits?.manualLimitIsConflicting == false,
-                     registrationExpected: Self.runsOnExternalPower())
+                     registrationExpected: acBefore && acAfter, registryConflict: limits?.manualLimitIsConflicting == true)
     }
     /// The registry readback of every native read: always a fresh `pmset -g battlimit` run, never the shared answer (this
     /// read is also every readback around a native write). The answer is recorded for the read-only observation of the
     /// same poll cycle; a failed run forgets the previous one.
     static func policyReadback(readings: BatteryLimitReadings = .shared, query: () throws -> String = BatteryLimitReadings.query) -> SystemChargeLimits? {
+        let generation = readings.generation   // a write that invalidates meanwhile makes this answer too old to share
         guard let output = try? query() else { readings.invalidate(); return nil }
-        readings.record(output)
+        readings.record(output, ifGeneration: generation)
         return try? SystemChargeLimitParser.parse(output)
     }
     public func setLimit(_ target: Int) async throws {
@@ -170,15 +189,6 @@ public actor PowerUIChargeClient: NativeChargeTransport {
         try autoreleasepool {
             var error: NSError?
             let success = TVNativeChargeSetLimit(UInt8(target), &error)
-            if let error { throw error }
-            guard success else { throw PolicyError.readbackMismatch }
-        }
-    }
-    public func setEnabled(_ enabled: Bool) async throws {
-        BatteryLimitReadings.shared.invalidate()   // the registry is about to change
-        try autoreleasepool {
-            var error: NSError?
-            let success = TVNativeChargeSetEnabled(enabled, &error)
             if let error { throw error }
             guard success else { throw PolicyError.readbackMismatch }
         }

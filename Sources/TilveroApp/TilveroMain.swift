@@ -538,6 +538,8 @@ final class TilveroAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
 
     func applicationDidBecomeActive(_ notification: Notification) {
         try? model.keepAwake.reconcile()
+        // Back from System Settings, say: the charge limit is read again now, not at the next poll (a read only).
+        model.nativeChargeSurfaceReturned()
         if activationGate.applicationBecameActive() { presentPopover() }
         else if popover.isShown { activatePopoverWindow() }
     }

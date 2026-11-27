@@ -11,7 +11,7 @@ The ZIP • CLONES • UNIQUE badge shows three separate values from the dated
 snapshot in [GitHub traffic](../../docs/GITHUB_TRAFFIC.md). ZIP counts
 source downloads excluding the verification download. CLONES counts all
 reported clone events, and UNIQUE uses GitHub’s period-level unique count.
-The row contains Source Preview, traffic and license badges.
+The row contains release, traffic and license badges.
 
 The bilingual gallery in `screenshots/` renders actual SwiftUI views using isolated synthetic fixtures; every frame visibly identifies demo data. It is not owner telemetry or binary/hardware acceptance.
 

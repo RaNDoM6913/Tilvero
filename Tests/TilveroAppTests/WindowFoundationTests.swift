@@ -183,7 +183,7 @@ import PowerCore
     // MARK: Notice priority
 
     func testNoticePriority() {
-        var input = NoticeDisplay.Inputs(recoveryRequired: true, ownsSettings: true, attentionKey: "Restoration pending", storeError: "x", notice: "y")
+        var input = NoticeDisplay.Inputs(recoveryRequired: true, ownsSettings: true, attentionKey: "Charge-limit record not updated", storeError: "x", notice: "y")
         XCTAssertEqual(NoticeDisplay.choose(input)?.action, .restore)
         input.recoveryRequired = false
         XCTAssertEqual(NoticeDisplay.choose(input)?.action, .returnControl, "normal ownership is not a fault")

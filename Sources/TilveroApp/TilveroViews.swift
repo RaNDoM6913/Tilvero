@@ -107,7 +107,7 @@ struct BatteryInfoView: View {
                     DetailsPageBanners(model: model, presentedSection: presentedSection)
                     sectionContent
                     if let error = model.storeError { Label(L10n.text("Data store error") + ": " + error, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange) }
-                    if let notice = model.notices.current(excluding: [.chargeStatus]) { Text(notice.text).font(.caption).foregroundStyle(.secondary) }
+                    if let notice = model.notices.current() { Text(notice.text).font(.caption).foregroundStyle(.secondary) }
                     if presentedSection != .overview && (presentedSection != .sleep || presentedSleepPage == .reports) {
                         LastCollectionLine(model: model)
                     }
@@ -200,7 +200,7 @@ struct BatteryInfoView: View {
             }
             if !model.isDemo {
                 ProductSurface(title: "Native charging", symbol: "battery.100percent") {
-                    NativeChargeStatusPanel(model: model)
+                    NativeChargeReadOnlyRows(model: model)
                     Divider()
                     SystemChargeLimitPanel(model: model)
                 }
@@ -302,7 +302,7 @@ struct BatteryInfoView: View {
                 .background(Color.black.opacity(selected ? 0.065 : 0), in: RoundedRectangle(cornerRadius: 7))
                 .contentShape(RoundedRectangle(cornerRadius: 7))
         }.buttonStyle(.plain).accessibilityLabel(item.title)
-            .accessibilityValue(needsAttention ? L10n.text("Charging session needs review") : "")
+            .accessibilityValue(needsAttention ? L10n.text(model.nativeCharge.presentation().attention.titleKey) : "")
             .accessibilityAddTraits(selected ? [.isSelected] : [])
             .accessibilityRemoveTraits(selected ? [] : [.isSelected])
             .padding(.horizontal, 7).padding(.vertical, 1)
@@ -340,11 +340,8 @@ struct BatteryInfoView: View {
                     Text(L10n.text(nativeAttentionTitle(state.attention))).font(.system(size: 12, weight: .medium))
                         .foregroundStyle(nativeAttentionColor(state.attention))
                     if let preference = state.currentPreference {
-                        Text(L10n.text("Native macOS setting") + ": " + (preference.enabled ? "\(preference.target)%" : L10n.text("System managed")))
+                        Text(L10n.text("Native macOS setting") + ": " + (ChargeLimitKit.text(preference) ?? "—"))
                             .font(.system(size: 11)).foregroundStyle(.secondary)
-                    }
-                    if let target = state.pendingTarget {
-                        Text(L10n.text("Pending") + " \(target)%").font(.system(size: 11)).foregroundStyle(.secondary)
                     }
                 }.frame(maxWidth: .infinity, alignment: .leading)
                 StudioActionButton(L10n.text("Details"), id: "native-attention.details") { model.navigation.navigate(to: .section(.diagnostics)) }
@@ -353,7 +350,7 @@ struct BatteryInfoView: View {
     }
     private func nativeAttentionColor(_ attention: NativeChargePresentation.Attention) -> Color {
         switch attention {
-        case .sessionReview, .mutationUnresolved, .journalIntegrity: .orange
+        case .mutationUnresolved, .journalIntegrity: .orange
         default: .secondary
         }
     }

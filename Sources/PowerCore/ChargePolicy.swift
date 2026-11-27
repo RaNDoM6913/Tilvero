@@ -7,6 +7,18 @@ public enum PolicyError: Error, Equatable, Sendable {
     case invalidContract, unsupportedTarget, staleGeneration, readbackMismatch, unavailable, invalidPolicy
 }
 
+/// English catalog keys (the app localizes them with `L10n.text`), so no surface ever shows "PolicyError error 3".
+extension PolicyError: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case .readbackMismatch: "macOS has not independently confirmed the requested charge setting."
+        case .unsupportedTarget: "Choose a charge target offered by this Mac."
+        case .unavailable: "Native charging control is unavailable."
+        case .invalidContract, .staleGeneration, .invalidPolicy: "The charging operation was rejected. No setting was confirmed."
+        }
+    }
+}
+
 public enum ChargeIntent: Codable, Sendable, Equatable {
     case ceiling(Int)
     case fullOnce

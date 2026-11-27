@@ -14,19 +14,16 @@ enum NoticeSource: CaseIterable, Sendable {
     case keepAwake
     /// The result of a control action: charge limit, helper, fans, profiles and schedules, the simulation's actions.
     case control
-    /// The native service's own explanation of a waiting lower limit, copied when an apply left the target pending.
-    /// It belongs to the Charge page, which prints the service line itself; other surfaces leave it out.
-    case chargeStatus
     /// "Simulation only — your Mac settings are unchanged." after a simulated action.
     case simulation
     /// Export, diagnostics report and login-item results.
     case data
 
     /// Sources that describe the state of the controls: a newer one replaces the others (a new apply outdates the
-    /// previous failure, the pending line or a recovery warning).
+    /// previous failure or a recovery warning).
     var group: Set<NoticeSource> {
         switch self {
-        case .recovery, .control, .chargeStatus, .simulation: [.recovery, .control, .chargeStatus, .simulation]
+        case .recovery, .control, .simulation: [.recovery, .control, .simulation]
         default: [self]
         }
     }

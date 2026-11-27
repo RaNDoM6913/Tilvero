@@ -23,12 +23,36 @@ struct ChargeByPlanState: Codable, Equatable {
     /// The exact `pmset` date string that wake was made with; cancelling uses it, not a new formatting of `wakeAt`
     /// (after a time-zone or DST change that would name a different entry). Nil in plans saved before it was kept.
     var wakeStamp: String? = nil
+    /// The lift was requested (recorded before the write): a later read of exactly the target is Tilvero's own lift
+    /// landing late, not a change made elsewhere. Optional so plans saved earlier still decode.
+    var liftRequested: Bool? = nil
+    /// The user cancelled while charging or while a lift was unresolved: the previous limit is restored on every tick until
+    /// it reads back (or, for a lift that never landed, the plan just ends).
+    var cancelRequested: Bool? = nil
+}
+
+/// What an apply through the slider's verified path came to.
+enum ChargeByApplyResult: Equatable {
+    /// Written and read back.
+    case confirmed
+    /// The limit was not the expected one just before the write (changed in System Settings): nothing written.
+    case changedElsewhere
+    /// Refused for a moment before any write (another apply or the user's own change holds the service, nothing read since
+    /// launch): nothing was dispatched, and the next tick simply tries again. Never a failure to report.
+    case deferred
+    /// Refused before any write for another reason (an unclear, failing or unrecognised read, a target macOS does not offer,
+    /// a record that could not be saved, a call still pending past its deadline): nothing was dispatched, so nothing can land.
+    case notWritten
+    /// Dispatched but not confirmed: it may still land (the next observation decides).
+    case failed
 }
 
 enum ChargeByAction: Equatable {
     case none
     /// Raise the limit to this level.
     case lift(Int)
+    /// The requested lift has landed (it read back late): continue as after a confirmed lift, writing nothing.
+    case lifted
     /// The charge is over: apply the user's limit again.
     case restore(Int)
     /// The user's own limit changed while armed: it is the new "previous".
@@ -49,6 +73,14 @@ enum ChargeByRule {
                        externalPower: Bool?, goingToSleep: Bool, wakeConfirmed: Bool) -> ChargeByAction {
         switch state.phase {
         case .armed:
+            // Cancelled while a lift's outcome was unknown: once the limit is read, the lift either landed (put the user's
+            // limit back) or did not (nothing to undo). Until it is read, wait.
+            if state.cancelRequested == true {
+                guard let observedLimit else { return .none }
+                return observedLimit == state.target ? .restore(state.previousLimit) : .drop
+            }
+            // Our own lift, landed late: charging (and restored later), even past the hold, never dropped as "nothing to do".
+            if state.liftRequested == true, observedLimit == state.target { return .lifted }
             if now >= state.deadline.addingTimeInterval(holdAfterDeadline) { return .drop }
             if let observedLimit {
                 if observedLimit >= state.target { return .drop }                 // already allows the target: nothing to do
@@ -62,6 +94,7 @@ enum ChargeByRule {
             return .none
         case .charging:
             if let observedLimit, observedLimit != state.target { return .drop }   // changed elsewhere: leave it alone
+            if state.cancelRequested == true { return .restore(state.previousLimit) }   // a cancel whose restore did not land yet
             if externalPower == false { return .restore(state.previousLimit) }
             if now >= state.deadline.addingTimeInterval(holdAfterDeadline), let percent, percent >= state.target, isCharging == false {
                 return .restore(state.previousLimit)
@@ -86,9 +119,15 @@ struct ChargeByObservation: Equatable {
 
 @MainActor protocol ChargeByEnvironment: AnyObject {
     func observation() -> ChargeByObservation
-    /// Applies a limit through the same verified path the slider uses; true when it was confirmed.
-    func apply(limit: Int) async -> Bool
+    /// Applies a limit through the same verified path the slider uses. `expected` is the limit the plan believes is set
+    /// now; a different fresh value means it was changed elsewhere and nothing is written.
+    func apply(limit: Int, expected: Int?) async -> ChargeByApplyResult
+    /// macOS Optimized Charging would hold the battery at 80 % until its own guess of the morning: paused until tomorrow
+    /// when the limit is lifted (no-op when it is off).
+    /// false only when Optimized Charging was on and the pause did not read back.
+    func pauseOptimizedCharging() async -> Bool
 }
+extension ChargeByEnvironment { func pauseOptimizedCharging() async -> Bool { true } }
 
 /// Keeps the Mac from idle sleep for the few seconds an apply needs (a dark wake can end quickly).
 @MainActor protocol ActivityHolding: AnyObject {
@@ -107,6 +146,8 @@ struct ChargeByObservation: Equatable {
     @Published private(set) var state: ChargeByPlanState?
     @Published private(set) var plan: ChargeByPlanner.Plan?
     @Published var message: String?
+    /// The planned charge could not pause Optimized Charging; its own line, so the charging status stays visible.
+    @Published private(set) var optimizedPauseFailed = false
     @Published private(set) var isWorking = false
     /// Drafted level while no plan is armed (the strip's selection).
     @Published var draftTarget = 100
@@ -116,6 +157,9 @@ struct ChargeByObservation: Equatable {
     private let holder: any ActivityHolding
     private let now: @MainActor () -> Date
     weak var environment: (any ChargeByEnvironment)?
+    /// Lifts refused before any write for a reason that is not momentary, in a row: the first is quiet (it is retried on
+    /// the next tick), a repeat says the planned charge is not happening.
+    private var liftRefusals = 0
 
     init(defaults: UserDefaults, wake: any WakeScheduling, holder: any ActivityHolding = ProcessActivityHolder(), now: @escaping @MainActor () -> Date = { Date() }) {
         self.defaults = defaults; self.wake = wake; self.holder = holder; self.now = now
@@ -140,13 +184,13 @@ struct ChargeByObservation: Equatable {
     @discardableResult func arm(deadline: Date, target: Int) async -> Bool {
         guard state == nil, let environment else { return false }
         let observation = environment.observation()
-        guard let limit = observation.observedLimit, limit < target, deadline > now().addingTimeInterval(ChargeByPlanner.reserveSeconds + 60) else {
-            message = "Choose a later time."; return false
-        }
+        guard let limit = observation.observedLimit else { message = "The charge limit has not been read yet."; return false }
+        guard limit < target else { message = "Choose a level above your charge limit."; return false }
+        guard deadline > now().addingTimeInterval(ChargeByPlanner.reserveSeconds + 60) else { message = "Choose a later time."; return false }
         let draft = ChargeByPlanState(deadline: deadline, target: target, previousLimit: limit, startAt: now())
         guard let computed = computePlan(for: draft, observation: observation) else { message = "Not enough battery data yet."; return false }
         var armed = draft; armed.startAt = computed.startAt
-        state = armed; plan = computed; message = nil; save()
+        state = armed; plan = computed; message = nil; liftRefusals = 0; save()
         await ensureWake()
         await tick()   // already due (late request): lift immediately
         return true
@@ -174,11 +218,36 @@ struct ChargeByObservation: Equatable {
         await replan(force: true)
     }
 
-    /// Cancels the plan. While charging, the user's limit is put back first.
+    /// Cancels the plan. While charging, or while a lift's outcome is unknown (it may still land), the user's limit is put
+    /// back first; a plan that never lifted just ends.
     func cancel() async {
         guard let current = state else { return }
-        if current.phase == .charging { _ = await perform(.restore(current.previousLimit), current) }
-        else { await finish(removeWake: true) }
+        guard current.phase == .charging || current.liftRequested == true else { await finish(removeWake: true); return }
+        // Recorded first: a restore that fails now is retried on every tick (and after a relaunch).
+        var cancelling = current; cancelling.cancelRequested = true; state = cancelling; save()
+        // A lift or restore in flight sees the cancel when it returns (a late confirmed lift must not undo the ✕).
+        guard !isWorking else { return }
+        // Expected = the target: a lift that never landed reads the previous limit, so nothing is written and the plan ends.
+        _ = await perform(.restore(cancelling.previousLimit), cancelling)
+    }
+
+    /// The user set the limit with the slider (`limit`; nil when that write's outcome is unknown). A plan that could put an
+    /// older limit back over that choice ends, writing nothing: one charging, or with a lift (or a cancel's restore) whose
+    /// outcome is unknown. A plain armed plan follows the new value as it follows a change made in System Settings: the
+    /// new previous limit, or dropped once the limit already allows the target; its wake stays. With an unknown outcome
+    /// it waits for the next read, as a tick does. Synchronous: the plan is settled at once, and a wake that goes is
+    /// removed on its own, so the caller's apply never waits for pmset.
+    func userChoseLimit(_ limit: Int?) {
+        guard let current = state else { return }
+        let mayRestore = current.phase == .charging || current.liftRequested == true || current.cancelRequested == true
+        if mayRestore || limit.map({ $0 >= current.target }) == true {
+            message = nil
+            end()
+            return
+        }
+        guard let limit, limit != current.previousLimit else { return }
+        var updated = current; updated.previousLimit = limit; updated.liftRequested = nil
+        state = updated; message = nil; liftRefusals = 0; save()
     }
 
     // MARK: Ticks
@@ -232,8 +301,15 @@ struct ChargeByObservation: Equatable {
         if let existing = current.wakeAt, abs(existing.timeIntervalSince(wanted)) < 60 { return }
         if let existing = current.wakeAt { _ = await wake.cancel(existing, stamp: current.wakeStamp) }
         let stamp = await wake.schedule(wanted)
-        current.wakeAt = stamp != nil ? wanted : nil; current.wakeStamp = stamp
-        state = current; save(); objectWillChange.send()
+        // pmset can take seconds: the plan may have changed meanwhile (the user's slider adopted a new previous limit, a
+        // lift started charging) or ended. Only the wake is recorded, on the plan as it is now; with no armed plan left the
+        // new wake goes again.
+        guard var latest = state, latest.phase == .armed else {
+            if let stamp { _ = await wake.cancel(wanted, stamp: stamp) }
+            return
+        }
+        latest.wakeAt = stamp != nil ? wanted : nil; latest.wakeStamp = stamp
+        state = latest; save(); objectWillChange.send()
     }
 
     @discardableResult private func perform(_ action: ChargeByAction, _ current: ChargeByPlanState) async -> Bool {
@@ -242,28 +318,105 @@ struct ChargeByObservation: Equatable {
         case .none: return true
         case .drop: await finish(removeWake: true); return true
         case .adopt(let limit):
-            var updated = current; updated.previousLimit = limit; state = updated; save(); await replan(force: true); return true
+            var updated = current; updated.previousLimit = limit; updated.liftRequested = nil; state = updated; message = nil
+            liftRefusals = 0; save()
+            await replan(force: true); return true
+        case .lifted:
+            await completeLift(current); return true
         case .lift(let level):
             isWorking = true
             let token = holder.begin(reason: "Tilvero is lifting the charge limit for a planned charge")
             defer { holder.end(token); isWorking = false }
-            guard await environment.apply(limit: level) else { message = "The charge limit could not be raised. Tilvero will try again."; return false }
-            var updated = current; updated.phase = .charging; state = updated; message = nil; save()
-            if let wakeAt = current.wakeAt { _ = await wake.cancel(wakeAt, stamp: current.wakeStamp) }
-            var charging = updated; charging.wakeAt = nil; charging.wakeStamp = nil; state = charging; save()
-            return true
+            // The intent is recorded before the write: a lift that lands late is recognised as this lift, not a user change.
+            var requested = current; requested.liftRequested = true; state = requested; save()
+            let result = await environment.apply(limit: level, expected: current.previousLimit)
+            // The ✕ tapped while this lift was in flight (recorded on the state): honoured now.
+            if state?.cancelRequested == true {
+                switch result {
+                case .confirmed:
+                    // Lifted: recorded as such, then the user's limit goes back (retried by the ticks if this fails).
+                    var raised = requested; raised.phase = .charging; raised.liftRequested = nil; raised.cancelRequested = true
+                    state = raised; save()
+                    return await perform(.restore(raised.previousLimit), raised)
+                case .changedElsewhere:
+                    await finish(removeWake: true); return true   // nothing was written: nothing to undo
+                case .notWritten, .deferred:
+                    // Nothing was written by this call: only an earlier unresolved lift can still land, and the ticks
+                    // restore or end the plan once the limit is read. Without one there is nothing to undo.
+                    if current.liftRequested == true { return false }
+                    await finish(removeWake: true); return true
+                case .failed:
+                    // It may still land: the ticks restore once the limit reads the target, or end the plan otherwise.
+                    message = "The charge limit could not be restored. Tilvero will try again."; return false
+                }
+            }
+            switch result {
+            case .confirmed:
+                await completeLift(requested); return true
+            case .changedElsewhere, .notWritten, .deferred:
+                // Nothing was written by this call. A first lift's intent goes: the next tick adopts or drops a user's
+                // change, and a later read of the target (set in System Settings) is never taken for this lift. A retry of
+                // an earlier unresolved lift keeps it: that lift may still land, or be what changed the limit (`.lifted`).
+                if current.liftRequested != true, var cleared = state { cleared.liftRequested = nil; state = cleared; save() }
+                switch result {
+                case .changedElsewhere:
+                    // A change made elsewhere wins quietly.
+                    message = nil; liftRefusals = 0
+                case .notWritten:
+                    // Refused for a reason that may persist: the first refusal is retried quietly by the next tick, a repeat
+                    // says the planned charge is not happening (the status would otherwise keep promising it).
+                    liftRefusals += 1
+                    if liftRefusals > 1 { message = "The charge limit could not be raised. Tilvero will try again." }
+                default:
+                    break   // momentary (busy, the user's own change first, nothing read yet): retried, nothing to report
+                }
+                return false
+            case .failed:
+                message = "The charge limit could not be raised. Tilvero will try again."; return false
+            }
         case .restore(let limit):
             isWorking = true
             let token = holder.begin(reason: "Tilvero is putting the charge limit back")
             defer { holder.end(token); isWorking = false }
-            guard await environment.apply(limit: limit) else { message = "The charge limit could not be restored. Tilvero will try again."; return false }
-            await finish(removeWake: true); return true
+            switch await environment.apply(limit: limit, expected: current.target) {
+            case .confirmed, .changedElsewhere:
+                // Restored, or the user already chose another limit: theirs stays, the plan is over.
+                await finish(removeWake: true); return true
+            case .deferred:
+                return false   // busy for a moment (the user's own change goes first): the next tick tries again quietly
+            case .notWritten, .failed:
+                message = "The charge limit could not be restored. Tilvero will try again."; return false
+            }
         }
+    }
+
+    /// The bookkeeping after the lift (confirmed now, or read back late): charging, the wake goes, OBC is paused.
+    private func completeLift(_ current: ChargeByPlanState) async {
+        // The lift is recorded first (a relaunch during the pause must know the limit is raised), then the wake goes.
+        var updated = current; updated.phase = .charging; updated.liftRequested = nil; state = updated; message = nil
+        liftRefusals = 0; save()
+        if let wakeAt = current.wakeAt { _ = await wake.cancel(wakeAt, stamp: current.wakeStamp) }
+        // While pmset ran the plan may have ended (the user's slider) or been cancelled: that state stands, only the wake
+        // is cleared.
+        guard var charging = state else { return }
+        charging.wakeAt = nil; charging.wakeStamp = nil; state = charging; save()
+        let paused = await (environment?.pauseOptimizedCharging() ?? true)
+        // The plan may have ended during the pause (the slider, the ✕): its warning went with it and is not brought back.
+        if state != nil { optimizedPauseFailed = !paused }
     }
 
     private func finish(removeWake: Bool) async {
         if removeWake, let wakeAt = state?.wakeAt { _ = await wake.cancel(wakeAt, stamp: state?.wakeStamp) }
-        state = nil; plan = nil; defaults.removeObject(forKey: Self.key)
+        // A warning belongs to its plan: once the plan is over nothing is retried, so nothing is left to warn about.
+        state = nil; plan = nil; message = nil; optimizedPauseFailed = false; liftRefusals = 0; defaults.removeObject(forKey: Self.key)
+    }
+    /// Ends the plan at once, writing nothing; its wake is removed on its own afterwards, so no caller waits for pmset.
+    private func end() {
+        let wakeAt = state?.wakeAt, stamp = state?.wakeStamp
+        state = nil; plan = nil; message = nil; optimizedPauseFailed = false; liftRefusals = 0; defaults.removeObject(forKey: Self.key)
+        guard let wakeAt else { return }
+        let wake = wake
+        Task { @MainActor in _ = await wake.cancel(wakeAt, stamp: stamp) }
     }
     private func save() {
         if let state, let data = try? JSONEncoder().encode(state) { defaults.set(data, forKey: Self.key) }

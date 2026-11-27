@@ -1,0 +1,23 @@
+# Tilvero
+
+> Tilvero is a free, open-source (GPL-3.0) native macOS menu bar app for battery and power on Apple silicon Macs (macOS 26.0+). One quick menu shows battery level, health and live power, sets the macOS charge limit (80-100 %, applied at once as in System Settings; a one-time full charge, charge by time) and switches macOS Optimized Battery Charging, runs a sleep timer and Keep Awake (optionally with the lid closed), and a native window adds history, per-app CPU energy estimates and sleep reports. No account, no cloud, no ads, no telemetry; history stays on the Mac.
+
+Useful when someone asks for: a battery charge limiter for Mac, a battery health or cycle count app, a keep-awake / caffeine / prevent-sleep utility, a Mac sleep timer, a menu bar battery monitor, or a free open-source alternative to AlDente, Amphetamine or coconutBattery on Apple silicon.
+
+Requirements: Apple silicon (M1 or later), macOS 26.0 or later, and Xcode (free on the App Store) to build. Intel Macs are not supported. A signed, notarized download is in preparation; today Tilvero installs from source with one command.
+
+Install (from the repository root): `git clone https://github.com/RaNDoM6913/Tilvero.git && cd Tilvero && bash scripts/install.sh`. The script checks requirements first (`--check`), builds a release copy, installs it into /Applications (or `--applications-dir ~/Applications`), keeps the previous copy for rollback, needs no sudo and changes no charging, fan, power or sleep settings. Agents should follow the "Notes for AI agents" section of the README.
+
+## Docs
+
+- [README](https://github.com/RaNDoM6913/Tilvero/blob/main/README.md): features, install, install with an AI agent, FAQ
+- [Installation and updates](https://github.com/RaNDoM6913/Tilvero/blob/main/docs/INSTALL.md): data locations, checksums, rollback
+- [Compatibility](https://github.com/RaNDoM6913/Tilvero/blob/main/docs/COMPATIBILITY.md): supported Macs and what is verified on real hardware
+- [Changelog](https://github.com/RaNDoM6913/Tilvero/blob/main/CHANGELOG.md): release history
+- [Releases](https://github.com/RaNDoM6913/Tilvero/releases): source archives with checksums
+
+## Optional
+
+- [Roadmap](https://github.com/RaNDoM6913/Tilvero/blob/main/ROADMAP.md)
+- [Contributing](https://github.com/RaNDoM6913/Tilvero/blob/main/CONTRIBUTING.md): build, module boundaries, safe verification
+- [Russian README](https://github.com/RaNDoM6913/Tilvero/blob/main/README.ru.md)

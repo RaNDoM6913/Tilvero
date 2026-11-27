@@ -73,7 +73,7 @@ import SwiftUI
                 }.disabled(!unsaved || model.isApplying)
                 Spacer()
                 StudioActionButton(L10n.text("Apply available actions"), id: "action.apply-available-actions") { Task { await model.applyMode(draft.mode) } }
-                    .disabled(unsaved || model.isApplying || model.nativeCharge.isBusy || model.nativeCharge.isQualifying || model.liveControl.isBusy || !preview.contains { $0.status == .available })
+                    .disabled(unsaved || model.isApplying || model.nativeCharge.isBusy || model.liveControl.isBusy || !preview.contains { $0.status == .available })
             }
             if unsaved {
                 Text(L10n.text("Unsaved changes — save before applying.")).font(.caption).foregroundStyle(.secondary)
@@ -137,7 +137,7 @@ import SwiftUI
                 Spacer()
                 StudioActionButton(L10n.text("Apply"), id: "action.apply") { Task { await model.applyMode(model.selectedMode) } }
                     .buttonStyle(.borderedProminent)
-                    .disabled(model.isApplying || model.nativeCharge.isBusy || model.nativeCharge.isQualifying || model.liveControl.isBusy || !preview.contains { $0.status == .available })
+                    .disabled(model.isApplying || model.nativeCharge.isBusy || model.liveControl.isBusy || !preview.contains { $0.status == .available })
             }
         }
     }

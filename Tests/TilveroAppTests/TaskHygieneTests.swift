@@ -60,8 +60,8 @@ private actor ReadingGate {
         let model = make(reads: ReadCounter(), processes: processes)
         defer { model.stop() }
         model.selectedSection = .activity
-        model.isDetailVisible = true   // the Activity page appeared: one scan now
-        XCTAssertEqual(model.ownedTaskCount, 1)
+        model.isDetailVisible = true   // the Activity page appeared: one scan now, and the charge limit is read again
+        XCTAssertEqual(model.ownedTaskCount, 2)
         for _ in 0..<100 where model.ownedTaskCount > 0 { try await Task.sleep(for: .milliseconds(10)) }
         XCTAssertEqual(model.ownedTaskCount, 0)
         XCTAssertEqual(processes.value, 1)
