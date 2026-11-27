@@ -73,9 +73,10 @@ fan, power or sleep settings. Those change only when the user turns a control on
 - **Sleep:** a sleep timer you can extend by 5 minutes, 15 minutes or an hour; Keep Awake for a set time or until you stop it,
   with an optional **With lid closed** switch that also turns the screen down and caps the volume while the lid is shut; and
   sleep or keep awake when the charge falls to a level you choose.
-- **Charge:** the macOS charge limit (80–100 %), a one-time charge to 100 %, and **charge by time**: pick a time and a level
-  and Tilvero lifts the limit just in time, waking a sleeping Mac on schedule, even with the lid closed (one optional administrator permission).
-  If macOS Optimized Battery Charging is on, macOS may still hold the charge at 80 % for a while.
+- **Charge:** the macOS charge limit (80–100 %), set at once as in System Settings; the macOS **Optimized Battery Charging**
+  switch; a one-time charge to 100 %; and **charge by time**: pick a time and a level and Tilvero lifts the limit just in time,
+  waking a sleeping Mac on schedule, even with the lid closed (one optional administrator permission). While a plan charges,
+  Tilvero pauses Optimized Charging until tomorrow so macOS does not hold the charge at 80 %.
 - **First run:** a brand-new install opens one setup window (launch at login, history, the closed-lid option and charge by time).
   Existing installs never see it.
 
@@ -119,7 +120,26 @@ Screenshots use sample readings.
   </tr>
 </table>
 
-## What's new in 0.8.1
+## What's new in 0.8.2
+
+An **Optimized Battery Charging** switch, a charge limit that works like System Settings, and a one-command install.
+
+**New**
+- **An Optimized Battery Charging switch** on the Charge page of the quick menu and on the window's Charging page. It is macOS's own setting: Tilvero reads and writes it, and it is independent of the charge limit. While a **Charge by time** plan charges, Tilvero pauses Optimized Charging until tomorrow so the plan can reach its target.
+- **One-command install.** Clone the repository and run `bash scripts/install.sh`: it checks the requirements, builds Tilvero and installs it in Applications. The README now leads with what Tilvero does and how to install it, with notes for AI agents, and `llms.txt` describes the project for them.
+
+**Changed**
+- **The charge limit works like System Settings.** Any of 80, 85, 90, 95 or 100 % applies at once, in both directions, at any charge level, on the adapter or on battery, including a limit below the current charge. Tilvero shows what macOS holds: a change made in System Settings appears in Tilvero, and a value it cannot read shows as "—". The "Validate 80–100 %" check and the "waiting for discharge" states are gone. Quitting, logging out or updating Tilvero never changes the limit.
+- **Charge to 100 % once and Charge by time keep your previous limit and restore it.** If you move the slider while a plan is charging, your choice wins and the plan ends. A plan that is only armed adopts a limit you change in System Settings.
+
+**Fixed**
+- A change that macOS never confirmed could leave the charge limit stuck on "change in progress". It now closes as soon as macOS reports one clear limit.
+
+**Verified on a real Mac** (build 109, 2026-11-27): the slider from 100 to 85 and 80 % and back, on the adapter and on battery; System Settings and Tilvero following each other both ways; the limit unchanged across a relaunch.
+
+**Known limits.** Not yet verified on a real Mac: the "until tomorrow" pause of Optimized Charging during a Charge by time plan, the sign of the live battery power while charging on AC, and the new window on macOS 26 (seen on macOS 27.2 only).
+
+## What was new in 0.8.1
 
 A rebuilt **quick menu builder**, a redesigned **Time to 20%** block and one dark-mode fix.
 
@@ -135,10 +155,6 @@ A rebuilt **quick menu builder**, a redesigned **Time to 20%** block and one dar
 - Settings > Quick menu > Overview blocks was a blank white box in dark mode with invisible labels. It now follows the window theme.
 
 **Known limits.** Not yet verified on a real Mac: the sign of the live battery power while charging on AC and the new window on macOS 26 (seen on macOS 27.2 only).
-
-## What was new in 0.8.0
-
-A redesigned main window with a collapsible sidebar and nine pages, a watchdog for **With lid closed** (checked on a real Mac: after `kill -9` normal sleep was back within a second), live battery power once a second, an upgraded and faster history store (schema 3, with a private backup before the upgrade) and a new app icon. Details are in the [CHANGELOG](CHANGELOG.md).
 
 Full history: [CHANGELOG](CHANGELOG.md).
 
@@ -170,7 +186,7 @@ the same app on your Mac in one step.
 other devices. **Sleep reports start with observed events**: Tilvero does not reconstruct past nights from gaps.
 
 **Verified on a real Mac:** waking a sleeping Mac with the lid closed for charge by time (2026-11-24).
-**Not yet verified:** the sign of live battery power while charging on AC. Privileged charging, power-mode and fan writes stay off.
+**Not yet verified:** the sign of live battery power while charging on AC and the "until tomorrow" pause of Optimized Charging during a charge-by-time plan. Privileged charging, power-mode and fan writes stay off.
 Simulation is marked **DEMO** and stays out of history. Details: [compatibility](docs/COMPATIBILITY.md),
 [control architecture](Helper/README.md), [roadmap](ROADMAP.md).
 
@@ -186,14 +202,14 @@ tokens. Preview reports before choosing to share them.
 
 ## Build from source (developers)
 
-**Latest release: [0.8.1](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.8.1)**
-· [Source ZIP](https://github.com/RaNDoM6913/Tilvero/releases/download/v0.8.1/Tilvero-0.8.1-source.zip)
-· [Release notes and checksums](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.8.1)
-· Earlier: [0.8.0](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.8.0),
-[0.7.1](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.7.1)
+**Latest release: [0.8.2](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.8.2)**
+· [Source ZIP](https://github.com/RaNDoM6913/Tilvero/releases/download/v0.8.2/Tilvero-0.8.2-source.zip)
+· [Release notes and checksums](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.8.2)
+· Earlier: [0.8.1](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.8.1),
+[0.8.0](https://github.com/RaNDoM6913/Tilvero/releases/tag/v0.8.0)
 
 ```sh
-git clone --branch v0.8.1 https://github.com/RaNDoM6913/Tilvero.git
+git clone --branch v0.8.2 https://github.com/RaNDoM6913/Tilvero.git
 cd Tilvero
 bash scripts/test.sh
 bash scripts/build-local-app.sh

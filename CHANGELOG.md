@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.8.2 — Optimized Charging and the Charge Limit — 2026-11-27
+
+An Optimized Battery Charging switch, a charge limit that works like System Settings and a one-command install.
+
+**Added**
+- An Optimized Battery Charging switch on the Charge page of the quick menu and on the window's Charging page. It is macOS's own setting: Tilvero
+  reads it, writes it and reads the result back, and it is independent of the charge limit. While a Charge by time plan charges, Tilvero pauses
+  Optimized Charging until tomorrow (macOS's own pause) so the plan can reach its target; if the pause does not read back, the plan says so.
+- One-command install: `bash scripts/install.sh` checks the requirements (Apple silicon, macOS 26.0+, full Xcode), builds a release copy, verifies its
+  signature and installs it into Applications (or `--applications-dir`), keeping a rollback copy. It needs no administrator rights and changes no charging, fan,
+  power or sleep setting. `llms.txt` and "Notes for AI agents" in the README describe the project and the install for coding agents; the README now leads with
+  what Tilvero does, an FAQ and the install.
+
+**Changed**
+- The charge limit works like System Settings. Any of 80, 85, 90, 95 and 100 % applies at once and is read back, in both directions, at any charge level,
+  on the adapter or on battery, including a limit below the current charge. Tilvero shows what macOS stores (100 % when the limit is off); a change made in
+  System Settings appears in Tilvero, and a value that cannot be read shows "—" with a note instead of a guessed slider. The "Validate 80-100 %" check, the
+  battery-level floor and the "waiting for natural discharge" states are gone. Quitting, logging out, or updating Tilvero never
+  writes the limit and never refuses because of it. The limit is read again when the app or the window becomes active.
+- Charge to 100 % once and Charge by time keep your previous limit and put it back; a limit you changed elsewhere in the meantime is adopted, never
+  overwritten. If you move the slider while a plan is charging, your choice wins and the plan ends; a plan that is only armed follows the new value as it
+  follows a change in System Settings. Charge to 100 % once does not pause Optimized Charging.
+
+**Fixed**
+- A native change that macOS never confirmed (for example after the macOS 27.2.1 update left two different limits listed) could leave the charge limit
+  stuck on "change in progress" and "unconfirmed" at every launch. It now closes, without any write, as soon as macOS reads one clear limit.
+
+Source for Apple silicon with macOS 26.0+ and full Xcode; no app or DMG. Verified on a real Mac (build 109, 2026-11-27): the slider 100 to 85 and 80 % and back
+on the adapter and on battery, System Settings and Tilvero following each other both ways, and the limit unchanged across a relaunch. Charge by time waking a
+sleeping Mac on schedule with the lid closed charged 80 to 100 % (2026-11-24). Not yet verified on a real Mac: the "until tomorrow" pause of Optimized Charging
+during a Charge by time plan, the sign of the live battery power while charging on AC, and the new window on macOS 26 (seen on macOS 27.2 only).
+
 ## 0.8.1 — Quick Menu Builder Source Preview — 2026-11-24
 
 A rebuilt quick menu builder, a redesigned "Time to 20%" block and a dark-mode fix.

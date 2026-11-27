@@ -38,9 +38,10 @@ This UI acceptance does not renew hardware-control qualification after an OS upg
 | Sleep Timer | One-shot development sessions with preparation and cancellation | Disabled in DEMO and Monitoring Preview; actual system sleep/wake remains a device check |
 | Closed-lid mode | Implemented lid-only backend, dedicated signed helper, journal, lease and guardian; fixture-tested | Normal builds gated; separately signed trial is limited to 120 seconds; physical behavior/restoration not qualified |
 | Saved modes | Separate Save / Apply, action previews and per-action outcomes | Saving never applies; unqualified energy/display actions are excluded |
-| Charge by time | Plan from the charge level, adapter power and a margin; lifts the macOS limit just in time and restores it; one optional administrator permission (`pmset schedule wake`) for a scheduled wake; fixture-tested | Waking a sleeping Mac on schedule with the lid closed was verified on one Mac (Mac17,3, macOS 27.2, 2026-11-24); macOS Optimized Battery Charging can still hold the charge at 80 % for a while; a limit you change in macOS always wins. Lifting and restoring the limit use the native charge controller, so the same admission (exact Mac/OS/ABI) applies |
+| Charge by time | Plan from the charge level, adapter power and a margin; lifts the macOS limit just in time and restores your previous limit; pauses macOS Optimized Battery Charging until tomorrow while the plan charges; one optional administrator permission (`pmset schedule wake`) for a scheduled wake; fixture-tested | Waking a sleeping Mac on schedule with the lid closed was verified on one Mac (Mac17,3, macOS 27.2, 2026-11-24); the "until tomorrow" pause of Optimized Battery Charging during a plan is not yet verified on a real Mac, so macOS may still hold the charge at 80 % if the pause does not take effect (Tilvero says so when the pause is not confirmed); a limit you change in macOS always wins. Lifting and restoring the limit use the native charge controller, so the same admission (exact Mac/OS/ABI) applies |
 | First-run setup | One window on a brand-new install: launch at login, history, the With lid closed switch (`pmset disablesleep` through the sudoers rule, not the gated closed-lid helper) and charge by time, with one macOS administrator dialog (or a prepared Terminal command) for the two that need it; Settings > Setup lists and removes the permissions; fixture-tested | The real administrator dialog, the Terminal route and the login item from a non-/Applications path still need your own device check |
-| Native charge controller | User-space PowerUI adapter with a recovery journal | Requires admission on the exact Mac/OS/ABI; cutoff and one-time-full-charge behavior have separate gates |
+| Native charge limit | User-space PowerUI adapter: any of 80, 85, 90, 95 and 100 % applies at once as in System Settings, every write is journaled and read back, and what macOS stores is what Tilvero shows. Verified on one Mac on 2026-11-27 (the slider both ways on the adapter and on battery, System Settings sync both ways, the limit unchanged across a relaunch) | Uses a private macOS interface: if a macOS update changes it, the limit shows "—" and read-only instead of guessing; physical cutoff is not qualified |
+| Optimized Battery Charging switch | macOS's own setting, read and written through the same interface and read back; independent of the charge limit | Not yet verified on a real Mac as part of a charge-by-time plan |
 | Privileged helper and recovery | Source and fixture implementation | Trusted signing, OS enrollment, lifecycle and device acceptance remain open |
 | Privileged charge, energy modes and fans | Physical writes disabled by qualification gates | No generally qualified physical-write set; Pro cooling needs real sensor/RPM/Auto/recovery evidence |
 | Extended/sub-80% limits and forced discharge | Unavailable | Require independent supported contracts and hardware validation |
@@ -59,10 +60,10 @@ are not persisted in battery history.
 ## Development source and Monitoring Preview
 
 A default `build-local-app.sh` build uses the development identity. It includes
-control-related code and bundled, unregistered helpers. The dedicated lid helper has separate identities and storage; building never enrolls either helper. Native charge admission
-is a separate normal-user route: a bounded setting/readback/restoration check
-never enables helper or fan control. Targets may remain pending until natural
-discharge; a pending target is not active. Fans default to System Auto.
+control-related code and bundled, unregistered helpers. The dedicated lid helper has separate identities and storage; building never enrolls either helper. The native charge limit
+is a separate normal-user route: every write is journaled first and read back, and it
+never enables helper or fan control. A limit below the current charge applies at once,
+as in System Settings. Fans default to System Auto.
 
 The release configuration selects **monitoring** mode. Its future DMG contains no
 privileged helper or service registration and disables control actions, keyboard
@@ -75,7 +76,7 @@ privileged qualification gate. See the [helper architecture](../Helper/README.md
 
 ## Validation and distribution
 
-The 0.8.1 source passed the default suite on 2026-11-24 (**1,406 Swift tests, 3 skipped, 0 failures, and 86 Python release-tool tests**). The earlier Sleep-controls source milestone passed the complete **557 Swift tests and 61 Python release-tool tests**, built SwiftPM Release and Xcode Debug bundles, and verified local ad-hoc integrity. An earlier complete run failed eight protected migration-journal operations; a standalone Foundation probe reproduced unavailable Class B reopen/read operations. A later unchanged-source run passed after those protected operations became available, with the same protection class and `0600` permissions. The precise external authentication/system transition remains unknown. These results apply to the recorded source milestone, not automatically
+The 0.8.2 source passed the default suite on 2026-11-27 (**<<SWIFT_COUNT>> Swift tests, <<SKIPPED>> skipped, 0 failures, and <<PY_COUNT>> Python release-tool tests**). The 0.8.1 source passed with 1,406 Swift tests and 86 Python release-tool tests. The earlier Sleep-controls source milestone passed the complete **557 Swift tests and 61 Python release-tool tests**, built SwiftPM Release and Xcode Debug bundles, and verified local ad-hoc integrity. An earlier complete run failed eight protected migration-journal operations; a standalone Foundation probe reproduced unavailable Class B reopen/read operations. A later unchanged-source run passed after those protected operations became available, with the same protection class and `0600` permissions. The precise external authentication/system transition remains unknown. These results apply to the recorded source milestone, not automatically
 to a later release commit. [Testing and validation](TESTING.md) summarizes public coverage and its limits.
 
 **Implemented** means code exists. **Fixture-tested** means deterministic inputs
