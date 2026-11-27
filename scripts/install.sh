@@ -115,16 +115,21 @@ ditto "$staging_root/Tilvero.app" "$incoming_dir/Tilvero.app"
 codesign --verify --strict "$incoming_dir/Tilvero.app" \
   || fail 'the new build did not pass code signature verification; the installed copy was not changed.'
 refuse_if_running
+had_previous=false
 if [[ -e "$target" ]]; then
   step "Keeping the previous copy in build/install.noindex/$stamp/previous/"
   mkdir -p "$staging_root/previous"
   mv "$target" "$staging_root/previous/Tilvero.app"
+  had_previous=true
 fi
 if ! mv "$incoming_dir/Tilvero.app" "$target"; then
-  if [[ -e "$staging_root/previous/Tilvero.app" && ! -e "$target" ]]; then
+  if [[ "$had_previous" == true && ! -e "$target" ]]; then
     mv "$staging_root/previous/Tilvero.app" "$target"
+    fail 'the new build could not be moved into place; the previous copy was put back.'
   fi
-  fail 'the new build could not be moved into place; the previous copy was put back.'
+  [[ "$had_previous" == true ]] \
+    && fail "the new build could not be moved into place; the previous copy is in build/install.noindex/$stamp/previous/."
+  fail 'the new build could not be moved into place; nothing was installed.'
 fi
 rm -rf "$incoming_dir"
 trap - EXIT

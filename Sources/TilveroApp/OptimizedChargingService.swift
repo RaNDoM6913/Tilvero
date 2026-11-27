@@ -120,7 +120,7 @@ enum OptimizedChargingText {
         "The System Settings › Battery switch. macOS may hold the battery at 80 % until shortly before you usually unplug.",
         "Charge by time pauses it until tomorrow so the battery is full on time; macOS turns it back on.",
     ]
-    /// «macOS придерживает заряд · полная к ≈ 11:19» while macOS holds the charge; nil otherwise. The time is macOS's own plan.
+    /// «macOS придерживает заряд · полный заряд к ≈ 11:19» while macOS holds the charge; nil otherwise. The time is macOS's own plan.
     static func holdLine(_ state: OptimizedChargingState) -> String? {
         guard state.enabled, state.holding == true else { return nil }
         guard let by = state.fullChargeBy, by.timeIntervalSince(state.collectedAt) > 0 else { return L10n.text("macOS is holding the charge") }
