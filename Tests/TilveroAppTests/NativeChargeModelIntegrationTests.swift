@@ -392,3 +392,235 @@ extension NativeChargeModelIntegrationTests {
         XCTAssertEqual(SystemChargeLimitPanel.headline(native: native, observation: battery, language: "en"), "100%")
     }
 }
+
+// MARK: Second review: unknown values, the user's own release, races, notices, returning surfaces
+
+extension NativeChargeModelIntegrationTests {
+    private func waitFor(_ condition: () -> Bool) async throws {
+        for _ in 0..<400 where !condition() { try await Task.sleep(for: .milliseconds(5)) }
+    }
+
+    /// After the limit was granted, macOS reports a state Tilvero does not recognise: the read-only layout with the
+    /// reported target (as before the grant), never a dimmed slider parked at a guessed 80 with dead controls; the capsule
+    /// agrees with the page. The slider returns with a valid state.
+    func testAnIncompleteReadAfterAdmissionIsReadOnlyWithTheReportedTarget() async throws {
+        let f = ScopeFixture(initialTarget: 90); defer { f.cleanup() }
+        let service = f.makeService()
+        let (model, suite) = f.makeModel(service, percent: 60, charging: true, externalPower: true)
+        defer { model.stop(); TestDefaults.remove(suite) }
+        await model.refreshNativeCharge()
+        XCTAssertEqual(ChargeLimitKit.mode(model), .slider)
+        await f.client.setMode("unknown")   // rawManualState 3, current target 100
+        await model.refreshNativeCharge()
+        XCTAssertTrue(service.admitted, "granted earlier in the session")
+        XCTAssertNil(service.presentation().currentPreference)
+        XCTAssertEqual(ChargeLimitKit.mode(model), .unavailable)
+        XCTAssertEqual(ChargeLimitKit.reported(model), 100, "what macOS reports, not 80")
+        XCTAssertEqual(ChargeLimitKit.readout(ChargeLimitKit.reported(model)), "100")
+        XCTAssertFalse(ChargeLimitKit.showsChargeOnce(model), "no dead pill")
+        XCTAssertFalse(ChargeLimitKit.showsChargeBy(model, armed: false), "no dead charge-by block")
+        XCTAssertEqual(OverviewHeroLimit.resolve(usesNativeCharge: model.usesNativeCharge, preference: nil,
+                                                 reportedTarget: service.currentReportedTarget), .percent(100))
+        await f.client.setMode("")
+        await model.refreshNativeCharge()
+        XCTAssertEqual(ChargeLimitKit.mode(model), .slider)
+        XCTAssertEqual(ChargeLimitKit.shown(chosen: nil, model: model), 90)
+        await f.assertWrites([])
+    }
+
+    /// The setter hangs past its deadline: nothing fresh is known, so the page is read-only with "—" (no thumb at 80, no
+    /// System Settings note for a write in flight). Once the write lands and is read, the slider shows it.
+    func testAWriteOfUnknownOutcomeShowsADashNotAGuessedThumb() async throws {
+        let f = ScopeFixture(initialTarget: 90); defer { f.cleanup() }
+        let service = f.makeService(operationTimeout: .milliseconds(150))
+        let (model, suite) = f.makeModel(service, percent: 60, charging: true, externalPower: true)
+        defer { model.stop(); TestDefaults.remove(suite) }
+        await model.refreshNativeCharge()
+        await f.client.holdWrites()
+        model.releaseChargeLimit(at: 85)
+        for _ in 0..<500 where !(await f.client.isHoldingWrite) { await Task.yield() }
+        try await settle(model)   // the gate deadline passed: the action returned with the call still pending
+        XCTAssertTrue(service.operationPending)
+        XCTAssertNil(service.reportedLimit)
+        XCTAssertEqual(ChargeLimitKit.mode(model), .unavailable, "no slider without a known value")
+        XCTAssertNil(ChargeLimitKit.reported(model))
+        XCTAssertEqual(ChargeLimitKit.readout(ChargeLimitKit.reported(model)), "—")
+        XCTAssertTrue(service.notReadYet, "the System Settings note stays quiet for a write in flight")
+        XCTAssertFalse(ChargeLimitKit.showsChargeOnce(model))
+        await f.client.releaseWrite()
+        try await waitFor { !service.operationPending }
+        await model.refreshNativeCharge()
+        XCTAssertEqual(ChargeLimitKit.mode(model), .slider)
+        XCTAssertEqual(ChargeLimitKit.shown(chosen: nil, model: model), 85)
+        await f.assertWrites(["limit85"])
+    }
+
+    /// A readback that does not confirm, but was read after the setter returned, is what macOS reports now: it stays, so
+    /// the page keeps its slider (no flash to an unknown value until the next read).
+    func testAnUnconfirmedReadbackKeepsTheValueReadAfterTheWrite() async throws {
+        let f = ScopeFixture(initialTarget: 90); defer { f.cleanup() }
+        let service = f.makeService()
+        let (model, suite) = f.makeModel(service, percent: 60, charging: true, externalPower: true)
+        defer { model.stop(); TestDefaults.remove(suite) }
+        await model.refreshNativeCharge()
+        await f.client.lagNextWrite(reads: 1)   // the readback still reads the old 90
+        do { try await service.apply(85); XCTFail("unconfirmed") } catch {}
+        XCTAssertTrue(service.hasUnresolvedSession)
+        XCTAssertEqual(service.reportedLimit, 90, "read after the dispatch: what macOS reports now")
+        XCTAssertEqual(ChargeLimitKit.mode(model), .slider)
+        await model.refreshNativeCharge()
+        XCTAssertEqual(service.reportedLimit, 85, "the write has landed")
+        await f.assertWrites(["limit85"])
+    }
+
+    /// The user's own release during a one-time charge ends it at once (no write of its own): returning to 100 quickly,
+    /// before any poll saw the 85, is kept on unplug instead of the old 90 being written back.
+    func testTheUsersOwnReleaseEndsAOneTimeCharge() async throws {
+        let f = ScopeFixture(initialTarget: 90); defer { f.cleanup() }
+        let service = f.makeService()
+        let source = SnapshotSource(percent: 60, charging: true, externalPower: true)
+        let (model, suite) = f.makeModel(service, snapshot: { source.read() })
+        defer { model.stop(); TestDefaults.remove(suite) }
+        await model.refreshNativeCharge()
+        model.startChargeOnce()
+        try await settle(model)
+        XCTAssertEqual(model.chargeOnce.previousTarget, 90)
+        model.releaseChargeLimit(at: 85)
+        try await settle(model)
+        XCTAssertNil(model.chargeOnce.previousTarget, "the user's own level ends the one-time charge")
+        model.releaseChargeLimit(at: 100)
+        try await settle(model)
+        source.set(percent: 70, charging: false, externalPower: false)
+        await model.refresh()
+        try await settle(model)
+        XCTAssertEqual(service.reportedLimit, 100, "the user's last choice stays")
+        await f.assertWrites(["limit100", "limit85", "limit100"])
+    }
+
+    /// A release that wrote nothing (its own read failed) changed nothing: the one-time charge keeps running.
+    func testAReleaseThatWroteNothingLeavesTheOneTimeChargeRunning() async throws {
+        let f = ScopeFixture(initialTarget: 90); defer { f.cleanup() }
+        let service = f.makeService()
+        let (model, suite) = f.makeModel(service, percent: 60, charging: true, externalPower: true)
+        defer { model.stop(); TestDefaults.remove(suite) }
+        await model.refreshNativeCharge()
+        model.startChargeOnce()
+        try await settle(model)
+        await f.client.setMode("unknown")   // the release's own read fails: nothing can be written
+        XCTAssertTrue(model.canEdit)
+        model.releaseChargeLimit(at: 85)
+        try await settle(model)
+        XCTAssertEqual(model.chargeOnce.previousTarget, 90)
+        await f.assertWrites(["limit100"])
+    }
+
+    /// The user's own release ends a charge-by plan, armed (even with a lift of unknown outcome) or charging, writing
+    /// nothing of the plan's: it never puts the previous limit back over the user's choice.
+    func testTheUsersOwnReleaseEndsAChargeByPlanWithoutAWrite() async throws {
+        let now = Date()
+        for (phase, liftRequested) in [(ChargeByPlanState.Phase.charging, false), (.armed, true), (.armed, false)] {
+            let label = "\(phase) lift=\(liftRequested)"
+            let f = ScopeFixture(initialTarget: phase == .charging || liftRequested ? 100 : 80); defer { f.cleanup() }
+            var plan = ChargeByPlanState(deadline: now.addingTimeInterval(8 * 3600), target: 100, previousLimit: 80, phase: phase,
+                                         startAt: now.addingTimeInterval(3600), wakeAt: nil)
+            plan.liftRequested = liftRequested ? true : nil
+            let data = try JSONEncoder().encode(plan)
+            let service = f.makeService()
+            let (model, suite) = f.makeModel(service, configure: { $0.set(data, forKey: "chargeByPlan.v1") },
+                                             snapshot: { ScopeFixture.snapshot(percent: 60, charging: true, externalPower: true) })
+            defer { model.stop(); TestDefaults.remove(suite) }
+            await model.refreshNativeCharge()
+            XCTAssertTrue(model.chargeBy.isArmed, label)
+            model.releaseChargeLimit(at: 85)
+            try await settle(model)
+            XCTAssertNil(model.chargeBy.state, "\(label): the user's level ends the plan")
+            XCTAssertEqual(service.reportedLimit, 85, label)
+            await f.assertWrites(["limit85"], label)
+        }
+    }
+
+    /// A background read that takes the service between the release and its apply is waited for: the user's level is
+    /// written, never dropped with a "still in progress" notice.
+    func testABackgroundReadStartedAfterTheReleaseDoesNotDropTheWrite() async throws {
+        let f = ScopeFixture(initialTarget: 90); defer { f.cleanup() }
+        let service = f.makeService()
+        let (model, suite) = f.makeModel(service, percent: 60, charging: true, externalPower: true)
+        defer { model.stop(); TestDefaults.remove(suite) }
+        await model.refreshNativeCharge()
+        model.releaseChargeLimit(at: 85)   // the apply task is queued
+        await service.refresh()            // a poll's read takes the service first
+        try await settle(model)
+        XCTAssertEqual(service.reportedLimit, 85)
+        XCTAssertNil(model.notice, "no refusal")
+        await f.assertWrites(["limit85"])
+    }
+
+    /// A transient read failure leaves the stored setting fresh (no status line): a release that fails on the same error
+    /// still says so on the page, and a later successful read clears the stale error.
+    func testAFailedReleaseIsSaidEvenWhenTheServiceMessageMatches() async throws {
+        let f = ScopeFixture(initialTarget: 90); defer { f.cleanup() }
+        let service = f.makeService()
+        let (model, suite) = f.makeModel(service, percent: 60, charging: true, externalPower: true)
+        defer { model.stop(); TestDefaults.remove(suite) }
+        await model.refreshNativeCharge()
+        await f.client.setMode("readError")
+        await model.refreshNativeCharge()
+        let failure = ScopeReadError().localizedDescription
+        XCTAssertEqual(service.message, failure)
+        XCTAssertEqual(ChargeLimitKit.mode(model), .slider, "the stored setting is still fresh")
+        model.releaseChargeLimit(at: 85)
+        try await settle(model)
+        let state = service.presentation()
+        XCTAssertNil(NativeChargeStatusText.shown(state, model: model), "no status line with a fresh value")
+        XCTAssertEqual(model.notice, L10n.text(failure))
+        XCTAssertEqual(model.notice, service.message.map(L10n.text), "the notice equals the service message (once filtered out)")
+        XCTAssertEqual(NativeChargeStatusText.notice(state, model: model), L10n.text(failure), "never a silent snap-back")
+        await f.client.setMode("")
+        await model.refreshNativeCharge()
+        XCTAssertNil(service.message, "a successful read clears the stale read error")
+        await f.assertWrites([])
+    }
+
+    /// The window becoming visible again or the app becoming active reads the limit at once (a change made in System
+    /// Settings meanwhile shows without waiting for the poll). A read only.
+    func testAReturningSurfaceReadsTheLimitAtOnce() async throws {
+        let f = ScopeFixture(initialTarget: 90); defer { f.cleanup() }
+        let service = f.makeService()
+        let (model, suite) = f.makeModel(service, percent: 60, charging: true, externalPower: true)
+        defer { model.stop(); TestDefaults.remove(suite) }
+        await model.refreshNativeCharge()
+        await f.client.external(target: 95)   // System Settings
+        model.isDetailVisible = true
+        try await waitFor { service.reportedLimit == 95 }
+        XCTAssertEqual(service.reportedLimit, 95, "the window came back")
+        model.isDetailVisible = false
+        await f.client.external(target: 80)
+        model.nativeChargeSurfaceReturned()   // the app became active
+        try await waitFor { service.reportedLimit == 80 }
+        XCTAssertEqual(service.reportedLimit, 80)
+        XCTAssertEqual(model.draftTarget, 80)
+        await f.assertWrites([])
+    }
+
+    /// Charge-by learns whether an apply wrote anything: nothing before the first read or after a failed pre-write read,
+    /// a write of unknown outcome only when one was dispatched.
+    func testChargeByKnowsWhetherAnApplyWroteAnything() async throws {
+        let f = ScopeFixture(initialTarget: 90); defer { f.cleanup() }
+        let service = f.makeService()
+        let (model, suite) = f.makeModel(service, percent: 60, charging: true, externalPower: true)
+        defer { model.stop(); TestDefaults.remove(suite) }
+        let environment = ModelChargeByEnvironment(model: model)
+        let unread = await environment.apply(limit: 100, expected: 90)
+        XCTAssertEqual(unread, .notWritten, "launch: nothing read yet")
+        await model.refreshNativeCharge()
+        await f.client.setMode("unknown")
+        let refused = await environment.apply(limit: 100, expected: 90)
+        XCTAssertEqual(refused, .notWritten, "the pre-write read failed")
+        await f.client.setMode("")
+        await model.refreshNativeCharge()
+        await f.client.lagNextWrite(reads: 1)
+        let unconfirmed = await environment.apply(limit: 100, expected: 90)
+        XCTAssertEqual(unconfirmed, .failed, "dispatched, not confirmed: it may still land")
+        await f.assertWrites(["limit100"])
+    }
+}

@@ -57,6 +57,20 @@ enum NativeChargeStatusText {
         text(state, inputs(model.nativeCharge), compact: compact)
     }
 
+    /// The status line the Charge and Charging pages draw: nothing while an operation is pending (the spinner says it)
+    /// until it passes its deadline.
+    @MainActor static func shown(_ state: NativeChargePresentation, model: TilveroModel) -> String? {
+        guard state.attention != .operationPending || state.pendingTimedOut else { return nil }
+        return text(state, model: model)
+    }
+
+    /// The page notice (a refused or failed change) under that line: always shown, unless the line already says exactly
+    /// the same (a failure is never hidden behind a line that is not on screen).
+    @MainActor static func notice(_ state: NativeChargePresentation, model: TilveroModel) -> String? {
+        guard let notice = model.notices.current()?.text else { return nil }
+        return notice == shown(state, model: model).map(L10n.text) ? nil : notice
+    }
+
     /// Orange for what needs a look (a session file that could not be handled, an overdue operation), grey otherwise.
     static func isWarning(_ state: NativeChargePresentation) -> Bool { state.requiresGlobalAttention || state.pendingTimedOut }
 }

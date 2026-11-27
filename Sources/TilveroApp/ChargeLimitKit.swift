@@ -24,14 +24,19 @@ enum ChargeLimitKit {
         return canShowControls && hasTargets ? .slider : .unavailable
     }
 
-    /// A fresh state macOS reports but Tilvero does not change (its temporary charge to full: disabled with a target) is
-    /// shown read-only, as it is before the interface was granted; the slider returns once macOS reports a valid state.
+    /// The slider needs a fresh, valid value from macOS. Anything else is shown read-only, as before the interface was
+    /// granted: a state Tilvero does not change (its temporary charge to full: disabled with a target), an incomplete read
+    /// (the reported target), or nothing fresh at all (a write whose outcome is unknown, a failing read: "—"). The slider
+    /// returns once macOS reports a valid state; the thumb is never drawn at a guessed level.
     @MainActor static func mode(_ model: TilveroModel) -> Mode {
         let preference = model.nativeCharge.presentation().currentPreference
-        let validState = model.isDemo || preference.map(NativeChargeAdmission.isValidState) ?? true
+        let known = model.isDemo || preference.map(NativeChargeAdmission.isValidState) == true
         return mode(isDemo: model.isDemo, usesNativeCharge: model.usesNativeCharge,
-                    canShowControls: model.canShowChargeControls && validState, hasTargets: !targets(model).isEmpty)
+                    canShowControls: model.canShowChargeControls && known, hasTargets: !targets(model).isEmpty)
     }
+
+    /// The limit's readout: the level, or "—" when macOS has not reported one (never a guessed number).
+    static func readout(_ value: Int?) -> String { value.map(String.init) ?? "—" }
 
     /// Charge once and charge by time act only where the slider does; in the read-only state they are not drawn at all
     /// (no dead controls), except while one of them runs, so its cancel stays reachable.
@@ -135,7 +140,9 @@ enum ChargeLimitKit {
 
 /// Step slider over the verified levels with the level labels under its tick positions. Letting go applies the level
 /// (there is no Apply button); keyboard and accessibility steps settle first. `chosen` holds what the slider shows from
-/// the user's first movement until the apply is done, so a busy model never snaps it back.
+/// the user's first movement until the apply is done, so a busy model never snaps it back. When the slider goes away
+/// (the menu closes) the choice it shows is dropped, so the page shows what macOS holds when it opens again; a level the
+/// user already let go of is still applied.
 @MainActor struct ChargeLimitLevelSlider: View {
     var model: TilveroModel
     let targets: [Int]
@@ -170,9 +177,15 @@ enum ChargeLimitKit {
             }
             .frame(height: 14)
         }
-        .onDisappear { settle?.cancel() }
+        .onDisappear {
+            // A drag cut short was never let go of: nothing to apply. A release already settling still applies.
+            if dragging { settle?.cancel() }
+            dragging = false; chosen = nil
+        }
     }
 
+    /// The native slider is drawn only with a known level (`ChargeLimitKit.mode`); the first level is the simulation's
+    /// fallback before its draft exists.
     private func sliderPosition(_ shown: Int?) -> Double {
         Double(targets.firstIndex(of: shown ?? targets.first ?? 80) ?? 0)
     }
@@ -186,6 +199,8 @@ enum ChargeLimitKit {
     }
     private func applySoon(after delay: Duration) {
         settle?.cancel()
+        // The level let go of is kept here: it is applied even if the slider goes away meanwhile.
+        guard let target = chosen else { return }
         settle = Task { @MainActor in
             try? await Task.sleep(for: delay)
             // A busy model (a read or an earlier apply) is waited for, not fought: the choice is applied once it is free.
@@ -194,12 +209,12 @@ enum ChargeLimitKit {
                 if !model.isApplying && !model.nativeCharge.isBusy { break }
                 try? await Task.sleep(for: .milliseconds(100))
             }
-            guard !Task.isCancelled, !dragging, let target = chosen else { return }
+            guard !Task.isCancelled, !dragging else { return }
             // Applied, or refused visibly: the thumb returns to what macOS reports with one short reason.
             model.releaseChargeLimit(at: target)
-            // Release the local choice once the model shows the same level (or has refused it).
-            for _ in 0..<60 {
-                if !model.isApplying && !model.nativeCharge.isBusy { break }
+            // Release the local choice once the apply is over (or refused), however long the native call takes.
+            let end = ContinuousClock.now + model.nativeCharge.maximumOperationDuration
+            while !Task.isCancelled, ContinuousClock.now < end, model.isApplying || model.nativeCharge.isBusy {
                 try? await Task.sleep(for: .milliseconds(100))
             }
             if !Task.isCancelled, !dragging { chosen = nil }

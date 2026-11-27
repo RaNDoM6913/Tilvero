@@ -63,6 +63,8 @@ import PowerCore
         var landsLate = false
         /// The next apply finds the limit changed elsewhere (nothing written).
         var changedElsewhere = false
+        /// The next apply is refused before any write (not read yet, busy): nothing dispatched.
+        var notWritten = false
         var expectations: [Int?] = []
         var phaseAtPause: ChargeByPlanState.Phase?; weak var service: ChargeByService?
         /// The next apply waits inside the call until `release()` (a lift in flight).
@@ -76,6 +78,7 @@ import PowerCore
             expectations.append(expected)
             if holdNext { holdNext = false; await withCheckedContinuation { held = $0 } }
             if changedElsewhere { changedElsewhere = false; return .changedElsewhere }
+            if notWritten { notWritten = false; return .notWritten }
             applied.append(limit)
             if succeed || landsLate { obs.observedLimit = limit }
             return succeed ? .confirmed : .failed
@@ -384,6 +387,85 @@ import PowerCore
         await service.tick()
         XCTAssertEqual(env.applied, [100, 80])
         XCTAssertNil(service.state)
+    }
+
+    /// The launch tick lifts before anything was read and writes nothing: no lift intent stays behind (and no failure
+    /// line replaces "Connect the adapter"), so a later System Settings change to exactly the target is the user's own and
+    /// is followed, never taken for Tilvero's lift and then reverted.
+    func testALiftThatWroteNothingLeavesNoIntentSoASystemSettingsChangeIsFollowed() async throws {
+        let env = Env(); var clock = now
+        let (service, _, _) = makeService(env: env) { clock }
+        let armed = await service.arm(deadline: now.addingTimeInterval(8 * 3600), target: 100)
+        XCTAssertTrue(armed)
+        clock = try XCTUnwrap(service.state).startAt.addingTimeInterval(1)
+        env.obs.observedLimit = nil; env.obs.externalPower = nil   // the launch tick: nothing read yet
+        env.notWritten = true
+        await service.tick()
+        XCTAssertEqual(env.expectations, [80], "it tried")
+        XCTAssertNil(service.state?.liftRequested, "nothing was dispatched: no lift intent")
+        XCTAssertNil(service.message, "a refusal before any write is no failure to report")
+        env.obs.observedLimit = 80; env.obs.externalPower = false   // read: on battery
+        await service.tick()
+        XCTAssertEqual(service.state?.phase, .armed)
+        env.obs.observedLimit = 100   // the user sets 100 in System Settings
+        await service.tick()
+        XCTAssertNil(service.state, "the user's own value: the plan ends")
+        await service.tick()
+        XCTAssertEqual(env.applied, [], "the user's value is never overwritten")
+        XCTAssertEqual(env.pauses, 0)
+    }
+
+    /// A retried lift that writes nothing keeps the intent of the earlier, unresolved lift (it may still land).
+    func testARetryThatWroteNothingKeepsTheEarlierLiftsIntent() async throws {
+        let env = Env(); var clock = now
+        let (service, _, _) = makeService(env: env) { clock }
+        let armed = await service.arm(deadline: now.addingTimeInterval(8 * 3600), target: 100)
+        XCTAssertTrue(armed)
+        clock = try XCTUnwrap(service.state).startAt.addingTimeInterval(1)
+        env.succeed = false
+        await service.tick()   // dispatched, not confirmed
+        XCTAssertEqual(service.state?.liftRequested, true)
+        env.notWritten = true
+        await service.tick()
+        XCTAssertEqual(service.state?.liftRequested, true, "the first lift may still land")
+        env.obs.observedLimit = 100
+        await service.tick()
+        XCTAssertEqual(service.state?.phase, .charging, "recognised as Tilvero's own lift")
+    }
+
+    /// A cancel tapped while a lift is in flight, and that lift wrote nothing: nothing to undo, the plan just ends.
+    func testACancelledLiftThatWroteNothingEndsThePlanWithoutAWrite() async throws {
+        let env = Env(); var clock = now
+        let (service, _, _) = makeService(env: env) { clock }
+        let armed = await service.arm(deadline: now.addingTimeInterval(8 * 3600), target: 100)
+        XCTAssertTrue(armed)
+        clock = try XCTUnwrap(service.state).startAt.addingTimeInterval(1)
+        env.holdNext = true; env.notWritten = true
+        let tick = Task { await service.tick() }
+        for _ in 0..<500 where !env.isHolding { await Task.yield() }
+        await service.cancel()
+        env.release()
+        await tick.value
+        XCTAssertNil(service.state)
+        XCTAssertEqual(env.applied, [])
+    }
+
+    /// The user set the limit with the slider: the plan ends, armed or charging, with no write and its wake removed.
+    func testTheUsersOwnLimitEndsThePlanWithoutAWrite() async throws {
+        let env = Env(), wake = Wake()
+        let (service, _, _) = makeService(env: env, wake: wake) { self.now }
+        let armed = await service.arm(deadline: now.addingTimeInterval(8 * 3600), target: 100)
+        XCTAssertTrue(armed)
+        XCTAssertNotNil(service.state?.wakeAt)
+        await service.userChoseLimit()
+        XCTAssertNil(service.state)
+        XCTAssertEqual(wake.cancelled.count, 1, "its wake goes")
+        let again = await service.arm(deadline: now.addingTimeInterval(50 * 60), target: 100)
+        XCTAssertTrue(again)
+        XCTAssertEqual(service.state?.phase, .charging)
+        await service.userChoseLimit()
+        XCTAssertNil(service.state)
+        XCTAssertEqual(env.applied, [100], "only the second plan's lift; nothing restored over the user's choice")
     }
 
     func testAPlanSavedBeforeTheNewKeysStillDecodes() throws {

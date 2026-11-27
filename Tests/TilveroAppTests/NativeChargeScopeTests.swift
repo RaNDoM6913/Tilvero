@@ -342,7 +342,7 @@ import PowerCore
         XCTAssertEqual(service.reportedLimit, 95, "what macOS stores is shown")
         do { try await service.apply(90); XCTFail("a conflict that stays is not confirmed") } catch {}
         XCTAssertTrue(f.journalExists, "an unconfirmed write leaves a session that closes itself")
-        XCTAssertNil(service.reportedLimit, "the outcome is unknown until the next read (the model reads at once)")
+        XCTAssertEqual(service.reportedLimit, 90, "the readback was read after the write: what macOS stores now, not an unknown")
         await service.refresh()
         XCTAssertTrue(service.canApplyTarget(85))
         await f.assertWrites(["limit95", "limit90"])
@@ -473,7 +473,7 @@ import PowerCore
         catch NativeChargeServiceError.readbackMismatch {} catch { XCTFail("Wrong error: \(error)") }
         let saved = try JSONDecoder().decode(NativeChargeJournal.self, from: Data(contentsOf: g.journal))
         XCTAssertEqual(saved.phase, .indeterminate)
-        XCTAssertNil(stuck.reportedLimit, "the outcome is unknown until the next read (the model reads at once)")
+        XCTAssertEqual(stuck.reportedLimit, 85, "the readback was read after the write: what macOS stores now, not an unknown")
         await stuck.refresh()
         XCTAssertTrue(stuck.canApplyTarget(90), "the session blocks nothing")
         await g.client.setMode("")
@@ -627,6 +627,10 @@ import PowerCore
     }
 }
 
+struct ScopeReadError: Error, LocalizedError {
+    var errorDescription: String? { "The native charging interface failed." }
+}
+
 actor ScopeTransport: NativeChargeTransport {
     var writes: [String] = []
     private var mode: String
@@ -656,6 +660,8 @@ actor ScopeTransport: NativeChargeTransport {
         if mode == "unknown" || failAfterWrites.map({ writes.count > $0 }) == true {
             throw NativeChargeReadFailure(supportedTargets: [80,85,90,95,100], currentTarget: 100, rawManualState: 3, diagnosticStoredTarget: 90)!
         }
+        // "readError": a transient failure of the interface itself (an XPC error), not an unrecognised state.
+        if mode == "readError" { throw ScopeReadError() }
         // "failFirstReadAfterWrite": the first read after a write fails once (an unrecognized state), the next one is clean.
         if mode == "failFirstReadAfterWrite", !writes.isEmpty, !failedReadAfterWrite {
             failedReadAfterWrite = true

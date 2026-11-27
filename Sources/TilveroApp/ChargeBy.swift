@@ -37,7 +37,9 @@ enum ChargeByApplyResult: Equatable {
     case confirmed
     /// The limit was not the expected one just before the write (changed in System Settings): nothing written.
     case changedElsewhere
-    /// Not written, or not confirmed (it may still land: the next observation decides).
+    /// Refused before any write (not read yet, busy, an unclear read): nothing was dispatched, so nothing can land.
+    case notWritten
+    /// Dispatched but not confirmed: it may still land (the next observation decides).
     case failed
 }
 
@@ -222,6 +224,14 @@ extension ChargeByEnvironment { func pauseOptimizedCharging() async -> Bool { tr
         _ = await perform(.restore(cancelling.previousLimit), cancelling)
     }
 
+    /// The user set the limit themselves (the slider): their level wins and the plan ends, armed or charging, writing
+    /// nothing (its wake goes), so it never puts the older limit back over that choice.
+    func userChoseLimit() async {
+        guard state != nil else { return }
+        message = nil
+        await finish(removeWake: true)
+    }
+
     // MARK: Ticks
 
     func systemWillSleep() async { await tick(goingToSleep: true) }
@@ -304,6 +314,11 @@ extension ChargeByEnvironment { func pauseOptimizedCharging() async -> Bool { tr
                     return await perform(.restore(raised.previousLimit), raised)
                 case .changedElsewhere:
                     await finish(removeWake: true); return true   // nothing was written: nothing to undo
+                case .notWritten:
+                    // Nothing was written by this call: only an earlier unresolved lift can still land, and the ticks
+                    // restore or end the plan once the limit is read. Without one there is nothing to undo.
+                    if current.liftRequested == true { return false }
+                    await finish(removeWake: true); return true
                 case .failed:
                     // It may still land: the ticks restore once the limit reads the target, or end the plan otherwise.
                     message = "The charge limit could not be restored. Tilvero will try again."; return false
@@ -312,12 +327,15 @@ extension ChargeByEnvironment { func pauseOptimizedCharging() async -> Bool { tr
             switch result {
             case .confirmed:
                 await completeLift(requested); return true
-            case .changedElsewhere:
-                // Nothing was written by this call. A first lift: the user's own limit changed just before it, so the next
-                // tick adopts or drops. A retry of an earlier unresolved lift: that lift may be what changed the limit, so
-                // its intent stays and the next tick recognises it (`.lifted`) or follows the user's value.
-                if current.liftRequested != true { var cleared = requested; cleared.liftRequested = nil; state = cleared; save() }
-                message = nil; return false
+            case .changedElsewhere, .notWritten:
+                // Nothing was written by this call. A first lift's intent goes: the next tick adopts or drops a user's
+                // change, and a later read of the target (set in System Settings) is never taken for this lift. A retry of
+                // an earlier unresolved lift keeps it: that lift may still land, or be what changed the limit (`.lifted`).
+                if current.liftRequested != true, var cleared = state { cleared.liftRequested = nil; state = cleared; save() }
+                // A change made elsewhere wins quietly; a refusal before any write (not read yet, busy) is retried by the
+                // next tick and is no failure to report.
+                if result == .changedElsewhere { message = nil }
+                return false
             case .failed:
                 message = "The charge limit could not be raised. Tilvero will try again."; return false
             }
@@ -329,7 +347,7 @@ extension ChargeByEnvironment { func pauseOptimizedCharging() async -> Bool { tr
             case .confirmed, .changedElsewhere:
                 // Restored, or the user already chose another limit: theirs stays, the plan is over.
                 await finish(removeWake: true); return true
-            case .failed:
+            case .notWritten, .failed:
                 message = "The charge limit could not be restored. Tilvero will try again."; return false
             }
         }

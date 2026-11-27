@@ -155,6 +155,10 @@ enum NativeChargeServiceError: Error, LocalizedError {
     var ownJournalURL: URL? { monitoringOnly ? nil : journalURL }
     /// The background refresh's own read: it never counts as a pending operation in the presentation (no flicker).
     private var isRefreshing = false
+    /// Applies waiting for that read to end: a poll that starts just before a write never drops it.
+    private var readWaiters: [CheckedContinuation<Void, Never>] = []
+    /// The text of the last failed background read: a later successful read makes it untrue, so it clears it.
+    private var readFailureMessage: String?
     /// The longest a native apply can take (gate deadline plus the readback budget), for the model's waits.
     var maximumOperationDuration: Duration { operationTimeout + verificationDelay * verificationAttempts + .seconds(2) }
     /// `.mutationUnresolved` while a session is on disk, `.journalIntegrity` when one could not be handled safely.
@@ -164,6 +168,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
     private final class Transaction {
         var sessionID: UUID?
         var everDispatched = false
+        var dispatchedAt: Date?
         var confirmed = false
     }
 
@@ -296,7 +301,11 @@ enum NativeChargeServiceError: Error, LocalizedError {
 
     func refresh() async {
         guard !isBusy, !operationGate.pending else { return }
-        isBusy = true; isRefreshing = true; defer { isBusy = false; isRefreshing = false }
+        isBusy = true; isRefreshing = true
+        defer {
+            isBusy = false; isRefreshing = false
+            let waiting = readWaiters; readWaiters = []; waiting.forEach { $0.resume() }
+        }
         do {
             let value = try await readNative()   // a fresh read lands in nativeSetting whether or not the registry agrees
             guard value.isFresh && value.policyMatches else {
@@ -311,7 +320,7 @@ enum NativeChargeServiceError: Error, LocalizedError {
             if !monitoringOnly, hasUnresolvedSession, Self.closesSession(value: value, age: journalAge()) {
                 do { try closeSession(); message = nil } catch { markJournalIntegrity() }
             }
-        } catch { observed = nil; message = error.localizedDescription }
+        } catch { observed = nil; message = error.localizedDescription; readFailureMessage = message }
     }
 
     /// The one write path, exactly what System Settings does: a fresh read, a write-ahead journal, one setMCLLimit inside
@@ -322,6 +331,9 @@ enum NativeChargeServiceError: Error, LocalizedError {
     /// changed it: `changedElsewhere`, nothing written.
     func apply(_ target: Int, expectedCurrent: Int? = nil) async throws {
         guard !monitoringOnly, admitted else { throw NativeChargeServiceError.unavailable }
+        // A background read in flight (the poll, the panel opening) is waited for, never a reason to refuse: it takes
+        // milliseconds and the gate bounds it.
+        while isRefreshing { await withCheckedContinuation { readWaiters.append($0) } }
         guard !isBusy, !operationGate.pending else { throw NativeChargeServiceError.busy }
         isBusy = true; defer { isBusy = false }
         let current = try await readNative()
@@ -368,7 +380,8 @@ enum NativeChargeServiceError: Error, LocalizedError {
         }
         // Write-ahead: a crash or error cannot make a dispatched, unacknowledged write look untouched.
         journal?.expectedMutation = expected; journal?.hasWritten = true; try saveJournal()
-        try await operationGate.call(purpose: .setLimit(target: expected.target), onDispatch: { transaction.everDispatched = true }) { [client] in
+        try await operationGate.call(purpose: .setLimit(target: expected.target),
+                                     onDispatch: { transaction.everDispatched = true; transaction.dispatchedAt = Date() }) { [client] in
             try await client.setLimit(expected.target)
         }
         // The setter's return and a fresh read of the requested configuration are separate proofs.
@@ -399,7 +412,8 @@ enum NativeChargeServiceError: Error, LocalizedError {
         do {
             let value = try await operationGate.call(purpose: .read) { [client] in try await client.read() }
             if let previous = incompleteObservation, message == previous.localizedDescription { message = nil }
-            if let current = message, Self.deadlineMessages.contains(current) { message = nil }
+            if let current = message, Self.deadlineMessages.contains(current) || current == readFailureMessage { message = nil }
+            readFailureMessage = nil
             incompleteObservation = nil
             // Every successful fresh read is what macOS stores now (and grants the interface), even when its policy is not
             // confirmed (a registry conflict): the surfaces show it, confirmation is separate.
@@ -448,10 +462,12 @@ enum NativeChargeServiceError: Error, LocalizedError {
         } else if transaction.confirmed {
             do { try relinquish(); message = nil } catch { markJournalIntegrity() }
         } else {
-            // The write may land at any moment (a setter past its deadline, a readback that did not confirm): the stored
-            // setting is unknown until the next read, so no caller decides from the pre-write value (charge-once, charge-by,
-            // the readout show "—" meanwhile). The gate keeps the slider unavailable while the call is still pending.
-            nativeSetting = nil
+            // The write may land at any moment (a setter past its deadline, a readback that did not confirm): a value read
+            // before the dispatch is no longer what macOS stores, so no caller decides from it (charge-once, charge-by,
+            // the editor shows the reported target or "—" until the next read). A read made after the dispatch (a readback
+            // that did not confirm) is what macOS reports now: it stays, so the page does not flash an unknown value.
+            let readSinceDispatch = transaction.dispatchedAt.map { dispatched in nativeSetting.map { $0.collectedAt >= dispatched } ?? false }
+            if readSinceDispatch != true { nativeSetting = nil }
             journal?.phase = .indeterminate; reviewReason = .mutationUnresolved
             do { try saveJournal(); message = "macOS has not confirmed the last change yet." } catch { markJournalIntegrity() }
         }

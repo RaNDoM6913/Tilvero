@@ -15,10 +15,11 @@ enum OverviewHeroLimit: Equatable {
     case percent(Int)
 
     /// What macOS reports (the fresh stored setting, as System Settings shows it): its target while the limit is on and
-    /// 100 % while it is off, also during a registry conflict. A dash only when nothing fresh was read.
-    static func resolve(usesNativeCharge: Bool, preference: NativeChargeConfiguration?) -> OverviewHeroLimit {
+    /// 100 % while it is off, also during a registry conflict; else the readable target of an incomplete read, as the
+    /// Charge page and the Overview row show it. A dash only when nothing fresh was read.
+    static func resolve(usesNativeCharge: Bool, preference: NativeChargeConfiguration?, reportedTarget: Int? = nil) -> OverviewHeroLimit {
         guard usesNativeCharge else { return .hidden }
-        guard let value = ChargeLimitKit.current(preference) else { return .unconfirmed }
+        guard let value = ChargeLimitKit.current(preference) ?? reportedTarget else { return .unconfirmed }
         return .percent(value)
     }
 
@@ -39,7 +40,8 @@ enum OverviewHeroLimit: Equatable {
     var openCharge: (@MainActor () -> Void)?
 
     private var limit: OverviewHeroLimit {
-        .resolve(usesNativeCharge: model.usesNativeCharge, preference: model.nativeCharge.presentation().currentPreference)
+        .resolve(usesNativeCharge: model.usesNativeCharge, preference: model.nativeCharge.presentation().currentPreference,
+                 reportedTarget: model.nativeCharge.currentReportedTarget)
     }
 
     var body: some View {

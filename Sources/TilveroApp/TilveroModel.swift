@@ -541,7 +541,7 @@ final class TilveroModel {
     @ObservationIgnored var isDetailVisible = false { didSet {
         guard isDetailVisible != oldValue else { return }
         processScanSurfacesChanged()
-        if isDetailVisible { activityPageMayHaveAppeared() }
+        if isDetailVisible { activityPageMayHaveAppeared(); nativeChargeSurfaceReturned() }
         updateLiveCharts()
     } }
     /// Settings > Setup: the administrator permissions (nil in demo, monitoring-only and test sessions).
@@ -1335,6 +1335,12 @@ final class TilveroModel {
         if let last = lastNativeChargeRead, Date().timeIntervalSince(last) < maximumAge { return }
         await refreshNativeCharge()
     }
+    /// A surface came back (the app became active, the window is visible again): the limit may have been changed in
+    /// System Settings meanwhile, so it is read again at once instead of at the next poll. A read only.
+    func nativeChargeSurfaceReturned() {
+        guard !isDemo, !sleeping else { return }
+        ownTask { [weak self] in await self?.refreshNativeCharge() }
+    }
     func quickPanelDidClose() {
         isPopoverVisible = false
         if !isDetailVisible || selectedSection != .charging { discardDraft() }
@@ -1463,8 +1469,24 @@ final class TilveroModel {
         else if usesNativeCharge {
             // The native path has one action: set the limit (the one-time full charge is `startChargeOnce`).
             guard case .setCeiling(let target) = request else { return }
-            runNative { service in try await service.apply(target) }
+            runNative { [weak self] service in
+                let leftover = service.unresolvedSessionID
+                do { try await service.apply(target) }
+                catch {
+                    // Only a write this release dispatched can land (it leaves a session of its own on disk): it is the
+                    // user's choice as much as a confirmed one. A release that wrote nothing leaves both running.
+                    if let session = service.unresolvedSessionID, session != leftover { await self?.userChoseLimit() }
+                    throw error
+                }
+                await self?.userChoseLimit()
+            }
         } else { runLive { try await $0.submit(request) } }
+    }
+    /// The user set the limit themselves: their level wins at once. A running one-time charge and a charge-by plan (armed
+    /// or charging) end here, writing nothing, so neither can later put an older limit back over this choice.
+    private func userChoseLimit() async {
+        chargeOnce.clear()
+        await chargeBy.userChoseLimit()
     }
     func refreshNativeCharge() async {
         guard !isDemo, !sleeping else { return }

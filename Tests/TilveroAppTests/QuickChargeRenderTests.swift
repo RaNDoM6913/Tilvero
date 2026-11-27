@@ -158,3 +158,55 @@ private actor StableChargeTransport: NativeChargeTransport {
     }
     func setLimit(_ target: Int) async { try? await Task.sleep(for: .milliseconds(80)); self.target = target }
 }
+
+/// The slider's own choice never outlives the slider: when the menu closes the page shows what macOS holds when it opens
+/// again (its state is reused). Fixture transport only.
+@MainActor final class ChargeSliderDisappearTests: XCTestCase {
+    final class Harness: ObservableObject {
+        @Published var visible = true
+        var chosen: Int?
+    }
+    struct HarnessView: View {
+        @ObservedObject var harness: Harness
+        let model: TilveroModel
+        var body: some View {
+            VStack {
+                if harness.visible {
+                    ChargeLimitLevelSlider(model: model, targets: [80, 85, 90, 95, 100],
+                                           chosen: Binding(get: { harness.chosen }, set: { harness.chosen = $0 }))
+                }
+            }.frame(width: 300, height: 80)
+        }
+    }
+
+    private func host(_ harness: Harness, _ model: TilveroModel) async throws -> (NSWindow, NSHostingController<HarnessView>) {
+        let host = NSHostingController(rootView: HarnessView(harness: harness, model: model))
+        let window = NSWindow(contentViewController: host)
+        window.setContentSize(NSSize(width: 300, height: 80)); host.view.layoutSubtreeIfNeeded()
+        try await Task.sleep(for: .milliseconds(150))
+        return (window, host)
+    }
+
+    func testAChoiceThatWasNotLetGoOfIsDroppedWhenTheSliderGoesAway() async throws {
+        let f = ScopeFixture(initialTarget: 90); defer { f.cleanup() }
+        let service = f.makeService()
+        let (model, suite) = f.makeModel(service, percent: 60, charging: true, externalPower: true)
+        defer { model.stop(); TestDefaults.remove(suite) }
+        await model.refreshNativeCharge()
+        let harness = Harness()
+        let (window, host) = try await host(harness, model)
+        defer { window.orderOut(nil) }
+        harness.chosen = 85   // shown on the slider, never let go of
+        XCTAssertEqual(ChargeLimitKit.shown(chosen: harness.chosen, model: model), 85)
+        harness.visible = false   // the menu closes
+        for _ in 0..<20 { try await Task.sleep(for: .milliseconds(10)); host.view.layoutSubtreeIfNeeded() }
+        XCTAssertNil(harness.chosen, "reopened, the page shows what macOS holds")
+        XCTAssertEqual(ChargeLimitKit.shown(chosen: harness.chosen, model: model), 90)
+        await f.assertWrites([])
+    }
+
+    func testTheReadoutIsADashWhenNothingIsKnown() {
+        XCTAssertEqual(ChargeLimitKit.readout(nil), "—")
+        XCTAssertEqual(ChargeLimitKit.readout(85), "85")
+    }
+}

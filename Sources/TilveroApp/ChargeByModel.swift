@@ -29,7 +29,8 @@ import PowerCore
     func pauseOptimizedCharging() async -> Bool { await model?.optimizedCharging.pauseForPlannedCharge() != .failed }
 
     func apply(limit: Int, expected: Int?) async -> ChargeByApplyResult {
-        guard let model, !model.isApplying, !model.isDemo else { return .failed }
+        guard let model, !model.isApplying, !model.isDemo else { return .notWritten }
+        let leftover = model.nativeCharge.unresolvedSessionID
         do {
             // The service reads the limit fresh, refuses a changed one, writes and reads back: no further refresh is needed
             // (a later read failure must not turn a confirmed write into a reported failure).
@@ -37,6 +38,11 @@ import PowerCore
             return .confirmed
         } catch NativeChargeServiceError.changedElsewhere {
             return .changedElsewhere
-        } catch { return .failed }
+        } catch {
+            // Only a write this call dispatched can land late, and it leaves a session of its own on disk. Anything else
+            // (not read yet, busy, an unclear read) wrote nothing.
+            guard let session = model.nativeCharge.unresolvedSessionID, session != leftover else { return .notWritten }
+            return .failed
+        }
     }
 }

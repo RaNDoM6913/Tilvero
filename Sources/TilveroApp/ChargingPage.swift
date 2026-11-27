@@ -225,16 +225,15 @@ enum ChargingComposition {
             ProgressView().controlSize(.mini).frame(width: 12, height: 12)
                 .opacity(!model.isDemo && ChargeLimitKit.isWorking(model, state) ? 1 : 0)
                 .accessibilityHidden(true)
-            if let value {
-                // A level that is not the one macOS holds (pending, or still being applied) is never drawn as applied.
-                let secondary: Color = theme.secondaryIsPrimary ? .primary : .secondary
-                (Text("\(value)").foregroundStyle(applied ? Color.primary : secondary)
-                 + Text(L10n.language == "ru" ? " %" : "%").font(.system(size: 16, weight: .medium)).foregroundStyle(secondary))
-                    .font(.system(size: 26, weight: .semibold)).monospacedDigit()
-                    .frame(minWidth: 72, alignment: .trailing)
-                    .accessibilityLabel(L10n.text("Charge limit"))
-                    .accessibilityValue(ChargeLimitKit.percent(value))
-            }
+            // A level that is not the one macOS holds (pending, or still being applied) is never drawn as applied; "—" while
+            // macOS has not reported a level (never a guessed number).
+            let secondary: Color = theme.secondaryIsPrimary ? .primary : .secondary
+            (Text(ChargeLimitKit.readout(value)).foregroundStyle(applied && value != nil ? Color.primary : secondary)
+             + Text(value == nil ? "" : L10n.language == "ru" ? " %" : "%").font(.system(size: 16, weight: .medium)).foregroundStyle(secondary))
+                .font(.system(size: 26, weight: .semibold)).monospacedDigit()
+                .frame(minWidth: 72, alignment: .trailing)
+                .accessibilityLabel(L10n.text("Charge limit"))
+                .accessibilityValue(value.map { ChargeLimitKit.percent($0) } ?? "—")
         }
         .frame(minHeight: 32)
     }
@@ -281,8 +280,7 @@ enum ChargingComposition {
     /// The native status line (an unconfirmed change or policy); the notice strip under the lead carries the page-wide
     /// notices.
     @ViewBuilder private func statusLine(_ state: NativeChargePresentation) -> some View {
-        if !model.isDemo, state.attention != .operationPending || state.pendingTimedOut,
-           let status = NativeChargeStatusText.text(state, model: model) {
+        if !model.isDemo, let status = NativeChargeStatusText.shown(state, model: model) {
             Text(L10n.text(status)).font(.callout)
                 .foregroundStyle(NativeChargeStatusText.isWarning(state) ? .orange : .secondary)
                 .fixedSize(horizontal: false, vertical: true)

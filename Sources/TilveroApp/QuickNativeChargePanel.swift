@@ -46,14 +46,16 @@ import ChargeBackends
                 .opacity(ChargeLimitKit.isWorking(model, state) ? 1 : 0)
                 .animation(.easeOut(duration: 0.15), value: ChargeLimitKit.isWorking(model, state))
                 .accessibilityHidden(true)
-            if let value {
-                HStack(alignment: .firstTextBaseline, spacing: 2) {
-                    StudioText("\(value)", id: "charge.readout")
-                        .font(.system(size: 22, weight: .semibold, design: .rounded)).monospacedDigit()
+            // "—" while macOS has not reported a level (never a guessed number).
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                StudioText(ChargeLimitKit.readout(value), id: "charge.readout")
+                    .font(.system(size: 22, weight: .semibold, design: .rounded)).monospacedDigit()
+                    .foregroundStyle(value == nil ? Color.secondary : Color.primary)
+                if value != nil {
                     Text("%").font(.system(size: 15, weight: .medium, design: .rounded)).foregroundStyle(.secondary)
                 }
-                .frame(width: 58, alignment: .trailing)   // 80 and 100 take the same room: nothing beside it moves
             }
+            .frame(width: 58, alignment: .trailing)   // 80, 100 and "—" take the same room: nothing beside it moves
         }
         .frame(height: 30)
     }
@@ -83,13 +85,12 @@ import ChargeBackends
     @ViewBuilder private func attention(_ state: NativeChargePresentation) -> some View {
         // While an operation is pending the spinner is the only sign (no text that appears and vanishes), until it passes
         // its deadline: then it says so, in orange.
-        if state.attention != .operationPending || state.pendingTimedOut,
-           let status = NativeChargeStatusText.text(state, model: model) {
+        if let status = NativeChargeStatusText.shown(state, model: model) {
             StudioText(L10n.text(status), id: "native.status").font(.caption)
                 .foregroundStyle(NativeChargeStatusText.isWarning(state) ? .orange : .secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        if let message = model.notices.current()?.text, message != model.nativeCharge.message.map(L10n.text) {
+        if let message = NativeChargeStatusText.notice(state, model: model) {
             Text(message).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
         }
     }
