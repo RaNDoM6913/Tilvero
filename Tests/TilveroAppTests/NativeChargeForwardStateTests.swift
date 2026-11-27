@@ -8,287 +8,146 @@ import PowerCore
 
 /// Every transport here is an isolated actor fixture; these tests never call PowerUI.
 @MainActor final class NativeChargeForwardStateTests: XCTestCase {
-    func testReopenedPendingIntentStaysProminentWithoutReapplyingIt() async throws {
-        let f = ForwardFixture(); defer { f.cleanup() }
-        await f.service.refresh()
-        try await f.service.apply(90, batteryPercent: 60, batteryFresh: true)
-        try await f.service.apply(80, batteryPercent: 85, batteryFresh: true)
-        var saved = try JSONDecoder().decode(NativeChargeJournal.self, from: Data(contentsOf: f.url))
-        for phase in [NativeChargeJournal.Phase.pendingTarget, .preparing, .restoring, .restorationPending] {
-            saved.phase = phase
-            try JSONEncoder().encode(saved).write(to: f.url)
-            let before = try Data(contentsOf: f.url)
-            let reopened = NativeChargeService(client: f.client, journalURL: f.url, admitted: true,
-                verificationAttempts: 1, environment: "fixture", operationTimeout: .milliseconds(30))
-            await reopened.refresh()
-            XCTAssertEqual(reopened.presentation().attention, .sessionReview)
-            XCTAssertTrue(reopened.presentation().showsAttentionBanner,
-                          "A saved incomplete action must remain prominent after reopening")
-            XCTAssertNil(reopened.pendingTarget, "Presentation must not reactivate saved intent")
-            await reopened.observeBattery(percent: 79, fresh: true)
-            XCTAssertEqual(try Data(contentsOf: f.url), before)
-        }
-        let writes = await f.client.writes
-        XCTAssertEqual(writes, [90])
-    }
-
-    /// Owner report: 90 -> 85 at 86%, then discharging below 85% left the "waiting for natural discharge" line on the
-    /// quick panel (twice) although the limit was already applied.
-    func testPendingNoticeDoesNotOutliveTheLimitThatDischargeApplied() async throws {
-        let f = ForwardFixture(); defer { f.cleanup() }
-        let suite = TestDefaults.name("PendingNotice"), preferences = TestDefaults.defaults(suite)
-        preferences.set(false, forKey: "historyEnabled")
-        defer { TestDefaults.remove(suite) }
-        await f.service.refresh()
-        try await f.service.apply(90, batteryPercent: 60, batteryFresh: true)
-        let model = TilveroModel(isDemo: false, preferences: preferences,
-            historyURL: f.url.deletingLastPathComponent().appendingPathComponent("History.sqlite"),
-            snapshotProvider: { BatterySnapshot(chargePercent: .init(value: 86, source: "fixture", freshness: .fresh),
-                                                isExternalPower: .init(value: false, source: "fixture")) },
-            nativeCharge: f.service)
-        defer { model.stop() }
-        await model.refresh()
-        model.setDraft(85); model.applyDraftTarget()
-        for _ in 0..<200 where model.isApplying { try await Task.sleep(for: .milliseconds(10)) }
-        XCTAssertEqual(f.service.pendingTarget, 85)
-        XCTAssertNotNil(model.notice, "The pending explanation is visible while the target is waiting")
-        XCTAssertTrue(model.noticeIsNativeChargeStatus, "It is the Charge page's line, so other tabs must not print it")
-        await f.service.observeBattery(percent: 84, fresh: true)
-        XCTAssertNil(f.service.pendingTarget)
-        XCTAssertNil(model.notice, "A copy of the pending message must not survive the apply that resolved it")
-    }
-
     func testLeavingThePageDropsItsActionNotice() async throws {
         let f = ForwardFixture(); defer { f.cleanup() }
         let suite = TestDefaults.name("NoticeDismiss"), preferences = TestDefaults.defaults(suite)
         preferences.set(false, forKey: "historyEnabled")
         defer { TestDefaults.remove(suite) }
-        await f.service.refresh()
-        try await f.service.apply(90, batteryPercent: 60, batteryFresh: true)
         let model = TilveroModel(isDemo: false, preferences: preferences,
             historyURL: f.url.deletingLastPathComponent().appendingPathComponent("History.sqlite"),
             snapshotProvider: { BatterySnapshot(chargePercent: .init(value: 86, source: "fixture", freshness: .fresh),
                                                 isExternalPower: .init(value: false, source: "fixture")) },
             nativeCharge: f.service)
         defer { model.stop() }
-        await model.refresh()
-        model.setDraft(85); model.applyDraftTarget()
+        await model.refreshNativeCharge()
+        model.setDraft(90)
+        await f.client.configure(read: .fail, after: 0)   // the apply's own read fails: a failure notice
+        model.applyDraftTarget()
         for _ in 0..<200 where model.isApplying { try await Task.sleep(for: .milliseconds(10)) }
         XCTAssertNotNil(model.notice)
         model.dismissActionNotice()
         XCTAssertNil(model.notice, "An action notice must not follow the user onto another tab")
-        XCTAssertFalse(model.noticeIsNativeChargeStatus)
-        XCTAssertEqual(f.service.pendingTarget, 85, "Only the text goes; the pending target itself stays")
-    }
-
-    func testConfirmedReplacementCannotResumeSupersededPendingTarget() async throws {
-        let f = ForwardFixture(); defer { f.cleanup() }
-        await f.service.refresh()
-        try await f.service.apply(80, batteryPercent: 85, batteryFresh: true)
-        XCTAssertEqual(f.service.pendingTarget, 80)
-        await f.client.dropRegistrationAfterSet()
-        do { try await f.service.apply(95, batteryPercent: 85, batteryFresh: true); XCTFail("Policy is not confirmed") } catch {}
-        XCTAssertFalse(f.service.recoveryRequired)
-        XCTAssertNil(f.service.pendingTarget, "The confirmed replacement supersedes the old pending request")
-        let saved = try JSONDecoder().decode(NativeChargeJournal.self, from: Data(contentsOf: f.url))
-        XCTAssertNil(saved.plannedTarget)
-        await f.client.restoreRegistration()
-        await f.service.refresh()
-        await f.service.observeBattery(percent: 79, fresh: true)
-        let writes = await f.client.writes
-        XCTAssertEqual(writes, [95], "A subsequent observation must not resurrect the old 80% request")
+        let writes = await f.client.writes; XCTAssertTrue(writes.isEmpty)
     }
 
     func testStandaloneReadTimeoutDoesNotInventUnknownWrite() async throws {
         let f = ForwardFixture(); defer { f.cleanup() }
         await f.service.refresh()
-        try await f.service.apply(90, batteryPercent: 60, batteryFresh: true)
-        let before = try Data(contentsOf: f.url)
+        try await f.service.apply(90)
         await f.client.configure(read: .suspend, after: 0)
         await f.service.refresh()
-        XCTAssertFalse(f.service.recoveryRequired)
-        XCTAssertEqual(try Data(contentsOf: f.url), before)
+        XCTAssertFalse(f.journalExists, "a read past its deadline records no write")
         XCTAssertNil(f.service.observed)
         XCTAssertFalse(f.service.canApply)
-        do { _ = try await f.service.restore(batteryPercent: 60, batteryFresh: true); XCTFail("Pending read must block restoration") } catch {}
+        do { try await f.service.apply(95); XCTFail("A pending read must block the next write") } catch {}
         await f.client.release()
         for _ in 0..<100 { await Task.yield() }
         XCTAssertNil(f.service.observed, "A late read cannot publish current policy")
-        XCTAssertFalse(f.service.recoveryRequired)
         await f.service.refresh()
         XCTAssertTrue(f.service.canApply)
         let writes = await f.client.writes; XCTAssertEqual(writes, [90])
     }
 
-    func testPendingIntentAttentionSurvivesTimedOutRefresh() async throws {
-        for restoring in [false, true] {
-            let f = ForwardFixture(); defer { f.cleanup() }
-            await f.service.refresh()
-            if restoring {
-                try await f.service.apply(95, batteryPercent: 60, batteryFresh: true)
-                let restored = try await f.service.restore(batteryPercent: 90, batteryFresh: true)
-                XCTAssertFalse(restored)
-            } else {
-                try await f.service.apply(80, batteryPercent: 85, batteryFresh: true)
-            }
-            await f.client.configure(read: .suspend, after: 0)
-            await f.service.refresh()
-            let presentation = f.service.presentation()
-            XCTAssertEqual(presentation.attention, .operationPending)
-            XCTAssertTrue(presentation.requiresGlobalAttention, "A pending read cannot hide retained charging intent")
-            XCTAssertEqual(presentation.pendingTarget, restoring ? nil : 80)
-            XCTAssertEqual(presentation.restorationTarget, restoring ? 85 : nil)
-            await f.client.release()
-        }
-    }
-
-    func testConfirmedSetterWithMissingRegistrationKeepsOwnershipWithoutMutationRecovery() async throws {
-        for conflict in [false, true] {
-            let f = ForwardFixture(); defer { f.cleanup() }
-            await f.service.refresh()
-            await f.client.dropRegistrationAfterSet(conflict: conflict)
-            do { try await f.service.apply(90, batteryPercent: 60, batteryFresh: true); XCTFail("Policy is not confirmed") } catch {}
-            XCTAssertFalse(f.service.recoveryRequired)
-            XCTAssertTrue(f.service.hasOwnedSettings)
-            XCTAssertFalse(f.service.canApply)
-            XCTAssertNil(f.service.observed)
-            let saved = try JSONDecoder().decode(NativeChargeJournal.self, from: Data(contentsOf: f.url))
-            XCTAssertEqual(saved.phase, .owned)
-            XCTAssertEqual(saved.baseline.target, 85)
-            XCTAssertEqual(saved.lastVerified.target, 90)
-            XCTAssertNil(saved.expectedMutation)
-            await f.client.restoreRegistration()
-            await f.service.refresh()
-            XCTAssertTrue(f.service.canApply)
-            let writes = await f.client.writes; XCTAssertEqual(writes, [90])
-        }
-    }
-
-    func testSecondApplyPreDispatchReadFailurePreservesOwnedJournalExactly() async throws {
-        for behavior in [ForwardClient.ReadBehavior.fail, .stale, .missingPolicy, .suspend] {
-            let f = ForwardFixture(); defer { f.cleanup() }
-            await f.service.refresh()
-            try await f.service.apply(90, batteryPercent: 60, batteryFresh: true)
-            let before = try Data(contentsOf: f.url)
-            await f.client.configure(read: behavior, after: 1)
-            do { try await f.service.apply(95, batteryPercent: 60, batteryFresh: true); XCTFail("Read must prevent dispatch") } catch {}
-            XCTAssertFalse(f.service.recoveryRequired)
-            XCTAssertEqual(try Data(contentsOf: f.url), before)
-            let writes = await f.client.writes; XCTAssertEqual(writes, [90])
-            await f.client.release()
-        }
-    }
-
-    func testFirstPostSetterReadFailureRetainsExpectedMutation() async throws {
-        for behavior in [ForwardClient.ReadBehavior.fail, .suspend, .stale] {
-            let f = ForwardFixture(); defer { f.cleanup() }
-            await f.service.refresh()
-            await f.client.configure(read: behavior, after: 2)
-            do { try await f.service.apply(90, batteryPercent: 60, batteryFresh: true); XCTFail("Configuration acknowledgement required") } catch {}
-            XCTAssertTrue(f.service.recoveryRequired)
-            let saved = try JSONDecoder().decode(NativeChargeJournal.self, from: Data(contentsOf: f.url))
-            XCTAssertEqual(saved.phase, .indeterminate)
-            XCTAssertEqual(saved.expectedMutation?.target, 90)
-            let reopened = NativeChargeService(client: f.client, journalURL: f.url, admitted: true,
-                verificationAttempts: 1, environment: "fixture", operationTimeout: .milliseconds(30))
-            XCTAssertTrue(reopened.presentation().hasRecordedMutation)
-            XCTAssertTrue(reopened.presentation().showsAttentionBanner,
-                          "A reopened journal with a recorded unknown mutation must remain prominent")
-            await f.client.release()
-            for _ in 0..<100 { await Task.yield() }
-            await f.service.refresh()
-            XCTAssertTrue(f.service.recoveryRequired)
-            let writes = await f.client.writes; XCTAssertEqual(writes, [90])
-        }
-    }
-
-    func testRestorePreDispatchFailuresPreserveEntryRecoveryAndBytes() async throws {
-        for reopening in [false, true] {
-            for behavior in [ForwardClient.ReadBehavior.fail, .stale, .missingPolicy, .suspend] {
+    /// A read failure before the dispatch (the apply's own read, or the re-read just before the write) writes nothing and
+    /// leaves no journal behind: nothing to review.
+    func testAPreDispatchReadFailureNeverWritesOrLeavesAJournal() async throws {
+        for behavior in [ForwardClient.ReadBehavior.fail, .stale, .suspend] {
+            for readsBefore in [0, 1] {
+                let label = "\(behavior) after \(readsBefore)"
                 let f = ForwardFixture(); defer { f.cleanup() }
                 await f.service.refresh()
-                try await f.service.apply(90, batteryPercent: 60, batteryFresh: true)
-                let service = reopening ? NativeChargeService(client: f.client, journalURL: f.url, admitted: true,
-                    verificationAttempts: 1, environment: "fixture", operationTimeout: .milliseconds(30)) : f.service
-                let before = try Data(contentsOf: f.url)
-                await f.client.configure(read: behavior, after: 1)
-                do { _ = try await service.restore(batteryPercent: 60, batteryFresh: true); XCTFail("No setter without valid read") } catch {}
-                XCTAssertEqual(service.recoveryRequired, reopening)
-                XCTAssertEqual(try Data(contentsOf: f.url), before)
-                let writes = await f.client.writes; XCTAssertEqual(writes, [90])
+                try await f.service.apply(90)
+                await f.client.configure(read: behavior, after: readsBefore)
+                do { try await f.service.apply(95); XCTFail("\(label): the read must prevent the dispatch") } catch {}
+                XCTAssertFalse(f.journalExists, label)
+                XCTAssertFalse(f.service.hasUnresolvedSession, label)
+                XCTAssertNotEqual(f.service.presentation().attention, .journalIntegrity, label)
+                let writes = await f.client.writes; XCTAssertEqual(writes, [90], label)
                 await f.client.release()
             }
         }
     }
 
-    func testLaterVerificationReadFailureIsPolicyUncertaintyAfterConfirmedConfiguration() async throws {
-        let f = ForwardFixture(); defer { f.cleanup() }
-        await f.service.refresh()
-        await f.client.configure(read: .fail, after: 3)
-        do { try await f.service.apply(90, batteryPercent: 60, batteryFresh: true); XCTFail("Final policy read fails") } catch {}
-        XCTAssertFalse(f.service.recoveryRequired)
-        XCTAssertEqual(f.service.presentation().attention, .policyUnconfirmed)
-        XCTAssertNil(f.service.presentation().activePolicy)
-        await f.service.refresh()
-        XCTAssertEqual(f.service.presentation().activePolicy?.target, 90)
-        let writes = await f.client.writes; XCTAssertEqual(writes, [90])
-    }
-
-    func testPartialEnableConfirmationDoesNotClaimFinalRequestedTarget() async throws {
-        let f = ForwardFixture(); defer { f.cleanup() }
-        await f.client.startDisabled()
-        await f.service.refresh()
-        await f.client.configure(read: .missingPolicy, after: 3)
-        do { try await f.service.apply(90, batteryPercent: 60, batteryFresh: true); XCTFail("Second setter admission read fails") } catch {}
-        XCTAssertFalse(f.service.recoveryRequired)
-        let saved = try JSONDecoder().decode(NativeChargeJournal.self, from: Data(contentsOf: f.url))
-        XCTAssertTrue(saved.lastVerified.enabled)
-        XCTAssertEqual(saved.lastVerified.target, 85)
-        XCTAssertNil(saved.expectedMutation)
-        XCTAssertEqual(saved.phase, .owned)
-        XCTAssertNil(f.service.presentation().activePolicy)
-        let writes = await f.client.writes; XCTAssertTrue(writes.isEmpty)
-        let toggles = await f.client.enabledWrites; XCTAssertEqual(toggles, [true])
-    }
-
-    func testSecondSetterTimeoutDoesNotReuseEarlierEnableConfirmation() async throws {
-        let f = ForwardFixture(); defer { f.cleanup() }
-        await f.client.startDisabled()
-        await f.service.refresh()
-        await f.client.suspendLimit()
-        do { try await f.service.apply(90, batteryPercent: 60, batteryFresh: true); XCTFail("Second setter must timeout") } catch {}
-        XCTAssertTrue(f.service.recoveryRequired)
-        XCTAssertEqual(f.service.presentation().pendingPurpose, .setLimit(target: 90))
-        let saved = try JSONDecoder().decode(NativeChargeJournal.self, from: Data(contentsOf: f.url))
-        XCTAssertEqual(saved.lastVerified.target, 85)
-        XCTAssertEqual(saved.expectedMutation?.target, 90)
-        await f.client.release()
-        for _ in 0..<100 { await Task.yield() }
-        await f.service.refresh()
-        XCTAssertTrue(f.service.recoveryRequired)
-        XCTAssertEqual(f.service.presentation().attention, .mutationUnresolved)
-        XCTAssertNil(f.service.presentation().activePolicy)
-        let writes = await f.client.writes; XCTAssertEqual(writes, [90])
-    }
-
-    func testWriteAheadAndConfirmedJournalPersistenceFailuresNeverInventInFlightSetter() async throws {
-        for readsBeforeBlock in [1, 2] {
+    /// The first read after the setter fails (an error, a hung read, a stale read): the outcome is unknown and the journal
+    /// keeps the expected value for the next launch; nothing is re-applied.
+    func testFirstPostSetterReadFailureRetainsExpectedMutation() async throws {
+        for behavior in [ForwardClient.ReadBehavior.fail, .suspend, .stale] {
             let f = ForwardFixture(); defer { f.cleanup() }
             await f.service.refresh()
-            await f.client.blockJournal(f.url, after: readsBeforeBlock)
-            do { try await f.service.apply(90, batteryPercent: 60, batteryFresh: true); XCTFail("Persistence must fail") } catch {}
-            XCTAssertTrue(f.service.recoveryRequired)
-            XCTAssertEqual(f.service.presentation().attention, .journalIntegrity)
-            XCTAssertNil(f.service.presentation().pendingPurpose)
-            let writes = await f.client.writes
-            XCTAssertEqual(writes, readsBeforeBlock == 1 ? [] : [90])
+            await f.client.configure(read: behavior, after: 2)
+            do { try await f.service.apply(90); XCTFail("Configuration acknowledgement required") } catch {}
+            let saved = try JSONDecoder().decode(NativeChargeJournal.self, from: Data(contentsOf: f.url))
+            XCTAssertEqual(saved.phase, .indeterminate)
+            XCTAssertEqual(saved.expectedMutation?.target, 90)
+            XCTAssertEqual(f.service.presentation().attention, .mutationUnresolved)
+            let reopened = f.reopen()
+            XCTAssertTrue(reopened.presentation().hasRecordedMutation)
+            XCTAssertEqual(reopened.presentation().attention, .mutationUnresolved)
+            XCTAssertFalse(reopened.presentation().showsAttentionBanner, "a status line that closes itself, not a banner")
+            await f.client.release()
+            for _ in 0..<100 { await Task.yield() }
+            await f.service.refresh()
+            XCTAssertTrue(f.journalExists, "a young session waits for a settled read")
+            let writes = await f.client.writes; XCTAssertEqual(writes, [90])
         }
     }
 
-    func testPresentationFreshnessPendingAndLegacyReviewPrecedence() async throws {
+    /// A save failure before the dispatch (the preparing record, or the write-ahead record itself) dispatches nothing and
+    /// never leaves a record that claims a write; a journal that cannot be removed after a confirmed write is the one state
+    /// Diagnostics flags, and it still blocks nothing.
+    func testWriteAheadAndConfirmedJournalPersistenceFailuresNeverInventInFlightSetter() async throws {
+        for readsBeforeBlock in [0, 1, 2] {
+            let f = ForwardFixture(); defer { f.cleanup() }
+            try FileManager.default.createDirectory(at: f.folder, withIntermediateDirectories: true)
+            await f.service.refresh()
+            // 0: locked at the apply's own read (the preparing record cannot be saved); 1: at the re-read just before the
+            // write (the write-ahead save fails); 2: at the readback (the confirmed record cannot be removed).
+            await f.client.lockFolder(f.folder, after: readsBeforeBlock)
+            do { try await f.service.apply(90); XCTFail("Persistence must fail") } catch {}
+            XCTAssertNil(f.service.presentation().pendingPurpose)
+            let writes = await f.client.writes
+            XCTAssertEqual(writes, readsBeforeBlock == 2 ? [90] : [])
+            if readsBeforeBlock == 1 {
+                // The write-ahead save failed: no setter was dispatched, and the record on disk still says nothing was written
+                // (a launch drops it). The read-only folder kept that preparing record from being removed: flagged.
+                let saved = try JSONDecoder().decode(NativeChargeJournal.self, from: Data(contentsOf: f.url))
+                XCTAssertFalse(saved.hasWritten)
+                XCTAssertNil(saved.expectedMutation)
+                XCTAssertEqual(f.service.presentation().attention, .journalIntegrity)
+                XCTAssertFalse(f.service.hasUnresolvedSession, "nothing of unknown outcome")
+            }
+            f.unlockFolder()
+            if readsBeforeBlock == 1 {
+                try await f.service.apply(90)
+                let later = await f.client.writes
+                XCTAssertEqual(later, [90], "the next change works and writes once")
+                XCTAssertFalse(f.journalExists)
+                XCTAssertEqual(f.service.presentation().attention, .none)
+            } else if readsBeforeBlock == 0 {
+                XCTAssertNotEqual(f.service.presentation().attention, .journalIntegrity)
+                XCTAssertFalse(f.journalExists, "nothing is left on disk")
+                await f.service.refresh()
+                XCTAssertEqual(f.service.presentation().attention, .none)
+                try await f.service.apply(90)
+                let later = await f.client.writes
+                XCTAssertEqual(later, [90], "a later apply works")
+            } else {
+                XCTAssertEqual(f.service.presentation().attention, .journalIntegrity)
+                XCTAssertTrue(f.service.presentation().requiresGlobalAttention)
+                XCTAssertTrue(f.service.canApplyTarget(95), "it blocks nothing")
+                try await f.service.apply(95)   // supersedes the leftover without a write of its own
+                XCTAssertEqual(f.service.presentation().attention, .none)
+                XCTAssertFalse(f.journalExists)
+                let later = await f.client.writes
+                XCTAssertEqual(later, [90, 95])
+            }
+        }
+    }
+
+    func testPresentationFreshnessBoundaries() async throws {
         let f = ForwardFixture(); defer { f.cleanup() }
         await f.service.refresh()
-        try await f.service.apply(90, batteryPercent: 60, batteryFresh: true)
+        try await f.service.apply(90)
         let snapshot = try XCTUnwrap(f.service.nativeSetting)
         XCTAssertTrue(snapshot.isFresh(at: snapshot.collectedAt.addingTimeInterval(-5)))
         XCTAssertTrue(snapshot.isFresh(at: snapshot.collectedAt.addingTimeInterval(65)))
@@ -297,14 +156,8 @@ import PowerCore
         XCTAssertEqual(f.service.presentation(at: snapshot.collectedAt).attention, .none)
         XCTAssertFalse(f.service.presentation(at: snapshot.collectedAt).requiresGlobalAttention)
         XCTAssertNil(f.service.presentation(at: snapshot.collectedAt.addingTimeInterval(66)).activePolicy)
+        XCTAssertNil(f.service.presentation(at: snapshot.collectedAt.addingTimeInterval(66)).currentPreference)
         XCTAssertEqual(f.service.presentation(at: snapshot.collectedAt.addingTimeInterval(66)).attention, .policyUnconfirmed)
-        try await f.service.apply(80, batteryPercent: 85, batteryFresh: true)
-        XCTAssertEqual(f.service.presentation().attention, .lowerTargetPending)
-        XCTAssertTrue(f.service.presentation().requiresGlobalAttention)
-        try f.service.cancelPending()
-        let restored = try await f.service.restore(batteryPercent: 90, batteryFresh: true)
-        XCTAssertFalse(restored)
-        XCTAssertEqual(f.service.presentation().attention, .restorationPending)
     }
 
     func testBusyGateRejectsMutationBeforeDispatchCallback() async throws {
@@ -328,68 +181,36 @@ import PowerCore
         _ = try await pending.value
         let writes = await client.writes; XCTAssertTrue(writes.isEmpty)
     }
-
-    func testLegacyIndeterminateWithoutExpectedMutationNeverBecomesHealthy() async throws {
-        let f = ForwardFixture(); defer { f.cleanup() }
-        let baseline = NativeChargeConfiguration(enabled: true, target: 80, optimizedCharging: true)
-        let saved = NativeChargeJournal(sessionID: UUID(), environment: "fixture", baseline: baseline,
-            lastVerified: .init(enabled: true, target: 85, optimizedCharging: true), plannedTarget: 85,
-            phase: .indeterminate, hasWritten: true)
-        try FileManager.default.createDirectory(at: f.url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try JSONEncoder().encode(saved).write(to: f.url)
-        let before = try Data(contentsOf: f.url)
-        for registration in [false, true] {
-            if registration { await f.client.restoreRegistration() } else { await f.client.removeRegistration() }
-            let reopened = NativeChargeService(client: f.client, journalURL: f.url, admitted: true, verificationAttempts: 1, environment: "fixture", operationTimeout: .milliseconds(30))
-            await reopened.refresh()
-            XCTAssertEqual(reopened.presentation().attention, .sessionReview)
-            XCTAssertTrue(reopened.presentation().requiresGlobalAttention)
-            XCTAssertFalse(reopened.presentation().showsAttentionBanner)
-            XCTAssertNil(reopened.presentation().activePolicy)
-            await f.client.configure(read: .suspend, after: 0)
-            await reopened.refresh()
-            XCTAssertEqual(reopened.presentation().attention, .sessionReview)
-            await f.client.release()
-            for _ in 0..<100 { await Task.yield() }
-            await reopened.refresh()
-            XCTAssertTrue(reopened.recoveryRequired)
-            XCTAssertFalse(reopened.canApply)
-            XCTAssertEqual(try Data(contentsOf: f.url), before)
-        }
-        let writes = await f.client.writes; XCTAssertTrue(writes.isEmpty)
-    }
 }
 
 @MainActor private struct ForwardFixture {
     let client = ForwardClient()
     let url = FileManager.default.temporaryDirectory.appendingPathComponent("NativeForward-\(UUID().uuidString)/session.json")
     let service: NativeChargeService
+    var folder: URL { url.deletingLastPathComponent() }
     init() {
-        service = NativeChargeService(client: client, journalURL: url, admitted: true, verificationAttempts: 1,
+        service = NativeChargeService(client: client, journalURL: url, verificationAttempts: 1,
                                       environment: "fixture", operationTimeout: .milliseconds(30))
     }
-    func cleanup() { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+    func reopen() -> NativeChargeService {
+        NativeChargeService(client: client, journalURL: url, verificationAttempts: 1, environment: "fixture", operationTimeout: .milliseconds(30))
+    }
+    var journalExists: Bool { FileManager.default.fileExists(atPath: url.path) }
+    func unlockFolder() { try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: folder.path) }
+    func cleanup() { unlockFolder(); try? FileManager.default.removeItem(at: folder) }
 }
 
 private actor ForwardClient: NativeChargeTransport {
-    enum ReadBehavior { case fail, stale, missingPolicy, suspend }
+    enum ReadBehavior { case fail, stale, suspend }
     var writes: [Int] = []
-    var enabledWrites: [Bool] = []
-    private var enabled = true
-    private var suspendNextLimit = false
-    private var block: (URL, Int)?
+    private var lock: (URL, Int)?
     var isSuspended: Bool { continuation != nil }
     private var target = 85
-    private var registration = true
-    private var dropOnSet = false
-    private var conflictingRegistration = false
-    private var forcedRegistration: Int?
     private var planned: (ReadBehavior, Int)?
     private var continuation: CheckedContinuation<Void, Never>?
     func configure(read: ReadBehavior, after: Int) { planned = (read, after) }
     func read() async throws -> NativeChargeSnapshot {
         var stale = false
-        var available = true
         if let (behavior, remaining) = planned {
             if remaining > 0 { planned = (behavior, remaining - 1) }
             else {
@@ -397,38 +218,24 @@ private actor ForwardClient: NativeChargeTransport {
                 switch behavior {
                 case .fail: throw NativeChargeServiceError.readbackMismatch
                 case .stale: stale = true
-                case .missingPolicy: available = false
                 case .suspend: await withCheckedContinuation { continuation = $0 }
                 }
             }
         }
-        if let (url, remaining) = block {
-            if remaining > 0 { block = (url, remaining - 1) }
+        if let (folder, remaining) = lock {
+            if remaining > 0 { lock = (folder, remaining - 1) }
             else {
-                block = nil
-                try? FileManager.default.removeItem(at: url)
-                try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+                // The session folder becomes read-only: no journal can be saved or removed from now on.
+                lock = nil
+                try? FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: folder.path)
             }
         }
+        let enabled = target != 100
         return .init(configuration: .init(enabled: enabled, target: target, optimizedCharging: true),
-            supportedTargets: [80,85,90,95,100], registeredManualLimit: registration && enabled ? (forcedRegistration ?? target) : nil,
-            policyReadbackAvailable: available, collectedAt: stale ? Date().addingTimeInterval(-120) : Date())
+            supportedTargets: [80, 85, 90, 95, 100], registeredManualLimit: enabled ? target : nil,
+            collectedAt: stale ? Date().addingTimeInterval(-120) : Date())
     }
-    func setLimit(_ target: Int) async throws {
-        writes.append(target)
-        if suspendNextLimit { suspendNextLimit = false; await withCheckedContinuation { continuation = $0 } }
-        self.target = target
-        if dropOnSet {
-            registration = conflictingRegistration
-            forcedRegistration = conflictingRegistration ? 80 : nil
-        }
-    }
-    func setEnabled(_ enabled: Bool) async throws { enabledWrites.append(enabled); self.enabled = enabled }
-    func startDisabled() { enabled = false }
-    func suspendLimit() { suspendNextLimit = true }
-    func blockJournal(_ url: URL, after reads: Int) { block = (url, reads) }
-    func dropRegistrationAfterSet(conflict: Bool = false) { dropOnSet = true; conflictingRegistration = conflict }
-    func restoreRegistration() { registration = true; forcedRegistration = nil }
-    func removeRegistration() { registration = false }
+    func setLimit(_ target: Int) async throws { writes.append(target); self.target = target }
+    func lockFolder(_ folder: URL, after reads: Int) { lock = (folder, reads) }
     func release() { continuation?.resume(); continuation = nil }
 }

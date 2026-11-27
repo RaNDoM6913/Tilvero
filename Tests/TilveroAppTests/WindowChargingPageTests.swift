@@ -15,13 +15,14 @@ private typealias Editor = ChargeLimitKit
 /// Native transport that fails the test on any write: rendering the page (and the quick menu beside it) only reads.
 private actor ReadOnlyChargeTransport: NativeChargeTransport {
     let target: Int
-    init(target: Int) { self.target = target }
+    /// false: macOS offers no 95, a level set Tilvero does not change (the value is still shown, read-only).
+    let recognised: Bool
+    init(target: Int, recognised: Bool = true) { self.target = target; self.recognised = recognised }
     func read() -> NativeChargeSnapshot {
-        .init(configuration: .init(enabled: true, target: target, optimizedCharging: false), supportedTargets: [80, 85, 90, 95, 100],
-              registeredManualLimit: target)
+        .init(configuration: .init(enabled: true, target: target, optimizedCharging: false),
+              supportedTargets: recognised ? [80, 85, 90, 95, 100] : [80, 85, 90, 100], registeredManualLimit: target)
     }
     func setLimit(_ target: Int) { XCTFail("Rendering never writes") }
-    func setEnabled(_ enabled: Bool) { XCTFail("Rendering never writes") }
 }
 
 /// In-memory fixture transport (never the Mac's settings) for the "both editors agree after an apply" check.
@@ -33,7 +34,6 @@ private actor MemoryChargeTransport: NativeChargeTransport {
                      registeredManualLimit: off ? nil : target)
     }
     func setLimit(_ target: Int) { self.target = target }
-    func setEnabled(_ enabled: Bool) {}
 }
 
 /// A model over a temporary history store (the last hour once a minute) with a native charge service on a fixture
@@ -64,7 +64,7 @@ private actor MemoryChargeTransport: NativeChargeTransport {
                                batteryIdentityToken: base.batteryIdentityToken)
     }
 
-    static func make(adapter: Bool = true, level: Int = 72, admitted: Bool = true, nativeTarget: Int = 80,
+    static func make(adapter: Bool = true, level: Int = 72, recognised: Bool = true, nativeTarget: Int = 80, leftoverSession: Bool = false,
                      monitoringOnly: Bool = false, transport: (any NativeChargeTransport)? = nil) async throws -> ChargingFixture {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -77,9 +77,18 @@ private actor MemoryChargeTransport: NativeChargeTransport {
         }
         try await store.close()
         let current = snapshot(at: now, level: level, adapter: adapter)
-        let native = NativeChargeService(client: transport ?? ReadOnlyChargeTransport(target: nativeTarget),
-                                         journalURL: root.appendingPathComponent("native.json"), admitted: admitted,
-                                         monitoringOnly: monitoringOnly)
+        if leftoverSession {   // a write of an earlier run whose outcome macOS has not confirmed yet (young: it stays)
+            let baseline = NativeChargeConfiguration(enabled: true, target: nativeTarget, optimizedCharging: false)
+            var journal = NativeChargeJournal(sessionID: UUID(), environment: "charging-fixture", baseline: baseline, lastVerified: baseline,
+                plannedTarget: 85, phase: .indeterminate, hasWritten: true, expectedMutation: .init(enabled: true, target: 85, optimizedCharging: false))
+            journal.version = 2; journal.semanticContract = NativeChargeAdmission.semanticContract
+            journal.persistentTargets = NativeChargeAdmission.persistentTargets
+            journal.baselineSnapshot = .init(configuration: baseline, supportedTargets: [80, 85, 90, 95, 100], registeredManualLimit: nativeTarget)
+            try JSONEncoder().encode(journal).write(to: root.appendingPathComponent("native.json"))
+        }
+        let native = NativeChargeService(client: transport ?? ReadOnlyChargeTransport(target: nativeTarget, recognised: recognised),
+                                         journalURL: root.appendingPathComponent("native.json"), monitoringOnly: monitoringOnly,
+                                         environment: "charging-fixture")
         await native.refresh()
         let model = TilveroModel(isDemo: false, preferences: defaults, historyURL: url, snapshotProvider: { current },
                                  systemChargeLimitProvider: { _ in SystemChargeLimitObservation(limits: nil) },
@@ -115,8 +124,8 @@ private actor MemoryChargeTransport: NativeChargeTransport {
     func testEditorModes() {
         typealias E = Editor
         XCTAssertEqual(E.mode(isDemo: false, usesNativeCharge: true, canShowControls: true, hasTargets: true), .slider)
-        XCTAssertEqual(E.mode(isDemo: false, usesNativeCharge: true, canShowControls: false, hasTargets: false), .validate,
-                       "not validated: the validation entry instead of the slider")
+        XCTAssertEqual(E.mode(isDemo: false, usesNativeCharge: true, canShowControls: false, hasTargets: false), .unavailable,
+                       "found but not changeable now: the reported value, read-only")
         XCTAssertEqual(E.mode(isDemo: false, usesNativeCharge: false, canShowControls: true, hasTargets: true), .readOnly,
                        "no native control or monitoring only: no control")
         XCTAssertEqual(E.mode(isDemo: true, usesNativeCharge: false, canShowControls: true, hasTargets: true), .slider, "DEMO acts on the simulation")
@@ -127,8 +136,9 @@ private actor MemoryChargeTransport: NativeChargeTransport {
         typealias E = Editor
         let held = NativeChargeConfiguration(enabled: true, target: 90, optimizedCharging: false)
         let off = NativeChargeConfiguration(enabled: false, target: 100, optimizedCharging: false)
+        // The draft is a DEMO-only source (the native path shows what macOS reports: see the model test below).
         XCTAssertEqual(E.shown(chosen: 85, draft: 95, preference: held), 85, "the user's own choice wins while it is applied")
-        XCTAssertEqual(E.shown(chosen: nil, draft: 95, preference: held), 95)
+        XCTAssertEqual(E.shown(chosen: nil, draft: 95, preference: held), 95, "DEMO: the simulation's draft")
         XCTAssertEqual(E.shown(chosen: nil, draft: nil, preference: held), 90)
         XCTAssertEqual(E.shown(chosen: nil, draft: nil, preference: off), 100, "limit off reads as 100")
         XCTAssertNil(E.shown(chosen: nil, draft: nil, preference: nil))
@@ -144,8 +154,13 @@ private actor MemoryChargeTransport: NativeChargeTransport {
         XCTAssertEqual(E.pendingText(pendingTarget: 80, language: "en")?.contains("80%"), true)
         XCTAssertEqual(E.percent(80, language: "ru"), "80 %")
         XCTAssertEqual(E.percent(80, language: "en"), "80%")
-        XCTAssertTrue(E.needsPowerForValidation(admitted: false, onBattery: true))
-        XCTAssertFalse(E.needsPowerForValidation(admitted: true, onBattery: true))
+        XCTAssertEqual(E.text(off, language: "ru"), "100 %", "limit off reads as 100 %")
+        XCTAssertEqual(E.text(held, language: "en"), "90%")
+        XCTAssertEqual(E.text(.init(enabled: false, target: 80, optimizedCharging: true), language: "en"), "100%", "disabled+80 shows 100")
+        XCTAssertNil(E.text(nil))
+        XCTAssertTrue(E.showsOptimizedSwitch(isDemo: false, optimizedAvailable: true), "independent of the limit")
+        XCTAssertFalse(E.showsOptimizedSwitch(isDemo: false, optimizedAvailable: false))
+        XCTAssertFalse(E.showsOptimizedSwitch(isDemo: true, optimizedAvailable: true))
     }
 
     // MARK: Composition
@@ -214,7 +229,7 @@ private actor MemoryChargeTransport: NativeChargeTransport {
         let held = NativeChargeConfiguration(enabled: true, target: 80, optimizedCharging: false)
         let off = NativeChargeConfiguration(enabled: false, target: 100, optimizedCharging: false)
         XCTAssertEqual(ChargingComposition.macOSLimitText(native: held, systemManual: 90, language: "ru"), "80 %")
-        XCTAssertEqual(ChargingComposition.macOSLimitText(native: off, systemManual: nil, language: "ru"), L10n.text("System managed"))
+        XCTAssertEqual(ChargingComposition.macOSLimitText(native: off, systemManual: nil, language: "ru"), "100 %")
         XCTAssertEqual(ChargingComposition.macOSLimitText(native: nil, systemManual: 85, language: "en"), "85%")
         XCTAssertEqual(ChargingComposition.macOSLimitText(native: nil, systemManual: nil), "—")
         XCTAssertEqual(ChargingComposition.onOff(nil), "—")
@@ -303,21 +318,18 @@ private actor MemoryChargeTransport: NativeChargeTransport {
         let noAdapter = try await ChargingFixture.make(adapter: false, level: 64)
         defer { noAdapter.cleanup() }
 
-        // A lower limit below the charge waits for discharge without any write (the transport would fail the test).
-        let pending = try await ChargingFixture.make(level: 87, nativeTarget: 90)
-        defer { pending.cleanup() }
-        pending.model.setDraft(85)
-        pending.model.applyDraftTarget()
-        for _ in 0..<40 where pending.model.nativeCharge.pendingTarget == nil { try await Task.sleep(for: .milliseconds(50)) }
-        XCTAssertEqual(pending.model.nativeCharge.pendingTarget, 85)
-        let state = pending.model.nativeCharge.presentation()
-        XCTAssertFalse(Editor.isApplied(shown: Editor.shown(chosen: nil, model: pending.model),
-                                                   current: Editor.current(state.currentPreference),
-                                                   pendingTarget: state.pendingTarget), "pending is never drawn as applied")
+        // An earlier write macOS has not confirmed yet: one status line, the slider stays usable, nothing is written.
+        let unconfirmed = try await ChargingFixture.make(level: 87, nativeTarget: 90, leftoverSession: true)
+        defer { unconfirmed.cleanup() }
+        XCTAssertEqual(Editor.mode(unconfirmed.model), .slider)
+        XCTAssertEqual(unconfirmed.model.nativeCharge.presentation().attention, .mutationUnresolved)
+        XCTAssertEqual(NativeChargeStatusText.text(unconfirmed.model.nativeCharge.presentation(), model: unconfirmed.model),
+                       "macOS has not confirmed the last change yet.")
+        XCTAssertEqual(Editor.shown(chosen: nil, model: unconfirmed.model), 90, "what macOS reports, never the journal's value")
 
-        let unvalidated = try await ChargingFixture.make(admitted: false)
-        defer { unvalidated.cleanup() }
-        XCTAssertEqual(Editor.mode(unvalidated.model), .validate)
+        let unrecognised = try await ChargingFixture.make(recognised: false)
+        defer { unrecognised.cleanup() }
+        XCTAssertEqual(Editor.mode(unrecognised.model), .unavailable)
 
         // Monitoring only: no control, the macOS limit as a read-only row.
         let monitoring = try await ChargingFixture.make(monitoringOnly: true)
@@ -330,9 +342,9 @@ private actor MemoryChargeTransport: NativeChargeTransport {
         await demo.refresh()
 
         let cases: [(String, TilveroModel)] = [("normal", normal.model), ("noadapter", noAdapter.model),
-                                               ("pending", pending.model), ("unvalidated", unvalidated.model),
+                                               ("unconfirmed", unconfirmed.model), ("unrecognised", unrecognised.model),
                                                ("readonly", monitoring.model), ("demo", demo)]
-        let extra: Set<String> = ["unvalidated", "readonly", "demo"]
+        let extra: Set<String> = ["unrecognised", "readonly", "demo"]
         for (name, model) in cases {
             let observedBefore = model.nativeCharge.observed?.configuration
             let demoDraft = model.isDemo ? model.chargeState : nil
@@ -398,8 +410,7 @@ private actor MemoryChargeTransport: NativeChargeTransport {
         let quick85 = Editor.shown(chosen: nil, model: model)
         XCTAssertEqual(window85, 85)
         XCTAssertEqual(window85, quick85)
-        XCTAssertTrue(Editor.isApplied(shown: window85, current: Editor.current(state.currentPreference),
-                                                  pendingTarget: state.pendingTarget))
+        XCTAssertTrue(Editor.isApplied(shown: window85, current: Editor.current(state.currentPreference), pendingTarget: nil))
         XCTAssertEqual(Editor.targets(model), [80, 85, 90, 95, 100])
     }
 }

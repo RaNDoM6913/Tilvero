@@ -8,13 +8,31 @@
     #if DEBUG
     static var isEnabled = false
     private(set) static var counts: [String: Int] = [:]
-    static func reset() { counts = [:] }
+    /// The last text each `StudioText` id drew while enabled: a render test reads what is on screen, not a helper's result.
+    private(set) static var texts: [String: String] = [:]
+    /// Whether each readout id was last drawn as the value macOS holds now (primary) or as one not confirmed (dimmed).
+    private(set) static var heldReadouts: [String: Bool] = [:]
+    static func reset() { counts = [:]; texts = [:]; heldReadouts = [:] }
     #endif
 
     @inline(__always) static func hit(_ name: @autoclosure () -> String) {
         #if DEBUG
         guard isEnabled else { return }
         counts[name(), default: 0] += 1
+        #endif
+    }
+
+    @inline(__always) static func text(_ id: @autoclosure () -> String, _ value: @autoclosure () -> String) {
+        #if DEBUG
+        guard isEnabled else { return }
+        texts[id()] = value()
+        #endif
+    }
+
+    @inline(__always) static func held(_ id: @autoclosure () -> String, _ value: Bool) {
+        #if DEBUG
+        guard isEnabled else { return }
+        heldReadouts[id()] = value
         #endif
     }
 }

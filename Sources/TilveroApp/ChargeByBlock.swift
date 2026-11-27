@@ -16,18 +16,19 @@ import PowerCore
     @State private var committedWheelValue: SleepWheelValue?
 
     private static let strip = [85, 90, 95]
-    private var limit: Int? { model.observedNativeLimit }
-    /// Levels above the user's limit; the strip never offers a level the limit already allows.
+    private var limit: Int? { model.nativeCharge.reportedLimit }
+    /// Levels above the user's limit that macOS offers; the strip never offers a level the limit already allows, and offers
+    /// none until the limit has been read.
     private var levels: [Int] {
-        let allowed = Set(model.nativeCharge.authorizedPersistentTargets)
-        return [85, 90, 95, 100].filter { level in allowed.contains(level) && (limit.map { level > $0 } ?? true) }
+        [85, 90, 95, 100].filter { level in model.nativeCharge.offersTarget(level) && (limit.map { level > $0 } ?? false) }
     }
     private var selected: Int { service.state?.target ?? service.draftTarget }
     private var armedPhase: Bool { service.state?.phase == .armed }
 
     var body: some View {
-        // Always present with the controls (dimmed while no level lies above the limit) so changing the limit never resizes the page.
-        if model.canShowChargeControls, model.usesNativeCharge {
+        // Present with the slider (dimmed while no level lies above the limit) so changing the limit never resizes the page;
+        // in the read-only state only while a plan exists, so its cancel stays reachable.
+        if ChargeLimitKit.showsChargeBy(model, armed: service.isArmed) {
             VStack(alignment: .leading, spacing: 12) {
                 Divider()
                 titleRow
@@ -35,8 +36,12 @@ import PowerCore
                 statusLines
             }
             .studioElement("charge.by", kind: "container", label: "Charge by time")
-            .onAppear { if !levels.contains(service.draftTarget) { service.draftTarget = levels.last ?? 100 } }
-            .onChange(of: limit) { _, _ in if !service.isArmed, !levels.contains(service.draftTarget) { service.draftTarget = levels.last ?? 100 } }
+            // The picked level is checked only against a known limit: while it is unknown (lapsed after sleep, the next
+            // read is due) the strip offers nothing, and the user's choice is kept for when it is read.
+            .onAppear { if limit != nil, !levels.contains(service.draftTarget) { service.draftTarget = levels.last ?? 100 } }
+            .onChange(of: limit) { _, _ in
+                if limit != nil, !service.isArmed, !levels.contains(service.draftTarget) { service.draftTarget = levels.last ?? 100 }
+            }
         }
     }
 
@@ -154,6 +159,13 @@ import PowerCore
         if let line = status {
             Label { Text(line.text).fixedSize(horizontal: false, vertical: true) } icon: { Image(systemName: line.symbol) }
                 .font(.system(size: 13, weight: .medium)).foregroundStyle(line.warning ? Color.orange : Color.primary)
+        }
+        // The note promises the pause, so only before the lift; afterwards only a failed pause is said.
+        if service.isArmed, service.state?.phase == .armed { OptimizedChargingPlanNote(service: model.optimizedCharging) }
+        if service.optimizedPauseFailed {
+            Label { Text(L10n.text("Optimized charging could not be paused. macOS may hold the battery at 80 %.")).fixedSize(horizontal: false, vertical: true) }
+                icon: { Image(systemName: "exclamationmark.triangle") }
+                .font(.system(size: 13, weight: .medium)).foregroundStyle(Color.orange)
         }
         if service.isArmed, service.message == nil, model.chargeByObservation.externalPower != false, let later = service.suggestedDeadline {
             Button { Task { await service.setDeadline(later) } } label: {

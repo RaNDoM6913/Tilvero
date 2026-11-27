@@ -114,7 +114,7 @@ struct QuickPanel: View {
         // it must neither repeat there nor leak onto the Sleep and other tabs. The simulation's confirmation stays out of
         // the quick menu (its header already says Simulation).
         if section == .charge, model.usesNativeCharge { return nil }
-        return model.notices.current(excluding: model.isDemo ? [.chargeStatus, .simulation] : [.chargeStatus])?.text
+        return model.notices.current(excluding: model.isDemo ? [.simulation] : [])?.text
     }
 
     private var overview: some View {
@@ -142,6 +142,11 @@ struct QuickPanel: View {
                 }
                 StudioActionButton(L10n.text("Return to system control"), id: "action.return-to-system-control") { model.releaseControl() }
                     .disabled(model.isApplying || !model.canReleaseCharge)
+            }
+            // Optimized Charging is its own macOS setting: the switch is here even when the native limit was never found.
+            if ChargeLimitKit.showsOptimizedSwitch(isDemo: model.isDemo, optimizedAvailable: model.optimizedCharging.isAvailable) {
+                Divider()
+                OptimizedChargingRow(service: model.optimizedCharging, showsHold: false)
             }
         }
     }
@@ -252,8 +257,9 @@ struct ChargeLimitControl: View {
                 }
                 if !isQuickPanel, model.draftTarget != nil { Text(L10n.text("Draft") + ": " + model.draftText + "%").font(.caption).foregroundStyle(.secondary) }
                 if !model.usesNativeCharge { StudioText(model.effectiveLimitText, id: "charge.effective").font(.subheadline).foregroundStyle(.secondary) }
-                if model.usesNativeCharge { NativeChargeStatusPanel(model: model, compact: isQuickPanel) }
-                if model.pendingTarget != nil {
+                if model.usesNativeCharge { NativeChargeReadOnlyRows(model: model, compact: isQuickPanel) }
+                // The simulation's and the helper's lower target can wait; the native limit never does.
+                if model.pendingTarget != nil && !model.usesNativeCharge {
                     StudioActionButton(L10n.text("Cancel pending target"), id: "action.cancel-pending-target") { model.cancelPendingTarget() }
                         .help(L10n.text("Reconnecting early may charge to the effective limit while a lower target is pending."))
                     if !isQuickPanel {
@@ -262,16 +268,9 @@ struct ChargeLimitControl: View {
                     }
                 }
             } else if model.usesNativeCharge {
-                NativeChargeStatusPanel(model: model, compact: isQuickPanel)
+                NativeChargeReadOnlyRows(model: model, compact: isQuickPanel)
             } else {
                 SystemChargeLimitPanel(model: model)
-                Text(L10n.text("Direct Tilvero control requires a trusted signed helper and verified hardware restoration."))
-                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                if isQuickPanel {
-                    StudioActionButton(L10n.text("Control availability…"), id: "action.control-availability") {
-                        model.navigation.open(.section(.diagnostics))
-                    }
-                }
             }
         }.studioElement("charge.editor", kind: "container", label: "Charge limit editor")
         .task { await model.refreshNativeChargeIfStale() }

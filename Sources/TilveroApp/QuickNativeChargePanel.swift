@@ -19,9 +19,15 @@ import ChargeBackends
         let _ = RenderProbe.hit("QuickNativeChargePanel")
         let state = model.nativeCharge.presentation()
         VStack(alignment: .leading, spacing: 14) {
-            if model.canShowChargeControls, !targets.isEmpty { controls(state) } else { validationHeader(state) }
+            // The same rule as the Charging page: a state macOS reports but Tilvero does not change is read-only here too.
+            if ChargeLimitKit.mode(model) == .slider { controls(state) } else { unavailableHeader(state) }
             attention(state)
             footer(state)
+            // Optimized Charging is its own macOS setting: its switch does not depend on the limit.
+            if ChargeLimitKit.showsOptimizedSwitch(isDemo: model.isDemo, optimizedAvailable: model.optimizedCharging.isAvailable) {
+                Divider()
+                OptimizedChargingRow(service: model.optimizedCharging, showsHold: false)
+            }
             ChargeByBlock(model: model, service: model.chargeBy)
         }
         .studioElement("charge.editor", kind: "container", label: "Charge limit editor")
@@ -30,7 +36,8 @@ import ChargeBackends
 
     // MARK: Title row
 
-    private func title(value: Int?, state: NativeChargePresentation) -> some View {
+    /// `confirmed`: the value is the one macOS holds now; a lapsed one (the Mac slept, the next read is due) is dimmed.
+    private func title(value: Int?, state: NativeChargePresentation, confirmed: Bool = true) -> some View {
         HStack(spacing: 6) {
             StudioText(L10n.text("Charge limit"), id: "charge.title").font(.system(size: 14, weight: .semibold)).fixedSize()
             ChargeLimitInfoButton()
@@ -40,14 +47,18 @@ import ChargeBackends
                 .opacity(ChargeLimitKit.isWorking(model, state) ? 1 : 0)
                 .animation(.easeOut(duration: 0.15), value: ChargeLimitKit.isWorking(model, state))
                 .accessibilityHidden(true)
-            if let value {
-                HStack(alignment: .firstTextBaseline, spacing: 2) {
-                    StudioText("\(value)", id: "charge.readout")
-                        .font(.system(size: 22, weight: .semibold, design: .rounded)).monospacedDigit()
+            // "—" while macOS has not reported a level (never a guessed number).
+            let held = value != nil && confirmed
+            let _ = RenderProbe.held("charge.readout", held)
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                StudioText(ChargeLimitKit.readout(value), id: "charge.readout")
+                    .font(.system(size: 22, weight: .semibold, design: .rounded)).monospacedDigit()
+                    .foregroundStyle(held ? Color.primary : Color.secondary)
+                if value != nil {
                     Text("%").font(.system(size: 15, weight: .medium, design: .rounded)).foregroundStyle(.secondary)
                 }
-                .frame(width: 58, alignment: .trailing)   // 80 and 100 take the same room: nothing beside it moves
             }
+            .frame(width: 58, alignment: .trailing)   // 80, 100 and "—" take the same room: nothing beside it moves
         }
         .frame(height: 30)
     }
@@ -56,44 +67,41 @@ import ChargeBackends
 
     private func controls(_ state: NativeChargePresentation) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            title(value: ChargeLimitKit.shown(chosen: chosen, model: model), state: state)
+            title(value: ChargeLimitKit.shown(chosen: chosen, model: model), state: state, confirmed: ChargeLimitKit.isConfirmed(model))
             ChargeLimitLevelSlider(model: model, targets: targets, chosen: $chosen)
+                .steadyControl(ChargeLimitKit.sliderLook(model, targets: targets))
                 .studioElement("charge.slider", label: "Charge limit slider")
         }
     }
 
-    // MARK: Not validated yet
+    // MARK: Found, but not changeable by Tilvero right now: what macOS reports, read-only
 
-    @ViewBuilder private func validationHeader(_ state: NativeChargePresentation) -> some View {
+    @ViewBuilder private func unavailableHeader(_ state: NativeChargePresentation) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            title(value: nil, state: state)
-            ChargeLimitValidateButton(model: model)
-                .studioElement("action.validate-native-control", label: "Validate 80–100%")
+            title(value: ChargeLimitKit.reported(model), state: state)
+            ChargeLimitUnavailableNote(model: model)
         }
-    }
-    /// Validation needs macOS's own registry entry, which exists only while the Mac is plugged in.
-    static func needsPowerForValidation(admitted: Bool, onBattery: Bool) -> Bool {
-        ChargeLimitKit.needsPowerForValidation(admitted: admitted, onBattery: onBattery)
     }
 
     // MARK: Only when there is something to say
 
     @ViewBuilder private func attention(_ state: NativeChargePresentation) -> some View {
-        // A waiting limit has no line of its own: moving the slider back to the limit macOS holds cancels the wait.
-        // While an operation is pending the spinner is the only sign (no text that appears and vanishes).
-        if state.attention != .operationPending, let status = NativeChargeStatusPanel(model: model, compact: true).statusText(state) {
+        // While an operation is pending the spinner is the only sign (no text that appears and vanishes), until it passes
+        // its deadline: then it says so, in orange.
+        if let status = NativeChargeStatusText.shown(state, model: model) {
             StudioText(L10n.text(status), id: "native.status").font(.caption)
-                .foregroundStyle(state.requiresGlobalAttention ? .orange : .secondary)
+                .foregroundStyle(NativeChargeStatusText.isWarning(state) ? .orange : .secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        if let message = model.notices.current(excluding: [.chargeStatus])?.text, message != model.nativeCharge.message.map(L10n.text) {
+        if let message = NativeChargeStatusText.notice(state, model: model) {
             Text(message).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
         }
     }
 
     @ViewBuilder private func footer(_ state: NativeChargePresentation) -> some View {
-        // Always present with the controls (dimmed when it cannot start) so applying a limit never resizes the page.
-        if model.canShowChargeControls {
+        // Present with the slider (dimmed when it cannot start) so applying a limit never resizes the page; in the read-only
+        // state only while it runs, so its cancel stays reachable.
+        if ChargeLimitKit.showsChargeOnce(model) {
             ChargeOncePill(model: model)
                 .studioElement("charge.once", label: model.isChargeOnceRunning ? "Cancel one-time charge" : "Charge to 100% once")
         }

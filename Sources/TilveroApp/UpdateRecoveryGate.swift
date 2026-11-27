@@ -7,7 +7,7 @@ import Darwin
 /// Read-only inputs. Hardware ownership is deliberately outside the first
 /// Monitoring updater profile; even apparently restorable ownership defers it.
 struct UpdateRecoverySnapshot {
-    var nativeOwnership = false
+    /// A native write whose outcome macOS has not confirmed yet (it closes itself at the first settled clear read).
     var nativeRecovery = false
     var helperOwnership = false
     var helperRecovery = false
@@ -25,7 +25,7 @@ struct UpdateRecoverySnapshot {
         var result: [String] = []
         if operationInFlight { result.append("Finish the current operation before installing.") }
         if sleepTransition { result.append("Wait until sleep preparation or wake recovery has finished.") }
-        if nativeOwnership || nativeRecovery { result.append("Review app-owned charging settings in Diagnostics.") }
+        if nativeRecovery { result.append("Wait until macOS confirms the last charge-limit change.") }
         if helperOwnership || helperRecovery { result.append("Review app-owned helper settings in Diagnostics.") }
         if lidOwnership || lidRecovery { result.append("Review the closed-lid session in Diagnostics.") }
         if persistentEvidence { result.append("Saved control evidence needs manual review in Diagnostics.") }
@@ -40,6 +40,13 @@ struct UpdateRecoverySnapshot {
 
 enum UpdateEvidenceProbe {
     enum Result: Equatable { case absent, present, unknown }
+
+    /// Every path except the running native service's own session journal: that service loads it and reports it itself
+    /// (`nativeRecovery`, a wait that ends on its own), so it is not also "evidence for a manual review".
+    static func inspect(_ paths: [URL], excluding own: URL?) -> [Result] {
+        let excluded = own?.standardizedFileURL.path
+        return paths.filter { excluded == nil || $0.standardizedFileURL.path != excluded }.map(inspect)
+    }
 
     /// No journal decoder, service connection, mkdir, or restoration belongs here.
     static func inspect(_ url: URL) -> Result {

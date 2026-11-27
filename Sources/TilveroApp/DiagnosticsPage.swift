@@ -127,7 +127,7 @@ enum DiagnosticsSummary {
         input.ownsSettings = model.liveControl.hasOwnedSettings
         input.lidNeedsRecovery = lid.needsRecovery
         input.systemSleepDisabled = lid.systemSleepDisabled
-        input.appHolds = (native?.hasOwnership ?? false) || lid.isOn
+        input.appHolds = lid.isOn   // the native limit is the user's own macOS setting, never held by Tilvero
         input.monitoringOnly = model.launchPolicy.monitoringOnly
         input.readableFields = DiagnosticsSummary.fieldCounts(model.snapshot.catalog).readable
         return LeadLine(lead: DiagnosticsSummary.lead(input)) { EmptyView() }
@@ -152,24 +152,19 @@ private struct DiagnosticsHeading: View {
 
 // MARK: macOS charging
 
-/// The macOS charge limit as rows (limit, verified levels, the macOS settings), and the existing actions only while
-/// they apply: restore a limit Tilvero still owns, validate when nothing is validated yet. The explanations live in (i).
+/// The macOS charge limit as rows (limit, offered levels, the macOS settings) and its one status line. Nothing to restore
+/// or validate: a confirmed limit is the user's own macOS setting. The explanations live in (i).
 @MainActor private struct DiagnosticsChargeTile: View {
     var model: TilveroModel
     var body: some View {
         let native = model.nativeCharge
         let state = native.presentation()
-        let status = state.pendingPurpose == .read ? nil : NativeChargeStatusPanel(model: model).statusText(state)
-        let pending = state.pendingTarget ?? state.restorationTarget
-        let restores = state.hasOwnership || native.recoveryRequired || native.restorationPending
-        let validates = !native.admitted && !native.recoveryRequired
-        let blocked = model.isApplying || native.isBusy || native.isQualifying || state.pendingPurpose != nil
-        // The registered `pmset` manual limit when the native setting is not readable (the Charging page's fallback).
-        let manualLimit: Int? = {
-            guard let observation = model.systemChargeLimit, observation.isFresh(), let limits = observation.limits,
-                  !limits.manualLimitIsConflicting else { return nil }
-            return limits.manualLimit
-        }()
+        // A background read keeps the line it had (no flicker); a read past its deadline says so.
+        let status = state.attention == .operationPending && state.pendingPurpose == .read && !state.pendingTimedOut
+            ? nil : NativeChargeStatusText.text(state, model: model, compact: false)
+        // The registered `pmset` manual limit when the native setting is not readable (the Charging page's fallback):
+        // evidence only when read on AC.
+        let manualLimit = model.systemChargeLimit?.evidentManualLimit()
         VStack(alignment: .leading, spacing: 8) {
             DiagnosticsHeading(title: L10n.text("macOS charging"),
                                info: DiagnosticsChargeRows.infoKeys.map(L10n.text), id: "diagnostics-charge-info")
@@ -177,38 +172,17 @@ private struct DiagnosticsHeading: View {
                 WindowRow(id: "limit", label: L10n.text("Charge limit"),
                           value: DiagnosticsChargeRows.limitText(preference: state.currentPreference.map { ($0.enabled, $0.target) },
                                                                  reported: native.currentReportedTarget ?? manualLimit)),
-                WindowRow(id: "verified", label: L10n.text("Verified (charge limits)"),
-                          value: DiagnosticsChargeRows.verifiedText(native.admitted ? native.authorizedPersistentTargets : []),
+                WindowRow(id: "verified", label: L10n.text("Available (charge limits)"),
+                          value: native.admitted ? DiagnosticsChargeRows.verifiedText(native.authorizedPersistentTargets) : "—",
                           dim: !native.admitted),
                 WindowRow(id: "settings", label: L10n.text("Charging settings in macOS"), value: "",
                           action: { model.openBatterySettings() }),
             ])
             if let status {
                 Text(L10n.text(status)).font(.callout)
-                    .foregroundStyle(state.requiresGlobalAttention ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
+                    .foregroundStyle(NativeChargeStatusText.isWarning(state) ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
                     .fixedSize(horizontal: false, vertical: true).padding(.horizontal, 4)
                     .accessibilityIdentifier("diagnostics-charge-status")
-            }
-            if let pending {
-                Text(L10n.text(state.pendingTarget == nil ? "Restoration pending" : "Pending charging target")
-                     + " · " + L10n.text("Waiting for discharge below") + " \(pending)%")
-                    .font(.callout).foregroundStyle(.secondary).padding(.horizontal, 4)
-            }
-            if restores || validates {
-                HStack(spacing: 10) {
-                    if restores {
-                        Button(L10n.text("Restore previous macOS limit")) { model.releaseControl() }
-                            .buttonStyle(.borderedProminent).disabled(blocked)
-                            .accessibilityIdentifier("diagnostics-restore-limit")
-                    }
-                    if validates {
-                        Button(L10n.text("Validate 80–100%…")) { model.qualifyNativeCharge() }
-                            .disabled(blocked || !native.canRequestQualification)
-                            .accessibilityIdentifier("diagnostics-validate-limit")
-                    }
-                    Spacer(minLength: 0)
-                }
-                .padding(.leading, 4)
             }
         }
     }
@@ -217,8 +191,7 @@ private struct DiagnosticsHeading: View {
 /// Values of the charge rows (pure, testable).
 enum DiagnosticsChargeRows {
     static let infoKeys = [
-        "Validation writes each of the other verified limits in turn and restores your setting, after a confirmed persistent baseline and a battery level below 80%.",
-        "Lower targets wait for natural discharge.",
+        "A level below the current charge is set at once, as in System Settings: charging stops until the battery is below it.",
         "Registered requests do not prove an exact cutoff. macOS may occasionally charge to 100% for calibration.",
     ]
 
@@ -226,7 +199,7 @@ enum DiagnosticsChargeRows {
 
     /// The setting read from macOS; "—" when nothing was read (never a guess).
     static func limitText(preference: (enabled: Bool, target: Int)?, reported: Int?) -> String {
-        if let preference { return preference.enabled ? percent(preference.target) : L10n.text("System managed") }
+        if let preference { return percent(preference.enabled ? preference.target : NativeChargeAdmission.unlimitedTarget) }
         if let reported { return percent(reported) }
         return "—"
     }
@@ -234,7 +207,7 @@ enum DiagnosticsChargeRows {
     /// Verified persistent levels: a contiguous run of the standard levels reads as a range, anything else as a list.
     static func verifiedText(_ targets: [Int]) -> String {
         let sorted = targets.sorted()
-        guard let first = sorted.first, let last = sorted.last else { return L10n.text("Not checked (charge limits)") }
+        guard let first = sorted.first, let last = sorted.last else { return "—" }
         let standard = NativeChargeAdmission.persistentTargets
         if sorted.count > 1, let a = standard.firstIndex(of: first), let b = standard.firstIndex(of: last),
            Array(standard[a...b]) == sorted {

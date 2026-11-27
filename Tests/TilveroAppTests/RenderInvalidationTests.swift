@@ -16,7 +16,6 @@ private actor InvalidationChargeTransport: NativeChargeTransport {
         .init(configuration: .init(enabled: true, target: 90, optimizedCharging: true), supportedTargets: [80, 85, 90, 95, 100], registeredManualLimit: 90)
     }
     func setLimit(_ target: Int) { XCTFail("Rendering never writes") }
-    func setEnabled(_ enabled: Bool) { XCTFail("Rendering never writes") }
 }
 
 @MainActor private final class InvalidationKeyboard: KeyboardBacklightTransport, KeyboardBacklightPreferenceStorage {
@@ -66,7 +65,7 @@ private actor InvalidationProcesses {
         let prefs = makeTestDefaults("Invalidation").defaults
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         addTeardownBlock { UserDefaults.standard.removeObject(forKey: "TilveroReleaseTabs"); try? FileManager.default.removeItem(at: root) }
-        let native = NativeChargeService(client: InvalidationChargeTransport(), journalURL: root.appendingPathComponent("native.json"), admitted: true)
+        let native = NativeChargeService(client: InvalidationChargeTransport(), journalURL: root.appendingPathComponent("native.json"))
         await native.refresh()
         let keyboardFixture = InvalidationKeyboard()
         let keyboard = KeyboardBacklightService(driver: keyboardFixture, storage: keyboardFixture, settleDelay: .milliseconds(1))

@@ -5,44 +5,42 @@ import Foundation
 import Darwin
 import ChargeBackends
 
-/// Evidence for a finite persistent-setting contract, never physical cutoff,
-/// temporary overrides, helper authorization, or every offered target.
-struct NativeChargeAdmission: Codable {
-    static let version = 4
+/// The finite persistent-setting contract of the native charge limit: the levels macOS offers in System Settings, how a
+/// valid stored state looks, and when the live interface grants the limit. Never physical cutoff, temporary overrides or
+/// helper authorization.
+enum NativeChargeAdmission {
+    /// Part of every session journal: a journal written under another contract is never acted on.
     static let semanticContract = "PowerUI-v4-persistent-80-85-90-95-100"
-    /// The persistent states a local validation exercises (every one written, read back and restored). 100 is how
-    /// macOS stores "limit off": enabled false, target 100, no registered manual limit.
+    /// The persistent levels (as in System Settings). 100 is how macOS stores "limit off": enabled false, target 100, no
+    /// registered manual limit.
     static let persistentTargets = [80, 85, 90, 95, 100]
     static let unlimitedTarget = 100
-    /// A configuration the scoped journal may hold: an enabled limit at a verified target, or the limit off.
+
+    /// Owner decision 2026-11-26: the limit is always usable, at any charge level and after every macOS update, without a
+    /// separate validation run. Authority comes from the live interface itself: a fresh read through the checked PowerUI
+    /// bridge that offers every persistent level and holds a valid state. Every write is still journaled first and read back.
+    static func grants(_ value: NativeChargeSnapshot) -> Bool {
+        value.isFresh && validOfferedTargets(value.supportedTargets) && isValidState(value.configuration)
+    }
+
+    /// The same Mac and charge contract, whatever the macOS version between them ("model / OS / contract"): a session
+    /// journal stays readable across a macOS update. Other formats (fixtures) compare exactly.
+    static func sameMachine(_ a: String, _ b: String) -> Bool {
+        let x = a.components(separatedBy: " / "), y = b.components(separatedBy: " / ")
+        guard x.count == 3, y.count == 3 else { return a == b }
+        return x[0] == y[0] && x[2] == y[2] && !x[0].isEmpty
+    }
+
+    /// A configuration Tilvero recognises: an enabled limit at a persistent level, or the limit off.
     static func isValidState(_ configuration: NativeChargeConfiguration) -> Bool {
         configuration.target == unlimitedTarget ? !configuration.enabled : configuration.enabled && persistentTargets.contains(configuration.target)
     }
 
-    struct Scope: Equatable, Sendable {
-        let environment: String
-        let semanticContract: String
-        let authorizedPersistentTargets: [Int]
-        let optimizedCharging: Bool
-        // Only a fully validated proof can construct production authority.
-        fileprivate init(environment: String, optimizedCharging: Bool) {
-            self.environment = environment; semanticContract = NativeChargeAdmission.semanticContract
-            authorizedPersistentTargets = NativeChargeAdmission.persistentTargets
-            self.optimizedCharging = optimizedCharging
-        }
+    /// A stored state the registry confirms: fresh, a valid state, the offered levels and `policyMatches` (the registry on
+    /// AC; on battery power the stored setting itself).
+    static func isConfirmed(_ value: NativeChargeSnapshot) -> Bool {
+        grants(value) && value.policyMatches
     }
-
-    let version: Int
-    let environment: String
-    let semanticContract: String
-    let authorizedPersistentTargets: [Int]
-    let offeredTargets: [Int]
-    let baseline: NativeChargeConfiguration
-    let before: NativeChargeSnapshot
-    /// One verified snapshot for every persistent target other than the baseline, in ascending target order.
-    let stages: [NativeChargeSnapshot]
-    let restored: NativeChargeSnapshot
-    let completedAt: Date
 
     static var currentEnvironment: String {
         var size = 0
@@ -57,48 +55,5 @@ struct NativeChargeAdmission: Codable {
             && zip(targets, targets.dropFirst()).allSatisfy { $0 < $1 }
             && persistentTargets.allSatisfy(targets.contains)
     }
-
-    /// A complete persistent state at `target`. By default a missing registry entry on battery power is accepted
-    /// (`policyMatches`); validation evidence passes `strict: true` and then needs the registry to agree.
-    static func isPersistent(_ value: NativeChargeSnapshot, target: Int, optimizedCharging: Bool, strict: Bool = false) -> Bool {
-        let registryOK = strict ? value.registryAgrees : value.policyMatches
-        if target == unlimitedTarget {
-            return value.configuration == .init(enabled: false, target: unlimitedTarget, optimizedCharging: optimizedCharging)
-                && registryOK && value.registeredManualLimit == nil && validOfferedTargets(value.supportedTargets)
-        }
-        return value.configuration == .init(enabled: true, target: target, optimizedCharging: optimizedCharging)
-            && registryOK && (value.registeredManualLimit == target || (!strict && value.registeredManualLimit == nil && !value.registrationExpected))
-            && validOfferedTargets(value.supportedTargets)
-    }
-
-    static func loadScope(from url: URL, environment: String) -> Scope? {
-        guard let data = try? Data(contentsOf: url), let value = try? JSONDecoder().decode(Self.self, from: data) else { return nil }
-        return validatedScope(value, environment: environment)
-    }
-
-    static func validatedScope(_ value: Self, environment: String) -> Scope? {
-        guard value.version == version, value.environment == environment, !environment.isEmpty, environment != "unavailable",
-              value.semanticContract == semanticContract, value.authorizedPersistentTargets == persistentTargets,
-              validOfferedTargets(value.offeredTargets),
-              value.offeredTargets == value.before.supportedTargets,
-              value.stages.allSatisfy({ $0.supportedTargets == value.offeredTargets }),
-              value.offeredTargets == value.restored.supportedTargets,
-              value.baseline == value.before.configuration,
-              persistentTargets.contains(value.baseline.target),
-              isPersistent(value.before, target: value.baseline.target, optimizedCharging: value.baseline.optimizedCharging, strict: true),
-              value.stages.map({ $0.configuration.target }) == persistentTargets.filter({ $0 != value.baseline.target }),
-              value.stages.allSatisfy({ isPersistent($0, target: $0.configuration.target, optimizedCharging: value.baseline.optimizedCharging, strict: true) }),
-              isPersistent(value.restored, target: value.baseline.target, optimizedCharging: value.baseline.optimizedCharging, strict: true),
-              value.before.collectedAt <= (value.stages.first?.collectedAt ?? value.restored.collectedAt),
-              zip(value.stages, value.stages.dropFirst()).allSatisfy({ $0.collectedAt <= $1.collectedAt }),
-              (value.stages.last?.collectedAt ?? value.before.collectedAt) <= value.restored.collectedAt,
-              value.restored.collectedAt <= value.completedAt,
-              value.completedAt.timeIntervalSinceNow <= 5,
-              value.before.collectedAt.timeIntervalSinceReferenceDate.isFinite,
-              value.completedAt.timeIntervalSinceReferenceDate.isFinite else { return nil }
-        return Scope(environment: environment, optimizedCharging: value.baseline.optimizedCharging)
-    }
-
-    static func load(from url: URL, environment: String) -> Bool { loadScope(from: url, environment: environment) != nil }
 }
 // tlv-origin:919104438672318b

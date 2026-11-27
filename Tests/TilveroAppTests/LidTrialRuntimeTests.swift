@@ -51,11 +51,10 @@ import PowerPrivileged
         let original = Data("Preserve unrelated recovery data".utf8)
         try original.write(to: journal)
         let nativePort = TrialNativePort()
-        let native = NativeChargeService(client: nativePort, journalURL: journal, admitted: true, monitoringOnly: policy.monitoringOnly)
-        XCTAssertFalse(native.recoveryRequired, "A lid trial must not load unrelated native recovery state")
-        do { try await native.qualify(); XCTFail("Trial cannot qualify charging") } catch {}
-        do { try await native.apply(90, batteryPercent: 60, batteryFresh: true); XCTFail("Trial cannot write charging") } catch {}
-        _ = try await native.restore(batteryPercent: 60, batteryFresh: true)
+        let native = NativeChargeService(client: nativePort, journalURL: journal, monitoringOnly: policy.monitoringOnly)
+        XCTAssertFalse(native.hasUnresolvedSession, "A lid trial must not load unrelated native session state")
+        XCTAssertFalse(native.admitted)
+        do { try await native.apply(90); XCTFail("Trial cannot write charging") } catch {}
         let nativeCalls = await nativePort.calls
         XCTAssertEqual(nativeCalls, 0)
         XCTAssertEqual(try Data(contentsOf: journal), original)
@@ -78,7 +77,6 @@ private actor TrialNativePort: NativeChargeTransport {
     private(set) var calls = 0
     func read() throws -> NativeChargeSnapshot { calls += 1; throw NativeChargeServiceError.unavailable }
     func setLimit(_ target: Int) { calls += 1 }
-    func setEnabled(_ enabled: Bool) { calls += 1 }
 }
 @MainActor private final class TrialRegistrationPort: LiveHelperRegistrationDriving {
     var state: HelperInstallationState { .notRegistered }

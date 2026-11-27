@@ -51,25 +51,38 @@ public enum SystemChargeLimitParser {
 public struct SystemChargeLimitObservation: Codable, Sendable, Equatable {
     public let collectedAt: Date
     public let limits: SystemChargeLimits?
+    /// Whether the Mac ran on an adapter when this was observed; nil when unknown (older encodings). On battery power
+    /// macOS keeps listing the old rows for minutes, so they are not evidence of the current limit then.
+    public let readOnExternalPower: Bool?
     public static let source = "pmset -g battlimit (read-only)"
-    public init(collectedAt: Date = Date(), limits: SystemChargeLimits?) {
-        self.collectedAt = collectedAt; self.limits = limits
+    public init(collectedAt: Date = Date(), limits: SystemChargeLimits?, readOnExternalPower: Bool? = nil) {
+        self.collectedAt = collectedAt; self.limits = limits; self.readOnExternalPower = readOnExternalPower
     }
     public func isFresh(at now: Date = Date()) -> Bool {
         let age = now.timeIntervalSince(collectedAt)
         return limits != nil && age >= -5 && age <= 65
     }
+    /// The registered manual limit as evidence of the macOS limit: fresh, read on AC, one row. Nil otherwise (the same
+    /// rule as `NativeChargeSnapshot.policyMatches`: on battery power the registry is not evidence).
+    public func evidentManualLimit(at now: Date = Date()) -> Int? {
+        guard isFresh(at: now), readOnExternalPower == true, let limits, !limits.manualLimitIsConflicting else { return nil }
+        return limits.manualLimit
+    }
     /// Reuses an answer the native charge read got within the last few seconds (the same command, read in the same poll
     /// cycle); otherwise runs `pmset -g battlimit` itself and records it. The observation keeps the original read time.
     public static func read(readings: BatteryLimitReadings = .shared, maximumAge: TimeInterval = BatteryLimitReadings.reuseWindow,
                             query: () throws -> String = BatteryLimitReadings.query) -> Self {
+        // A reused answer is at most a few seconds old: the power state sampled now stands for it.
+        let external = PowerUIChargeClient.runsOnExternalPower()
         if let recent = readings.recent(maximumAge: maximumAge) {
-            return .init(collectedAt: recent.collectedAt, limits: try? SystemChargeLimitParser.parse(recent.output))
+            return .init(collectedAt: recent.collectedAt, limits: try? SystemChargeLimitParser.parse(recent.output), readOnExternalPower: external)
         }
         let collectedAt = Date()
-        guard let output = try? query() else { readings.invalidate(); return .init(collectedAt: collectedAt, limits: nil) }
-        readings.record(output, collectedAt: collectedAt)
-        return .init(collectedAt: collectedAt, limits: try? SystemChargeLimitParser.parse(output))
+        let generation = readings.generation
+        guard let output = try? query() else { readings.invalidate(); return .init(collectedAt: collectedAt, limits: nil, readOnExternalPower: external) }
+        readings.record(output, collectedAt: collectedAt, ifGeneration: generation)
+        return .init(collectedAt: collectedAt, limits: try? SystemChargeLimitParser.parse(output),
+                     readOnExternalPower: external && PowerUIChargeClient.runsOnExternalPower())
     }
 }
 
@@ -85,16 +98,23 @@ public final class BatteryLimitReadings: @unchecked Sendable {
 
     private let lock = NSLock()
     private var latest: (output: String, collectedAt: Date, instant: ContinuousClock.Instant)?
+    private var generationCounter: UInt64 = 0
+    /// Bumped by every `invalidate()`: a query started before a write must not record its (pre-write) answer after it.
+    public var generation: UInt64 { lock.withLock { generationCounter } }
     /// A clock that keeps counting while the Mac sleeps, so an answer from before a sleep is never taken as recent.
     private let now: @Sendable () -> ContinuousClock.Instant
     public init(now: @escaping @Sendable () -> ContinuousClock.Instant = { ContinuousClock.now }) { self.now = now }
 
-    public func record(_ output: String, collectedAt: Date = Date()) {
+    /// Records the answer; with `ifGeneration`, only when no `invalidate()` happened since that generation was read.
+    public func record(_ output: String, collectedAt: Date = Date(), ifGeneration generation: UInt64? = nil) {
         let instant = now()
-        lock.withLock { latest = (output, collectedAt, instant) }
+        lock.withLock {
+            if let generation, generation != generationCounter { return }
+            latest = (output, collectedAt, instant)
+        }
     }
     /// Forgets the answer: a failed query, or a native write about to change what the command would print.
-    public func invalidate() { lock.withLock { latest = nil } }
+    public func invalidate() { lock.withLock { latest = nil; generationCounter &+= 1 } }
     public func recent(maximumAge: TimeInterval) -> (output: String, collectedAt: Date)? {
         let instant = now()
         return lock.withLock {

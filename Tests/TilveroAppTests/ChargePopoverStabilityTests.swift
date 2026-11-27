@@ -14,7 +14,7 @@ import ChargeBackends
         defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         preferences.set(false, forKey: "historyEnabled")
         let transport = PopoverReadTransport()
-        let native = NativeChargeService(client: transport, journalURL: root.appendingPathComponent("native.json"), admitted: true)
+        let native = NativeChargeService(client: transport, journalURL: root.appendingPathComponent("native.json"))
         await native.refresh()
         await transport.setDelay(.milliseconds(50))
         let model = TilveroModel(isDemo: false, preferences: preferences, historyURL: root.appendingPathComponent("History.sqlite"),
@@ -50,8 +50,8 @@ import ChargeBackends
         defer { TestDefaults.remove(suite); try? FileManager.default.removeItem(at: root) }
         preferences.set(false, forKey: "historyEnabled")
         let transport = PopoverReadTransport()
-        // Not admitted (for example after an OS update): the panel still discovers the interface up front.
-        let native = NativeChargeService(client: transport, journalURL: root.appendingPathComponent("native.json"), admitted: false)
+        // Nothing read yet: the panel discovers (and is granted) the interface up front.
+        let native = NativeChargeService(client: transport, journalURL: root.appendingPathComponent("native.json"))
         let model = TilveroModel(isDemo: false, preferences: preferences, historyURL: root.appendingPathComponent("History.sqlite"),
                                 snapshotProvider: { .unavailable(reason: "Popover fixture") }, nativeCharge: native)
         defer { model.stop() }
@@ -74,8 +74,8 @@ import ChargeBackends
         let fixture = try StatusFixture()
         defer { fixture.cleanUp() }
         await fixture.native.refresh()
-        let panel = NativeChargeStatusPanel(model: fixture.model, compact: true)
-        let host = NSHostingController(rootView: panel.frame(width: 320))
+        let panel = StatusProbe(model: fixture.model, compact: true)
+        let host = NSHostingController(rootView: panel.rows.frame(width: 320))
         let window = NSWindow(contentViewController: host)
         let initialSize = host.sizeThatFits(in: NSSize(width: 320, height: 900))
         window.setContentSize(initialSize)
@@ -89,17 +89,31 @@ import ChargeBackends
         XCTAssertEqual(host.sizeThatFits(in: NSSize(width: 320, height: 900)).height, initialSize.height,
                        "Known settings need an in-place read indicator, without adding a loading row")
         XCTAssertEqual(fixture.native.presentation().pendingPurpose, .read)
-        XCTAssertNil(panel.statusText(fixture.native.presentation()), "Known-setting reads use the in-place progress indicator")
+        XCTAssertNil(panel.text, "Known-setting reads use the in-place progress indicator")
 
         await fixture.transport.releaseRead(failing: true)
         await refresh.value
         try await Task.sleep(for: .milliseconds(30))
         host.view.layoutSubtreeIfNeeded()
         XCTAssertEqual(fixture.native.presentation().attention, .policyUnconfirmed)
-        XCTAssertEqual(panel.statusText(fixture.native.presentation()), "Active charge policy is unconfirmed",
-                      "Read failure must still expose policy uncertainty")
-        XCTAssertGreaterThan(host.sizeThatFits(in: NSSize(width: 320, height: 900)).height, initialSize.height,
-                             "A real policy warning must still grow the compact panel")
+        XCTAssertNil(fixture.native.presentation().activePolicy, "the policy is not claimed")
+        XCTAssertNotNil(fixture.native.message, "the failure is recorded (Details show it)")
+        // The stored setting read moments ago is still fresh and shown as it is: no line flashes for a one-off read error.
+        XCTAssertNil(panel.text)
+        XCTAssertEqual(host.sizeThatFits(in: NSSize(width: 320, height: 900)).height, initialSize.height)
+
+        // A held background read keeps the attention, the status text and the height (no flicker on every poll).
+        let before = panel.text
+        await fixture.transport.holdNextRead()
+        let poll = Task { await fixture.native.refresh() }
+        await fixture.transport.waitUntilSuspended()
+        try await Task.sleep(for: .milliseconds(30))
+        host.view.layoutSubtreeIfNeeded()
+        XCTAssertEqual(fixture.native.presentation().attention, .policyUnconfirmed)
+        XCTAssertEqual(panel.text, before)
+        XCTAssertEqual(host.sizeThatFits(in: NSSize(width: 320, height: 900)).height, initialSize.height)
+        await fixture.transport.releaseRead()
+        await poll.value
         let writes = await fixture.transport.writes
         XCTAssertEqual(writes, 0)
     }
@@ -113,14 +127,14 @@ import ChargeBackends
         XCTAssertEqual(fixture.native.diagnosticStoredTarget, 90)
         XCTAssertFalse(fixture.model.canApply)
 
-        let panel = NativeChargeStatusPanel(model: fixture.model, compact: true)
-        let host = NSHostingController(rootView: panel.frame(width: 320))
+        let panel = StatusProbe(model: fixture.model, compact: true)
+        let host = NSHostingController(rootView: panel.rows.frame(width: 320))
         let window = NSWindow(contentViewController: host)
         let proposal = NSSize(width: 320, height: 900)
         let initialSize = host.sizeThatFits(in: proposal)
         window.setContentSize(initialSize)
         host.view.layoutSubtreeIfNeeded()
-        let warning = try XCTUnwrap(panel.statusText(fixture.native.presentation()))
+        let warning = try XCTUnwrap(panel.text)
 
         await fixture.transport.holdNextRead()
         let refresh = Task { await fixture.model.refreshNativeCharge() }
@@ -128,51 +142,50 @@ import ChargeBackends
         try await Task.sleep(for: .milliseconds(30))
         host.view.layoutSubtreeIfNeeded()
         XCTAssertEqual(fixture.native.presentation().pendingPurpose, .read)
-        XCTAssertEqual(panel.statusText(fixture.native.presentation()), warning)
+        XCTAssertEqual(panel.text, warning)
         XCTAssertEqual(host.sizeThatFits(in: proposal), initialSize)
         XCTAssertFalse(fixture.model.canApply)
         await fixture.transport.releaseRead()
         await refresh.value
 
-        XCTAssertEqual(panel.statusText(fixture.native.presentation()), warning)
+        XCTAssertEqual(panel.text, warning)
         XCTAssertEqual(fixture.model.draftText, "100")
         let writes = await fixture.transport.writes
         XCTAssertEqual(writes, 0)
     }
 
-    func testPendingTargetAndSavedRecoveryStayVisibleDuringRead() async throws {
+    /// An unconfirmed change keeps its line (and the height) through a background read, as a conflict hint does.
+    func testAnUnresolvedSessionLineStaysVisibleDuringRead() async throws {
         let normal = try StatusFixture()
         defer { normal.cleanUp() }
         await normal.native.refresh()
-        let normalHost = NSHostingController(rootView: NativeChargeStatusPanel(model: normal.model, compact: true).frame(width: 320))
+        let normalHost = NSHostingController(rootView: StatusProbe(model: normal.model, compact: true).rows.frame(width: 320))
         let normalHeight = normalHost.sizeThatFits(in: NSSize(width: 320, height: 900)).height
-        let pending = try StatusFixture()
-        defer { pending.cleanUp() }
-        await pending.native.refresh()
-        try await pending.native.apply(80, batteryPercent: 85, batteryFresh: true)
-        XCTAssertEqual(pending.native.pendingTarget, 80)
-        try await assertReadKeepsWarningVisible(pending, normalHeight: normalHeight)
-
         let configuration = NativeChargeConfiguration(enabled: true, target: 90, optimizedCharging: true)
-        let recovery = try StatusFixture(journal: .init(sessionID: UUID(), environment: "popover-fixture",
-            baseline: .init(enabled: true, target: 80, optimizedCharging: true), lastVerified: configuration,
-            plannedTarget: nil, phase: .restorationPending, hasWritten: true))
-        defer { recovery.cleanUp() }
-        await recovery.native.refresh()
-        XCTAssertTrue(recovery.native.recoveryRequired)
-        try await assertReadKeepsWarningVisible(recovery, normalHeight: normalHeight)
-        XCTAssertEqual(recovery.native.presentation().restorationTarget, 80)
-        let pendingWrites = await pending.transport.writes, recoveryWrites = await recovery.transport.writes
-        XCTAssertEqual(pendingWrites + recoveryWrites, 0)
+        var journal = NativeChargeJournal(sessionID: UUID(), environment: "popover-fixture", baseline: configuration,
+            lastVerified: configuration, plannedTarget: 85, phase: .indeterminate, hasWritten: true,
+            expectedMutation: .init(enabled: true, target: 85, optimizedCharging: true))
+        journal.version = 2; journal.semanticContract = NativeChargeAdmission.semanticContract
+        journal.persistentTargets = NativeChargeAdmission.persistentTargets
+        journal.baselineSnapshot = .init(configuration: configuration, supportedTargets: [80, 85, 90, 95, 100], registeredManualLimit: 90)
+        let unresolved = try StatusFixture(journal: journal)
+        defer { unresolved.cleanUp() }
+        await unresolved.native.refresh()   // young: the session stays
+        XCTAssertTrue(unresolved.native.hasUnresolvedSession)
+        XCTAssertEqual(StatusProbe(model: unresolved.model, compact: true).text, "macOS has not confirmed the last change yet.")
+        try await assertReadKeepsWarningVisible(unresolved, normalHeight: normalHeight)
+        let normalWrites = await normal.transport.writes, unresolvedWrites = await unresolved.transport.writes
+        XCTAssertEqual(normalWrites + unresolvedWrites, 0)
     }
 
-    func testFirstUnknownReadAndFullDiagnosticPanelKeepDetailedProgress() async throws {
-        for compact in [false, true] {
+    /// The very first read (nothing known yet) shows its progress; a later background read keeps the confirmed state.
+    func testFirstUnknownReadShowsProgressAndABackgroundReadKeepsTheConfirmedState() async throws {
+        for known in [false, true] {
             let fixture = try StatusFixture()
             defer { fixture.cleanUp() }
-            if !compact { await fixture.native.refresh() }
-            let panel = NativeChargeStatusPanel(model: fixture.model, compact: compact)
-            let host = NSHostingController(rootView: panel.frame(width: 320))
+            if known { await fixture.native.refresh() }
+            let panel = StatusProbe(model: fixture.model, compact: !known)
+            let host = NSHostingController(rootView: panel.rows.frame(width: 320))
             let window = NSWindow(contentViewController: host)
             window.setContentSize(host.sizeThatFits(in: NSSize(width: 320, height: 900)))
             await fixture.transport.holdNextRead()
@@ -180,7 +193,13 @@ import ChargeBackends
             await fixture.transport.waitUntilSuspended()
             try await Task.sleep(for: .milliseconds(30))
             host.view.layoutSubtreeIfNeeded()
-            XCTAssertEqual(panel.statusText(fixture.native.presentation()), "Reading the native charge policy…")
+            if known {
+                XCTAssertEqual(fixture.native.presentation().attention, .none, "a background read is not a pending operation")
+                XCTAssertEqual(fixture.native.presentation().activePolicy?.target, 90, "the confirmed policy stays shown")
+                XCTAssertNil(panel.text)
+            } else {
+                XCTAssertEqual(panel.text, "Reading the native charge policy…")
+            }
             await fixture.transport.releaseRead()
             await refresh.value
             let writes = await fixture.transport.writes
@@ -192,8 +211,8 @@ import ChargeBackends
         let fixture = try StatusFixture(operationTimeout: .milliseconds(30))
         defer { fixture.cleanUp() }
         await fixture.native.refresh()
-        let panel = NativeChargeStatusPanel(model: fixture.model, compact: true)
-        let host = NSHostingController(rootView: panel.frame(width: 320))
+        let panel = StatusProbe(model: fixture.model, compact: true)
+        let host = NSHostingController(rootView: panel.rows.frame(width: 320))
         let normalHeight = host.sizeThatFits(in: NSSize(width: 320, height: 900)).height
         await fixture.transport.holdNextRead()
         let refresh = Task { await fixture.native.refresh() }
@@ -201,31 +220,35 @@ import ChargeBackends
         await refresh.value
         XCTAssertFalse(fixture.native.isBusy, "The deadline returns control without claiming transport cancellation")
         XCTAssertEqual(fixture.native.presentation().pendingPurpose, .read)
-        let warning = try XCTUnwrap(fixture.native.message)
-        XCTAssertEqual(panel.statusText(fixture.native.presentation()), warning,
+        XCTAssertTrue(fixture.native.presentation().pendingTimedOut)
+        // A fixed line (the service message is overwritten by the refresh that timed out).
+        XCTAssertEqual(panel.text, "The native policy read timed out. Further actions wait for the read to return.",
                        "An overdue read needs its warning, rather than only the compact progress indicator")
         XCTAssertGreaterThan(host.sizeThatFits(in: NSSize(width: 320, height: 900)).height, normalHeight)
         await fixture.transport.releaseRead()
+        for _ in 0..<200 where fixture.native.presentation().pendingPurpose != nil { await Task.yield() }
+        XCTAssertFalse(fixture.native.presentation().pendingTimedOut, "the late return clears it")
+        XCTAssertNil(panel.text, "the fresh stored setting is shown as it is")
         let writes = await fixture.transport.writes
         XCTAssertEqual(writes, 0)
     }
 
     private func assertReadKeepsWarningVisible(_ fixture: StatusFixture, normalHeight: CGFloat) async throws {
-        let panel = NativeChargeStatusPanel(model: fixture.model, compact: true)
-        let host = NSHostingController(rootView: panel.frame(width: 320))
+        let panel = StatusProbe(model: fixture.model, compact: true)
+        let host = NSHostingController(rootView: panel.rows.frame(width: 320))
         let window = NSWindow(contentViewController: host)
         let initialSize = host.sizeThatFits(in: NSSize(width: 320, height: 900))
         window.setContentSize(initialSize)
-        let originalStatus = panel.statusText(fixture.native.presentation())
-        XCTAssertGreaterThan(initialSize.height, normalHeight, "Pending or saved-recovery warnings must occupy visible space")
+        let originalStatus = panel.text
+        XCTAssertGreaterThan(initialSize.height, normalHeight, "An unresolved-session line must occupy visible space")
         await fixture.transport.holdNextRead()
         let refresh = Task { await fixture.native.refresh() }
         await fixture.transport.waitUntilSuspended()
         try await Task.sleep(for: .milliseconds(30))
         host.view.layoutSubtreeIfNeeded()
         XCTAssertEqual(host.sizeThatFits(in: NSSize(width: 320, height: 900)).height, initialSize.height,
-                       "Read progress must preserve pending-target and recovery warning rows")
-        XCTAssertEqual(panel.statusText(fixture.native.presentation()), originalStatus)
+                       "Read progress must preserve the status line")
+        XCTAssertEqual(panel.text, originalStatus)
         await fixture.transport.releaseRead()
         await refresh.value
     }
@@ -233,6 +256,14 @@ import ChargeBackends
     private func descendants(_ view: NSView) -> [NSView] {
         view.subviews.flatMap { [$0] + descendants($0) }
     }
+}
+
+/// The native read-only rows (the older window's view) and the one status text they print.
+@MainActor private struct StatusProbe {
+    let model: TilveroModel
+    let compact: Bool
+    var rows: NativeChargeReadOnlyRows { NativeChargeReadOnlyRows(model: model, compact: compact) }
+    var text: String? { NativeChargeStatusText.text(model.nativeCharge.presentation(), model: model, compact: compact) }
 }
 
 @MainActor private struct StatusFixture {
@@ -251,7 +282,7 @@ import ChargeBackends
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
             try JSONEncoder().encode(journal).write(to: url)
         }
-        native = NativeChargeService(client: transport, journalURL: url, admitted: true, environment: "popover-fixture",
+        native = NativeChargeService(client: transport, journalURL: url, environment: "popover-fixture",
                                      operationTimeout: operationTimeout)
         model = TilveroModel(isDemo: false, preferences: preferences, historyURL: root.appendingPathComponent("History.sqlite"),
                             snapshotProvider: { .unavailable(reason: "Charge status fixture — no hardware read") }, nativeCharge: native)
@@ -302,5 +333,4 @@ private actor PopoverReadTransport: NativeChargeTransport {
                      supportedTargets: [80, 85, 90, 95, 100], registeredManualLimit: 90)
     }
     func setLimit(_ target: Int) async throws { writes += 1; throw NativeChargeServiceError.unavailable }
-    func setEnabled(_ enabled: Bool) async throws { writes += 1; throw NativeChargeServiceError.unavailable }
 }
