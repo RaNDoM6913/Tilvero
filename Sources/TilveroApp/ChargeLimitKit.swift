@@ -128,9 +128,13 @@ enum ChargeLimitKit {
     /// fought, for as long as a native apply can take (`within`: the service's `maximumOperationDuration`; tests pass a
     /// shorter one). Then the level is applied, or refused visibly (the thumb returns to what macOS reports with one short
     /// reason). False, with nothing done, once `stopped` says the release no longer stands (a new drag, the task cancelled).
-    @MainActor static func releaseWhenFree(_ model: TilveroModel, at target: Int, within: Duration? = nil,
+    /// The slider's overload takes no bound: its wait is always the service's own, so a call site cannot shorten it.
+    @MainActor static func releaseWhenFree(_ model: TilveroModel, at target: Int, stopped: () -> Bool) async -> Bool {
+        await releaseWhenFree(model, at: target, within: model.nativeCharge.maximumOperationDuration, stopped: stopped)
+    }
+    @MainActor static func releaseWhenFree(_ model: TilveroModel, at target: Int, within: Duration,
                                            stopped: () -> Bool) async -> Bool {
-        let free = ContinuousClock.now + (within ?? model.nativeCharge.maximumOperationDuration)
+        let free = ContinuousClock.now + within
         while ContinuousClock.now < free {
             if stopped() { return false }
             if !model.isApplying && !model.nativeCharge.isBusy { break }

@@ -405,12 +405,13 @@ extension ChargeByEnvironment { func pauseOptimizedCharging() async -> Bool { tr
 
     private func finish(removeWake: Bool) async {
         if removeWake, let wakeAt = state?.wakeAt { _ = await wake.cancel(wakeAt, stamp: state?.wakeStamp) }
-        state = nil; plan = nil; optimizedPauseFailed = false; liftRefusals = 0; defaults.removeObject(forKey: Self.key)
+        // A warning belongs to its plan: once the plan is over nothing is retried, so nothing is left to warn about.
+        state = nil; plan = nil; message = nil; optimizedPauseFailed = false; liftRefusals = 0; defaults.removeObject(forKey: Self.key)
     }
     /// Ends the plan at once, writing nothing; its wake is removed on its own afterwards, so no caller waits for pmset.
     private func end() {
         let wakeAt = state?.wakeAt, stamp = state?.wakeStamp
-        state = nil; plan = nil; optimizedPauseFailed = false; liftRefusals = 0; defaults.removeObject(forKey: Self.key)
+        state = nil; plan = nil; message = nil; optimizedPauseFailed = false; liftRefusals = 0; defaults.removeObject(forKey: Self.key)
         guard let wakeAt else { return }
         let wake = wake
         Task { @MainActor in _ = await wake.cancel(wakeAt, stamp: stamp) }
